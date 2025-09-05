@@ -1,26 +1,40 @@
 @import "tailwindcss";
+@import "../styles/colors.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* App-wide utility tweaks */
+.container {
+  max-width: 1200px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.shadow-soft {
+  box-shadow: 0 10px 30px 0 color-mix(in_oklab, var(--color-fg), transparent 92%);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.gradient-hero {
+  background: radial-gradient(1200px 450px at 50% -50px,
+      color-mix(in_oklab, var(--color-fg), transparent 92%),
+      transparent 60%);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Subtle grid pattern background */
+.bg-grid {
+  position: relative;
+}
+.bg-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+      to right,
+      color-mix(in_oklab, var(--color-fg), transparent 96%) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in_oklab, var(--color-fg), transparent 96%) 1px,
+      transparent 1px
+    );
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 70%);
+  pointer-events: none;
 }
