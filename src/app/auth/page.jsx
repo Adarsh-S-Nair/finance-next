@@ -5,7 +5,7 @@ import SignupForm from "../../components/auth/SignupForm";
 
 export default function AuthPage() {
   return (
-    <main className="relative min-h-[calc(100vh-56px)] flex items-center justify-center px-6 py-16 bg-grid">
+    <main className="relative min-h-[calc(100vh-5rem)] flex items-center justify-center px-6 py-16 bg-grid">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">Sign in or create an account</h1>

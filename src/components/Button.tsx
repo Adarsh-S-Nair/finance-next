@@ -2,6 +2,7 @@
 
 import { ButtonHTMLAttributes, forwardRef } from "react";
 import clsx from "clsx";
+import { useUser } from "./UserProvider";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle";
@@ -29,6 +30,10 @@ const variants: Record<string, string> = {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", fullWidth = false, children, ...props }, ref) => {
+    const { profile } = useUser();
+    const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+    const isDefaultAccent = !profile?.accent_color;
+    
     const sizeClasses =
       size === "sm"
         ? "h-8 px-3"
@@ -41,10 +46,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         : size === "icon"
         ? "h-9 w-9 p-0"
         : "h-10 px-4"; // md default
+
+    // Special handling for primary buttons in dark mode with default accent
+    const primaryVariantClass = variant === "primary" && isDarkMode && isDefaultAccent
+      ? "bg-[var(--color-accent)] text-black hover:bg-[var(--color-accent-hover)]"
+      : variants[variant];
+
     return (
       <button
         ref={ref}
-        className={clsx(baseStyles, variants[variant], sizeClasses, fullWidth && "w-full", className)}
+        className={clsx(baseStyles, primaryVariantClass, sizeClasses, fullWidth && "w-full", className)}
         {...props}
       >
         {children}

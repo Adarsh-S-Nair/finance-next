@@ -63,10 +63,10 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   return (
     <div className="flex h-full flex-col">
-      <div className="h-16 shrink-0 px-4 flex items-center gap-2">
+      <div className="h-16 shrink-0 flex items-center gap-3 px-4">
         <span
           aria-hidden
-          className="h-8 w-8 inline-block bg-[var(--color-accent)]"
+          className="h-16 w-16 inline-block bg-[var(--color-accent)] flex-shrink-0"
           style={{
             WebkitMaskImage: "url(/logo.svg)",
             maskImage: "url(/logo.svg)",
@@ -78,6 +78,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
             maskPosition: "center",
           }}
         />
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--color-fg)] font-sans">
+          ZENTARI
+        </h1>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {groups.map((g) => (
