@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import Button from "../../components/Button";
+import { supabase } from "../../lib/supabaseClient";
+import { useToast } from "../../components/ToastProvider";
+import { useRouter } from "next/navigation";
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState("");
@@ -9,11 +12,28 @@ export default function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { setToast } = useToast();
+  const router = useRouter();
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+        },
+      },
+    });
+    if (error) {
+      setToast({ title: "Sign up failed", description: error.message, variant: "error" });
+    } else if (data?.user) {
+      setToast({ title: "Account created", variant: "success" });
+      router.push("/dashboard");
+    }
     setIsLoading(false);
   };
 

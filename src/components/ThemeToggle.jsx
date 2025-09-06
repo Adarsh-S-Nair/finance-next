@@ -25,7 +25,7 @@ export default function ThemeToggle() {
       <span className="relative inline-flex h-6 w-12 items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors duration-200">
         {/* Thumb with icon */}
         <span
-          className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] transition-transform duration-200 will-change-transform"
+          className="ml-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] transition-transform duration-200 will-change-transform"
           style={{ transform: dark ? 'translateX(22px)' : 'translateX(0px)' }}
         >
           {dark ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 export default function Tabs({ tabs, initialKey }) {
   const defaultKey = initialKey || (tabs && tabs.length ? tabs[0].key : "");
@@ -19,9 +19,9 @@ export default function Tabs({ tabs, initialKey }) {
                 key={t.key}
                 type="button"
                 onClick={() => setActive(t.key)}
-                className={`relative z-10 rounded-full px-3 py-1 text-sm transition-colors ${
+                className={`relative z-10 rounded-full px-3 py-1 text-sm transition-colors hover:cursor-pointer ${
                   active === t.key
-                    ? "text-[var(--color-on-primary)]"
+                    ? "text-[var(--color-on-accent)]"
                     : "text-[var(--color-fg)]"
                 }`}
               >
@@ -32,24 +32,14 @@ export default function Tabs({ tabs, initialKey }) {
           <motion.span
             layout
             transition={{ type: "spring", stiffness: 500, damping: 38 }}
-            className="absolute inset-y-0 z-0 w-1/2 rounded-full bg-[var(--color-fg)]"
+            className="absolute inset-y-0 z-0 w-1/2 rounded-full bg-[var(--color-accent)]"
             style={{ left: `${(100 / tabs.length) * activeIndex}%` }}
           />
         </div>
       </div>
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-content-bg)]/70 p-6 backdrop-blur-md shadow-soft">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-          >
-            {tabs.find((t) => t.key === active)?.content}
-          </motion.div>
-        </AnimatePresence>
+        {tabs.find((t) => t.key === active)?.content}
       </div>
     </div>
   );

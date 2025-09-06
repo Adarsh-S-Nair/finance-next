@@ -2,16 +2,27 @@
 
 import { useState } from "react";
 import Button from "../../components/Button";
+import { supabase } from "../../lib/supabaseClient";
+import { useToast } from "../../components/ToastProvider";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { setToast } = useToast();
+  const router = useRouter();
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setToast({ title: "Sign in failed", description: error.message, variant: "error" });
+    } else {
+      setToast({ title: "Signed in", variant: "success" });
+      router.push("/dashboard");
+    }
     setIsLoading(false);
   };
 
