@@ -8,9 +8,11 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { useUser } from "../../components/UserProvider";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { logout } = useUser();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -32,6 +34,7 @@ export default function SettingsPage() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j?.error || "Failed to delete account");
       }
+      logout(); // Reset theme and accent immediately
       await supabase.auth.signOut();
       router.push("/");
       router.refresh();

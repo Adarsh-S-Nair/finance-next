@@ -12,6 +12,7 @@ const UserContext = createContext({
   loading: true,
   setTheme: (_theme) => {},
   setAccentColor: (_hexOrNull) => {},
+  logout: () => {},
 });
 
 export function useUser() {
@@ -81,7 +82,6 @@ export default function UserProvider({ children }) {
       setProfile(profile);
       if (profile?.theme) {
         applyTheme(profile.theme);
-        localStorage.setItem("theme.dark", profile.theme === "dark" ? "1" : "0");
       }
       if (profile && Object.prototype.hasOwnProperty.call(profile, 'accent_color')) {
         applyAccent(profile.accent_color);
@@ -197,7 +197,6 @@ export default function UserProvider({ children }) {
   const setTheme = useCallback(async (theme) => {
     console.log("[UserProvider] setTheme", theme);
     applyTheme(theme);
-    localStorage.setItem("theme.dark", theme === "dark" ? "1" : "0");
     setProfile((p) => ({ ...(p || {}), theme }));
     try {
       console.log("[UserProvider] ensuring user before theme upsert");
@@ -229,7 +228,17 @@ export default function UserProvider({ children }) {
     }
   }, [applyAccent, ensureUser]);
 
-  const value = useMemo(() => ({ user, profile, loading, setTheme, setAccentColor }), [user, profile, loading, setTheme, setAccentColor]);
+  const logout = useCallback(() => {
+    console.log("[UserProvider] logout - resetting theme and accent");
+    // Reset to light theme and default accent immediately
+    applyTheme('light');
+    applyAccent(null);
+    // Clear profile state
+    setProfile(null);
+    setUser(null);
+  }, [applyTheme, applyAccent]);
+
+  const value = useMemo(() => ({ user, profile, loading, setTheme, setAccentColor, logout }), [user, profile, loading, setTheme, setAccentColor, logout]);
 
   return (
     <UserContext.Provider value={value}>

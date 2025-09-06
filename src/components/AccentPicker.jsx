@@ -28,10 +28,10 @@ export default function AccentPicker({ inline = false }) {
 
   useEffect(() => {
     if (user) return; // authenticated users use DB-driven accent from provider
-    const saved = localStorage.getItem("theme.accent") || "default";
-    setCurrent(saved);
-    const preset = PRESETS.find((p) => p.key === saved) || PRESETS[0];
-    if (saved !== "default") applyAccent(preset);
+    // Non-authenticated users always use default accent
+    setCurrent("default");
+    const preset = PRESETS.find((p) => p.key === "default") || PRESETS[0];
+    applyAccent(preset);
   }, [user]);
 
   useEffect(() => {
@@ -39,17 +39,14 @@ export default function AccentPicker({ inline = false }) {
       setCurrent("default");
       const preset = PRESETS.find((p) => p.key === "default") || PRESETS[0];
       applyAccent(preset);
-      localStorage.setItem("theme.accent", "default");
     } else if (profile?.accent_color) {
       const match = PRESETS.find((p) => p.base.toLowerCase() === profile.accent_color.toLowerCase());
       if (match) {
         setCurrent(match.key);
         applyAccent(match);
-        localStorage.setItem("theme.accent", match.key);
       } else {
         setCurrent("custom");
         applyAccent({ base: profile.accent_color, hover: profile.accent_color, on: "#ffffff" });
-        localStorage.setItem("theme.accent", "custom");
       }
     }
   }, [profile?.accent_color]);
@@ -73,7 +70,6 @@ export default function AccentPicker({ inline = false }) {
   const select = (key) => {
     console.log("[AccentPicker] select", key);
     setCurrent(key);
-    localStorage.setItem("theme.accent", key);
     const preset = PRESETS.find((p) => p.key === key) || PRESETS[0];
     applyAccent(preset);
     setOpen(false);

@@ -17,7 +17,7 @@ import { useUser } from "./UserProvider";
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useUser();
+  const { profile, logout } = useUser();
   const accentHex = profile?.accent_color ?? null;
   const hasAccent = !!accentHex;
   const [displayName, setDisplayName] = useState("You");
@@ -158,6 +158,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               onConfirm={async () => {
                 try {
                   setIsSigningOut(true);
+                  logout(); // Reset theme and accent immediately
                   await supabase.auth.signOut();
                   onNavigate?.();
                   router.replace("/");

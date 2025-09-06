@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import { supabase } from "../lib/supabaseClient";
+import { useUser } from "./UserProvider";
 
 export default function Topbar() {
   const pathname = usePathname();
@@ -14,6 +15,7 @@ export default function Topbar() {
   const isDashboard = pathname.startsWith("/dashboard");
   const isAuthedRoute = isDashboard || pathname.startsWith("/accounts") || pathname.startsWith("/transactions") || pathname.startsWith("/budgets") || pathname.startsWith("/investments") || pathname.startsWith("/settings");
   const isLanding = pathname === "/";
+  const { logout } = useUser();
   const [user, setUser] = useState(null);
   const [showLogout, setShowLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -75,6 +77,7 @@ export default function Topbar() {
                 onConfirm={async () => {
                   try {
                     setLoggingOut(true);
+                    logout(); // Reset theme and accent immediately
                     await supabase.auth.signOut();
                   } finally {
                     setLoggingOut(false);

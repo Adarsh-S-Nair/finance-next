@@ -16,7 +16,8 @@ export default function ThemeToggle() {
     if (profile?.theme === 'dark' || profile?.theme === 'light') {
       setDark(profile.theme === 'dark');
     } else if (!loading && !profile) {
-      try { setDark(localStorage.getItem('theme.dark') === '1'); } catch {}
+      // Default to light theme for non-authenticated users
+      setDark(false);
     }
   }, [profile?.theme, loading]);
 
