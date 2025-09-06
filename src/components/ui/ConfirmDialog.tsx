@@ -17,6 +17,7 @@ type ConfirmDialogProps = {
   requiredText?: string; // if provided, require this text (case-insensitive)
   showRequiredTextUppercase?: boolean; // display placeholder/value uppercased visually
   busy?: boolean;
+  busyLabel?: string;
 };
 
 export default function ConfirmDialog({
@@ -31,6 +32,7 @@ export default function ConfirmDialog({
   requiredText,
   showRequiredTextUppercase = false,
   busy = false,
+  busyLabel = "Working...",
 }: ConfirmDialogProps) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,17 +58,25 @@ export default function ConfirmDialog({
 
   return (
     <Modal isOpen={isOpen} onClose={onCancel}>
-      <div className="relative">
+      <form
+        className="relative"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleConfirm();
+        }}
+      >
         {/* Header */}
         <h3 className="pr-8 text-lg font-semibold text-[var(--color-fg)]">{title}</h3>
 
-        {/* Warning banner */}
-        <div className="mt-3 flex items-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-danger),transparent_70%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] px-3 py-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" className="text-[var(--color-danger)]" fill="currentColor" aria-hidden>
-            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-          </svg>
-          <span className="text-sm font-medium">This action cannot be undone.</span>
-        </div>
+        {/* Warning banner (danger only) */}
+        {variant === "danger" && (
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-danger),transparent_70%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] px-3 py-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" className="text-[var(--color-danger)]" fill="currentColor" aria-hidden>
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+            </svg>
+            <span className="text-sm font-medium">This action cannot be undone.</span>
+          </div>
+        )}
 
         {/* Description */}
         {description && (
@@ -90,18 +100,26 @@ export default function ConfirmDialog({
           </div>
         )}
 
-        {/* Primary destructive action at bottom */}
-        <div className="mt-5">
+        {/* Actions: Cancel (left) and Primary (right), equal widths */}
+        <div className="mt-5 flex items-center gap-2">
           <Button
-            variant={variant === "danger" ? "danger" : "primary"}
-            onClick={handleConfirm}
-            disabled={!meetsRequirement || busy || submitting}
-            fullWidth
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            className="flex-1"
           >
-            {confirmLabel}
+            {cancelLabel}
+          </Button>
+          <Button
+            type="submit"
+            variant={variant === "danger" ? "danger" : "primary"}
+            disabled={!meetsRequirement || busy || submitting}
+            className="flex-1"
+          >
+            {busy || submitting ? busyLabel : confirmLabel}
           </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }

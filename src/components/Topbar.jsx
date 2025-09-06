@@ -5,6 +5,7 @@ import AccentPicker from "./AccentPicker";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ConfirmDialog from "./ui/ConfirmDialog";
 import { supabase } from "../lib/supabaseClient";
 
 export default function Topbar() {
@@ -14,6 +15,8 @@ export default function Topbar() {
   const isAuthedRoute = isDashboard || pathname.startsWith("/accounts") || pathname.startsWith("/transactions") || pathname.startsWith("/budgets") || pathname.startsWith("/investments") || pathname.startsWith("/settings");
   const isLanding = pathname === "/";
   const [user, setUser] = useState(null);
+  const [showLogout, setShowLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -61,11 +64,31 @@ export default function Topbar() {
             <>
               <span className="text-sm text-[var(--color-muted)] hidden sm:inline">{user.email}</span>
               <button
-                onClick={() => supabase.auth.signOut()}
+                onClick={() => setShowLogout(true)}
                 className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
               >
                 Sign out
               </button>
+              <ConfirmDialog
+                isOpen={showLogout}
+                onCancel={() => setShowLogout(false)}
+                onConfirm={async () => {
+                  try {
+                    setLoggingOut(true);
+                    await supabase.auth.signOut();
+                  } finally {
+                    setLoggingOut(false);
+                    setShowLogout(false);
+                  }
+                }}
+                title="Sign out"
+                description="Are you sure you want to sign out?"
+                confirmLabel="Sign out"
+                busyLabel="Signing out..."
+                cancelLabel="Cancel"
+                variant="primary"
+                busy={loggingOut}
+              />
             </>
           )}
         </nav>

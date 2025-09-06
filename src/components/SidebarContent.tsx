@@ -10,14 +10,20 @@ import { NAV_GROUPS } from "./nav";
 import { FaLock } from "react-icons/fa";
 import { TbLogout } from "react-icons/tb";
 import Button from "./ui/Button";
+import ConfirmDialog from "./ui/ConfirmDialog";
+import { useUser } from "./UserProvider";
 // Logo is served from public for reliable URL-based masking
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile } = useUser();
+  const accentHex = profile?.accent_color ?? null;
+  const hasAccent = !!accentHex;
   const [displayName, setDisplayName] = useState("You");
   const [profileUrl, setProfileUrl] = useState(null as string | null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -50,14 +56,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   const groups = useMemo(() => NAV_GROUPS, []);
 
-  const onLogout = async () => {
+  const onLogout = () => {
     if (isSigningOut) return;
-    console.log("[Sidebar] logout clicked");
-    setIsSigningOut(true);
-    await supabase.auth.signOut();
-    onNavigate?.();
-    router.replace("/");
-    setIsSigningOut(false);
+    setShowLogout(true);
   };
 
   return (
@@ -102,9 +103,17 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                         it.disabled
                           ? "cursor-not-allowed text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)] opacity-70"
                           : "hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]",
-                        active && !it.disabled && "bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] text-[var(--color-fg)]"
+                        active && !it.disabled && (hasAccent
+                          ? "bg-[color-mix(in_oklab,var(--color-accent),transparent_94%)] text-[var(--color-accent)]"
+                          : "bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] text-[var(--color-fg)]")
                       )}
                     >
+                      {active && hasAccent && (
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--color-accent)]"
+                        />
+                      )}
                       <span className="flex items-center gap-2">
                         <span className={it.disabled ? "opacity-40" : undefined}>{it.icon && <it.icon className="h-4 w-4" />}</span>
                         <span className={it.disabled ? "text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)]" : undefined}>{it.label}</span>
@@ -140,6 +149,28 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
             >
               <TbLogout className="h-4 w-4" />
             </Button>
+            <ConfirmDialog
+              isOpen={showLogout}
+              onCancel={() => setShowLogout(false)}
+              onConfirm={async () => {
+                try {
+                  setIsSigningOut(true);
+                  await supabase.auth.signOut();
+                  onNavigate?.();
+                  router.replace("/");
+                } finally {
+                  setIsSigningOut(false);
+                  setShowLogout(false);
+                }
+              }}
+              title="Sign out"
+              description="Are you sure you want to sign out?"
+              confirmLabel="Sign out"
+              busyLabel="Signing out..."
+              cancelLabel="Cancel"
+              variant="primary"
+              busy={isSigningOut}
+            />
           </div>
         </div>
       </div>

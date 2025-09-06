@@ -53,7 +53,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Theme</div>
-              <div className="text-sm text-[var(--color-muted)]">Switch between light and dark mode.</div>
+              <div className="text-sm text-[var(--color-muted)] hidden sm:block">Switch between light and dark mode.</div>
             </div>
             <ThemeToggle />
           </div>
@@ -61,22 +61,30 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Accent color</div>
-              <div className="text-sm text-[var(--color-muted)]">Choose a highlight color for the UI.</div>
+              <div className="text-sm text-[var(--color-muted)] hidden sm:block">Choose a highlight color for the UI.</div>
             </div>
-            <AccentPicker inline />
+            <AccentPicker />
           </div>
         </div>
       </section>
 
       <section aria-labelledby="danger-heading" className="mt-8 pl-6">
         <h2 id="danger-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Delete Account</h2>
-        <div className="mt-3 rounded-md border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] p-4">
+        <div className="mt-3 rounded-md border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_96%)] p-4">
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Delete account</div>
-              <div className="text-sm text-[var(--color-muted)]">This will permanently delete your account and all associated data.</div>
+              <div className="text-sm text-[var(--color-muted)] hidden sm:block">This will permanently delete your account and all associated data.</div>
             </div>
-            <Button variant="danger" onClick={() => setConfirmOpen(true)}>Delete account</Button>
+            <Button
+              aria-label="Delete account"
+              title="Delete account"
+              variant="danger"
+              size="sm"
+              onClick={() => setConfirmOpen(true)}
+            >
+              Delete Account
+            </Button>
           </div>
         </div>
       </section>
@@ -91,6 +99,7 @@ export default function SettingsPage() {
         title="Delete account"
         description="This action cannot be undone."
         confirmLabel="Delete"
+        busyLabel="Deleting..."
         cancelLabel="Cancel"
         variant="danger"
         requiredText="delete my account"

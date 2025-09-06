@@ -93,7 +93,7 @@ export default function AccentPicker({ inline = false }) {
             key={p.key}
             type="button"
             onClick={() => select(p.key)}
-            className={`h-7 w-7 rounded border ${current === p.key ? "ring-2 ring-[var(--color-ring)]" : "border-[var(--color-border)]"}`}
+            className={`h-7 w-7 rounded border cursor-pointer transition-transform duration-150 ${current === p.key ? "ring-2 ring-[var(--color-ring)]" : "border-[var(--color-border)]"} hover:scale-105 hover:shadow`}
             style={{ backgroundColor: p.base }}
             aria-label={p.label}
             aria-pressed={current === p.key}
@@ -109,13 +109,13 @@ export default function AccentPicker({ inline = false }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] focus:outline-none focus-visible:ring-2"
+        className="inline-flex h-8 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] focus:outline-none focus-visible:ring-2 cursor-pointer"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Choose accent color"
         title="Choose accent color"
       >
-        <span className="h-4 w-4 rounded" style={{ backgroundColor: active.base }} />
+        <span className="h-4 w-4 rounded border border-[var(--color-border)]" style={{ backgroundColor: active.base }} />
       </button>
 
       {open && (
@@ -130,7 +130,7 @@ export default function AccentPicker({ inline = false }) {
               onClick={() => select(p.key)}
               role="option"
               aria-selected={current === p.key}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] cursor-pointer"
             >
               <span className="h-4 w-4 rounded border border-[var(--color-border)]" style={{ backgroundColor: p.base }} />
               <span className="flex-1">{p.label}</span>
