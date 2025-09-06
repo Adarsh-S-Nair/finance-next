@@ -22,7 +22,7 @@ const variants: Record<string, string> = {
   ghost:
     "bg-transparent text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)]",
   danger:
-    "bg-transparent text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] focus-visible:ring-[var(--color-danger)]",
+    "bg-[var(--color-danger)] text-[var(--color-on-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),black_12%)] focus-visible:ring-[var(--color-danger)]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

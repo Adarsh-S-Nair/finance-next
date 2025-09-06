@@ -1,6 +1,33 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Button from "../components/Button";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        router.replace("/dashboard");
+      }
+      // Force landing page to light mode
+      document.documentElement.classList.remove('dark');
+      try {
+        localStorage.setItem('theme.dark', '0');
+        localStorage.setItem('theme.accent', 'default');
+      } catch {}
+      // Clear any custom accent overrides
+      const root = document.documentElement;
+      root.style.removeProperty('--color-accent');
+      root.style.removeProperty('--color-accent-hover');
+      root.style.removeProperty('--color-on-accent');
+    })();
+  }, [router]);
+
   return (
     <main className="gradient-hero bg-grid">
       <section className="container mx-auto px-6 pt-28 pb-28 text-center">

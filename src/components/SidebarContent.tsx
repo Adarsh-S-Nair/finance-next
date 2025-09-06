@@ -10,13 +10,13 @@ import { NAV_GROUPS } from "./nav";
 import { FaLock } from "react-icons/fa";
 import { TbLogout } from "react-icons/tb";
 import Button from "./ui/Button";
+// Logo is served from public for reliable URL-based masking
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [displayName, setDisplayName] = useState("You");
   const [profileUrl, setProfileUrl] = useState(null as string | null);
-  const [businessName, setBusinessName] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
@@ -44,13 +44,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(finalName)}&background=random&bold=true`;
         setProfileUrl(avatar);
       }
-      // Optional: business name is not critical yet; clear it if not available
-      try {
-        const { data: biz } = await supabase.from("business_profiles").select("name").limit(1).maybeSingle();
-        setBusinessName(biz?.name || "");
-      } catch {
-        setBusinessName("");
-      }
     };
     void load();
   }, []);
@@ -59,6 +52,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   const onLogout = async () => {
     if (isSigningOut) return;
+    console.log("[Sidebar] logout clicked");
     setIsSigningOut(true);
     await supabase.auth.signOut();
     onNavigate?.();
@@ -69,8 +63,20 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   return (
     <div className="flex h-full flex-col">
       <div className="h-16 shrink-0 px-4 flex items-center gap-2">
-        <div className="h-8 w-8 rounded-md bg-[var(--color-primary)] text-[var(--color-on-primary)] grid place-items-center text-xs font-bold">Ƒ</div>
-        <span className="text-sm font-semibold tracking-tight">Zentari</span>
+        <span
+          aria-hidden
+          className="h-8 w-8 inline-block bg-[var(--color-accent)]"
+          style={{
+            WebkitMaskImage: "url(/logo.svg)",
+            maskImage: "url(/logo.svg)",
+            WebkitMaskSize: "contain",
+            maskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            maskPosition: "center",
+          }}
+        />
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {groups.map((g) => (
@@ -122,10 +128,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               ) : (
                 <div className="h-8 w-8 rounded-full bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)]" />
               )}
-              <div>
-                <div className="text-sm font-medium">{displayName}</div>
-                <div className="text-xs text-[var(--color-muted)]">{businessName || ""}</div>
-              </div>
+              <div className="text-sm font-medium">{displayName}</div>
             </div>
             <Button
               onClick={onLogout}

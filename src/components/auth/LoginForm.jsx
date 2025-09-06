@@ -20,7 +20,6 @@ export default function LoginForm() {
     if (error) {
       setToast({ title: "Sign in failed", description: error.message, variant: "error" });
     } else {
-      setToast({ title: "Signed in", variant: "success" });
       router.push("/dashboard");
     }
     setIsLoading(false);

@@ -73,7 +73,7 @@ export default function ToastProvider({ children }: PropsWithChildren) {
           {toasts.map((t) => {
             const bgColor =
               t.variant === "success"
-                ? "var(--color-accent)"
+                ? "var(--color-success)"
                 : t.variant === "error"
                 ? "var(--color-danger)"
                 : t.variant === "warning"

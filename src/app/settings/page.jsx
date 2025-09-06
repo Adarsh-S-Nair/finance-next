@@ -1,13 +1,51 @@
+"use client";
+
 import PageContainer from "../../components/PageContainer";
 import ThemeToggle from "../../components/ThemeToggle";
 import AccentPicker from "../../components/AccentPicker";
+import { useState } from "react";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import Button from "../../components/ui/Button";
+import { supabase } from "../../lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function handleDeleteAccount() {
+    try {
+      setBusy(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || "Failed to delete account");
+      }
+      await supabase.auth.signOut();
+      router.push("/");
+      router.refresh();
+    } catch (e) {
+      // Optionally add toast here later
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <PageContainer title="Settings">
-      <div className="mt-4 border-b border-[var(--color-border)] pb-3">
-        <p className="text-sm text-[var(--color-muted)]">Configure how Zentari looks on your device.</p>
-      </div>
+      <div className="mt-4 border-b border-[var(--color-border)] pb-3"></div>
 
       <section aria-labelledby="appearance-heading" className="mt-4 pl-6">
         <h2 id="appearance-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Appearance</h2>
@@ -29,6 +67,36 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      <section aria-labelledby="danger-heading" className="mt-8 pl-6">
+        <h2 id="danger-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Delete Account</h2>
+        <div className="mt-3 rounded-md border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] p-4">
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <div className="font-medium">Delete account</div>
+              <div className="text-sm text-[var(--color-muted)]">This will permanently delete your account and all associated data.</div>
+            </div>
+            <Button variant="danger" onClick={() => setConfirmOpen(true)}>Delete account</Button>
+          </div>
+        </div>
+      </section>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={async () => {
+          await handleDeleteAccount();
+          setConfirmOpen(false);
+        }}
+        title="Delete account"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        requiredText="delete my account"
+        showRequiredTextUppercase
+        busy={busy}
+      />
     </PageContainer>
   );
 }

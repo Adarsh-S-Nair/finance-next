@@ -10,9 +10,15 @@
   --color-primary-hover: #3e3a3a;
   --color-on-primary: #ffffff;
 
-  --color-accent: #22c55e;
-  --color-accent-hover: #16a34a;
-  --color-on-accent: #ffffff;
+  /* Brand accent (default UI highlight follows primary in light mode) */
+  --color-accent: var(--color-primary);
+  --color-accent-hover: var(--color-primary-hover);
+  --color-on-accent: var(--color-on-primary);
+
+  /* Success color (messages, confirmations) */
+  --color-success: #22c55e;
+  --color-success-hover: #16a34a;
+  --color-on-success: #ffffff;
 
   --color-danger: #ef4444;
   --color-on-danger: #ffffff;
@@ -38,14 +44,20 @@
 
   --color-primary: #e6edf3; /* light button in dark mode */
   --color-primary-hover: #cdd6e0;
-  --color-on-primary: #484444; /* swap to dark text on light button */
+  --color-on-primary: #ffffff; /* always white text for primary buttons */
 
-  --color-accent: #2ea043;
-  --color-accent-hover: #238636;
-  --color-on-accent: #ffffff;
+  /* Brand accent (default UI highlight follows primary in dark mode) */
+  --color-accent: var(--color-primary);
+  --color-accent-hover: var(--color-primary-hover);
+  --color-on-accent: var(--color-on-primary);
 
-  --color-danger: #f85149;
-  --color-on-danger: #0b1214; /* dark text on light danger in dark mode */
+  /* Success color (messages, confirmations) */
+  --color-success: #2ea043;
+  --color-success-hover: #238636;
+  --color-on-success: #ffffff;
+
+  --color-danger: #dc2626; /* slightly darker red for dark mode */
+  --color-on-danger: #ffffff; /* always white text for danger buttons */
 
   --color-warn: #f08722; /* deeper orange for dark theme */
   --color-on-warn: #ffffff;

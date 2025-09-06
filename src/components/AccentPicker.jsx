@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useUser } from "./UserProvider";
 
 const PRESETS = [
   { key: "default", base: "var(--color-primary)", hover: "var(--color-primary-hover)", on: "var(--color-on-primary)", label: "Default" },
+  { key: "violet", base: "#8b5cf6", hover: "#7c3aed", on: "#ffffff", label: "Violet" },
   { key: "blue", base: "#3b82f6", hover: "#2563eb", on: "#ffffff", label: "Blue" },
   { key: "pink", base: "#ec4899", hover: "#db2777", on: "#ffffff", label: "Pink" },
-  { key: "green", base: "#22c55e", hover: "#16a34a", on: "#ffffff", label: "Green" },
   { key: "orange", base: "#f97316", hover: "#ea580c", on: "#ffffff", label: "Orange" },
-  { key: "violet", base: "#8b5cf6", hover: "#7c3aed", on: "#ffffff", label: "Violet" },
+  { key: "green", base: "#22c55e", hover: "#16a34a", on: "#ffffff", label: "Green" },
 ];
 
 function applyAccent(accent) {
@@ -20,16 +21,38 @@ function applyAccent(accent) {
 }
 
 export default function AccentPicker({ inline = false }) {
+  const { user, profile, setAccentColor } = useUser();
   const [current, setCurrent] = useState("default");
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
+    if (user) return; // authenticated users use DB-driven accent from provider
     const saved = localStorage.getItem("theme.accent") || "default";
     setCurrent(saved);
     const preset = PRESETS.find((p) => p.key === saved) || PRESETS[0];
-    applyAccent(preset);
-  }, []);
+    if (saved !== "default") applyAccent(preset);
+  }, [user]);
+
+  useEffect(() => {
+    if (profile && profile.accent_color === null) {
+      setCurrent("default");
+      const preset = PRESETS.find((p) => p.key === "default") || PRESETS[0];
+      applyAccent(preset);
+      localStorage.setItem("theme.accent", "default");
+    } else if (profile?.accent_color) {
+      const match = PRESETS.find((p) => p.base.toLowerCase() === profile.accent_color.toLowerCase());
+      if (match) {
+        setCurrent(match.key);
+        applyAccent(match);
+        localStorage.setItem("theme.accent", match.key);
+      } else {
+        setCurrent("custom");
+        applyAccent({ base: profile.accent_color, hover: profile.accent_color, on: "#ffffff" });
+        localStorage.setItem("theme.accent", "custom");
+      }
+    }
+  }, [profile?.accent_color]);
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -48,11 +71,16 @@ export default function AccentPicker({ inline = false }) {
   }, []);
 
   const select = (key) => {
+    console.log("[AccentPicker] select", key);
     setCurrent(key);
     localStorage.setItem("theme.accent", key);
     const preset = PRESETS.find((p) => p.key === key) || PRESETS[0];
     applyAccent(preset);
     setOpen(false);
+
+    const value = key === "default" ? null : preset.base;
+    console.log("[AccentPicker] calling setAccentColor", value);
+    setAccentColor(value);
   };
 
   const active = PRESETS.find((p) => p.key === current) || PRESETS[0];

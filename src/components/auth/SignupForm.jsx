@@ -5,6 +5,8 @@ import Button from "../../components/Button";
 import { supabase } from "../../lib/supabaseClient";
 import { useToast } from "../../components/ToastProvider";
 import { useRouter } from "next/navigation";
+import { upsertUserProfile, buildAvatarUrl } from "../../lib/userProfile";
+import { useUser } from "../../components/UserProvider";
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState("");
@@ -14,6 +16,7 @@ export default function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { setToast } = useToast();
   const router = useRouter();
+  const { user, profile } = useUser();
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -31,6 +34,10 @@ export default function SignupForm() {
     if (error) {
       setToast({ title: "Sign up failed", description: error.message, variant: "error" });
     } else if (data?.user) {
+      try {
+        const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
+        await upsertUserProfile({ avatar_url: avatarUrl });
+      } catch {}
       setToast({ title: "Account created", variant: "success" });
       router.push("/dashboard");
     }

@@ -9,6 +9,7 @@ export default function RouteTransition({ children }) {
   const first = useRef(true);
   const prev = useRef(pathname);
   const dir = useRef(1);
+  const visibilityPaused = useRef(false);
 
   const isAdminRoute =
     pathname.startsWith("/dashboard") ||
@@ -34,6 +35,15 @@ export default function RouteTransition({ children }) {
     prev.current = pathname;
   }, [pathname]);
 
+  // Avoid animation glitches when tab visibility changes
+  useEffect(() => {
+    const onVisibility = () => {
+      visibilityPaused.current = document.hidden;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   if (isAdminRoute) {
     return (
       <div className="route-transition" suppressHydrationWarning={true}>
@@ -45,7 +55,7 @@ export default function RouteTransition({ children }) {
   return (
     <motion.div
       key={pathname}
-      initial={first.current ? false : { x: 48 * dir.current }}
+      initial={first.current || visibilityPaused.current ? false : { x: 48 * dir.current }}
       animate={{ x: 0 }}
       transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
       className="route-transition"
