@@ -19,20 +19,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden">
+    <div className="h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex-1 min-w-0 bg-[var(--color-content-bg)]">
+      <div className="lg:ml-64 xl:ml-72 h-full bg-[var(--color-content-bg)] flex flex-col">
         <AppTopbar />
-        <main className="mx-auto max-w-[1400px] px-4">
-          <motion.div
-            key={pathname}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            {children}
-          </motion.div>
+        <main className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="mx-auto max-w-[1400px] px-4">
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
+          </div>
         </main>
       </div>
 

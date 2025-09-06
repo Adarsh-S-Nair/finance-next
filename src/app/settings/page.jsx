@@ -48,8 +48,6 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <div className="mt-4 border-b border-[var(--color-border)] pb-3"></div>
-
       <section aria-labelledby="appearance-heading" className="mt-4 pl-6">
         <h2 id="appearance-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Appearance</h2>
         <div className="mt-3 rounded-md border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] p-4">

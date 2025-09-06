@@ -11,7 +11,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const baseStyles =
-  "inline-flex select-none items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
+  "inline-flex select-none items-center justify-center rounded-md text-sm font-medium transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
 
 const variants: Record<string, string> = {
   primary:
@@ -36,16 +36,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     
     const sizeClasses =
       size === "sm"
-        ? "h-8 px-3"
+        ? "h-8 px-3 py-2"
         : size === "lg"
-        ? "h-11 px-5"
+        ? "h-11 px-5 py-2"
         : size === "iconSm"
-        ? "h-8 w-12 p-0"
+        ? "h-8 w-8 p-0"
         : size === "iconLg"
         ? "h-11 w-11 p-0"
         : size === "icon"
         ? "h-9 w-9 p-0"
-        : "h-10 px-4"; // md default
+        : "h-10 px-4 py-2"; // md default
 
     // Special handling for primary buttons in dark mode with default accent
     const primaryVariantClass = variant === "primary" && isDarkMode && isDefaultAccent

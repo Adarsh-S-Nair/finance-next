@@ -3,9 +3,13 @@
 import React, { ReactNode, useMemo } from "react";
 import { usePathname } from "next/navigation";
 
-type Props = { title?: string; children: ReactNode };
+type Props = { 
+  title?: string; 
+  children: ReactNode;
+  action?: ReactNode;
+};
 
-export default function PageContainer({ title, children }: Props) {
+export default function PageContainer({ title, children, action }: Props) {
   const pathname = usePathname();
   const computed = useMemo(() => {
     if (title) return title;
@@ -17,7 +21,12 @@ export default function PageContainer({ title, children }: Props) {
 
   return (
     <div className="py-6">
-      {computed && <h1 className="text-xl font-semibold tracking-tight">{computed}</h1>}
+      {(computed || action) && (
+        <div className="flex items-center justify-between mb-6 pb-3 border-b border-[var(--color-border)]">
+          {computed && <h1 className="text-xl font-semibold tracking-tight">{computed}</h1>}
+          {action && <div className="ml-auto">{action}</div>}
+        </div>
+      )}
       {children}
     </div>
   );

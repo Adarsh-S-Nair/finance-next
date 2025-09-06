@@ -4,7 +4,7 @@ import SidebarContent from "./SidebarContent";
 
 export default function Sidebar() {
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 xl:w-72 bg-[var(--color-bg)] sticky top-0 h-screen">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 xl:w-72 bg-[var(--color-bg)] fixed top-0 left-0 h-screen z-10">
       <SidebarContent />
     </aside>
   );

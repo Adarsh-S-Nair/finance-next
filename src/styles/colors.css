@@ -1,6 +1,6 @@
 :root {
   --color-bg: #ffffff;
-  --color-surface: #f6f7f9;
+  --color-surface: #f0f1f3;
   --color-fg: #484444; /* requested text color */
   --color-muted: #6b7280; /* gray-500 */
   --color-border: #e5e7eb; /* gray-200 */
@@ -74,7 +74,7 @@
 html, body {
   background-color: var(--color-bg);
   color: var(--color-fg);
-  font-weight: 500; /* slightly bolder regular text */
+  font-weight: 400; /* regular text weight */
   margin: 0;
   padding: 0;
   width: 100%;
@@ -85,6 +85,65 @@ html, body {
 :where(button, [role="button"], a, input, select, textarea):focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
+}
+
+/* Thin, minimal scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Webkit scrollbar styling for Chrome, Safari, Edge */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 3px;
+  border: none;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Even thinner scrollbars for main content areas */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 2px;
+  border: none;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted);
+}
+
+.scrollbar-thin::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 

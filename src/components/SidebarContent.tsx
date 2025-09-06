@@ -95,7 +95,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
           ZENTARI
         </h1>
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
         {groups.map((g) => (
           <div key={g.title} className="mt-3 first:mt-0">
             <div className="px-2 text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{g.title}</div>

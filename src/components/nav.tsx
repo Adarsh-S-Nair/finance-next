@@ -13,7 +13,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Money",
     items: [
-      { href: "/accounts", label: "Accounts", icon: LuWallet, disabled: true },
+      { href: "/accounts", label: "Accounts", icon: LuWallet },
       { href: "/transactions", label: "Transactions", icon: LuReceipt, disabled: true },
       { href: "/budgets", label: "Budgets", icon: LuPiggyBank, disabled: true },
     ],

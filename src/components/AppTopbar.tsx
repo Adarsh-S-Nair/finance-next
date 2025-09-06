@@ -35,7 +35,7 @@ export default function AppTopbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-0 z-20 h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)]">
+    <header className="sticky top-0 z-20 h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-b border-[var(--color-border)]">
       <div className="mx-auto max-w-[1400px] px-4 h-full flex items-center gap-3">
         <button id="sidebar-toggle" className="lg:hidden p-2 cursor-pointer rounded-md">
           <LuMenu className="h-4 w-4" />

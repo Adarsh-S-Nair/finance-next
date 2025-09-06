@@ -19,6 +19,9 @@ export default function RouteTransition({ children }) {
     pathname.startsWith("/categories") ||
     pathname.startsWith("/reports") ||
     pathname.startsWith("/settings") ||
+    pathname.startsWith("/accounts") ||
+    pathname.startsWith("/budgets") ||
+    pathname.startsWith("/investments") ||
     pathname.startsWith("/staff");
 
   useEffect(() => {
