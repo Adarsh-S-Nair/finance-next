@@ -5,9 +5,11 @@ import AppTopbar from "./AppTopbar";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileSidebar from "./MobileSidebar";
+import { usePathname } from "next/navigation";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState<boolean>(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const btn = document.getElementById("sidebar-toggle");
@@ -21,7 +23,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 min-w-0 bg-[var(--color-content-bg)]">
         <AppTopbar />
-        <main className="mx-auto max-w-[1400px] px-4">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-4">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            {children}
+          </motion.div>
+        </main>
       </div>
 
       <AnimatePresence>

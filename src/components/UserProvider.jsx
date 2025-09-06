@@ -29,6 +29,7 @@ export default function UserProvider({ children }) {
   const [authTransition, setAuthTransition] = useState(false);
   const fetchedRef = useRef(false);
   const recoveringRef = useRef(false);
+  const profileLoadingRef = useRef(false);
   const ensureUser = useCallback(async () => {
     if (recoveringRef.current) return user;
     recoveringRef.current = true;
@@ -59,7 +60,7 @@ export default function UserProvider({ children }) {
 
   // Apply theme without flicker
   const applyTheme = useCallback((theme) => {
-    const isDark = theme === "dark" || (theme !== "light" && (localStorage.getItem("theme.dark") === "1"));
+    const isDark = theme === "dark";
     document.documentElement.classList.toggle("dark", isDark);
   }, []);
 
@@ -86,10 +87,25 @@ export default function UserProvider({ children }) {
       if (profile && Object.prototype.hasOwnProperty.call(profile, 'accent_color')) {
         applyAccent(profile.accent_color);
       }
+    } catch (error) {
+      console.error("[UserProvider] refreshProfile error", error);
     } finally {
       // leave loading state to outer controller
     }
   }, [applyAccent, applyTheme]);
+
+  // Load profile when user exists but profile is null (e.g., after sign in)
+  useEffect(() => {
+    if (user && !profile && !profileLoadingRef.current) {
+      profileLoadingRef.current = true;
+      setLoading(true);
+      refreshProfile().finally(() => {
+        setLoading(false);
+        setAuthTransition(false);
+        profileLoadingRef.current = false;
+      });
+    }
+  }, [user, profile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -99,7 +115,6 @@ export default function UserProvider({ children }) {
           try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
           // Rehydrate auth when tab becomes visible again
           const u = await ensureUser();
-          console.log("[UserProvider] visibilitychange rehydrate", { hasUser: !!u });
         } catch (e) {
           console.log("[UserProvider] visibilitychange error", e);
         }
@@ -111,14 +126,12 @@ export default function UserProvider({ children }) {
       try {
         try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
         const u = await ensureUser();
-        console.log("[UserProvider] window focus rehydrate", { hasUser: !!u });
       } catch {}
     };
     const onOnline = async () => {
       try {
         try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
         const u = await ensureUser();
-        console.log("[UserProvider] online rehydrate", { hasUser: !!u });
       } catch {}
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -127,7 +140,6 @@ export default function UserProvider({ children }) {
     (async () => {
       try {
         const { data } = await supabase.auth.getUser();
-        console.log("[UserProvider] initial getUser", { hasUser: !!data?.user });
         if (!isMounted) return;
         setUser(data?.user ?? null);
         if (data?.user) {
@@ -141,9 +153,8 @@ export default function UserProvider({ children }) {
           }
         } else {
           setProfile(null);
-          // Apply local theme when logged out
-          const saved = localStorage.getItem("theme.dark") === "1";
-          document.documentElement.classList.toggle("dark", saved);
+          // Apply default theme when logged out
+          document.documentElement.classList.toggle("dark", false);
           applyAccent(null);
           setLoading(false);
         }
@@ -153,20 +164,20 @@ export default function UserProvider({ children }) {
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("[UserProvider] onAuthStateChange", { event, hasSession: !!session });
       const nextUser = session?.user ?? null;
       setUser(nextUser);
       fetchedRef.current = false;
+      profileLoadingRef.current = false;
       if (event === "SIGNED_IN" && nextUser) {
         const shouldNavigate = typeof window !== "undefined" && (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
         if (shouldNavigate) {
           setAuthTransition(true);
           setLoading(true);
+          // Navigate first without loading profile yet
           router.replace("/dashboard");
-          await refreshProfile();
+          // Don't load profile here - let the new useEffect handle it
           setToast({ title: "Signed in", variant: "success" });
-          setAuthTransition(false);
-          setLoading(false);
+          // Don't set loading to false here - let the profile loading useEffect handle it
         } else {
           // Already on an authenticated route; refresh silently without global overlay
           await refreshProfile();
@@ -175,10 +186,9 @@ export default function UserProvider({ children }) {
       }
       if (event === "SIGNED_OUT") {
         setProfile(null);
-        const saved = localStorage.getItem("theme.dark") === "1";
-        document.documentElement.classList.toggle("dark", saved);
+        // Apply default theme when logged out
+        document.documentElement.classList.toggle("dark", false);
         applyAccent(null);
-        try { localStorage.setItem("theme.accent", "default"); } catch {}
         setAuthTransition(false);
         setLoading(false);
         return;
@@ -195,41 +205,30 @@ export default function UserProvider({ children }) {
   }, [applyAccent, applyTheme]);
 
   const setTheme = useCallback(async (theme) => {
-    console.log("[UserProvider] setTheme", theme);
     applyTheme(theme);
     setProfile((p) => ({ ...(p || {}), theme }));
     try {
-      console.log("[UserProvider] ensuring user before theme upsert");
       const u = await ensureUser();
       if (!u) throw new Error("No user after ensureUser");
-      const res = await upsertUserProfile({ theme });
-      console.log("[UserProvider] theme upsert result", res);
+      await upsertUserProfile({ theme });
     } catch (e) {
       console.error("[UserProvider] theme upsert failed", e);
-    } finally {
-      console.log("[UserProvider] theme upsert finished");
     }
   }, [applyTheme, ensureUser]);
 
   const setAccentColor = useCallback(async (hexOrNull) => {
-    console.log("[UserProvider] setAccentColor", hexOrNull);
     if (hexOrNull) applyAccent(hexOrNull); else applyAccent(null);
     setProfile((p) => ({ ...(p || {}), accent_color: hexOrNull }));
     try {
-      console.log("[UserProvider] ensuring user before accent upsert");
       const u = await ensureUser();
       if (!u) throw new Error("No user after ensureUser");
-      const res = await upsertUserProfile({ accent_color: hexOrNull });
-      console.log("[UserProvider] accent upsert result", res);
+      await upsertUserProfile({ accent_color: hexOrNull });
     } catch (e) {
       console.error("[UserProvider] accent upsert failed", e);
-    } finally {
-      console.log("[UserProvider] accent upsert finished");
     }
   }, [applyAccent, ensureUser]);
 
   const logout = useCallback(() => {
-    console.log("[UserProvider] logout - resetting theme and accent");
     // Reset to light theme and default accent immediately
     applyTheme('light');
     applyAccent(null);
