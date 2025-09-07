@@ -1,5 +1,6 @@
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
+import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -119,6 +120,22 @@ export async function POST(request) {
     }
 
     console.log(`✅ Saved ${accountsData.length} accounts successfully`);
+
+    // Create account snapshots for the newly created accounts
+    try {
+      console.log('📸 Creating account snapshots...');
+      const snapshotResult = await createAccountSnapshots(accounts, accountsData.map(acc => acc.id));
+      
+      if (snapshotResult.success) {
+        console.log(`✅ Created ${snapshotResult.data.length} account snapshots successfully`);
+      } else {
+        console.warn('⚠️ Failed to create account snapshots:', snapshotResult.error);
+        // Don't fail the whole process if snapshot creation fails
+      }
+    } catch (snapshotError) {
+      console.warn('Error creating account snapshots:', snapshotError);
+      // Don't fail the whole process if snapshot creation fails
+    }
 
     // Trigger transaction sync for the new plaid item
     try {
