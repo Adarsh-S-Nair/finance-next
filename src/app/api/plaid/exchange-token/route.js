@@ -26,6 +26,13 @@ export async function POST(request) {
     const accountsResponse = await getAccounts(access_token);
     const { accounts, institution_id } = accountsResponse;
     console.log(`📊 Found ${accounts.length} accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+    console.log('📋 Account details:', accounts.map(acc => ({
+      id: acc.account_id,
+      name: acc.name,
+      type: acc.type,
+      subtype: acc.subtype,
+      mask: acc.mask
+    })));
     
     // Get institution info (with fallback)
     let institution = null;
