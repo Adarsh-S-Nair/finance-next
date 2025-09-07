@@ -80,9 +80,19 @@ alter table public.accounts
 add column if not exists plaid_item_id uuid null;
 
 -- Create foreign key constraint to plaid_items
-alter table public.accounts 
-add constraint if not exists accounts_plaid_item_id_fkey 
-foreign key (plaid_item_id) references plaid_items (id) on delete cascade;
+do $$
+begin
+    if not exists (
+        select 1 from information_schema.table_constraints 
+        where constraint_name = 'accounts_plaid_item_id_fkey' 
+        and table_name = 'accounts'
+        and table_schema = 'public'
+    ) then
+        alter table public.accounts 
+        add constraint accounts_plaid_item_id_fkey 
+        foreign key (plaid_item_id) references plaid_items (id) on delete cascade;
+    end if;
+end $$;
 
 -- Create index for the new foreign key
 create index if not exists idx_accounts_plaid_item_id 
