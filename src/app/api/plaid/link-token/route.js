@@ -1,4 +1,4 @@
-import { createLinkToken } from '@/lib/plaidClient';
+import { createLinkToken } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(

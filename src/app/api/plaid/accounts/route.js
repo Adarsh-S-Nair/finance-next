@@ -1,4 +1,4 @@
-import { getAccounts } from '@/lib/plaidClient';
+import { getAccounts } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(

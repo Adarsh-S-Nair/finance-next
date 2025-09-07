@@ -1,4 +1,4 @@
-import { exchangePublicToken, getAccounts, getInstitution } from '@/lib/plaidClient';
+import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
