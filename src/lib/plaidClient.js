@@ -162,3 +162,21 @@ export async function getTransactions(accessToken, startDate, endDate, accountId
     throw error;
   }
 }
+
+// Helper function to sync transactions using cursor-based pagination
+export async function syncTransactions(accessToken, cursor = null) {
+  try {
+    const client = getPlaidClient();
+    const request = {
+      access_token: accessToken,
+      cursor: cursor,
+      count: 500, // Maximum allowed by Plaid
+    };
+
+    const response = await client.transactionsSync(request);
+    return response.data;
+  } catch (error) {
+    console.error('Error syncing transactions:', error);
+    throw error;
+  }
+}

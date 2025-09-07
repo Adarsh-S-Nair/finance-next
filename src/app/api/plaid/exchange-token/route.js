@@ -80,6 +80,28 @@ export async function POST(request) {
       console.log('No institution_id available, skipping institution lookup');
     }
 
+    // First, create or update the plaid_item
+    const { data: plaidItemData, error: plaidItemError } = await supabase
+      .from('plaid_items')
+      .upsert({
+        user_id: userId,
+        item_id: item_id,
+        access_token: access_token,
+        sync_status: 'idle'
+      }, {
+        onConflict: 'user_id,item_id'
+      })
+      .select()
+      .single();
+
+    if (plaidItemError) {
+      console.error('Error upserting plaid item:', plaidItemError);
+      return Response.json(
+        { error: 'Failed to save plaid item' },
+        { status: 500 }
+      );
+    }
+
     // Process and save accounts
     const accountsToInsert = accounts.map(account => ({
       user_id: userId,
@@ -93,13 +115,14 @@ export async function POST(request) {
       access_token: access_token,
       account_key: `${item_id}_${account.account_id}`,
       institution_id: institutionData?.id || null,
+      plaid_item_id: plaidItemData.id, // Link to plaid_items table
     }));
 
     // Insert accounts (upsert to handle duplicates)
     const { data: accountsData, error: accountsError } = await supabase
       .from('accounts')
       .upsert(accountsToInsert, {
-        onConflict: 'item_id,account_id'
+        onConflict: 'plaid_item_id,account_id'
       })
       .select();
 
@@ -109,6 +132,31 @@ export async function POST(request) {
         { error: 'Failed to save accounts' },
         { status: 500 }
       );
+    }
+
+    // Trigger transaction sync for the new plaid item
+    try {
+      console.log('Triggering transaction sync for plaid item:', plaidItemData.id);
+      const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plaidItemId: plaidItemData.id,
+          userId: userId
+        })
+      });
+
+      if (!syncResponse.ok) {
+        console.warn('Transaction sync failed, but account linking succeeded');
+      } else {
+        const syncResult = await syncResponse.json();
+        console.log('Transaction sync completed:', syncResult);
+      }
+    } catch (syncError) {
+      console.warn('Error triggering transaction sync:', syncError);
+      // Don't fail the whole process if sync fails
     }
 
     return Response.json({
