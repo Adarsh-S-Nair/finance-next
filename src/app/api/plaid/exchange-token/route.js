@@ -81,6 +81,7 @@ export async function POST(request) {
     }
 
     // First, create or update the plaid_item
+    console.log('Creating/updating plaid item for user:', userId, 'item_id:', item_id);
     const { data: plaidItemData, error: plaidItemError } = await supabase
       .from('plaid_items')
       .upsert({
@@ -97,12 +98,15 @@ export async function POST(request) {
     if (plaidItemError) {
       console.error('Error upserting plaid item:', plaidItemError);
       return Response.json(
-        { error: 'Failed to save plaid item' },
+        { error: 'Failed to save plaid item', details: plaidItemError.message },
         { status: 500 }
       );
     }
 
+    console.log('Plaid item created/updated successfully:', plaidItemData.id);
+
     // Process and save accounts
+    console.log('Processing', accounts.length, 'accounts for plaid item:', plaidItemData.id);
     const accountsToInsert = accounts.map(account => ({
       user_id: userId,
       item_id: item_id,
@@ -118,6 +122,8 @@ export async function POST(request) {
       plaid_item_id: plaidItemData.id, // Link to plaid_items table
     }));
 
+    console.log('Accounts to insert:', accountsToInsert.map(a => ({ name: a.name, account_id: a.account_id, plaid_item_id: a.plaid_item_id })));
+
     // Insert accounts (upsert to handle duplicates)
     const { data: accountsData, error: accountsError } = await supabase
       .from('accounts')
@@ -129,10 +135,12 @@ export async function POST(request) {
     if (accountsError) {
       console.error('Error upserting accounts:', accountsError);
       return Response.json(
-        { error: 'Failed to save accounts' },
+        { error: 'Failed to save accounts', details: accountsError.message },
         { status: 500 }
       );
     }
+
+    console.log('Accounts saved successfully:', accountsData.length, 'accounts');
 
     // Trigger transaction sync for the new plaid item
     try {

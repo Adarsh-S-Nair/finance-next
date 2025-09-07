@@ -10,6 +10,8 @@ export async function POST(request) {
   try {
     const { plaidItemId, userId } = await request.json();
 
+    console.log('Transaction sync request for plaid item:', plaidItemId, 'user:', userId);
+
     if (!plaidItemId || !userId) {
       return Response.json(
         { error: 'Plaid item ID and user ID are required' },
@@ -26,11 +28,14 @@ export async function POST(request) {
       .single();
 
     if (itemError || !plaidItem) {
+      console.error('Plaid item not found:', itemError);
       return Response.json(
         { error: 'Plaid item not found' },
         { status: 404 }
       );
     }
+
+    console.log('Found plaid item:', plaidItem.item_id, 'cursor:', plaidItem.transaction_cursor);
 
     // Update sync status to 'syncing'
     await supabase
