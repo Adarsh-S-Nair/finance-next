@@ -2,6 +2,7 @@ import { getPlaidClient } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { createPublicKey } from 'crypto';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,12 +17,47 @@ async function verifyWebhookSignature(payload, signature) {
       return true; // Allow in development
     }
 
-    // Get Plaid's public key
-    const response = await fetch('https://plaid.com/webhook_verification_key');
+    // Decode JWT header to get key ID
+    const header = JSON.parse(Buffer.from(signature.split('.')[0], 'base64url').toString());
+    
+    if (header.alg !== 'ES256') {
+      console.error('Invalid algorithm:', header.alg);
+      return false;
+    }
+
+    // Get Plaid's public key using the correct endpoint
+    const response = await fetch('https://production.plaid.com/webhook_verification_key/get', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
+        'PLAID-SECRET': process.env.PLAID_SECRET,
+      },
+      body: JSON.stringify({
+        key_id: header.kid
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Failed to get verification key:', response.status, await response.text());
+      return false;
+    }
+
     const { key } = await response.json();
     
+    // Convert JWK to PEM format using Node.js crypto
+    const jwk = {
+      kty: key.kty,
+      crv: key.crv,
+      x: key.x,
+      y: key.y,
+      use: key.use
+    };
+    
+    const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
+    
     // Verify the JWT
-    const decoded = jwt.verify(signature, key, { algorithms: ['RS256'] });
+    const decoded = jwt.verify(signature, publicKey, { algorithms: ['ES256'] });
     
     // Verify the payload hash
     const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
@@ -47,7 +83,8 @@ async function verifyWebhookSignature(payload, signature) {
 export async function POST(request) {
   try {
     const payload = await request.text();
-    const signature = request.headers.get('plaid-verification');
+    // Handle case-insensitive header name
+    const signature = request.headers.get('plaid-verification') || request.headers.get('Plaid-Verification');
 
     // Verify webhook signature using Plaid's JWT verification
     if (!(await verifyWebhookSignature(payload, signature))) {
@@ -183,8 +220,48 @@ async function handleItemWebhook(webhookData) {
       break;
 
     case 'NEW_ACCOUNTS_AVAILABLE':
-      // New accounts are available, could trigger account sync
+      // New accounts are available, sync them
       console.log('New accounts available for item:', item_id);
+      try {
+        // Get fresh account data from Plaid
+        const { getAccounts } = await import('../../../../lib/plaidClient');
+        const accountsResponse = await getAccounts(plaidItem.access_token);
+        const { accounts } = accountsResponse;
+        
+        console.log(`Found ${accounts.length} accounts for item ${item_id}`);
+        
+        // Process and save new accounts
+        const accountsToInsert = accounts.map(account => ({
+          user_id: plaidItem.user_id,
+          item_id: item_id,
+          account_id: account.account_id,
+          name: account.name,
+          mask: account.mask,
+          type: account.type,
+          subtype: account.subtype,
+          balances: account.balances,
+          access_token: plaidItem.access_token,
+          account_key: `${item_id}_${account.account_id}`,
+          institution_id: plaidItem.institution_id,
+          plaid_item_id: plaidItem.id,
+        }));
+
+        // Insert accounts (upsert to handle duplicates)
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('accounts')
+          .upsert(accountsToInsert, {
+            onConflict: 'plaid_item_id,account_id'
+          })
+          .select();
+
+        if (accountsError) {
+          console.error('Error upserting new accounts:', accountsError);
+        } else {
+          console.log(`✅ Synced ${accountsData.length} accounts for item ${item_id}`);
+        }
+      } catch (accountSyncError) {
+        console.error('Error syncing new accounts:', accountSyncError);
+      }
       break;
 
     case 'PENDING_EXPIRATION':
