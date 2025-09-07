@@ -6,8 +6,11 @@ import { FaPlus } from "react-icons/fa";
 import { PiBankFill } from "react-icons/pi";
 import { FiDollarSign, FiCreditCard, FiTrendingUp, FiFileText, FiPieChart, FiTrendingUp as FiAssets, FiTrendingDown, FiBriefcase, FiDollarSign as FiMoney, FiMinusCircle } from "react-icons/fi";
 import { IoMdCash } from "react-icons/io";
+import { FaCoins, FaCreditCard } from "react-icons/fa";
+import { TiChartArea } from "react-icons/ti";
 import { useState } from "react";
 import { useUser } from "../../components/UserProvider";
+import { getAccentTextColor, getAccentTextColorWithOpacity, getAccentIconColor } from "../../lib/colorUtils";
 
 export default function AccountsPage() {
   const { profile } = useUser();
@@ -119,6 +122,11 @@ export default function AccountsPage() {
   // Calculate liabilities (negative balances)
   const liabilities = allAccounts.filter(account => account.balance < 0);
   const totalLiabilities = Math.abs(liabilities.reduce((sum, account) => sum + account.balance, 0));
+  
+  // Mock data for chart indicators (in a real app, this would come from historical data)
+  const netWorthChange = 5.2; // 5.2% increase
+  const assetsChange = 3.8; // 3.8% increase
+  const liabilitiesChange = -2.1; // 2.1% decrease (good)
 
   return (
     <PageContainer 
@@ -138,11 +146,11 @@ export default function AccountsPage() {
         {/* Financial Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Net Worth Card */}
-          <div className="rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[color-mix(in_oklab,var(--color-accent),var(--color-fg)_20%)] p-4 text-[var(--color-on-accent)]">
+          <div className={`rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[color-mix(in_oklab,var(--color-accent),var(--color-fg)_20%)] p-4 ${getAccentTextColor(isDarkMode, isDefaultAccent)}`}>
             <div className="flex items-center gap-4">
-              <FiBriefcase className="h-8 w-8 opacity-90" />
+              <TiChartArea className={`h-8 w-8 ${getAccentIconColor(isDarkMode, isDefaultAccent)} opacity-90`} />
               <div>
-                <div className="text-sm opacity-80">Net Worth</div>
+                <div className={`text-sm ${getAccentTextColorWithOpacity(isDarkMode, isDefaultAccent, 0.8)}`}>Net Worth</div>
                 <div className="text-xl font-normal">
                   {formatCurrency(totalBalance)}
                 </div>
@@ -153,7 +161,7 @@ export default function AccountsPage() {
           {/* Assets Card */}
           <div className="rounded-lg bg-[var(--color-surface)] p-4">
             <div className="flex items-center gap-4">
-              <FiMoney className="h-8 w-8 text-[var(--color-muted)]" />
+              <FaCoins className="h-8 w-8 text-[var(--color-muted)]" />
               <div>
                 <div className="text-sm text-[var(--color-muted)]">Assets</div>
                 <div className="text-xl font-normal text-[var(--color-fg)]">
@@ -166,7 +174,7 @@ export default function AccountsPage() {
           {/* Liabilities Card */}
           <div className="rounded-lg bg-[var(--color-surface)] p-4">
             <div className="flex items-center gap-4">
-              <FiMinusCircle className="h-8 w-8 text-[var(--color-muted)]" />
+              <FaCreditCard className="h-8 w-8 text-[var(--color-muted)]" />
               <div>
                 <div className="text-sm text-[var(--color-muted)]">Liabilities</div>
                 <div className="text-xl font-normal text-[var(--color-fg)]">
@@ -208,11 +216,7 @@ export default function AccountsPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[var(--color-accent)] rounded-full flex items-center justify-center">
                           <PiBankFill 
-                            className={`h-4 w-4 ${
-                              isDarkMode && isDefaultAccent 
-                                ? "text-black" 
-                                : "text-[var(--color-on-accent)]"
-                            }`} 
+                            className={`h-4 w-4 ${getAccentIconColor(isDarkMode, isDefaultAccent)}`} 
                           />
                         </div>
                         <div>
