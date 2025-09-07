@@ -13,6 +13,7 @@ import Button from "./ui/Button";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import { useUser } from "./UserProvider";
 import { motion, AnimatePresence } from "framer-motion";
+import { getAccentTextColor } from "../lib/colorUtils";
 // Logo is served from public for reliable URL-based masking
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -21,6 +22,8 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const { profile, logout } = useUser();
   const accentHex = profile?.accent_color ?? null;
   const hasAccent = !!accentHex;
+  const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  const isDefaultAccent = !profile?.accent_color;
   const [displayName, setDisplayName] = useState("You");
   const [profileUrl, setProfileUrl] = useState(null as string | null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -118,34 +121,15 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                         "group relative flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm transition-all duration-200 ease-in-out",
                         it.disabled
                           ? "cursor-not-allowed text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)] opacity-70"
-                          : "hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] hover:shadow-sm",
-                        active && !it.disabled && "bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] text-[var(--color-fg)] shadow-sm"
+                          : !active && "hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] hover:shadow-sm",
+                        active && !it.disabled && clsx(
+                          "bg-[var(--color-accent)] shadow-sm",
+                          getAccentTextColor(isDarkMode, isDefaultAccent)
+                        )
                       )}
                     >
-                      {active && (
-                        <motion.span
-                          aria-hidden
-                          className="absolute left-0 top-0 h-full w-1"
-                          style={{ 
-                            backgroundColor: hasAccent ? 'var(--color-accent)' : 'var(--color-fg)'
-                          }}
-                          initial={{ scaleY: 0, opacity: 0 }}
-                          animate={{ 
-                            scaleY: 1, 
-                            opacity: 1,
-                            scaleX: isTransitioning ? 1.2 : 1
-                          }}
-                          exit={{ scaleY: 0, opacity: 0 }}
-                          transition={{ 
-                            type: "spring", 
-                            stiffness: 400, 
-                            damping: 30,
-                            duration: 0.3
-                          }}
-                        />
-                      )}
                       <motion.span 
-                        className="flex items-center gap-2 ml-2"
+                        className="flex items-center gap-2"
                         initial={false}
                         animate={active ? { 
                           scale: isTransitioning ? 0.98 : 1,
