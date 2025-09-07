@@ -1,40 +1,56 @@
 import { getPlaidClient } from '../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Verify webhook signature
-function verifyWebhookSignature(payload, signature, secret) {
-  if (!secret) {
-    console.warn('No webhook secret configured, skipping signature verification');
-    return true; // Allow in development
+// Verify webhook using Plaid's JWT verification
+async function verifyWebhookSignature(payload, signature) {
+  try {
+    if (!signature) {
+      console.warn('No Plaid-Verification header found, skipping verification in development');
+      return true; // Allow in development
+    }
+
+    // Get Plaid's public key
+    const response = await fetch('https://plaid.com/webhook_verification_key');
+    const { key } = await response.json();
+    
+    // Verify the JWT
+    const decoded = jwt.verify(signature, key, { algorithms: ['RS256'] });
+    
+    // Verify the payload hash
+    const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
+    if (decoded.request_body_sha256 !== payloadHash) {
+      console.error('Payload hash mismatch');
+      return false;
+    }
+    
+    // Verify the webhook is recent (within 5 minutes)
+    const now = Math.floor(Date.now() / 1000);
+    if (now - decoded.iat > 300) {
+      console.error('Webhook is too old');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Webhook verification failed:', error);
+    return false;
   }
-
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-
-  const providedSignature = signature.replace('sha256=', '');
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature, 'hex'),
-    Buffer.from(providedSignature, 'hex')
-  );
 }
 
 export async function POST(request) {
   try {
     const payload = await request.text();
     const signature = request.headers.get('plaid-verification');
-    const webhookSecret = process.env.PLAID_WEBHOOK_SECRET;
 
-    // Verify webhook signature
-    if (!verifyWebhookSignature(payload, signature, webhookSecret)) {
+    // Verify webhook signature using Plaid's JWT verification
+    if (!(await verifyWebhookSignature(payload, signature))) {
       console.error('Invalid webhook signature');
       return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }

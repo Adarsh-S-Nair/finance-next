@@ -52,6 +52,7 @@ export async function createLinkToken(userId, products = ['transactions', 'auth'
       products: products,
       country_codes: ['US'],
       language: 'en',
+      webhook: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook` : undefined,
     };
 
     const response = await client.linkTokenCreate(request);
