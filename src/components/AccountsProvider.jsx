@@ -28,6 +28,7 @@ export function AccountsProvider({ children }) {
           logo: account.institutions?.logo,
           primaryColor: account.institutions?.primary_color,
           url: account.institutions?.url,
+          plaidItemId: account.plaid_item_id,
           accounts: []
         };
       }

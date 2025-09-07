@@ -38,13 +38,6 @@ export { getPlaidClient };
 // Helper function to create link token
 export async function createLinkToken(userId, products = ['transactions', 'auth']) {
   try {
-    // Log environment variables (without exposing secrets)
-    console.log('Environment check:', {
-      PLAID_CLIENT_ID: PLAID_CLIENT_ID ? `${PLAID_CLIENT_ID.substring(0, 8)}...` : 'MISSING',
-      PLAID_SECRET: PLAID_SECRET ? `${PLAID_SECRET.substring(0, 8)}...` : 'MISSING',
-      PLAID_ENV: PLAID_ENV || 'MISSING'
-    });
-
     // Check environment variables first
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
       throw new Error('Missing required Plaid environment variables: PLAID_CLIENT_ID and PLAID_SECRET');
@@ -61,15 +54,7 @@ export async function createLinkToken(userId, products = ['transactions', 'auth'
       language: 'en',
     };
 
-    console.log('Creating link token with request:', {
-      client_name: request.client_name,
-      products: request.products,
-      country_codes: request.country_codes,
-      user_id: request.user.client_user_id
-    });
-
     const response = await client.linkTokenCreate(request);
-    console.log('Link token created successfully');
     return response.data;
   } catch (error) {
     console.error('Error creating link token:', error);
@@ -119,17 +104,13 @@ export async function getAccounts(accessToken) {
 // Helper function to get institution info
 export async function getInstitution(institutionId) {
   try {
-    console.log('Getting institution info for ID:', institutionId);
-    
     const client = getPlaidClient();
     const request = {
       institution_id: institutionId,
       country_codes: ['US'],
     };
 
-    console.log('Institution request:', request);
     const response = await client.institutionsGetById(request);
-    console.log('Institution response received');
     return response.data.institution;
   } catch (error) {
     console.error('Error getting institution:', error);
@@ -177,6 +158,22 @@ export async function syncTransactions(accessToken, cursor = null) {
     return response.data;
   } catch (error) {
     console.error('Error syncing transactions:', error);
+    throw error;
+  }
+}
+
+// Helper function to remove a Plaid item
+export async function removeItem(accessToken) {
+  try {
+    const client = getPlaidClient();
+    const request = {
+      access_token: accessToken,
+    };
+
+    const response = await client.itemRemove(request);
+    return response.data;
+  } catch (error) {
+    console.error('Error removing Plaid item:', error);
     throw error;
   }
 }

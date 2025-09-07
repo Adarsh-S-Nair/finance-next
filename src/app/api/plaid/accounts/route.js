@@ -30,6 +30,11 @@ export async function GET(request) {
           logo,
           primary_color,
           url
+        ),
+        plaid_items (
+          id,
+          item_id,
+          access_token
         )
       `)
       .eq('user_id', userId)

@@ -22,34 +22,20 @@ export async function POST(request) {
     const { access_token, item_id } = tokenResponse;
 
     // Get accounts from Plaid
-    console.log('Getting accounts from Plaid...');
     const accountsResponse = await getAccounts(access_token);
-    console.log('Full accounts response:', JSON.stringify(accountsResponse, null, 2));
-    
     const { accounts, institution_id } = accountsResponse;
-    console.log('Accounts received:', accounts.length, 'accounts for institution:', institution_id);
+    console.log(`📊 Found ${accounts.length} accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
     
-    // Check if institution_id is in the response
-    if (!institution_id) {
-      console.log('No institution_id found in accounts response, checking item data...');
-      // Sometimes institution_id is in the item object
-      const itemInstitutionId = accountsResponse.item?.institution_id;
-      console.log('Item institution_id:', itemInstitutionId);
-    }
-
     // Get institution info (with fallback)
-    console.log('Getting institution info...');
     let institution = null;
     let institutionData = null;
     
     // Try to get institution_id from different possible locations
     const actualInstitutionId = institution_id || accountsResponse.item?.institution_id;
-    console.log('Using institution_id:', actualInstitutionId);
     
     if (actualInstitutionId) {
       try {
         institution = await getInstitution(actualInstitutionId);
-        console.log('Institution info received:', institution.name);
 
         // Upsert institution in database
         const { data: instData, error: institutionError } = await supabase
@@ -76,12 +62,9 @@ export async function POST(request) {
         console.error('Error getting institution info, continuing without it:', instError);
         // Continue without institution info - not critical for account creation
       }
-    } else {
-      console.log('No institution_id available, skipping institution lookup');
     }
 
     // First, create or update the plaid_item
-    console.log('Creating/updating plaid item for user:', userId, 'item_id:', item_id);
     const { data: plaidItemData, error: plaidItemError } = await supabase
       .from('plaid_items')
       .upsert({
@@ -103,10 +86,7 @@ export async function POST(request) {
       );
     }
 
-    console.log('Plaid item created/updated successfully:', plaidItemData.id);
-
     // Process and save accounts
-    console.log('Processing', accounts.length, 'accounts for plaid item:', plaidItemData.id);
     const accountsToInsert = accounts.map(account => ({
       user_id: userId,
       item_id: item_id,
@@ -121,8 +101,6 @@ export async function POST(request) {
       institution_id: institutionData?.id || null,
       plaid_item_id: plaidItemData.id, // Link to plaid_items table
     }));
-
-    console.log('Accounts to insert:', accountsToInsert.map(a => ({ name: a.name, account_id: a.account_id, plaid_item_id: a.plaid_item_id })));
 
     // Insert accounts (upsert to handle duplicates)
     const { data: accountsData, error: accountsError } = await supabase
@@ -140,11 +118,11 @@ export async function POST(request) {
       );
     }
 
-    console.log('Accounts saved successfully:', accountsData.length, 'accounts');
+    console.log(`✅ Saved ${accountsData.length} accounts successfully`);
 
     // Trigger transaction sync for the new plaid item
     try {
-      console.log('Triggering transaction sync for plaid item:', plaidItemData.id);
+      console.log('🔄 Starting transaction sync...');
       const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
         method: 'POST',
         headers: {
@@ -157,10 +135,10 @@ export async function POST(request) {
       });
 
       if (!syncResponse.ok) {
-        console.warn('Transaction sync failed, but account linking succeeded');
+        console.warn('⚠️ Transaction sync failed, but account linking succeeded');
       } else {
         const syncResult = await syncResponse.json();
-        console.log('Transaction sync completed:', syncResult);
+        console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
       }
     } catch (syncError) {
       console.warn('Error triggering transaction sync:', syncError);

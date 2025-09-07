@@ -2,8 +2,9 @@
 
 import PageContainer from "../../components/PageContainer";
 import Button from "../../components/ui/Button";
-import { FaPlus } from "react-icons/fa";
-import { FiRefreshCw } from "react-icons/fi";
+import { FaPlus, FaUnlink } from "react-icons/fa";
+import { FaEllipsisVertical } from "react-icons/fa6";
+import { FiRefreshCw, FiDownload } from "react-icons/fi";
 import { PiBankFill } from "react-icons/pi";
 import { FiDollarSign, FiCreditCard, FiTrendingUp, FiFileText, FiPieChart, FiTrendingUp as FiAssets, FiTrendingDown, FiBriefcase, FiDollarSign as FiMoney, FiMinusCircle } from "react-icons/fi";
 import { IoMdCash } from "react-icons/io";
@@ -14,6 +15,8 @@ import { useUser } from "../../components/UserProvider";
 import { useAccounts } from "../../components/AccountsProvider";
 import { getAccentTextColor, getAccentTextColorWithOpacity, getAccentIconColor } from "../../lib/colorUtils";
 import PlaidLinkModal from "../../components/PlaidLinkModal";
+import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../components/ui/ContextMenu";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 export default function AccountsPage() {
   const { profile } = useUser();
@@ -32,6 +35,8 @@ export default function AccountsPage() {
   const isDefaultAccent = !profile?.accent_color;
   
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
+  const [disconnectModal, setDisconnectModal] = useState({ isOpen: false, institution: null });
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleAddAccount = () => {
     setIsPlaidModalOpen(true);
@@ -39,6 +44,87 @@ export default function AccountsPage() {
 
   const handleRefresh = () => {
     refreshAccounts();
+  };
+
+  const handleSyncTransactions = async () => {
+    try {
+      // Get all plaid items for the user and trigger sync for each
+      const response = await fetch('/api/plaid/transactions/sync-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: profile?.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sync transactions');
+      }
+
+      const result = await response.json();
+      console.log('Transaction sync completed:', result);
+      
+      // Refresh accounts to show updated data
+      refreshAccounts();
+    } catch (error) {
+      console.error('Error syncing transactions:', error);
+      alert(`Failed to sync transactions: ${error.message}`);
+    }
+  };
+
+  const handleDisconnectInstitution = (institution) => {
+    setDisconnectModal({ isOpen: true, institution });
+  };
+
+  const handleConfirmDisconnect = async () => {
+    const { institution } = disconnectModal;
+    
+    if (!institution.plaidItemId) {
+      alert('Unable to disconnect: Missing Plaid item information.');
+      return;
+    }
+
+    try {
+      setIsDisconnecting(true);
+      console.log('Disconnecting institution:', institution.name, 'plaidItemId:', institution.plaidItemId);
+      
+      const response = await fetch('/api/plaid/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plaidItemId: institution.plaidItemId,
+          userId: profile?.id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to disconnect');
+      }
+
+      const result = await response.json();
+      console.log('Disconnect successful:', result);
+      
+      // Refresh accounts to reflect the changes
+      refreshAccounts();
+      
+      // Close the modal
+      setDisconnectModal({ isOpen: false, institution: null });
+      
+    } catch (error) {
+      console.error('Error disconnecting institution:', error);
+      alert(`Failed to disconnect ${institution.name}: ${error.message}`);
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
+  const handleCancelDisconnect = () => {
+    setDisconnectModal({ isOpen: false, institution: null });
   };
 
   const formatCurrency = (amount) => {
@@ -83,6 +169,15 @@ export default function AccountsPage() {
               <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
+              onClick={handleSyncTransactions}
+              variant="ghost"
+              size="icon"
+              aria-label="Sync Transactions"
+              disabled={loading}
+            >
+              <FiDownload className="h-4 w-4" />
+            </Button>
+            <Button 
               onClick={handleAddAccount}
               variant="ghost"
               size="icon"
@@ -118,6 +213,15 @@ export default function AccountsPage() {
               disabled={loading}
             >
               <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button 
+              onClick={handleSyncTransactions}
+              variant="ghost"
+              size="icon"
+              aria-label="Sync Transactions"
+              disabled={loading}
+            >
+              <FiDownload className="h-4 w-4" />
             </Button>
             <Button 
               onClick={handleAddAccount}
@@ -157,6 +261,15 @@ export default function AccountsPage() {
             disabled={loading}
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button 
+            onClick={handleSyncTransactions}
+            variant="ghost"
+            size="icon"
+            aria-label="Sync Transactions"
+            disabled={loading}
+          >
+            <FiDownload className="h-4 w-4" />
           </Button>
           <Button 
             onClick={handleAddAccount}
@@ -254,13 +367,34 @@ export default function AccountsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-normal text-[var(--color-fg)]">
-                      {formatCurrency(getTotalBalance(institution.accounts))}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-lg font-normal text-[var(--color-fg)]">
+                        {formatCurrency(getTotalBalance(institution.accounts))}
+                      </div>
+                      <div className="text-xs text-[var(--color-muted)] uppercase tracking-wide">
+                        Total Balance
+                      </div>
                     </div>
-                    <div className="text-xs text-[var(--color-muted)] uppercase tracking-wide">
-                      Total Balance
-                    </div>
+                    <ContextMenu
+                      trigger={
+                        <button
+                          className="p-1 rounded-md hover:bg-[var(--color-muted)]/10 transition-colors cursor-pointer"
+                          aria-label="Institution options"
+                        >
+                          <FaEllipsisVertical className="h-4 w-4 text-[var(--color-muted)]" />
+                        </button>
+                      }
+                      align="right"
+                    >
+                      <ContextMenuItem
+                        icon={<FaUnlink className="h-4 w-4" />}
+                        onClick={() => handleDisconnectInstitution(institution)}
+                        destructive
+                      >
+                        Disconnect
+                      </ContextMenuItem>
+                    </ContextMenu>
                   </div>
                 </div>
               
@@ -316,6 +450,20 @@ export default function AccountsPage() {
       <PlaidLinkModal 
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
+      />
+
+      {/* Disconnect Confirmation Modal */}
+      <ConfirmDialog
+        isOpen={disconnectModal.isOpen}
+        onCancel={handleCancelDisconnect}
+        onConfirm={handleConfirmDisconnect}
+        title={`Disconnect ${disconnectModal.institution?.name}`}
+        description={`Are you sure you want to disconnect ${disconnectModal.institution?.name}? This will remove all associated accounts and transaction data from your dashboard.`}
+        confirmLabel="Disconnect"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={isDisconnecting}
+        busyLabel="Disconnecting..."
       />
     </PageContainer>
   );

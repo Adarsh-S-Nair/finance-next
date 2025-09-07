@@ -79,6 +79,9 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
         });
       }
 
+      // Refresh accounts to get the latest data including any synced transactions
+      await refreshAccounts();
+
       setSuccess(true);
       
       // Close modal after a short delay
@@ -167,7 +170,7 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
           <div className="text-center py-4">
             <FiCheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">Success!</h3>
-            <p className="text-[var(--color-muted)]">Your account has been connected successfully.</p>
+            <p className="text-[var(--color-muted)]">Your account has been connected successfully and transactions are being synced.</p>
           </div>
         )}
 
