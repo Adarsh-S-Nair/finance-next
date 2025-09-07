@@ -6,9 +6,19 @@ alter table public.category_groups
 add column if not exists hex_color character varying(7) not null default '#6B7280'::character varying;
 
 -- Add check constraint for hex_color format in category_groups
-alter table public.category_groups 
-add constraint if not exists category_groups_hex_color_check 
-check (hex_color ~ '^#[0-9A-Fa-f]{6}$'::text);
+do $$
+begin
+    if not exists (
+        select 1 from information_schema.table_constraints 
+        where constraint_name = 'category_groups_hex_color_check' 
+        and table_name = 'category_groups'
+        and table_schema = 'public'
+    ) then
+        alter table public.category_groups 
+        add constraint category_groups_hex_color_check 
+        check (hex_color ~ '^#[0-9A-Fa-f]{6}$'::text);
+    end if;
+end $$;
 
 -- Create index for hex_color in category_groups
 create index if not exists idx_category_groups_hex_color 
