@@ -32,7 +32,13 @@ jest.mock('@supabase/supabase-js', () => ({
 }))
 
 // Import after mocking
-const { createAccountSnapshots, createAccountSnapshot } = require('../../lib/accountSnapshotUtils')
+const { 
+  createAccountSnapshots, 
+  createAccountSnapshot,
+  getMostRecentAccountSnapshot,
+  shouldCreateAccountSnapshot,
+  createAccountSnapshotConditional
+} = require('../../lib/accountSnapshotUtils')
 
 const mockAccounts = [
   {
@@ -178,6 +184,385 @@ describe('Account Snapshot Creation Tests', () => {
       const now = new Date()
       const timeDiff = Math.abs(now - recordedAt)
       expect(timeDiff).toBeLessThan(60000) // Less than 1 minute
+    })
+  })
+
+  describe('Conditional Account Snapshot Creation Tests', () => {
+    let mockSelectChain
+    let mockSingleChain
+
+    beforeEach(() => {
+      // Reset mocks
+      jest.clearAllMocks()
+      
+      // Create mock chains for select operations
+      mockSelectChain = {
+        eq: jest.fn(() => mockSelectChain),
+        order: jest.fn(() => mockSelectChain),
+        limit: jest.fn(() => mockSelectChain),
+        single: jest.fn(() => Promise.resolve({ data: null, error: { code: 'PGRST116' } }))
+      }
+      
+      mockSingleChain = {
+        insert: jest.fn(() => ({
+          select: jest.fn(() => ({
+            single: jest.fn(() => Promise.resolve({ 
+              data: { id: 'snapshot-123', account_id: 'acc-123', current_balance: 1000.50 },
+              error: null 
+            }))
+          }))
+        }))
+      }
+
+      // Update the mock to return different chains based on the method
+      mockSupabaseClient.from.mockImplementation((table) => {
+        if (table === 'account_snapshots') {
+          return {
+            select: jest.fn(() => mockSelectChain),
+            insert: jest.fn(() => mockSingleChain)
+          }
+        }
+        return mockFromChain
+      })
+    })
+
+    describe('getMostRecentAccountSnapshot', () => {
+      test('should return null when no snapshots exist', async () => {
+        const result = await getMostRecentAccountSnapshot('acc-123')
+        
+        expect(result).toBeNull()
+        expect(mockSupabaseClient.from).toHaveBeenCalledWith('account_snapshots')
+        expect(mockSelectChain.eq).toHaveBeenCalledWith('account_id', 'acc-123')
+        expect(mockSelectChain.order).toHaveBeenCalledWith('recorded_at', { ascending: false })
+        expect(mockSelectChain.limit).toHaveBeenCalledWith(1)
+        expect(mockSelectChain.single).toHaveBeenCalled()
+      })
+
+      test('should return most recent snapshot when one exists', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-08T12:00:00.000Z'
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const result = await getMostRecentAccountSnapshot('acc-123')
+        
+        expect(result).toEqual(mockSnapshot)
+      })
+
+      test('should handle database errors gracefully', async () => {
+        mockSelectChain.single.mockResolvedValueOnce({ 
+          data: null, 
+          error: { code: 'SOME_ERROR', message: 'Database error' } 
+        })
+        
+        const result = await getMostRecentAccountSnapshot('acc-123')
+        
+        expect(result).toBeNull()
+      })
+    })
+
+    describe('shouldCreateAccountSnapshot', () => {
+      test('should return true when no previous snapshot exists', async () => {
+        const account = {
+          balances: { current: 1000.50, available: 1000.50 }
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(true)
+        expect(result.reason).toBe('No previous snapshot exists')
+      })
+
+      test('should return true when date is different and balance is different', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-07T12:00:00.000Z' // Yesterday
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: 1200.75, available: 1200.75 } // Different balance
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(true)
+        expect(result.isDateDifferent).toBe(true)
+        expect(result.isBalanceDifferent).toBe(true)
+        expect(result.reason).toContain('Date different')
+        expect(result.reason).toContain('balance different')
+      })
+
+      test('should return false when date is same but balance is different', async () => {
+        const today = new Date().toISOString().split('T')[0]
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: `${today}T12:00:00.000Z` // Same date
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: 1200.75, available: 1200.75 } // Different balance
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(false)
+        expect(result.isDateDifferent).toBe(false)
+        expect(result.isBalanceDifferent).toBe(true)
+        expect(result.reason).toContain('Date same: true')
+        expect(result.reason).toContain('Balance same: false')
+      })
+
+      test('should return false when date is different but balance is same', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-07T12:00:00.000Z' // Yesterday
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: 1000.50, available: 1000.50 } // Same balance
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(false)
+        expect(result.isDateDifferent).toBe(true)
+        expect(result.isBalanceDifferent).toBe(false)
+        expect(result.reason).toContain('Date same: false')
+        expect(result.reason).toContain('Balance same: true')
+      })
+
+      test('should return false when both date and balance are same', async () => {
+        const today = new Date().toISOString().split('T')[0]
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: `${today}T12:00:00.000Z` // Same date
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: 1000.50, available: 1000.50 } // Same balance
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(false)
+        expect(result.isDateDifferent).toBe(false)
+        expect(result.isBalanceDifferent).toBe(false)
+        expect(result.reason).toContain('Date same: true')
+        expect(result.reason).toContain('Balance same: true')
+      })
+
+      test('should handle null balances gracefully', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: null,
+          recorded_at: '2024-01-07T12:00:00.000Z'
+        }
+        
+        // Reset the mock for this specific test
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: null, available: null }
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        // The logic requires BOTH date AND balance to be different
+        // null === null is true, so isBalanceDifferent should be false
+        // Since both conditions must be met, shouldCreate should be false
+        expect(result.shouldCreate).toBe(false) // Both conditions must be met
+        expect(result.isDateDifferent).toBe(true)
+        expect(result.isBalanceDifferent).toBe(false) // null === null
+      })
+    })
+
+    describe('createAccountSnapshotConditional', () => {
+      test('should create snapshot when conditions are met', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-07T12:00:00.000Z'
+        }
+        
+        // Mock the select chain for getting most recent snapshot
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        // Mock the insert chain for creating new snapshot
+        const mockInsertResult = {
+          id: 'snapshot-456',
+          account_id: 'acc-123',
+          current_balance: 1200.75,
+          recorded_at: expect.any(String)
+        }
+        
+        // Create a fresh mock for this test
+        const mockInsertChain = {
+          insert: jest.fn(() => ({
+            select: jest.fn(() => ({
+              single: jest.fn(() => Promise.resolve({ data: mockInsertResult, error: null }))
+            }))
+          }))
+        }
+        
+        // Override the mock for this specific test
+        mockSupabaseClient.from.mockImplementation((table) => {
+          if (table === 'account_snapshots') {
+            return {
+              select: jest.fn(() => mockSelectChain),
+              insert: jest.fn(() => mockInsertChain.insert())
+            }
+          }
+          return mockFromChain
+        })
+        
+        const account = {
+          balances: { current: 1200.75, available: 1200.75 }
+        }
+        
+        const result = await createAccountSnapshotConditional(account, 'acc-123')
+        
+        expect(result.success).toBe(true)
+        expect(result.skipped).toBeFalsy()
+        expect(result.data).toBeDefined()
+        expect(result.reason).toContain('Date different')
+      })
+
+      test('should skip snapshot when conditions are not met', async () => {
+        const today = new Date().toISOString().split('T')[0]
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: `${today}T12:00:00.000Z`
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { current: 1000.50, available: 1000.50 }
+        }
+        
+        const result = await createAccountSnapshotConditional(account, 'acc-123')
+        
+        expect(result.success).toBe(true)
+        expect(result.skipped).toBe(true)
+        expect(result.data).toBeNull()
+        expect(result.reason).toContain('Date same: true')
+      })
+
+      test('should create snapshot when no previous snapshot exists', async () => {
+        // Mock the select chain to return no data (no previous snapshot)
+        mockSelectChain.single.mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } })
+        
+        // Mock the insert chain for creating new snapshot
+        const mockInsertResult = {
+          id: 'snapshot-456',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: expect.any(String)
+        }
+        
+        // Create a fresh mock for this test
+        const mockInsertChain = {
+          insert: jest.fn(() => ({
+            select: jest.fn(() => ({
+              single: jest.fn(() => Promise.resolve({ data: mockInsertResult, error: null }))
+            }))
+          }))
+        }
+        
+        // Override the mock for this specific test
+        mockSupabaseClient.from.mockImplementation((table) => {
+          if (table === 'account_snapshots') {
+            return {
+              select: jest.fn(() => mockSelectChain),
+              insert: jest.fn(() => mockInsertChain.insert())
+            }
+          }
+          return mockFromChain
+        })
+        
+        const account = {
+          balances: { current: 1000.50, available: 1000.50 }
+        }
+        
+        const result = await createAccountSnapshotConditional(account, 'acc-123')
+        
+        expect(result.success).toBe(true)
+        expect(result.skipped).toBeFalsy()
+        expect(result.data).toBeDefined()
+        expect(result.reason).toBe('No previous snapshot exists')
+      })
+    })
+
+    describe('Edge Cases and Error Handling', () => {
+      test('should handle missing balance data in shouldCreateAccountSnapshot', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-07T12:00:00.000Z'
+        }
+        
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {} // No balances property
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        expect(result.shouldCreate).toBe(true) // Date different, balance different (null vs 1000.50)
+        expect(result.isDateDifferent).toBe(true)
+        expect(result.isBalanceDifferent).toBe(true)
+      })
+
+      test('should handle different currency codes correctly', async () => {
+        const mockSnapshot = {
+          id: 'snapshot-123',
+          account_id: 'acc-123',
+          current_balance: 1000.50,
+          recorded_at: '2024-01-07T12:00:00.000Z'
+        }
+        
+        // Reset the mock for this specific test
+        mockSelectChain.single.mockResolvedValueOnce({ data: mockSnapshot, error: null })
+        
+        const account = {
+          balances: { 
+            current: 1000.50, 
+            available: 1000.50,
+            iso_currency_code: 'EUR' // Different currency
+          }
+        }
+        
+        const result = await shouldCreateAccountSnapshot(account, 'acc-123')
+        
+        // Should create because date is different (balance comparison is just for current_balance)
+        expect(result.shouldCreate).toBe(true)
+        expect(result.isDateDifferent).toBe(true)
+        expect(result.isBalanceDifferent).toBe(false) // Same current balance
+      })
     })
   })
 })
