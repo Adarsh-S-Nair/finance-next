@@ -66,7 +66,7 @@ describe('Pending and Posted Transaction Logic', () => {
         account_id: accountUuid,
         plaid_transaction_id: plaidTransaction.transaction_id,
         description: plaidTransaction.name || plaidTransaction.original_description || 'Unknown',
-        amount: parseFloat(plaidTransaction.amount),
+        amount: -parseFloat(plaidTransaction.amount),
         currency_code: plaidTransaction.iso_currency_code || 'USD',
         pending: plaidTransaction.pending,
         merchant_name: plaidTransaction.merchant_name,
@@ -84,7 +84,7 @@ describe('Pending and Posted Transaction Logic', () => {
       expect(transactionData.plaid_transaction_id).toBe('posted-txn-123')
       expect(transactionData.pending_plaid_transaction_id).toBe('pending-txn-123')
       expect(transactionData.pending).toBe(false)
-      expect(transactionData.amount).toBe(-2307.21)
+      expect(transactionData.amount).toBe(2307.21)
       expect(transactionData.description).toBe('Apple Store')
     })
 
