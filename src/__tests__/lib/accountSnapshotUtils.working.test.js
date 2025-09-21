@@ -558,8 +558,8 @@ describe('Account Snapshot Creation Tests', () => {
         
         const result = await shouldCreateAccountSnapshot(account, 'acc-123')
         
-        // Should create because date is different (balance comparison is just for current_balance)
-        expect(result.shouldCreate).toBe(true)
+        // Should NOT create because balance is the same (both conditions must be met)
+        expect(result.shouldCreate).toBe(false)
         expect(result.isDateDifferent).toBe(true)
         expect(result.isBalanceDifferent).toBe(false) // Same current balance
       })
