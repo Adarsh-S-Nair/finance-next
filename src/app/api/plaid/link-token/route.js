@@ -27,8 +27,8 @@ export async function POST(request) {
       );
     }
 
-    // Create link token
-    const linkTokenResponse = await createLinkToken(userId);
+    // Create link token with only transactions product for maximum institution compatibility
+    const linkTokenResponse = await createLinkToken(userId, ['transactions']);
 
     return Response.json({
       link_token: linkTokenResponse.link_token,

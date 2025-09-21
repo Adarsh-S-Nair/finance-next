@@ -86,10 +86,6 @@ export async function POST(request) {
     // Handle case-insensitive header name
     const signature = request.headers.get('plaid-verification') || request.headers.get('Plaid-Verification');
 
-    // Get the base URL from the request
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
-
     // Verify webhook signature using Plaid's JWT verification
     if (!(await verifyWebhookSignature(payload, signature))) {
       console.error('Invalid webhook signature');
@@ -102,10 +98,10 @@ export async function POST(request) {
     // Handle different webhook types
     switch (webhookData.webhook_type) {
       case 'TRANSACTIONS':
-        await handleTransactionsWebhook(webhookData, baseUrl);
+        await handleTransactionsWebhook(webhookData);
         break;
       case 'ITEM':
-        await handleItemWebhook(webhookData, baseUrl);
+        await handleItemWebhook(webhookData);
         break;
       default:
         console.log('Unhandled webhook type:', webhookData.webhook_type);
@@ -121,7 +117,7 @@ export async function POST(request) {
   }
 }
 
-async function handleTransactionsWebhook(webhookData, baseUrl) {
+async function handleTransactionsWebhook(webhookData) {
   const { webhook_code, item_id, new_transactions, removed_transactions } = webhookData;
 
   console.log(`Processing TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
@@ -144,28 +140,9 @@ async function handleTransactionsWebhook(webhookData, baseUrl) {
     case 'DEFAULT_UPDATE':
     case 'SYNC_UPDATES_AVAILABLE':
       // Trigger transaction sync for this item
-      console.log(`Triggering transaction sync for item: ${item_id} (${webhook_code})`);
-      try {
-        const syncResponse = await fetch(`${baseUrl}/api/plaid/transactions/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            plaidItemId: plaidItem.id,
-            userId: plaidItem.user_id
-          })
-        });
-
-        if (!syncResponse.ok) {
-          console.error('Transaction sync failed for webhook:', await syncResponse.text());
-        } else {
-          const syncResult = await syncResponse.json();
-          console.log('Transaction sync completed via webhook:', syncResult);
-        }
-      } catch (syncError) {
-        console.error('Error triggering transaction sync from webhook:', syncError);
-      }
+      console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+      // TODO: Re-enable sync call once we fix the URL issue
+      console.log('Sync call temporarily disabled for debugging');
       break;
 
     case 'TRANSACTIONS_REMOVED':
@@ -191,7 +168,7 @@ async function handleTransactionsWebhook(webhookData, baseUrl) {
   }
 }
 
-async function handleItemWebhook(webhookData, baseUrl) {
+async function handleItemWebhook(webhookData) {
   const { webhook_code, item_id } = webhookData;
 
   console.log(`Processing ITEM webhook: ${webhook_code} for item: ${item_id}`);
@@ -233,9 +210,10 @@ async function handleItemWebhook(webhookData, baseUrl) {
         const accountsResponse = await getAccounts(plaidItem.access_token);
         const { accounts } = accountsResponse;
         
-        console.log(`Found ${accounts.length} accounts for item ${item_id}`);
-        console.log('📋 Account details from webhook:', accounts.map(acc => ({
-          id: acc.account_id,
+        console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
+        console.log('🔍 DEBUG: Full accounts response:', JSON.stringify(accountsResponse, null, 2));
+        console.log('🔍 DEBUG: Individual accounts:', accounts.map(acc => ({
+          account_id: acc.account_id,
           name: acc.name,
           type: acc.type,
           subtype: acc.subtype,
@@ -258,6 +236,13 @@ async function handleItemWebhook(webhookData, baseUrl) {
           plaid_item_id: plaidItem.id,
         }));
 
+        console.log('🔍 DEBUG: Accounts to insert:', accountsToInsert.map(acc => ({
+          account_id: acc.account_id,
+          name: acc.name,
+          type: acc.type,
+          subtype: acc.subtype
+        })));
+
         // Insert accounts (upsert to handle duplicates)
         const { data: accountsData, error: accountsError } = await supabase
           .from('accounts')
@@ -270,8 +255,9 @@ async function handleItemWebhook(webhookData, baseUrl) {
           console.error('Error upserting new accounts:', accountsError);
         } else {
           console.log(`✅ Synced ${accountsData.length} accounts for item ${item_id}`);
-          console.log('📋 Synced accounts:', accountsData.map(acc => ({
-            id: acc.account_id,
+          console.log('🔍 DEBUG: Synced accounts:', accountsData.map(acc => ({
+            id: acc.id,
+            account_id: acc.account_id,
             name: acc.name,
             type: acc.type,
             subtype: acc.subtype

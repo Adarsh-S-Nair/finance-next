@@ -26,8 +26,11 @@ export async function POST(request) {
     const accountsResponse = await getAccounts(access_token);
     const { accounts, institution_id } = accountsResponse;
     console.log(`📊 Found ${accounts.length} accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
-    console.log('📋 Account details:', accounts.map(acc => ({
-      id: acc.account_id,
+    
+    // Debug logging for account details
+    console.log('🔍 DEBUG: Full accounts response from exchange-token:', JSON.stringify(accountsResponse, null, 2));
+    console.log('🔍 DEBUG: Individual accounts from exchange-token:', accounts.map(acc => ({
+      account_id: acc.account_id,
       name: acc.name,
       type: acc.type,
       subtype: acc.subtype,
@@ -127,6 +130,13 @@ export async function POST(request) {
     }
 
     console.log(`✅ Saved ${accountsData.length} accounts successfully`);
+    console.log('🔍 DEBUG: Saved accounts:', accountsData.map(acc => ({
+      id: acc.id,
+      account_id: acc.account_id,
+      name: acc.name,
+      type: acc.type,
+      subtype: acc.subtype
+    })));
 
     // Create account snapshots for the newly created accounts
     try {

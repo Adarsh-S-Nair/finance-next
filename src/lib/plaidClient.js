@@ -36,7 +36,7 @@ function getPlaidClient() {
 export { getPlaidClient };
 
 // Helper function to create link token
-export async function createLinkToken(userId, products = ['transactions', 'auth']) {
+export async function createLinkToken(userId, products = ['transactions']) {
   try {
     // Check environment variables first
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {

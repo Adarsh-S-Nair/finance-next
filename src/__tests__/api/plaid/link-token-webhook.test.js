@@ -96,7 +96,7 @@ describe('Link Token Webhook Configuration', () => {
       const expectedRequestStructure = {
         user: { client_user_id: 'user-id' },
         client_name: 'Finance Next',
-        products: ['transactions', 'auth'],
+        products: ['transactions'],
         country_codes: ['US'],
         language: 'en',
         webhook: 'https://app.vercel.app/api/plaid/webhook' // This should be included
