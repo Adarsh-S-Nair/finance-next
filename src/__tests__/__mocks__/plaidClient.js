@@ -56,6 +56,14 @@ export const mockPlaidResponses = {
     total_transactions: transactions.length,
     accounts: [createMockPlaidAccount()],
     ...overrides
+  }),
+
+  syncTransactions: (transactions = [], overrides = {}) => ({
+    transactions,
+    next_cursor: 'cursor-123',
+    has_more: false,
+    transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+    ...overrides
   })
 }
 
@@ -65,6 +73,7 @@ export const createMockPlaidClient = (customMethods = {}) => ({
   getAccounts: jest.fn(() => Promise.resolve(mockPlaidResponses.getAccounts())),
   getInstitution: jest.fn(() => Promise.resolve(mockPlaidResponses.getInstitution())),
   getTransactions: jest.fn(() => Promise.resolve(mockPlaidResponses.getTransactions())),
+  transactionsSync: jest.fn(() => Promise.resolve(mockPlaidResponses.syncTransactions())),
   ...customMethods
 })
 
@@ -85,10 +94,15 @@ export const mockGetTransactions = jest.fn(() =>
   Promise.resolve(mockPlaidResponses.getTransactions())
 )
 
+export const mockSyncTransactions = jest.fn(() => 
+  Promise.resolve(mockPlaidResponses.syncTransactions())
+)
+
 // Export the main mock
 export default {
   exchangePublicToken: mockExchangePublicToken,
   getAccounts: mockGetAccounts,
   getInstitution: mockGetInstitution,
-  getTransactions: mockGetTransactions
+  getTransactions: mockGetTransactions,
+  syncTransactions: mockSyncTransactions
 }

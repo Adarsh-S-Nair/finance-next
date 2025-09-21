@@ -141,8 +141,33 @@ async function handleTransactionsWebhook(webhookData) {
     case 'SYNC_UPDATES_AVAILABLE':
       // Trigger transaction sync for this item
       console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
-      // TODO: Re-enable sync call once we fix the URL issue
-      console.log('Sync call temporarily disabled for debugging');
+      
+      try {
+        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            plaidItemId: plaidItem.id,
+            userId: plaidItem.user_id,
+            forceSync: false
+          })
+        });
+
+        if (!syncResponse.ok) {
+          const errorData = await syncResponse.json();
+          console.error(`Webhook-triggered sync failed for item ${item_id}:`, errorData);
+        } else {
+          const syncResult = await syncResponse.json();
+          console.log(`Webhook-triggered sync completed for item ${item_id}:`, {
+            transactions_synced: syncResult.transactions_synced,
+            pending_transactions_updated: syncResult.pending_transactions_updated
+          });
+        }
+      } catch (error) {
+        console.error(`Error in webhook-triggered sync for item ${item_id}:`, error);
+      }
       break;
 
     case 'TRANSACTIONS_REMOVED':

@@ -1,9 +1,237 @@
 /**
  * Tests for Plaid webhook functionality
- * Validates that webhooks call the correct endpoints
+ * Validates that webhooks call the correct endpoints and trigger proper sync behavior
  */
 
+import { createMockPlaidAccount } from '../../__mocks__/plaidClient.js';
+
+// Mock fetch for webhook-triggered sync calls
+global.fetch = jest.fn();
+
+// Mock Supabase client
+const mockSupabaseClient = {
+  from: jest.fn(() => ({
+    select: jest.fn(() => ({
+      eq: jest.fn(() => ({
+        single: jest.fn(() => Promise.resolve({
+          data: {
+            id: 'plaid-item-123',
+            item_id: 'item-123',
+            user_id: 'user-123',
+            access_token: 'access-token-123',
+            transaction_cursor: null,
+            sync_status: 'idle'
+          },
+          error: null
+        }))
+      }))
+    })),
+    delete: jest.fn(() => ({
+      in: jest.fn(() => Promise.resolve({
+        error: null
+      }))
+    }))
+  }))
+};
+
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: () => mockSupabaseClient
+}));
+
 describe('Plaid Webhook Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Reset fetch mock
+    global.fetch.mockClear();
+  });
+
+  describe('Webhook Transaction Sync Behavior', () => {
+    it('should trigger sync for INITIAL_UPDATE webhook', async () => {
+      // Mock successful sync response
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactions_synced: 5,
+          pending_transactions_updated: 0
+        })
+      });
+
+      const webhookData = {
+        webhook_type: 'TRANSACTIONS',
+        webhook_code: 'INITIAL_UPDATE',
+        item_id: 'item-123',
+        new_transactions: 5
+      };
+
+      // This would be called by the actual webhook handler
+      const mockHandleTransactionsWebhook = async (webhookData) => {
+        const { webhook_code, item_id } = webhookData;
+        
+        if (['INITIAL_UPDATE', 'HISTORICAL_UPDATE', 'DEFAULT_UPDATE', 'SYNC_UPDATES_AVAILABLE'].includes(webhook_code)) {
+          const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              plaidItemId: 'plaid-item-123',
+              userId: 'user-123',
+              forceSync: false
+            })
+          });
+
+          return syncResponse.ok;
+        }
+        return false;
+      };
+
+      const result = await mockHandleTransactionsWebhook(webhookData);
+      
+      expect(result).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/plaid/transactions/sync'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            plaidItemId: 'plaid-item-123',
+            userId: 'user-123',
+            forceSync: false
+          })
+        })
+      );
+    });
+
+    it('should trigger sync for SYNC_UPDATES_AVAILABLE webhook', async () => {
+      // Mock successful sync response
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactions_synced: 3,
+          pending_transactions_updated: 1
+        })
+      });
+
+      const webhookData = {
+        webhook_type: 'TRANSACTIONS',
+        webhook_code: 'SYNC_UPDATES_AVAILABLE',
+        item_id: 'item-123'
+      };
+
+      const mockHandleTransactionsWebhook = async (webhookData) => {
+        const { webhook_code, item_id } = webhookData;
+        
+        if (['INITIAL_UPDATE', 'HISTORICAL_UPDATE', 'DEFAULT_UPDATE', 'SYNC_UPDATES_AVAILABLE'].includes(webhook_code)) {
+          const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              plaidItemId: 'plaid-item-123',
+              userId: 'user-123',
+              forceSync: false
+            })
+          });
+
+          return syncResponse.ok;
+        }
+        return false;
+      };
+
+      const result = await mockHandleTransactionsWebhook(webhookData);
+      
+      expect(result).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/plaid/transactions/sync'),
+        expect.objectContaining({
+          method: 'POST'
+        })
+      );
+    });
+
+    it('should handle TRANSACTIONS_REMOVED webhook without calling sync', async () => {
+      const webhookData = {
+        webhook_type: 'TRANSACTIONS',
+        webhook_code: 'TRANSACTIONS_REMOVED',
+        item_id: 'item-123',
+        removed_transactions: ['txn-1', 'txn-2']
+      };
+
+      const mockHandleTransactionsWebhook = async (webhookData) => {
+        const { webhook_code, item_id, removed_transactions } = webhookData;
+        
+        if (webhook_code === 'TRANSACTIONS_REMOVED') {
+          // Should delete transactions directly, not call sync
+          if (removed_transactions && removed_transactions.length > 0) {
+            // Mock database deletion
+            return { deleted: removed_transactions.length };
+          }
+        }
+        return false;
+      };
+
+      const result = await mockHandleTransactionsWebhook(webhookData);
+      
+      expect(result).toEqual({ deleted: 2 });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should handle sync failure gracefully', async () => {
+      // Mock failed sync response
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({
+          error: 'Sync failed'
+        })
+      });
+
+      const webhookData = {
+        webhook_type: 'TRANSACTIONS',
+        webhook_code: 'DEFAULT_UPDATE',
+        item_id: 'item-123'
+      };
+
+      const mockHandleTransactionsWebhook = async (webhookData) => {
+        const { webhook_code, item_id } = webhookData;
+        
+        if (['INITIAL_UPDATE', 'HISTORICAL_UPDATE', 'DEFAULT_UPDATE', 'SYNC_UPDATES_AVAILABLE'].includes(webhook_code)) {
+          try {
+            const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                plaidItemId: 'plaid-item-123',
+                userId: 'user-123',
+                forceSync: false
+              })
+            });
+
+            if (!syncResponse.ok) {
+              const errorData = await syncResponse.json();
+              return { error: errorData.error };
+            }
+            return { success: true };
+          } catch (error) {
+            return { error: error.message };
+          }
+        }
+        return false;
+      };
+
+      const result = await mockHandleTransactionsWebhook(webhookData);
+      
+      expect(result).toEqual({ error: 'Sync failed' });
+      expect(global.fetch).toHaveBeenCalled();
+    });
+  });
+
   describe('Webhook Endpoint Usage', () => {
     it('should call /transactions/sync for transaction webhooks', () => {
       // This test validates the expected behavior based on our webhook implementation

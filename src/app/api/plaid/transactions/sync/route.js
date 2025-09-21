@@ -1,4 +1,4 @@
-import { getPlaidClient, PLAID_ENV, getTransactions } from '../../../../../lib/plaidClient';
+import { getPlaidClient, PLAID_ENV, getTransactions, syncTransactions } from '../../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
 
@@ -112,6 +112,55 @@ export async function POST(request) {
       allTransactions = transactions || [];
 
       console.log(`📊 Received ${allTransactions.length} transactions from sandbox`);
+    } else {
+      // Production mode: Use transactions/sync endpoint with cursor-based pagination
+      console.log('🚀 Production mode: Using transactions/sync endpoint');
+      
+      // Initialize cursor from stored value
+      transactionCursor = plaidItem.transaction_cursor;
+      let hasMore = true;
+      let totalTransactions = 0;
+      
+      // Handle pagination if has_more is true
+      while (hasMore) {
+        try {
+          console.log(`📥 Syncing transactions with cursor: ${transactionCursor || 'null'}`);
+          
+          const responseData = await syncTransactions(plaidItem.access_token, transactionCursor);
+          
+          const { 
+            transactions, 
+            next_cursor, 
+            has_more,
+            transactions_update_status 
+          } = responseData;
+          
+          console.log(`📊 Received ${transactions?.length || 0} transactions in this batch`);
+          console.log(`📈 Transaction update status: ${transactions_update_status}`);
+          console.log(`🔄 Has more: ${has_more}, Next cursor: ${next_cursor || 'null'}`);
+          
+          if (transactions && transactions.length > 0) {
+            allTransactions.push(...transactions);
+            totalTransactions += transactions.length;
+          }
+          
+          // Update cursor for next iteration
+          transactionCursor = next_cursor;
+          hasMore = has_more || false;
+          
+          // Safety check to prevent infinite loops
+          if (totalTransactions > 10000) {
+            console.warn('⚠️ Reached maximum transaction limit (10000), stopping pagination');
+            break;
+          }
+          
+        } catch (error) {
+          console.error('❌ Plaid transactionsSync error:', error.response?.data || error.message);
+          throw new Error(`Plaid API error: ${error.response?.data?.error_message || error.message}`);
+        }
+      }
+      
+      console.log(`📊 Total transactions received: ${allTransactions.length}`);
       
       if (allTransactions.length > 0) {
         // Log first few transactions for debugging
@@ -126,65 +175,6 @@ export async function POST(request) {
           authorized_date: t.authorized_date
         })));
       }
-    } else {
-      console.log('🏭 Production mode: Using transactions/sync endpoint');
-      
-      // Production mode: use cursor-based sync
-      transactionCursor = plaidItem.transaction_cursor;
-      let hasMore = true;
-      let syncRequestCount = 0;
-      const maxSyncRequests = 10; // Prevent infinite loops
-
-      while (hasMore && syncRequestCount < maxSyncRequests) {
-        const request = {
-          access_token: plaidItem.access_token,
-          cursor: transactionCursor,
-          count: 500, // Maximum allowed by Plaid
-        };
-
-        console.log(`📥 Fetching transactions batch ${syncRequestCount + 1}, cursor: ${transactionCursor}`);
-        
-        const response = await client.transactionsSync(request);
-        
-        if (!response.data) {
-          console.error('No data in Plaid response:', response);
-          throw new Error('Invalid response from Plaid API');
-        }
-        
-        const { transactions, next_cursor, has_more } = response.data;
-
-        console.log(`📊 Received ${transactions?.length || 0} transactions in batch ${syncRequestCount + 1}`);
-        
-        if (transactions && transactions.length > 0) {
-          // Log first few transactions for debugging
-          console.log('🔍 Sample transactions:', transactions.slice(0, 3).map(t => ({
-            id: t.transaction_id,
-            description: t.name || t.original_description,
-            amount: t.amount,
-            account_id: t.account_id,
-            pending: t.pending,
-            datetime: t.datetime,
-            date: t.date,
-            authorized_date: t.authorized_date
-          })));
-          
-          allTransactions.push(...transactions);
-        }
-        transactionCursor = next_cursor;
-        hasMore = has_more;
-        syncRequestCount++;
-
-        // Break if we've fetched all transactions
-        if (!has_more) {
-          break;
-        }
-      }
-
-      if (syncRequestCount >= maxSyncRequests) {
-        console.warn(`⚠️ Reached maximum sync requests (${maxSyncRequests}), stopping sync`);
-      }
-
-      console.log(`📈 Total transactions fetched: ${allTransactions.length} in ${syncRequestCount} requests`);
     }
 
     // Get all accounts for this plaid item
