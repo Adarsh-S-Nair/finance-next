@@ -149,13 +149,35 @@ export async function getTransactions(accessToken, startDate, endDate, accountId
 export async function syncTransactions(accessToken, cursor = null) {
   try {
     const client = getPlaidClient();
+    
+    // Handle cursor according to Plaid docs: empty string for initial sync, omit for subsequent
+    let requestCursor = cursor;
+    if (cursor === null || cursor === undefined || cursor.trim() === '') {
+      requestCursor = ''; // Empty string for initial sync
+    }
+    
     const request = {
       access_token: accessToken,
-      cursor: cursor,
-      count: 500, // Maximum allowed by Plaid
+      cursor: requestCursor,
+      count: 250, // Use same count as trading-api
     };
 
+    console.log(`[PLAID SYNC] Request details:`, {
+      access_token: accessToken ? `${accessToken.substring(0, 20)}...` : 'None',
+      cursor: requestCursor,
+      count: request.count
+    });
+
     const response = await client.transactionsSync(request);
+    
+    console.log(`[PLAID SYNC] Response details:`, {
+      has_more: response.data.has_more,
+      next_cursor: response.data.next_cursor,
+      added_count: response.data.added?.length || 0,
+      modified_count: response.data.modified?.length || 0,
+      removed_count: response.data.removed?.length || 0
+    });
+    
     return response.data;
   } catch (error) {
     console.error('Error syncing transactions:', error);

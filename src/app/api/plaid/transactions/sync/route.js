@@ -67,6 +67,7 @@ export async function POST(request) {
     let transactionCursor = null; // Initialize for both modes
 
     // Use different approach based on environment
+    console.log(`🌍 Plaid Environment: ${PLAID_ENV}`);
     if (PLAID_ENV === 'sandbox') {
       console.log('🏖️ Sandbox mode: Using transactions/get endpoint');
       
@@ -128,20 +129,28 @@ export async function POST(request) {
           
           const responseData = await syncTransactions(plaidItem.access_token, transactionCursor);
           
+          console.log('🔍 Full Plaid response data:', JSON.stringify(responseData, null, 2));
+          
           const { 
-            transactions, 
+            added, 
+            modified,
+            removed,
             next_cursor, 
             has_more,
-            transactions_update_status 
+            transactions_update_status,
+            accounts
           } = responseData;
           
-          console.log(`📊 Received ${transactions?.length || 0} transactions in this batch`);
+          // Combine added and modified transactions (modified are already processed)
+          const batchTransactions = [...(added || []), ...(modified || [])];
+          
+          console.log(`📊 Received ${batchTransactions.length} transactions in this batch (${added?.length || 0} added, ${modified?.length || 0} modified, ${removed?.length || 0} removed)`);
           console.log(`📈 Transaction update status: ${transactions_update_status}`);
           console.log(`🔄 Has more: ${has_more}, Next cursor: ${next_cursor || 'null'}`);
           
-          if (transactions && transactions.length > 0) {
-            allTransactions.push(...transactions);
-            totalTransactions += transactions.length;
+          if (batchTransactions.length > 0) {
+            allTransactions.push(...batchTransactions);
+            totalTransactions += batchTransactions.length;
           }
           
           // Update cursor for next iteration
@@ -174,6 +183,25 @@ export async function POST(request) {
           date: t.date,
           authorized_date: t.authorized_date
         })));
+      }
+    }
+
+    // Handle accounts data from Plaid response (for balance updates)
+    let accountsToUpdate = [];
+    let updatedAccountsCount = 0;
+    if (PLAID_ENV !== 'sandbox') {
+      // In production mode, we get accounts data from the sync response
+      // We need to collect accounts from all pagination batches
+      // For now, we'll get fresh account data from Plaid at the end of sync
+      console.log('🏦 Fetching fresh account data from Plaid for balance updates...');
+      try {
+        const { getAccounts } = await import('../../../../../lib/plaidClient');
+        const accountsResponse = await getAccounts(plaidItem.access_token);
+        accountsToUpdate = accountsResponse.accounts || [];
+        console.log(`📊 Retrieved ${accountsToUpdate.length} accounts for balance updates`);
+      } catch (error) {
+        console.error('❌ Failed to fetch accounts for balance updates:', error);
+        // Don't fail the whole sync if account balance update fails
       }
     }
 
@@ -468,6 +496,51 @@ export async function POST(request) {
       console.log('ℹ️ No transactions to upsert');
     }
 
+    // Update account balances if we have fresh account data
+    if (accountsToUpdate.length > 0) {
+      console.log('💰 Updating account balances...');
+      
+      // Create mapping from Plaid account_id to our database account records
+      const accountMap = {};
+      accounts.forEach(account => {
+        accountMap[account.account_id] = account.id;
+      });
+
+      // Update balances for each account
+      let updatedAccountsCount = 0;
+      for (const plaidAccount of accountsToUpdate) {
+        const dbAccountId = accountMap[plaidAccount.account_id];
+        if (dbAccountId && plaidAccount.balances) {
+          try {
+            const { error: updateError } = await supabase
+              .from('accounts')
+              .update({ 
+                balances: plaidAccount.balances,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', dbAccountId);
+
+            if (updateError) {
+              console.error(`❌ Failed to update balance for account ${plaidAccount.account_id}:`, updateError);
+            } else {
+              updatedAccountsCount++;
+              console.log(`✅ Updated balance for account ${plaidAccount.account_id}:`, {
+                current: plaidAccount.balances.current,
+                available: plaidAccount.balances.available,
+                currency: plaidAccount.balances.iso_currency_code
+              });
+            }
+          } catch (error) {
+            console.error(`❌ Error updating balance for account ${plaidAccount.account_id}:`, error);
+          }
+        } else if (!dbAccountId) {
+          console.warn(`⚠️ No database account found for Plaid account: ${plaidAccount.account_id}`);
+        }
+      }
+      
+      console.log(`💰 Updated balances for ${updatedAccountsCount} accounts`);
+    }
+
     // Update plaid item with sync status
     const updateData = {
       last_transaction_sync: new Date().toISOString(),
@@ -493,6 +566,7 @@ export async function POST(request) {
       success: true,
       transactions_synced: transactionsToUpsert.length,
       pending_transactions_updated: pendingTransactionsToUpdate.length,
+      accounts_updated: accountsToUpdate.length > 0 ? updatedAccountsCount : 0,
       cursor: PLAID_ENV === 'sandbox' ? null : transactionCursor
     });
 

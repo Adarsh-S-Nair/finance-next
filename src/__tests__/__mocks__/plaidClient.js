@@ -58,11 +58,14 @@ export const mockPlaidResponses = {
     ...overrides
   }),
 
-  syncTransactions: (transactions = [], overrides = {}) => ({
-    transactions,
+  syncTransactions: (transactions = [], accounts = [createMockPlaidAccount()], overrides = {}) => ({
+    added: transactions,
+    modified: [],
+    removed: [],
     next_cursor: 'cursor-123',
     has_more: false,
     transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+    accounts,
     ...overrides
   })
 }
