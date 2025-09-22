@@ -2,6 +2,7 @@
 
 import PageContainer from "../../components/PageContainer";
 import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
 import { FaPlus, FaUnlink } from "react-icons/fa";
 import { FaEllipsisVertical } from "react-icons/fa6";
 import { FiRefreshCw, FiDownload } from "react-icons/fi";
@@ -282,7 +283,7 @@ export default function AccountsPage() {
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Show empty state if no accounts */}
         {allAccounts.length === 0 && !loading ? (
           <div className="text-center py-12">
@@ -297,151 +298,155 @@ export default function AccountsPage() {
           </div>
         ) : (
           <>
-            {/* Financial Overview Cards - only show if we have accounts */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Net Worth Card */}
-              <div className={`rounded-lg bg-gradient-to-r from-[var(--color-accent)] to-[color-mix(in_oklab,var(--color-accent),var(--color-fg)_20%)] p-4 ${getAccentTextColor(isDarkMode, isDefaultAccent)}`}>
-                <div className="flex items-center gap-4">
-                  <TiChartArea className={`h-8 w-8 ${getAccentIconColor(isDarkMode, isDefaultAccent)} opacity-90`} />
-                  <div>
-                    <div className={`text-sm ${getAccentTextColorWithOpacity(isDarkMode, isDefaultAccent, 0.8)}`}>Net Worth</div>
-                    <div className="text-xl font-normal">
-                      {formatCurrency(totalBalance)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Assets Card */}
-              <div className="rounded-lg bg-[var(--color-surface)] p-4">
-                <div className="flex items-center gap-4">
-                  <FaCoins className="h-8 w-8 text-[var(--color-muted)]" />
-                  <div>
-                    <div className="text-sm text-[var(--color-muted)]">Assets</div>
-                    <div className="text-xl font-normal text-[var(--color-fg)]">
-                      {formatCurrency(totalAssets)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Liabilities Card */}
-              <div className="rounded-lg bg-[var(--color-surface)] p-4">
-                <div className="flex items-center gap-4">
-                  <FaCreditCard className="h-8 w-8 text-[var(--color-muted)]" />
-                  <div>
-                    <div className="text-sm text-[var(--color-muted)]">Liabilities</div>
-                    <div className="text-xl font-normal text-[var(--color-fg)]">
-                      {formatCurrency(totalLiabilities)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Institution Cards - only show if we have accounts */}
-            {accounts.map((institution) => (
-              <div key={institution.id} className="rounded-md bg-[var(--color-surface)] p-4">
-                <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)] mb-3">
+            {/* Financial Overview Section */}
+            <section aria-labelledby="overview-heading" className="mt-4 pl-6">
+              <h2 id="overview-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Financial Overview</h2>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Net Worth Card */}
+                <Card>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden">
-                      {institution.logo ? (
-                        <img 
-                          src={institution.logo} 
-                          alt={`${institution.name} logo`}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                      ) : null}
-                      <PiBankFill 
-                        className={`h-4 w-4 ${getAccentIconColor(isDarkMode, isDefaultAccent)} ${institution.logo ? 'hidden' : 'block'}`}
-                      />
+                    <div className="w-10 h-10 rounded-full bg-[var(--color-accent)] flex items-center justify-center">
+                      <TiChartArea className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-medium">{institution.name}</div>
-                      <div className="text-sm text-[var(--color-muted)]">
-                        {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''}
+                      <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
+                      <div className="text-xl font-medium text-[var(--color-fg)]">
+                        {formatCurrency(totalBalance)}
                       </div>
                     </div>
                   </div>
+                </Card>
+                
+                {/* Assets Card */}
+                <Card>
                   <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-lg font-normal text-[var(--color-fg)]">
-                        {formatCurrency(getTotalBalance(institution.accounts))}
-                      </div>
-                      <div className="text-xs text-[var(--color-muted)] uppercase tracking-wide">
-                        Total Balance
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                      <FaCoins className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-[var(--color-muted)]">Assets</div>
+                      <div className="text-xl font-medium text-[var(--color-fg)]">
+                        {formatCurrency(totalAssets)}
                       </div>
                     </div>
-                    <ContextMenu
-                      trigger={
-                        <button
-                          className="p-1 rounded-md hover:bg-[var(--color-muted)]/10 transition-colors cursor-pointer"
-                          aria-label="Institution options"
-                        >
-                          <FaEllipsisVertical className="h-4 w-4 text-[var(--color-muted)]" />
-                        </button>
-                      }
-                      align="right"
-                    >
-                      <ContextMenuItem
-                        icon={<FaUnlink className="h-4 w-4" />}
-                        onClick={() => handleDisconnectInstitution(institution)}
-                        destructive
-                      >
-                        Disconnect
-                      </ContextMenuItem>
-                    </ContextMenu>
                   </div>
-                </div>
-              
-                {institution.accounts.length === 0 ? (
-                  <div className="text-center py-8 text-[var(--color-muted)]">
-                    <p>No accounts yet</p>
+                </Card>
+                
+                {/* Liabilities Card */}
+                <Card>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                      <FaCreditCard className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-[var(--color-muted)]">Liabilities</div>
+                      <div className="text-xl font-medium text-[var(--color-fg)]">
+                        {formatCurrency(totalLiabilities)}
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-0 pl-4">
-                    {institution.accounts.map((account, index) => (
-                      <div key={account.id} className={index < institution.accounts.length - 1 ? "border-b border-[var(--color-border)] pb-3 mb-3" : ""}>
-                        <div className="flex items-center justify-between py-2">
-                          <div>
-                            <div className="font-medium text-[var(--color-fg)]">{account.name}</div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-sm text-[var(--color-muted)]">
-                                {capitalizeWords(account.type)}
-                              </span>
-                              {account.mask && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20">
-                                  •••• {account.mask}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-normal text-[var(--color-fg)]">
-                              {formatCurrency(account.balance)}
-                            </div>
-                            {account.limit && (
-                              <div className="text-xs text-[var(--color-muted)]">
-                                of {formatCurrency(account.limit)} limit
-                              </div>
-                            )}
-                            {account.monthlyPayment && (
-                              <div className="text-xs text-[var(--color-muted)]">
-                                ${account.monthlyPayment}/mo
-                              </div>
-                            )}
+                </Card>
+              </div>
+            </section>
+
+            {/* Accounts Section */}
+            <section aria-labelledby="accounts-heading" className="mt-8 pl-6">
+              <h2 id="accounts-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Connected Accounts</h2>
+              <div className="mt-3 space-y-4">
+                {accounts.map((institution) => (
+                  <Card key={institution.id}>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden">
+                          {institution.logo ? (
+                            <img 
+                              src={institution.logo} 
+                              alt={`${institution.name} logo`}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                          ) : null}
+                          <PiBankFill 
+                            className={`h-5 w-5 text-white ${institution.logo ? 'hidden' : 'block'}`}
+                          />
+                        </div>
+                        <div>
+                          <div className="font-medium text-[var(--color-fg)]">{institution.name}</div>
+                          <div className="text-sm text-[var(--color-muted)]">
+                            {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''} • {formatCurrency(getTotalBalance(institution.accounts))}
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <ContextMenu
+                        trigger={
+                          <button
+                            className="p-1 rounded-md hover:bg-[var(--color-muted)]/10 transition-colors cursor-pointer"
+                            aria-label="Institution options"
+                          >
+                            <FaEllipsisVertical className="h-4 w-4 text-[var(--color-muted)]" />
+                          </button>
+                        }
+                        align="right"
+                      >
+                        <ContextMenuItem
+                          icon={<FaUnlink className="h-4 w-4" />}
+                          onClick={() => handleDisconnectInstitution(institution)}
+                          destructive
+                        >
+                          Disconnect
+                        </ContextMenuItem>
+                      </ContextMenu>
+                    </div>
+                  
+                    {institution.accounts.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+                        <div className="space-y-3">
+                          {institution.accounts.map((account) => (
+                            <div key={account.id} className="flex items-center justify-between py-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-[var(--color-fg)] truncate">{account.name}</div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-sm text-[var(--color-muted)]">
+                                    {capitalizeWords(account.type)}
+                                  </span>
+                                  {account.mask && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20">
+                                      •••• {account.mask}
+                                    </span>
+                                  )}
+                                </div>
+                                {(account.limit || account.monthlyPayment) && (
+                                  <div className="flex items-center gap-4 mt-1">
+                                    {account.limit && (
+                                      <span className="text-xs text-[var(--color-muted)]">
+                                        Limit: {formatCurrency(account.limit)}
+                                      </span>
+                                    )}
+                                    {account.monthlyPayment && (
+                                      <span className="text-xs text-[var(--color-muted)]">
+                                        Payment: ${account.monthlyPayment}/mo
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0 ml-4">
+                                <div className="font-medium text-[var(--color-fg)]">
+                                  {formatCurrency(account.balance)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                ))}
               </div>
-            ))}
+            </section>
           </>
         )}
       </div>

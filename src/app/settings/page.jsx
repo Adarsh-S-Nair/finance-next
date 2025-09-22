@@ -3,6 +3,7 @@
 import PageContainer from "../../components/PageContainer";
 import ThemeToggle from "../../components/ThemeToggle";
 import AccentPicker from "../../components/AccentPicker";
+import Card from "../../components/ui/Card";
 import { useState } from "react";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Button from "../../components/ui/Button";
@@ -50,7 +51,7 @@ export default function SettingsPage() {
     <PageContainer title="Settings">
       <section aria-labelledby="appearance-heading" className="mt-4 pl-6">
         <h2 id="appearance-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Appearance</h2>
-        <div className="mt-3 rounded-md border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] p-4">
+        <Card className="mt-3">
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Theme</div>
@@ -66,12 +67,12 @@ export default function SettingsPage() {
             </div>
             <AccentPicker />
           </div>
-        </div>
+        </Card>
       </section>
 
       <section aria-labelledby="danger-heading" className="mt-8 pl-6">
         <h2 id="danger-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Delete Account</h2>
-        <div className="mt-3 rounded-md border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_96%)] p-4">
+        <Card variant="danger" className="mt-3">
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Delete account</div>
@@ -87,7 +88,7 @@ export default function SettingsPage() {
               Delete Account
             </Button>
           </div>
-        </div>
+        </Card>
       </section>
 
       <ConfirmDialog

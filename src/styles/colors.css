@@ -32,6 +32,9 @@
 
   /* Subtle content background distinct from base bg */
   --color-content-bg: #f7f8fa;
+  
+  /* Shadow colors */
+  --color-shadow: rgba(0, 0, 0, 0.1);
 }
 
 .dark {
@@ -39,7 +42,7 @@
   --color-surface: #2a3038;
   --color-fg: #e6edf3;
   --color-muted: #a3afba;
-  --color-border: #39414b;
+  --color-border: #2d3748;
   --color-ring: #7aa2f7;
 
   --color-primary: #e6edf3; /* light button in dark mode */
@@ -68,6 +71,9 @@
 
   /* Subtle content background distinct from base bg */
   --color-content-bg: #262c34;
+  
+  /* Shadow colors */
+  --color-shadow: rgba(0, 0, 0, 0.3);
 }
 
 /* Base application colors */

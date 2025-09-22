@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { LuMenu } from "react-icons/lu";
-import { FaSearch } from "react-icons/fa";
-import Input from "./ui/Input";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -35,16 +33,13 @@ export default function AppTopbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-0 z-20 h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-b border-[var(--color-border)]">
+    <header className="sticky top-0 z-20 h-16 bg-[var(--color-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-bg),transparent_6%)] border-b border-[var(--color-border)]">
       <div className="mx-auto max-w-[1400px] px-4 h-full flex items-center gap-3">
         <button id="sidebar-toggle" className="lg:hidden p-2 cursor-pointer rounded-md">
           <LuMenu className="h-4 w-4" />
         </button>
-        <div className="flex-1 max-w-xl">
-          <div className="relative">
-            <FaSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" aria-hidden />
-            <Input aria-label="Search" placeholder={`Search ${title}`} className="pl-9" />
-          </div>
+        <div className="flex-1">
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {profileUrl ? (

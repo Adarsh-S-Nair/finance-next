@@ -21,7 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen overflow-hidden">
       <Sidebar />
-      <div className="lg:ml-64 xl:ml-72 h-full bg-[var(--color-content-bg)] flex flex-col">
+      <div className="lg:ml-64 xl:ml-72 h-full bg-[var(--color-bg)] flex flex-col">
         <AppTopbar />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto max-w-[1400px] px-4">
@@ -47,7 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: "-100%", opacity: 0 }}
               transition={{ type: "spring", stiffness: 520, damping: 44, mass: 0.7 }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-[var(--color-bg)] shadow-lg lg:hidden overflow-y-auto"
+              className="fixed inset-y-0 left-0 z-50 w-72 bg-[var(--color-content-bg)] shadow-lg lg:hidden overflow-y-auto"
             >
               <MobileSidebar onNavigate={() => setOpen(false)} />
             </motion.div>

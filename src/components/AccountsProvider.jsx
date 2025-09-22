@@ -124,10 +124,34 @@ export function AccountsProvider({ children }) {
   // Get all accounts as a flat array
   const allAccounts = accounts.flatMap(institution => institution.accounts);
 
-  // Calculate totals
-  const totalBalance = allAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalAssets = allAccounts.filter(account => account.balance > 0).reduce((sum, account) => sum + account.balance, 0);
-  const totalLiabilities = Math.abs(allAccounts.filter(account => account.balance < 0).reduce((sum, account) => sum + account.balance, 0));
+  // Helper function to determine if an account is a liability
+  const isLiabilityAccount = (account) => {
+    const liabilityTypes = [
+      'credit card',
+      'credit',
+      'loan',
+      'mortgage',
+      'line of credit',
+      'overdraft',
+      'other'
+    ];
+    
+    const accountType = (account.type || '').toLowerCase();
+    return liabilityTypes.some(type => accountType.includes(type));
+  };
+
+  // Assets: positive balance accounts that are NOT liability types
+  const totalAssets = allAccounts
+    .filter(account => account.balance > 0 && !isLiabilityAccount(account))
+    .reduce((sum, account) => sum + account.balance, 0);
+  
+  // Liabilities: negative balance accounts OR liability type accounts (regardless of balance)
+  const totalLiabilities = allAccounts
+    .filter(account => account.balance < 0 || isLiabilityAccount(account))
+    .reduce((sum, account) => sum + Math.abs(account.balance), 0);
+
+  // Net Worth = Assets - Liabilities
+  const totalBalance = totalAssets - totalLiabilities;
 
   const value = {
     accounts,

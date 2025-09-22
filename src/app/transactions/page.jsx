@@ -110,9 +110,9 @@ function TransactionRow({ transaction, isLast }) {
         !isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         <div 
-          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
             backgroundColor: transaction.category_hex_color || 'var(--color-accent)'
           }}
@@ -142,24 +142,30 @@ function TransactionRow({ transaction, isLast }) {
             }}
           />
         </div>
-        <div>
-          <div className="font-medium text-[var(--color-fg)]">
+        <div className="min-w-0 flex-1 mr-8">
+          <div className="font-medium text-[var(--color-fg)] truncate">
             {transaction.merchant_name || transaction.description || 'Transaction'}
           </div>
           {transaction.category_name && (
-            <div className="text-xs text-[var(--color-muted)] mt-1">
-              {transaction.category_name}
+            <div className="text-xs text-[var(--color-muted)] mt-1 flex items-center gap-1.5">
+              <div 
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{
+                  backgroundColor: transaction.category_hex_color || 'var(--color-accent)'
+                }}
+              />
+              <span className="truncate">{transaction.category_name}</span>
             </div>
           )}
         </div>
       </div>
-      <div className="text-right">
+      <div className="text-right flex-shrink-0">
         <div className={`font-medium ${transaction.amount > 0 ? 'text-green-600' : 'text-[var(--color-fg)]'}`}>
           {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
         </div>
-        {transaction.account_name && (
-          <div className="text-xs text-[var(--color-muted)]">
-            {transaction.account_name}
+        {transaction.pending && (
+          <div className="text-xs text-[var(--color-muted)] italic">
+            Pending
           </div>
         )}
       </div>
