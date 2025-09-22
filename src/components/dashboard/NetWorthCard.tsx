@@ -16,53 +16,59 @@ function formatCurrency(amount) {
 }
 
 export default function NetWorthCard() {
-  const { totalBalance, totalAssets, totalLiabilities, loading } = useAccounts();
   const { profile, user } = useUser();
   const [hoveredData, setHoveredData] = useState(null);
   const [netWorthHistory, setNetWorthHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState(null);
+  const [currentNetWorth, setCurrentNetWorth] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Fetch net worth history from the API
-  const fetchNetWorthHistory = async () => {
+  // Fetch current net worth and history from the API
+  const fetchNetWorthData = async () => {
     if (!user?.id) return;
 
     try {
-      setHistoryLoading(true);
-      setHistoryError(null);
+      setLoading(true);
+      setError(null);
       
-      const response = await fetch(`/api/net-worth/dates?userId=${user.id}`);
+      // Fetch current net worth
+      const currentResponse = await fetch(`/api/net-worth/current?userId=${user.id}`);
+      if (!currentResponse.ok) {
+        throw new Error('Failed to fetch current net worth');
+      }
+      const currentData = await currentResponse.json();
+      setCurrentNetWorth(currentData);
       
-      if (!response.ok) {
+      // Fetch historical data for the chart
+      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}`);
+      if (!historyResponse.ok) {
         throw new Error('Failed to fetch net worth history');
       }
+      const historyData = await historyResponse.json();
       
-      const data = await response.json();
-      console.log('🔍 NetWorthCard: API Response:', data);
-      console.log('🔍 NetWorthCard: Historical data received:', data.data?.length || 0, 'entries');
-      console.log('🔍 NetWorthCard: Sample data from API:', data.data?.slice(0, 3));
-      console.log('🔍 NetWorthCard: Total snapshots in DB:', data.totalSnapshots);
-      console.log('🔍 NetWorthCard: Total accounts:', data.totalAccounts);
-      setNetWorthHistory(data.data || []);
+      console.log('🔍 NetWorthCard: Current net worth data:', currentData);
+      console.log('🔍 NetWorthCard: Historical data received:', historyData.data?.length || 0, 'entries');
+      setNetWorthHistory(historyData.data || []);
     } catch (err) {
-      console.error('Error fetching net worth history:', err);
-      setHistoryError(err.message);
+      console.error('Error fetching net worth data:', err);
+      setError(err.message);
     } finally {
-      setHistoryLoading(false);
+      setLoading(false);
     }
   };
 
   // Fetch data when user changes
   useEffect(() => {
     if (user?.id) {
-      fetchNetWorthHistory();
+      fetchNetWorthData();
     } else {
       setNetWorthHistory([]);
-      setHistoryError(null);
+      setCurrentNetWorth(null);
+      setError(null);
     }
   }, [user?.id]);
 
-  if (loading || historyLoading) {
+  if (loading) {
     return (
       <Card width="2/3" className="animate-pulse">
         <div className="flex items-center gap-4">
@@ -93,8 +99,8 @@ export default function NetWorthCard() {
 
   console.log('🔍 NetWorthCard: Processed chart data:', chartData.slice(-3));
 
-  // If no historical data, show current balance as a single point
-  if (chartData.length === 0) {
+  // If no historical data, show current net worth as a single point
+  if (chartData.length === 0 && currentNetWorth) {
     const now = new Date();
     chartData.push({
       month: now.toLocaleString('en-US', { month: 'short' }),
@@ -102,11 +108,11 @@ export default function NetWorthCard() {
       year: now.getFullYear(),
       date: now,
       dateString: now.toISOString().split('T')[0],
-      value: totalBalance,
-      assets: totalAssets,
-      liabilities: totalLiabilities
+      value: currentNetWorth.netWorth,
+      assets: currentNetWorth.assets,
+      liabilities: currentNetWorth.liabilities
     });
-    console.log('⚠️ NetWorthCard: No historical data found, using current balance as fallback');
+    console.log('⚠️ NetWorthCard: No historical data found, using current net worth as fallback');
   }
 
   // If only one data point, create a flat line by duplicating it
@@ -134,17 +140,41 @@ export default function NetWorthCard() {
     console.log('📈 NetWorthCard: Single data point detected, created flat line');
   }
 
-  // Get the most recent net worth from the actual data (not from AccountsProvider)
-  const latestNetWorth = chartData.length > 0 ? chartData[chartData.length - 1].value : totalBalance;
+  // Get the most recent net worth from the actual data
+  const latestNetWorth = chartData.length > 0 ? chartData[chartData.length - 1].value : (currentNetWorth?.netWorth || 0);
+
+  // Get current display data (hovered or most recent)
+  const currentData = hoveredData || chartData[chartData.length - 1];
+  
+  // Fallback data structure when no data is available
+  const fallbackData = {
+    value: currentNetWorth?.netWorth || 0,
+    assets: currentNetWorth?.assets || 0,
+    liabilities: currentNetWorth?.liabilities || 0,
+    dateString: new Date().toISOString().split('T')[0],
+    monthFull: new Date().toLocaleString('en-US', { month: 'long' }),
+    year: new Date().getFullYear()
+  };
+  
+  // Use currentData if available, otherwise use fallback
+  const displayData = currentData || fallbackData;
+  
+  // Additional safety check to ensure displayData has required properties
+  if (!displayData || typeof displayData.value === 'undefined') {
+    console.error('🔍 NetWorthCard: displayData is invalid:', displayData);
+    console.error('🔍 NetWorthCard: currentData:', currentData);
+    console.error('🔍 NetWorthCard: fallbackData:', fallbackData);
+    console.error('🔍 NetWorthCard: currentNetWorth:', currentNetWorth);
+  }
 
   // Handle error state
-  if (historyError) {
+  if (error) {
     return (
       <Card width="2/3">
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
           <div className="text-2xl font-semibold text-[var(--color-fg)]">
-            {formatCurrency(latestNetWorth)}
+            {formatCurrency(displayData.value)}
           </div>
         </div>
         <div className="pt-4">
@@ -154,7 +184,7 @@ export default function NetWorthCard() {
                 Unable to load historical data
               </div>
               <button 
-                onClick={fetchNetWorthHistory}
+                onClick={fetchNetWorthData}
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
                 Try again
@@ -166,11 +196,8 @@ export default function NetWorthCard() {
     );
   }
 
-  // Get current display data (hovered or most recent)
-  const currentData = hoveredData || chartData[chartData.length - 1];
-  
-  console.log('🔍 NetWorthCard: Current data being displayed:', currentData);
-  console.log('🔍 NetWorthCard: Latest net worth value:', currentData?.value);
+  console.log('🔍 NetWorthCard: Current data being displayed:', displayData);
+  console.log('🔍 NetWorthCard: Latest net worth value:', displayData?.value);
   console.log('🔍 NetWorthCard: Is using real data?', netWorthHistory.length > 0);
 
   // Get accent color once - ensure it's a valid hex color
@@ -201,18 +228,18 @@ export default function NetWorthCard() {
           <div>
             <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
             <div className="text-2xl font-semibold text-[var(--color-fg)]">
-              {formatCurrency(currentData.value)}
+              {formatCurrency(displayData.value)}
             </div>
           </div>
           <div className="text-right">
             <div className="text-sm text-[var(--color-muted)]">
-              {currentData.dateString ? 
-                new Date(currentData.dateString).toLocaleDateString('en-US', { 
+              {displayData.dateString ? 
+                new Date(displayData.dateString).toLocaleDateString('en-US', { 
                   month: 'long', 
                   day: 'numeric', 
                   year: 'numeric' 
                 }) : 
-                `${currentData.monthFull} ${currentData.year}`
+                `${displayData.monthFull} ${displayData.year}`
               }
             </div>
           </div>
