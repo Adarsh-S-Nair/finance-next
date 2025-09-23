@@ -132,75 +132,21 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
 
   const onMove = (e, month, inc, spd) => {
     const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-
-    // Get actual tooltip dimensions if available, otherwise use estimates
-    let tooltipWidth = 200
-    let tooltipHeight = 80
-    if (tooltipRef.current) {
-      const tooltipRect = tooltipRef.current.getBoundingClientRect()
-      tooltipWidth = tooltipRect.width
-      tooltipHeight = tooltipRect.height
-    }
-    
-    // Calculate cursor position relative to container
-    const cursorX = e.clientX - rect.left
-    const cursorY = e.clientY - rect.top
-    
-    // Calculate initial position preferences (right and above cursor)
-    const offset = 12
-    let finalX = cursorX + offset
-    let finalY = cursorY - offset
-
-    // Smart horizontal positioning
-    // Check if tooltip would overflow right edge of container
-    if (finalX + tooltipWidth > rect.width) {
-      // Try positioning left of cursor
-      finalX = cursorX - tooltipWidth - offset
-      // If still overflowing left edge, position at edge with padding
-      if (finalX < 0) {
-        finalX = 5
-      }
-    }
-
-    // Smart vertical positioning
-    // Check if tooltip would overflow top edge of container
-    if (finalY < 0) {
-      // Position below cursor
-      finalY = cursorY + offset
-      // If still overflowing bottom edge, position at bottom with padding
-      if (finalY + tooltipHeight > rect.height) {
-        finalY = rect.height - tooltipHeight - 5
-      }
-    } else if (finalY + tooltipHeight > rect.height) {
-      // If tooltip overflows bottom edge, try above cursor
-      finalY = cursorY - tooltipHeight - offset
-      // If still overflowing top, position at top with padding
-      if (finalY < 0) {
-        finalY = 5
-      }
-    }
-
-    // Final safety checks to ensure tooltip stays within bounds
-    finalX = Math.max(5, Math.min(finalX, rect.width - tooltipWidth - 5))
-    finalY = Math.max(5, Math.min(finalY, rect.height - tooltipHeight - 5))
-
     const next = {
       visible: true,
-      x: finalX,
-      y: finalY,
+      x: (e.clientX - (rect?.left || 0)) + 12,
+      y: (e.clientY - (rect?.top || 0)) - 12,
       month,
       income: inc,
       spending: Math.abs(spd),
     }
-    
     setActiveMonth(month)
     if (tooltipRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
         if (tooltipRef.current) {
-          tooltipRef.current.style.left = `${finalX}px`
-          tooltipRef.current.style.top = `${finalY}px`
+          tooltipRef.current.style.left = `${next.x}px`
+          tooltipRef.current.style.top = `${next.y}px`
         }
       })
     }
@@ -208,7 +154,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       const sameContent = prev.month === next.month && prev.income === next.income && prev.spending === next.spending
       if (sameContent) {
         // If previously hidden, re-show and update position
-        if (!prev.visible) return { ...prev, visible: true, x: finalX, y: finalY }
+        if (!prev.visible) return { ...prev, visible: true, x: next.x, y: next.y }
         return prev
       }
       return next
