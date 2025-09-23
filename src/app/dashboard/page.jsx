@@ -1,7 +1,7 @@
 import PageContainer from "../../components/PageContainer";
 import NetWorthCard from "../../components/dashboard/NetWorthCard";
 import AccountsCard from "../../components/dashboard/AccountsCard.jsx";
-import SpendingBreakdownCard from "../../components/dashboard/SpendingBreakdownCard.jsx";
+import AccountsSummaryCard from "../../components/dashboard/AccountsSummaryCard.jsx";
 import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningCard.jsx";
 
 export default function DashboardPage() {
@@ -10,10 +10,10 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div className="flex flex-col lg:flex-row gap-6">
           <NetWorthCard />
-          <AccountsCard />
+          <AccountsSummaryCard />
         </div>
         <div className="flex flex-col lg:flex-row gap-6">
-          <SpendingBreakdownCard />
+          <AccountsCard />
           <SpendingVsEarningCard />
         </div>
       </div>

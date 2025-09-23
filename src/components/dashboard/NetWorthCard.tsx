@@ -256,11 +256,11 @@ export default function NetWorthCard() {
       
       <div className="pt-4">
         <div 
-          className="h-40 w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none"
+          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none"
           tabIndex={-1}
           style={{ outline: 'none' }}
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={200}>
             <AreaChart 
               data={chartData}
               onMouseMove={handleMouseMove}
