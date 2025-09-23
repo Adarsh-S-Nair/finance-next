@@ -123,8 +123,10 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     if (tooltipRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
-        tooltipRef.current.style.left = `${next.x}px`
-        tooltipRef.current.style.top = `${next.y}px`
+        if (tooltipRef.current) {
+          tooltipRef.current.style.left = `${next.x}px`
+          tooltipRef.current.style.top = `${next.y}px`
+        }
       })
     }
     setTooltip((prev) => {

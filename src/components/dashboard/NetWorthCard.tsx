@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Card from "../ui/Card";
 import { useAccounts } from "../AccountsProvider";
 import { useUser } from "../UserProvider";
@@ -22,6 +22,8 @@ export default function NetWorthCard() {
   const [currentNetWorth, setCurrentNetWorth] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isMouseOverChart, setIsMouseOverChart] = useState(false);
+  const hoverTimeoutRef = useRef(null);
 
   // Fetch current net worth and history from the API
   const fetchNetWorthData = async () => {
@@ -46,8 +48,6 @@ export default function NetWorthCard() {
       }
       const historyData = await historyResponse.json();
       
-      console.log('🔍 NetWorthCard: Current net worth data:', currentData);
-      console.log('🔍 NetWorthCard: Historical data received:', historyData.data?.length || 0, 'entries');
       setNetWorthHistory(historyData.data || []);
     } catch (err) {
       console.error('Error fetching net worth data:', err);
@@ -67,6 +67,15 @@ export default function NetWorthCard() {
       setError(null);
     }
   }, [user?.id]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -97,7 +106,6 @@ export default function NetWorthCard() {
     };
   });
 
-  console.log('🔍 NetWorthCard: Processed chart data:', chartData.slice(-3));
 
   // If no historical data, show current net worth as a single point
   if (chartData.length === 0 && currentNetWorth) {
@@ -112,7 +120,6 @@ export default function NetWorthCard() {
       assets: currentNetWorth.assets,
       liabilities: currentNetWorth.liabilities
     });
-    console.log('⚠️ NetWorthCard: No historical data found, using current net worth as fallback');
   }
 
   // If only one data point, create a flat line by duplicating it
@@ -137,7 +144,6 @@ export default function NetWorthCard() {
     
     // Insert at the beginning to maintain chronological order
     chartData.unshift(flatLinePoint);
-    console.log('📈 NetWorthCard: Single data point detected, created flat line');
   }
 
   // Get the most recent net worth from the actual data
@@ -159,13 +165,6 @@ export default function NetWorthCard() {
   // Use currentData if available, otherwise use fallback
   const displayData = currentData || fallbackData;
   
-  // Additional safety check to ensure displayData has required properties
-  if (!displayData || typeof displayData.value === 'undefined') {
-    console.error('🔍 NetWorthCard: displayData is invalid:', displayData);
-    console.error('🔍 NetWorthCard: currentData:', currentData);
-    console.error('🔍 NetWorthCard: fallbackData:', fallbackData);
-    console.error('🔍 NetWorthCard: currentNetWorth:', currentNetWorth);
-  }
 
   // Handle error state
   if (error) {
@@ -196,9 +195,6 @@ export default function NetWorthCard() {
     );
   }
 
-  console.log('🔍 NetWorthCard: Current data being displayed:', displayData);
-  console.log('🔍 NetWorthCard: Latest net worth value:', displayData?.value);
-  console.log('🔍 NetWorthCard: Is using real data?', netWorthHistory.length > 0);
 
   // Get accent color once - ensure it's a valid hex color
   const accentColor = profile?.accent_color || (typeof window !== 'undefined' ? 
@@ -210,15 +206,64 @@ export default function NetWorthCard() {
   const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#484444';
 
   // Handle mouse enter on chart
-  const handleMouseEnter = (data: any) => {
-    if (data && data.payload) {
-      setHoveredData(data.payload);
+  const handleMouseEnter = () => {
+    setIsMouseOverChart(true);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
     }
   };
 
   // Handle mouse leave on chart
   const handleMouseLeave = () => {
-    setHoveredData(null);
+    setIsMouseOverChart(false);
+    // Clear hovered data after a short delay
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredData(null);
+    }, 100);
+  };
+
+  // Handle mouse move on chart
+  const handleMouseMove = (data: any) => {
+    if (data && data.activeIndex !== undefined && isMouseOverChart) {
+      const activeIndex = parseInt(data.activeIndex);
+      if (activeIndex >= 0 && activeIndex < chartData.length) {
+        const hoveredPayload = chartData[activeIndex];
+        setHoveredData(hoveredPayload);
+        
+        // Clear any existing timeout and set a new one
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+        }
+        hoverTimeoutRef.current = setTimeout(() => {
+          if (!isMouseOverChart) {
+            setHoveredData(null);
+          }
+        }, 200);
+      }
+    }
+  };
+
+  // Custom dot component that only shows on hover
+  const CustomDot = (props: any) => {
+    const { cx, cy, payload, index } = props;
+    const isHovered = hoveredData && hoveredData.dateString === payload.dateString;
+    
+    if (!isHovered) {
+      return null;
+    }
+    
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={4}
+        fill={validAccentColor}
+        stroke="white"
+        strokeWidth={2}
+        style={{ cursor: 'pointer' }}
+      />
+    );
   };
 
   return (
@@ -228,18 +273,18 @@ export default function NetWorthCard() {
           <div>
             <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
             <div className="text-2xl font-semibold text-[var(--color-fg)]">
-              {formatCurrency(displayData.value)}
+              {formatCurrency(displayData?.value || 0)}
             </div>
           </div>
           <div className="text-right">
             <div className="text-sm text-[var(--color-muted)]">
-              {displayData.dateString ? 
+              {displayData?.dateString ? 
                 new Date(displayData.dateString).toLocaleDateString('en-US', { 
                   month: 'long', 
                   day: 'numeric', 
                   year: 'numeric' 
                 }) : 
-                `${displayData.monthFull} ${displayData.year}`
+                `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
               }
             </div>
           </div>
@@ -247,12 +292,15 @@ export default function NetWorthCard() {
       </div>
       
       <div className="pt-4">
-        <div className="h-40 w-full">
+        <div 
+          className="h-40 w-full"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={chartData}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
+              onMouseMove={handleMouseMove}
               margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
             >
               <defs>
@@ -270,6 +318,15 @@ export default function NetWorthCard() {
                 fill="url(#netWorthGradient)"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="transparent"
+                strokeWidth={8}
+                dot={<CustomDot />}
+                activeDot={false}
                 isAnimationActive={false}
               />
             </AreaChart>
