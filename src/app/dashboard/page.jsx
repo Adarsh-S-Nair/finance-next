@@ -3,13 +3,10 @@
 import { useEffect } from "react";
 import { useUser } from "../../components/UserProvider";
 import PageContainer from "../../components/PageContainer";
-import NetWorthCard from "../../components/dashboard/NetWorthCard";
 import AccountsCard from "../../components/dashboard/AccountsCard.jsx";
-import AccountsSummaryCard from "../../components/dashboard/AccountsSummaryCard.jsx";
 import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningCard.jsx";
 import SpendingOverviewCard from "../../components/dashboard/SpendingOverviewCard.jsx";
 import RecentTransactionsCard from "../../components/dashboard/RecentTransactionsCard.jsx";
-import { NetWorthHoverProvider } from "../../components/dashboard/NetWorthHoverContext";
 
 export default function DashboardPage() {
   const { user } = useUser();
@@ -35,22 +32,16 @@ export default function DashboardPage() {
 
   return (
     <PageContainer title="Dashboard">
-      <NetWorthHoverProvider>
-        <div className="space-y-6">
-          <div className="flex flex-col lg:flex-row gap-6">
-            <NetWorthCard />
-            <AccountsSummaryCard />
-          </div>
-          <div className="flex flex-col lg:flex-row gap-6">
-            <SpendingOverviewCard />
-            <SpendingVsEarningCard />
-          </div>
-          <div className="flex flex-col lg:flex-row gap-6">
-            <RecentTransactionsCard />
-            <AccountsCard />
-          </div>
+      <div className="space-y-6">
+        <div className="flex flex-col lg:flex-row gap-6">
+          <SpendingOverviewCard />
+          <SpendingVsEarningCard />
         </div>
-      </NetWorthHoverProvider>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <RecentTransactionsCard />
+          <AccountsCard />
+        </div>
+      </div>
     </PageContainer>
   );
 }

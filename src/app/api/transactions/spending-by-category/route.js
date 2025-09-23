@@ -27,10 +27,10 @@ export async function GET(request) {
         system_categories (
           id,
           label,
-          hex_color,
           category_groups (
             id,
             name,
+            hex_color,
             icon_lib,
             icon_name
           )
@@ -65,7 +65,7 @@ export async function GET(request) {
         categorySpending[categoryKey] = {
           id: category.id,
           label: category.label,
-          hex_color: category.hex_color,
+          hex_color: category.category_groups?.hex_color || '#6B7280',
           group_name: category.category_groups?.name || 'Other',
           icon_lib: category.category_groups?.icon_lib || null,
           icon_name: category.category_groups?.icon_name || null,

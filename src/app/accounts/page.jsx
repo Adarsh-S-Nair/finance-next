@@ -1,23 +1,24 @@
 "use client";
 
+import React from "react";
 import PageContainer from "../../components/PageContainer";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
-import { FaPlus, FaUnlink } from "react-icons/fa";
+import { FaUnlink, FaCoins } from "react-icons/fa";
 import { FaEllipsisVertical } from "react-icons/fa6";
-import { FiRefreshCw, FiDownload } from "react-icons/fi";
 import { PiBankFill } from "react-icons/pi";
-import { FiDollarSign, FiCreditCard, FiTrendingUp, FiFileText, FiPieChart, FiTrendingUp as FiAssets, FiTrendingDown, FiBriefcase, FiDollarSign as FiMoney, FiMinusCircle } from "react-icons/fi";
+import { FiDollarSign, FiCreditCard, FiTrendingUp, FiFileText, FiPieChart, FiTrendingUp as FiAssets, FiTrendingDown, FiBriefcase, FiDollarSign as FiMoney, FiMinusCircle, FiWallet, FiBarChart3, FiHome } from "react-icons/fi";
 import { IoMdCash } from "react-icons/io";
-import { FaCoins, FaCreditCard } from "react-icons/fa";
 import { TiChartArea } from "react-icons/ti";
 import { useState } from "react";
 import { useUser } from "../../components/UserProvider";
 import { useAccounts } from "../../components/AccountsProvider";
 import { getAccentTextColor, getAccentTextColorWithOpacity, getAccentIconColor } from "../../lib/colorUtils";
-import PlaidLinkModal from "../../components/PlaidLinkModal";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../components/ui/ContextMenu";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import NetWorthCard from "../../components/dashboard/NetWorthCard";
+import AccountsSummaryCard from "../../components/dashboard/AccountsSummaryCard";
+import { NetWorthHoverProvider } from "../../components/dashboard/NetWorthHoverContext";
 
 export default function AccountsPage() {
   const { profile } = useUser();
@@ -35,45 +36,8 @@ export default function AccountsPage() {
   const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
   const isDefaultAccent = !profile?.accent_color;
   
-  const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
   const [disconnectModal, setDisconnectModal] = useState({ isOpen: false, institution: null });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-
-  const handleAddAccount = () => {
-    setIsPlaidModalOpen(true);
-  };
-
-  const handleRefresh = () => {
-    refreshAccounts();
-  };
-
-  const handleSyncTransactions = async () => {
-    try {
-      // Get all plaid items for the user and trigger sync for each
-      const response = await fetch('/api/plaid/transactions/sync-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: profile?.id
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to sync transactions');
-      }
-
-      const result = await response.json();
-      console.log('Transaction sync completed:', result);
-      
-      // Refresh accounts to show updated data
-      refreshAccounts();
-    } catch (error) {
-      console.error('Error syncing transactions:', error);
-      alert(`Failed to sync transactions: ${error.message}`);
-    }
-  };
 
   const handleDisconnectInstitution = (institution) => {
     setDisconnectModal({ isOpen: true, institution });
@@ -156,39 +120,7 @@ export default function AccountsPage() {
   // Show loading state
   if (loading) {
     return (
-      <PageContainer 
-        title="Accounts"
-        action={
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={handleRefresh}
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh Accounts"
-              disabled={loading}
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button 
-              onClick={handleSyncTransactions}
-              variant="ghost"
-              size="icon"
-              aria-label="Sync Transactions"
-              disabled={loading}
-            >
-              <FiDownload className="h-4 w-4" />
-            </Button>
-            <Button 
-              onClick={handleAddAccount}
-              variant="ghost"
-              size="icon"
-              aria-label="Add Account"
-            >
-              <FaPlus className="h-4 w-4" />
-            </Button>
-          </div>
-        }
-      >
+      <PageContainer title="Accounts">
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)] mx-auto mb-4"></div>
@@ -202,39 +134,7 @@ export default function AccountsPage() {
   // Show error state
   if (error) {
     return (
-      <PageContainer 
-        title="Accounts"
-        action={
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={handleRefresh}
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh Accounts"
-              disabled={loading}
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button 
-              onClick={handleSyncTransactions}
-              variant="ghost"
-              size="icon"
-              aria-label="Sync Transactions"
-              disabled={loading}
-            >
-              <FiDownload className="h-4 w-4" />
-            </Button>
-            <Button 
-              onClick={handleAddAccount}
-              variant="ghost"
-              size="icon"
-              aria-label="Add Account"
-            >
-              <FaPlus className="h-4 w-4" />
-            </Button>
-          </div>
-        }
-      >
+      <PageContainer title="Accounts">
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
             <FiMinusCircle className="h-8 w-8 text-red-500" />
@@ -250,40 +150,9 @@ export default function AccountsPage() {
   }
 
   return (
-    <PageContainer 
-      title="Accounts"
-      action={
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={handleRefresh}
-            variant="ghost"
-            size="icon"
-            aria-label="Refresh Accounts"
-            disabled={loading}
-          >
-            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button 
-            onClick={handleSyncTransactions}
-            variant="ghost"
-            size="icon"
-            aria-label="Sync Transactions"
-            disabled={loading}
-          >
-            <FiDownload className="h-4 w-4" />
-          </Button>
-          <Button 
-            onClick={handleAddAccount}
-            variant="ghost"
-            size="icon"
-            aria-label="Add Account"
-          >
-            <FaPlus className="h-4 w-4" />
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-8">
+    <NetWorthHoverProvider>
+      <PageContainer title="Accounts">
+        <div className="space-y-6">
         {/* Show empty state if no accounts */}
         {allAccounts.length === 0 && !loading ? (
           <div className="text-center py-12">
@@ -291,171 +160,221 @@ export default function AccountsPage() {
               <PiBankFill className="h-8 w-8 text-[var(--color-muted)]" />
             </div>
             <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">No accounts connected</h3>
-            <p className="text-[var(--color-muted)] mb-4">Connect your bank accounts to start tracking your finances</p>
-            <Button onClick={handleAddAccount}>
-              Connect Bank Account
-            </Button>
+              <p className="text-[var(--color-muted)] mb-4">Go to Settings to connect your bank accounts</p>
           </div>
         ) : (
           <>
-            {/* Financial Overview Section */}
-            <section aria-labelledby="overview-heading" className="mt-4 pl-6">
-              <h2 id="overview-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Financial Overview</h2>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Net Worth Card */}
-                <Card>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[var(--color-accent)] flex items-center justify-center">
-                      <TiChartArea className="h-5 w-5 text-white" />
+              {/* Net Worth and Accounts Summary Cards */}
+              <div className="flex flex-col lg:flex-row gap-6">
+                <NetWorthCard />
+                <AccountsSummaryCard />
                     </div>
-                    <div>
-                      <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
-                      <div className="text-xl font-medium text-[var(--color-fg)]">
-                        {formatCurrency(totalBalance)}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-                
-                {/* Assets Card */}
-                <Card>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                      <FaCoins className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm text-[var(--color-muted)]">Assets</div>
-                      <div className="text-xl font-medium text-[var(--color-fg)]">
-                        {formatCurrency(totalAssets)}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-                
-                {/* Liabilities Card */}
-                <Card>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                      <FaCreditCard className="h-5 w-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm text-[var(--color-muted)]">Liabilities</div>
-                      <div className="text-xl font-medium text-[var(--color-fg)]">
-                        {formatCurrency(totalLiabilities)}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </section>
 
-            {/* Accounts Section */}
-            <section aria-labelledby="accounts-heading" className="mt-8 pl-6">
-              <h2 id="accounts-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Connected Accounts</h2>
-              <div className="mt-3 space-y-4">
-                {accounts.map((institution) => (
-                  <Card key={institution.id}>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden">
-                          {institution.logo ? (
-                            <img 
-                              src={institution.logo} 
-                              alt={`${institution.name} logo`}
-                              className="w-full h-full object-contain"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                          ) : null}
-                          <PiBankFill 
-                            className={`h-5 w-5 text-white ${institution.logo ? 'hidden' : 'block'}`}
-                          />
-                        </div>
-                        <div>
-                          <div className="font-medium text-[var(--color-fg)]">{institution.name}</div>
-                          <div className="text-sm text-[var(--color-muted)]">
-                            {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''} • {formatCurrency(getTotalBalance(institution.accounts))}
+              {/* Accounts by Category */}
+              <div className="mt-8 space-y-6">
+                {(() => {
+                  // Helper function to categorize accounts (same logic as dashboard components)
+                  const categorizeAccount = (account) => {
+                    const accountType = (account.type || '').toLowerCase();
+                    const accountSubtype = (account.subtype || '').toLowerCase();
+                    const fullType = `${accountType} ${accountSubtype}`.trim();
+                    
+                    // Check if it's a liability first
+                    const liabilityTypes = [
+                      'credit card', 'credit', 'loan', 'mortgage', 
+                      'line of credit', 'overdraft', 'other'
+                    ];
+                    
+                    const isLiability = liabilityTypes.some(type => fullType.includes(type));
+                    
+                    if (isLiability) {
+                      // Categorize liabilities
+                      if (fullType.includes('credit card') || fullType.includes('credit')) {
+                        return 'credit';
+                      } else if (fullType.includes('loan') || fullType.includes('mortgage') || fullType.includes('line of credit')) {
+                        return 'loans';
+                      } else {
+                        return 'credit'; // Default to credit for other liability types
+                      }
+                    } else {
+                      // Categorize assets
+                      if (fullType.includes('investment') || fullType.includes('brokerage') || 
+                          fullType.includes('401k') || fullType.includes('ira') || 
+                          fullType.includes('retirement') || fullType.includes('mutual fund') ||
+                          fullType.includes('stock') || fullType.includes('bond')) {
+                        return 'investments';
+                      } else {
+                        return 'cash'; // Default to cash for checking, savings, etc.
+                      }
+                    }
+                  };
+
+                  // Create institution lookup map
+                  const institutionMap = {};
+                  accounts.forEach(institution => {
+                    institutionMap[institution.id] = {
+                      name: institution.name,
+                      logo: institution.logo
+                    };
+                  });
+
+                  // Group all accounts by category
+                  const categorizedAccounts = {
+                    cash: [],
+                    investments: [],
+                    credit: [],
+                    loans: []
+                  };
+
+                  allAccounts.forEach(account => {
+                    const category = categorizeAccount(account);
+                    categorizedAccounts[category].push(account);
+                  });
+
+                  // Category configurations
+                  const categoryConfig = {
+                    cash: {
+                      title: 'Cash & Checking',
+                      iconType: 'wallet',
+                      color: 'blue',
+                      description: 'Checking, savings, and cash accounts'
+                    },
+                    investments: {
+                      title: 'Investments',
+                      iconType: 'chart',
+                      color: 'purple',
+                      description: 'Investment and retirement accounts'
+                    },
+                    credit: {
+                      title: 'Credit Cards',
+                      iconType: 'credit',
+                      color: 'orange',
+                      description: 'Credit card accounts'
+                    },
+                    loans: {
+                      title: 'Loans & Mortgages',
+                      iconType: 'home',
+                      color: 'red',
+                      description: 'Loan and mortgage accounts'
+                    }
+                  };
+
+                  // Helper function to render the correct icon
+                  const renderIcon = (iconType) => {
+                    switch (iconType) {
+                      case 'wallet':
+                        return <FiDollarSign className="h-5 w-5 text-[var(--color-accent)]" />;
+                      case 'chart':
+                        return <FiTrendingUp className="h-5 w-5 text-[var(--color-accent)]" />;
+                      case 'credit':
+                        return <FiCreditCard className="h-5 w-5 text-[var(--color-accent)]" />;
+                      case 'home':
+                        return <PiBankFill className="h-5 w-5 text-[var(--color-accent)]" />;
+                      default:
+                        return <PiBankFill className="h-5 w-5 text-[var(--color-accent)]" />;
+                    }
+                  };
+
+                  return Object.entries(categoryConfig).map(([categoryKey, config]) => {
+                    const accounts = categorizedAccounts[categoryKey];
+                    const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
+
+                    return (
+                      <Card key={categoryKey} width="full">
+                        {/* Category Header */}
+                        <div className="mb-4 pb-3 border-b border-[var(--color-border)]/30">
+                          <div className="text-sm font-semibold text-[var(--color-fg)]">{config.title}</div>
+                          <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                            {accounts.length} account{accounts.length !== 1 ? 's' : ''} • {formatCurrency(totalBalance)}
                           </div>
                         </div>
-                      </div>
-                      <ContextMenu
-                        trigger={
-                          <button
-                            className="p-1 rounded-md hover:bg-[var(--color-muted)]/10 transition-colors cursor-pointer"
-                            aria-label="Institution options"
-                          >
-                            <FaEllipsisVertical className="h-4 w-4 text-[var(--color-muted)]" />
-                          </button>
-                        }
-                        align="right"
-                      >
-                        <ContextMenuItem
-                          icon={<FaUnlink className="h-4 w-4" />}
-                          onClick={() => handleDisconnectInstitution(institution)}
-                          destructive
-                        >
-                          Disconnect
-                        </ContextMenuItem>
-                      </ContextMenu>
-                    </div>
-                  
-                    {institution.accounts.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
-                        <div className="space-y-3">
-                          {institution.accounts.map((account) => (
-                            <div key={account.id} className="flex items-center justify-between py-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-[var(--color-fg)] truncate">{account.name}</div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-sm text-[var(--color-muted)]">
-                                    {capitalizeWords(account.type)}
-                                  </span>
-                                  {account.mask && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20">
-                                      •••• {account.mask}
-                                    </span>
-                                  )}
-                                </div>
-                                {(account.limit || account.monthlyPayment) && (
-                                  <div className="flex items-center gap-4 mt-1">
-                                    {account.limit && (
-                                      <span className="text-xs text-[var(--color-muted)]">
-                                        Limit: {formatCurrency(account.limit)}
-                                      </span>
-                                    )}
-                                    {account.monthlyPayment && (
-                                      <span className="text-xs text-[var(--color-muted)]">
-                                        Payment: ${account.monthlyPayment}/mo
-                                      </span>
+                        
+                        {/* Accounts List */}
+                        {accounts.length > 0 ? (
+                          <div className="space-y-2">
+                            {accounts.map((account) => {
+                              // Find the institution for this account using institutionId
+                              const institution = institutionMap[account.institutionId] || { 
+                                name: 'Unknown Institution', 
+                                logo: null 
+                              };
+                              
+                              return (
+                                <div key={account.id} className="flex items-center justify-between py-2 border-b border-[var(--color-border)]/50 last:border-b-0">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    {/* Institution Logo */}
+                                    <div className="w-7 h-7 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {institution.logo ? (
+                                        <img 
+                                          src={institution.logo} 
+                                          alt={`${institution.name} logo`}
+                                          className="w-full h-full object-contain"
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            e.target.nextSibling.style.display = 'block';
+                                          }}
+                                        />
+                                      ) : null}
+                                      <PiBankFill 
+                                        className={`h-3.5 w-3.5 text-[var(--color-accent)] ${institution.logo ? 'hidden' : 'block'}`}
+                                      />
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <div className="font-medium text-[var(--color-fg)] truncate text-sm">{account.name}</div>
+                                        {account.mask && (
+                                          <span className="font-mono text-xs text-[var(--color-muted)]">
+                                            •••• {account.mask}
+                                          </span>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                                        <span>{institution.name}</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-muted)]/10 text-[var(--color-muted)]">
+                                          {capitalizeWords(account.type)}
+                                        </span>
+                                      </div>
+                                      
+                                      {(account.limit || account.monthlyPayment) && (
+                                        <div className="flex items-center gap-3 text-xs text-[var(--color-muted)] mt-0.5">
+                                          {account.limit && (
+                                            <span>Limit: {formatCurrency(account.limit)}</span>
+                                          )}
+                                          {account.monthlyPayment && (
+                                            <span>Payment: ${account.monthlyPayment}/mo</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="text-right flex-shrink-0 ml-3">
+                                    <div className="text-sm font-semibold text-[var(--color-fg)]">
+                                      {formatCurrency(account.balance)}
+                                    </div>
+                                    {account.balance < 0 && (
+                                      <div className="text-xs text-red-500 mt-0.5">Credit balance</div>
                                     )}
                                   </div>
-                                )}
-                              </div>
-                              <div className="text-right flex-shrink-0 ml-4">
-                                <div className="font-medium text-[var(--color-fg)]">
-                                  {formatCurrency(account.balance)}
                                 </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                ))}
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4">
+                            <p className="text-xs text-[var(--color-muted)]">No {config.title.toLowerCase()} accounts</p>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  });
+                })()}
               </div>
-            </section>
           </>
         )}
       </div>
-      
-      {/* Plaid Link Modal */}
-      <PlaidLinkModal 
-        isOpen={isPlaidModalOpen}
-        onClose={() => setIsPlaidModalOpen(false)}
-      />
 
       {/* Disconnect Confirmation Modal */}
       <ConfirmDialog
@@ -471,5 +390,6 @@ export default function AccountsPage() {
         busyLabel="Disconnecting..."
       />
     </PageContainer>
+    </NetWorthHoverProvider>
   );
 }
