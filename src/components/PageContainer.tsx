@@ -6,9 +6,10 @@ type Props = {
   title?: string; 
   children: ReactNode;
   action?: ReactNode;
+  padding?: string;
 };
 
-export default function PageContainer({ title, children, action }: Props) {
+export default function PageContainer({ title, children, action, padding = "py-6" }: Props) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (title && title.trim().length > 0) {
@@ -19,7 +20,7 @@ export default function PageContainer({ title, children, action }: Props) {
   }, [title]);
 
   return (
-    <div className="py-6">
+    <div className={padding}>
       {action && (
         <div className="flex items-center justify-end mb-6 pb-3 border-b border-[var(--color-border)]">
           <div className="ml-auto">{action}</div>

@@ -3,10 +3,97 @@
 import PageContainer from "../../components/PageContainer";
 import Button from "../../components/ui/Button";
 import DynamicIcon from "../../components/DynamicIcon";
-import { FiRefreshCw, FiDownload, FiFilter, FiSearch, FiTag } from "react-icons/fi";
+import { FiRefreshCw, FiFilter, FiSearch, FiTag } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect } from "react";
 import { useUser } from "../../components/UserProvider";
+import Input from "../../components/ui/Input";
+
+// TransactionSkeleton component for loading state
+function TransactionSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {[...Array(3)].map((_, groupIndex) => (
+        <div key={groupIndex} className="space-y-3">
+          {/* Date Header Skeleton */}
+          <div className="py-2 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+            <div className="h-4 bg-[var(--color-border)] rounded w-32" />
+          </div>
+          
+          {/* Transaction Rows Skeleton */}
+          <div className="space-y-0">
+            {[...Array(4)].map((_, index) => (
+              <div 
+                key={index}
+                className={`flex items-center justify-between py-4 px-1 ${
+                  index < 3 ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {/* Icon Circle Skeleton */}
+                  <div className="w-10 h-10 bg-[var(--color-border)] rounded-full flex-shrink-0" />
+                  
+                  {/* Text Content Skeleton */}
+                  <div className="min-w-0 flex-1 mr-8">
+                    <div className="h-4 bg-[var(--color-border)] rounded w-32 mb-2" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 bg-[var(--color-border)] rounded-full" />
+                      <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Amount Skeleton */}
+                <div className="text-right flex-shrink-0">
+                  <div className="h-4 bg-[var(--color-border)] rounded w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// SearchToolbar component for consistent styling
+function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading }) {
+  return (
+    <div className="sticky top-0 z-10 bg-[var(--color-bg)] backdrop-blur-sm border-b border-[var(--color-border)] mb-6">
+      <div className="flex items-center gap-4 py-4">
+        <div className="flex-1 max-w-4xl">
+          <div className="relative rounded-md border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-content-bg)]">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
+            <Input
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button 
+            onClick={onRefresh}
+            variant="ghost"
+            size="icon"
+            aria-label="Refresh Transactions"
+            disabled={loading}
+          >
+            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button 
+            variant="ghost"
+            size="icon"
+            aria-label="Filter Transactions"
+          >
+            <FiFilter className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // TransactionList component to avoid runtime errors
 function TransactionList({ transactions }) {
@@ -180,6 +267,7 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchTransactions = async () => {
     // Don't fetch if profile is not loaded yet
@@ -192,7 +280,7 @@ export default function TransactionsPage() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/plaid/transactions/get?userId=${profile.id}`, {
+      const response = await fetch(`/api/transactions?userId=${profile.id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -217,32 +305,6 @@ export default function TransactionsPage() {
     fetchTransactions();
   };
 
-  const handleSyncTransactions = async () => {
-    try {
-      const response = await fetch('/api/plaid/transactions/sync-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: profile?.id
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to sync transactions');
-      }
-
-      const result = await response.json();
-      console.log('Transaction sync completed:', result);
-      
-      // Refresh transactions after sync
-      fetchTransactions();
-    } catch (error) {
-      console.error('Error syncing transactions:', error);
-      alert(`Failed to sync transactions: ${error.message}`);
-    }
-  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -268,39 +330,14 @@ export default function TransactionsPage() {
   // Show loading state
   if (loading || !profile?.id) {
     return (
-      <PageContainer 
-        title="Transactions"
-        action={
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={handleRefresh}
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh Transactions"
-              disabled={loading}
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button 
-              onClick={handleSyncTransactions}
-              variant="ghost"
-              size="icon"
-              aria-label="Sync Transactions"
-              disabled={loading}
-            >
-              <FiDownload className="h-4 w-4" />
-            </Button>
-          </div>
-        }
-      >
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)] mx-auto mb-4"></div>
-            <p className="text-[var(--color-muted)]">
-              {!profile?.id ? 'Loading user profile...' : 'Loading transactions...'}
-            </p>
-          </div>
-        </div>
+      <PageContainer title="Transactions" padding="pb-6">
+        <SearchToolbar 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onRefresh={handleRefresh}
+          loading={loading}
+        />
+        <TransactionSkeleton />
       </PageContainer>
     );
   }
@@ -308,31 +345,13 @@ export default function TransactionsPage() {
   // Show error state
   if (error) {
     return (
-      <PageContainer 
-        title="Transactions"
-        action={
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={handleRefresh}
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh Transactions"
-              disabled={loading}
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button 
-              onClick={handleSyncTransactions}
-              variant="ghost"
-              size="icon"
-              aria-label="Sync Transactions"
-              disabled={loading}
-            >
-              <FiDownload className="h-4 w-4" />
-            </Button>
-          </div>
-        }
-      >
+      <PageContainer title="Transactions" padding="pb-6">
+        <SearchToolbar 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onRefresh={handleRefresh}
+          loading={loading}
+        />
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
             <LuReceipt className="h-8 w-8 text-red-500" />
@@ -348,45 +367,13 @@ export default function TransactionsPage() {
   }
 
   return (
-    <PageContainer 
-      title="Transactions"
-      action={
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={handleRefresh}
-            variant="ghost"
-            size="icon"
-            aria-label="Refresh Transactions"
-            disabled={loading}
-          >
-            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button 
-            onClick={handleSyncTransactions}
-            variant="ghost"
-            size="icon"
-            aria-label="Sync Transactions"
-            disabled={loading}
-          >
-            <FiDownload className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost"
-            size="icon"
-            aria-label="Filter Transactions"
-          >
-            <FiFilter className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost"
-            size="icon"
-            aria-label="Search Transactions"
-          >
-            <FiSearch className="h-4 w-4" />
-          </Button>
-        </div>
-      }
-    >
+    <PageContainer title="Transactions" padding="pb-6">
+      <SearchToolbar 
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onRefresh={handleRefresh}
+        loading={loading}
+      />
       <div className="space-y-6">
         {/* Show empty state if no transactions */}
         {transactions.length === 0 && !loading ? (
@@ -395,10 +382,7 @@ export default function TransactionsPage() {
               <LuReceipt className="h-8 w-8 text-[var(--color-muted)]" />
             </div>
             <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">No transactions found</h3>
-            <p className="text-[var(--color-muted)] mb-4">Connect your bank accounts and sync transactions to see your financial activity</p>
-            <Button onClick={handleSyncTransactions}>
-              Sync Transactions
-            </Button>
+            <p className="text-[var(--color-muted)] mb-4">Connect your bank accounts to see your financial activity</p>
           </div>
         ) : (
           <TransactionList transactions={transactions} />
