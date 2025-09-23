@@ -114,14 +114,16 @@ function TransactionRow({ transaction, isLast }) {
         <div 
           className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
-            backgroundColor: transaction.category_hex_color || 'var(--color-accent)'
+            backgroundColor: transaction.icon_url 
+              ? 'var(--color-muted)/10' 
+              : (transaction.category_hex_color || 'var(--color-accent)')
           }}
         >
           {transaction.icon_url ? (
             <img 
               src={transaction.icon_url} 
               alt={transaction.merchant_name || transaction.description || 'Transaction'}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 // Fallback to category icon if image fails to load
                 e.target.style.display = 'none';

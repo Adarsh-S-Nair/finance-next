@@ -8,7 +8,7 @@ import { useNetWorthHover } from "./NetWorthHoverContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
 // Animated counter component for smooth number transitions
-function AnimatedCounter({ value, duration = 300 }) {
+function AnimatedCounter({ value, duration = 120 }) {
   const [displayValue, setDisplayValue] = useState(value);
   const [isAnimating, setIsAnimating] = useState(false);
   const animationRef = useRef(null);
@@ -284,7 +284,7 @@ export default function NetWorthCard() {
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
           <div className="text-2xl font-semibold text-[var(--color-fg)]">
-            <AnimatedCounter value={displayData.value} duration={250} />
+            <AnimatedCounter value={displayData.value} duration={120} />
           </div>
         </div>
         <div className="pt-4">
@@ -386,7 +386,7 @@ export default function NetWorthCard() {
           <div>
             <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
             <div className="text-2xl font-semibold text-[var(--color-fg)]">
-              <AnimatedCounter value={displayData?.value || 0} duration={250} />
+              <AnimatedCounter value={displayData?.value || 0} duration={120} />
             </div>
           </div>
           <div className="text-right">

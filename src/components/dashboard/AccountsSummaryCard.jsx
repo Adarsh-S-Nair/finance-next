@@ -1,17 +1,70 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Card from "../ui/Card";
 import Pill from "../ui/Pill";
 import { useAccounts } from "../AccountsProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 
+// Animated counter component for smooth number transitions
+function AnimatedCounter({ value, duration = 120 }) {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const animationRef = useRef(null);
+
+  useEffect(() => {
+    if (displayValue === value) return;
+
+    setIsAnimating(true);
+    
+    const startValue = displayValue;
+    const endValue = value;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Use easeOutCubic for smooth deceleration
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      
+      const currentValue = startValue + (endValue - startValue) * easeProgress;
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(endValue);
+        setIsAnimating(false);
+      }
+    };
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [value, duration, displayValue]);
+
+  return (
+    <span className={isAnimating ? 'transition-all duration-150' : ''}>
+      {formatCurrency(displayValue)}
+    </span>
+  );
+}
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -51,15 +104,17 @@ function categorizeAccount(account) {
   }
 }
 
-// Segmented bar component with proper color differentiation and animations
-function SegmentedBar({ segments, total, label, className = "", displayMode, onToggleMode, isAnimated = false }) {
+// Simplified segmented bar component
+function SegmentedBar({ segments, total, label, className = "", isAnimated = false }) {
   if (total === 0) {
     return (
       <div className={`space-y-2 ${className}`}>
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
-          <span className="text-sm text-[var(--color-muted)]">{formatCurrency(0)}</span>
-        </div>
+      <div className="flex justify-between items-center">
+        <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
+        <span className="text-sm text-[var(--color-muted)]">
+          <AnimatedCounter value={0} duration={120} />
+        </span>
+      </div>
         <div className="w-full h-2 bg-[var(--color-border)] rounded-full">
           <div className="h-full bg-[var(--color-muted)]/20 rounded-full flex items-center justify-center">
             <span className="text-xs text-[var(--color-muted)]">No data</span>
@@ -70,21 +125,16 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
   }
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       <div className="flex justify-between items-center">
         <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
-        <span 
-          className={`text-sm font-semibold text-[var(--color-fg)] ${isAnimated ? 'transition-all duration-700 ease-in-out' : ''}`}
-          style={{
-            transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
-          }}
-        >
-          {formatCurrency(total)}
+        <span className="text-sm font-semibold text-[var(--color-fg)]">
+          <AnimatedCounter value={total} duration={120} />
         </span>
       </div>
       
       {/* Segmented bar with distinct colors */}
-      <div className={`w-full h-1.5 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative shadow-sm ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
+      <div className={`w-full h-2 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
         <svg width="100%" height="100%" className="absolute inset-0">
           <defs>
             {/* Different colors for different segment types */}
@@ -134,30 +184,12 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
               />
             );
           })}
-          
-          {/* Separator lines between segments */}
-          {segments.length > 1 && segments[0].amount > 0 && (
-            <line
-              x1={`${(segments[0].amount / total) * 100}%`}
-              y1="0"
-              x2={`${(segments[0].amount / total) * 100}%`}
-              y2="100%"
-              stroke="var(--color-bg)"
-              strokeWidth="1"
-              className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
-              style={{
-                transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
-              }}
-            />
-          )}
         </svg>
       </div>
       
-      {/* Minimal legend with modern pills */}
-      <div className="flex justify-between text-xs">
+      {/* Simple legend */}
+      <div className="flex gap-4 text-xs">
         {segments.map((segment, index) => {
-          const percentage = (segment.amount / total) * 100;
-          
           // Determine color based on segment type
           let dotColor = '#3b82f6'; // Default to cash color
           
@@ -170,29 +202,14 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
           }
           
           return (
-            <div key={index} className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <div 
-                  className="w-1.5 h-1.5 rounded-full" 
-                  style={{ 
-                    backgroundColor: dotColor
-                  }}
-                />
-                <span className="text-[var(--color-muted)] text-xs font-medium">
-                  {segment.label}
-                </span>
-              </div>
-              <button
-                onClick={onToggleMode}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
-                  isAnimated ? 'transition-all duration-500 ease-out' : ''
-                }`}
-              >
-                {displayMode === 'percentage' 
-                  ? `${percentage.toFixed(0)}%` 
-                  : formatCurrency(segment.amount)
-                }
-              </button>
+            <div key={index} className="flex items-center gap-1.5">
+              <div 
+                className="w-2 h-2 rounded-full" 
+                style={{ backgroundColor: dotColor }}
+              />
+              <span className="text-[var(--color-muted)] font-medium">
+                {segment.label}
+              </span>
             </div>
           );
         })}
@@ -201,18 +218,20 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
   );
 }
 
-// Overall assets vs liabilities comparison bar
-function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onToggleMode, className = "", isAnimated = false }) {
+// Simplified overall comparison bar
+function OverallComparisonBar({ totalAssets, totalLiabilities, className = "", isAnimated = false }) {
   const netWorth = totalAssets - totalLiabilities;
   const totalNetWorth = totalAssets + totalLiabilities;
   
   if (totalNetWorth === 0) {
     return (
       <div className={`space-y-2 ${className}`}>
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-[var(--color-fg)]">Net Worth</span>
-          <span className="text-sm text-[var(--color-muted)]">{formatCurrency(0)}</span>
-        </div>
+      <div className="flex justify-between items-center">
+        <span className="text-sm font-medium text-[var(--color-fg)]">Net Worth</span>
+        <span className="text-sm text-[var(--color-muted)]">
+          <AnimatedCounter value={0} duration={120} />
+        </span>
+      </div>
         <div className="w-full h-2 bg-[var(--color-border)] rounded-full">
           <div className="h-full bg-[var(--color-muted)]/20 rounded-full flex items-center justify-center">
             <span className="text-xs text-[var(--color-muted)]">No data</span>
@@ -226,21 +245,16 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
   const liabilitiesPercentage = (totalLiabilities / totalNetWorth) * 100;
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       <div className="flex justify-between items-center">
         <span className="text-sm font-medium text-[var(--color-fg)]">Net Worth</span>
-        <span 
-          className={`text-sm font-semibold text-[var(--color-fg)] ${isAnimated ? 'transition-all duration-700 ease-in-out' : ''}`}
-          style={{
-            transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
-          }}
-        >
-          {formatCurrency(netWorth)}
+        <span className="text-sm font-semibold text-[var(--color-fg)]">
+          <AnimatedCounter value={netWorth} duration={120} />
         </span>
       </div>
       
       {/* Overall comparison bar */}
-      <div className={`w-full h-1.5 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative shadow-sm ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
+      <div className={`w-full h-2 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
         <svg width="100%" height="100%" className="absolute inset-0">
           <defs>
             <linearGradient id="assetsOverallGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -282,60 +296,18 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
               transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
             }}
           />
-          
-          {/* Separator line */}
-          {totalAssets > 0 && totalLiabilities > 0 && (
-            <line
-              x1={`${assetsPercentage}%`}
-              y1="0"
-              x2={`${assetsPercentage}%`}
-              y2="100%"
-              stroke="var(--color-bg)"
-              strokeWidth="1"
-              className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
-              style={{
-                transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
-              }}
-            />
-          )}
         </svg>
       </div>
       
-      {/* Minimal legend with modern pills */}
-      <div className="flex justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-[var(--color-muted)] text-xs font-medium">Assets</span>
-          </div>
-          <button
-            onClick={onToggleMode}
-            className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
-              isAnimated ? 'transition-all duration-500 ease-out' : ''
-            }`}
-          >
-            {displayMode === 'percentage' 
-              ? `${assetsPercentage.toFixed(0)}%` 
-              : formatCurrency(totalAssets)
-            }
-          </button>
+      {/* Simple legend */}
+      <div className="flex gap-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="text-[var(--color-muted)] font-medium">Assets</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-            <span className="text-[var(--color-muted)] text-xs font-medium">Liabilities</span>
-          </div>
-          <button
-            onClick={onToggleMode}
-            className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
-              isAnimated ? 'transition-all duration-500 ease-out' : ''
-            }`}
-          >
-            {displayMode === 'percentage' 
-              ? `${liabilitiesPercentage.toFixed(0)}%` 
-              : formatCurrency(totalLiabilities)
-            }
-          </button>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-red-500" />
+          <span className="text-[var(--color-muted)] font-medium">Liabilities</span>
         </div>
       </div>
     </div>
@@ -345,12 +317,7 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
 export default function AccountsSummaryCard() {
   const { allAccounts, loading } = useAccounts();
   const { hoveredData, isHovering } = useNetWorthHover();
-  const [displayMode, setDisplayMode] = useState('currency'); // 'currency' or 'percentage'
   const [animatedData, setAnimatedData] = useState(null);
-
-  const toggleDisplayMode = () => {
-    setDisplayMode(prev => prev === 'currency' ? 'percentage' : 'currency');
-  };
 
   // Animate data changes when hover data changes
   useEffect(() => {
@@ -444,12 +411,10 @@ export default function AccountsSummaryCard() {
         <div className="text-sm font-medium text-[var(--color-fg)]">Accounts Summary</div>
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-6">
         <OverallComparisonBar
           totalAssets={totalAssets}
           totalLiabilities={totalLiabilities}
-          displayMode={displayMode}
-          onToggleMode={toggleDisplayMode}
           isAnimated={isHovering}
         />
         
@@ -457,8 +422,6 @@ export default function AccountsSummaryCard() {
           segments={assetSegments}
           total={totalAssets}
           label="Assets"
-          displayMode={displayMode}
-          onToggleMode={toggleDisplayMode}
           isAnimated={isHovering}
         />
         
@@ -466,8 +429,6 @@ export default function AccountsSummaryCard() {
           segments={liabilitySegments}
           total={totalLiabilities}
           label="Liabilities"
-          displayMode={displayMode}
-          onToggleMode={toggleDisplayMode}
           isAnimated={isHovering}
         />
       </div>

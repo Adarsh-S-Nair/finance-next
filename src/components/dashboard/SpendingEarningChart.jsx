@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useUser } from '../UserProvider';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -35,6 +36,7 @@ function roundedRectPath(x, y, w, h, rTopLeft, rTopRight, rBottomRight, rBottomL
 }
 
 export default function SpendingEarningChart({ series, title = 'Spending vs Earnings', height = 300, onSelectMonth }) {
+  const { user } = useUser();
   const containerRef = useRef(null)
   const tooltipRef = useRef(null)
   const rafRef = useRef(null)
@@ -42,6 +44,38 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
   const [dims, setDims] = useState({ width: 600, height: 200 })
   const [activeMonth, setActiveMonth] = useState(null)
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, month: '', income: 0, spending: 0 })
+  const [monthlyData, setMonthlyData] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Fetch monthly spending and earning data
+  useEffect(() => {
+    const fetchSpendingEarningData = async () => {
+      if (!user?.id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch spending/earning data');
+        }
+        
+        const result = await response.json();
+        setMonthlyData(result.data || []);
+        
+      } catch (err) {
+        console.error('Error fetching spending/earning data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSpendingEarningData();
+  }, [user?.id]);
 
   // Observe container width and height
   useEffect(() => {
@@ -60,35 +94,22 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
 
   // Remove height override - let container determine height
 
-  // Normalize data
+  // Normalize data from API
   const { months, incomeVals, spendingVals, maxAbs } = useMemo(() => {
-    const defaultSeries = [
-      { id: 'Income', data: [ { x: 'Jan', y: 4200 }, { x: 'Feb', y: 3800 }, { x: 'Mar', y: 4500 }, { x: 'Apr', y: 4100 }, { x: 'May', y: 4800 }, { x: 'Jun', y: 5200 } ] },
-      { id: 'Spending', data: [ { x: 'Jan', y: -3200 }, { x: 'Feb', y: -2900 }, { x: 'Mar', y: -3500 }, { x: 'Apr', y: -3100 }, { x: 'May', y: -3800 }, { x: 'Jun', y: -4200 } ] },
-    ]
-    const incomeSeries = (series || defaultSeries).find((s) => s.id.toLowerCase() === 'income') || defaultSeries[0]
-    const spendingSeries = (series || defaultSeries).find((s) => s.id.toLowerCase() === 'spending') || defaultSeries[1]
-
-    // Ensure spending negative
-    const income = incomeSeries.data.map((d) => ({ x: String(d.x), y: Number(d.y) || 0 }))
-    const spending = spendingSeries.data.map((d) => ({ x: String(d.x), y: -Math.abs(Number(d.y) || 0) }))
-
-    const m = income.map((d) => d.x)
-
-    // Trim leading months where both are zero
-    let start = 0
-    for (let i = 0; i < m.length; i++) {
-      if ((income[i]?.y || 0) !== 0 || (spending[i]?.y || 0) !== 0) {
-        start = i
-        break
-      }
+    if (!monthlyData || monthlyData.length === 0) {
+      return { months: [], incomeVals: [], spendingVals: [], maxAbs: 1 }
     }
-    const months = m.slice(start)
-    const incomeVals = income.slice(start).map((d) => d.y)
-    const spendingVals = spending.slice(start).map((d) => d.y)
+
+    // Convert API data to chart format
+    const months = monthlyData.map(month => month.monthName.substring(0, 3)) // Jan, Feb, etc.
+    const incomeVals = monthlyData.map(month => month.earning || 0)
+    const spendingVals = monthlyData.map(month => -(month.spending || 0)) // Make negative for chart
+
+    // Calculate max absolute value for scaling
     const maxAbs = Math.max(1, ...incomeVals.map((v) => Math.abs(v)), ...spendingVals.map((v) => Math.abs(v)))
+    
     return { months, incomeVals, spendingVals, maxAbs }
-  }, [series])
+  }, [monthlyData])
 
   // Layout
   const margin = { top: 5, right: 10, bottom: 15, left: 10 }
@@ -111,21 +132,75 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
 
   const onMove = (e, month, inc, spd) => {
     const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    // Get actual tooltip dimensions if available, otherwise use estimates
+    let tooltipWidth = 200
+    let tooltipHeight = 80
+    if (tooltipRef.current) {
+      const tooltipRect = tooltipRef.current.getBoundingClientRect()
+      tooltipWidth = tooltipRect.width
+      tooltipHeight = tooltipRect.height
+    }
+    
+    // Calculate cursor position relative to container
+    const cursorX = e.clientX - rect.left
+    const cursorY = e.clientY - rect.top
+    
+    // Calculate initial position preferences (right and above cursor)
+    const offset = 12
+    let finalX = cursorX + offset
+    let finalY = cursorY - offset
+
+    // Smart horizontal positioning
+    // Check if tooltip would overflow right edge of container
+    if (finalX + tooltipWidth > rect.width) {
+      // Try positioning left of cursor
+      finalX = cursorX - tooltipWidth - offset
+      // If still overflowing left edge, position at edge with padding
+      if (finalX < 0) {
+        finalX = 5
+      }
+    }
+
+    // Smart vertical positioning
+    // Check if tooltip would overflow top edge of container
+    if (finalY < 0) {
+      // Position below cursor
+      finalY = cursorY + offset
+      // If still overflowing bottom edge, position at bottom with padding
+      if (finalY + tooltipHeight > rect.height) {
+        finalY = rect.height - tooltipHeight - 5
+      }
+    } else if (finalY + tooltipHeight > rect.height) {
+      // If tooltip overflows bottom edge, try above cursor
+      finalY = cursorY - tooltipHeight - offset
+      // If still overflowing top, position at top with padding
+      if (finalY < 0) {
+        finalY = 5
+      }
+    }
+
+    // Final safety checks to ensure tooltip stays within bounds
+    finalX = Math.max(5, Math.min(finalX, rect.width - tooltipWidth - 5))
+    finalY = Math.max(5, Math.min(finalY, rect.height - tooltipHeight - 5))
+
     const next = {
       visible: true,
-      x: (e.clientX - (rect?.left || 0)) + 12,
-      y: (e.clientY - (rect?.top || 0)) - 12,
+      x: finalX,
+      y: finalY,
       month,
       income: inc,
       spending: Math.abs(spd),
     }
+    
     setActiveMonth(month)
     if (tooltipRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
         if (tooltipRef.current) {
-          tooltipRef.current.style.left = `${next.x}px`
-          tooltipRef.current.style.top = `${next.y}px`
+          tooltipRef.current.style.left = `${finalX}px`
+          tooltipRef.current.style.top = `${finalY}px`
         }
       })
     }
@@ -133,7 +208,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       const sameContent = prev.month === next.month && prev.income === next.income && prev.spending === next.spending
       if (sameContent) {
         // If previously hidden, re-show and update position
-        if (!prev.visible) return { ...prev, visible: true, x: next.x, y: next.y }
+        if (!prev.visible) return { ...prev, visible: true, x: finalX, y: finalY }
         return prev
       }
       return next
@@ -152,6 +227,39 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     const start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1)
     const end = new Date(now.getFullYear(), now.getMonth() - monthsBack + 1, 0)
     onSelectMonth({ month: label, startDate: formatDate(start), endDate: formatDate(end) })
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
+        <div className="text-[var(--color-muted)]">Loading spending data...</div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
+        <div className="text-[var(--color-muted)] text-center">
+          <div>Unable to load spending data</div>
+          <div className="text-sm mt-1">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (!monthlyData || monthlyData.length === 0) {
+    return (
+      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
+        <div className="text-[var(--color-muted)] text-center">
+          <div>No spending data available</div>
+          <div className="text-sm mt-1">Connect accounts to see your spending patterns</div>
+        </div>
+      </div>
+    );
   }
 
   return (
