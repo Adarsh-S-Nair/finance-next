@@ -22,8 +22,7 @@ export default function NetWorthCard() {
   const [currentNetWorth, setCurrentNetWorth] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isMouseOverChart, setIsMouseOverChart] = useState(false);
-  const hoverTimeoutRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(null);
 
   // Fetch current net worth and history from the API
   const fetchNetWorthData = async () => {
@@ -68,14 +67,6 @@ export default function NetWorthCard() {
     }
   }, [user?.id]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
 
   if (loading) {
     return (
@@ -150,7 +141,7 @@ export default function NetWorthCard() {
   const latestNetWorth = chartData.length > 0 ? chartData[chartData.length - 1].value : (currentNetWorth?.netWorth || 0);
 
   // Get current display data (hovered or most recent)
-  const currentData = hoveredData || chartData[chartData.length - 1];
+  const currentData = activeIndex !== null ? chartData[activeIndex] : chartData[chartData.length - 1];
   
   // Fallback data structure when no data is available
   const fallbackData = {
@@ -205,49 +196,21 @@ export default function NetWorthCard() {
   // Ensure we have a valid color (fallback to a default if needed)
   const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#484444';
 
-  // Handle mouse enter on chart
-  const handleMouseEnter = () => {
-    setIsMouseOverChart(true);
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-  };
-
-  // Handle mouse leave on chart
-  const handleMouseLeave = () => {
-    setIsMouseOverChart(false);
-    // Clear hovered data after a short delay
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredData(null);
-    }, 100);
-  };
-
-  // Handle mouse move on chart
+  // Handle chart mouse events
   const handleMouseMove = (data: any) => {
-    if (data && data.activeIndex !== undefined && isMouseOverChart) {
-      const activeIndex = parseInt(data.activeIndex);
-      if (activeIndex >= 0 && activeIndex < chartData.length) {
-        const hoveredPayload = chartData[activeIndex];
-        setHoveredData(hoveredPayload);
-        
-        // Clear any existing timeout and set a new one
-        if (hoverTimeoutRef.current) {
-          clearTimeout(hoverTimeoutRef.current);
-        }
-        hoverTimeoutRef.current = setTimeout(() => {
-          if (!isMouseOverChart) {
-            setHoveredData(null);
-          }
-        }, 200);
-      }
+    if (data && data.activeIndex !== undefined) {
+      setActiveIndex(parseInt(data.activeIndex));
     }
+  };
+
+  const handleMouseLeave = () => {
+    setActiveIndex(null);
   };
 
   // Custom dot component that only shows on hover
   const CustomDot = (props: any) => {
     const { cx, cy, payload, index } = props;
-    const isHovered = hoveredData && hoveredData.dateString === payload.dateString;
+    const isHovered = activeIndex === index;
     
     if (!isHovered) {
       return null;
@@ -293,14 +256,15 @@ export default function NetWorthCard() {
       
       <div className="pt-4">
         <div 
-          className="h-40 w-full"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          className="h-40 w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none"
+          tabIndex={-1}
+          style={{ outline: 'none' }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={chartData}
               onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
               margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
             >
               <defs>
