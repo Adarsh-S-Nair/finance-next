@@ -9,6 +9,8 @@ type CardProps = {
   padding?: "sm" | "md" | "lg";
   variant?: "default" | "subtle" | "danger";
   width?: "full" | "2/3" | "1/3" | "1/2" | "1/4";
+  onMouseLeave?: () => void;
+  onMouseEnter?: () => void;
 };
 
 export default function Card({ 
@@ -16,7 +18,9 @@ export default function Card({
   className, 
   padding = "md",
   variant = "default",
-  width = "full"
+  width = "full",
+  onMouseLeave,
+  onMouseEnter
 }: CardProps) {
   const paddingClasses = {
     sm: "p-3",
@@ -50,6 +54,8 @@ export default function Card({
       style={{
         boxShadow: '0 1px 3px 0 var(--color-shadow)'
       }}
+      onMouseLeave={onMouseLeave}
+      onMouseEnter={onMouseEnter}
     >
       {children}
     </div>

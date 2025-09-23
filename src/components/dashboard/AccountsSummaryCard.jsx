@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Card from "../ui/Card";
 import Pill from "../ui/Pill";
 import { useAccounts } from "../AccountsProvider";
+import { useNetWorthHover } from "./NetWorthHoverContext";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -50,8 +51,8 @@ function categorizeAccount(account) {
   }
 }
 
-// Segmented bar component with proper color differentiation
-function SegmentedBar({ segments, total, label, className = "", displayMode, onToggleMode }) {
+// Segmented bar component with proper color differentiation and animations
+function SegmentedBar({ segments, total, label, className = "", displayMode, onToggleMode, isAnimated = false }) {
   if (total === 0) {
     return (
       <div className={`space-y-2 ${className}`}>
@@ -72,13 +73,18 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
     <div className={`space-y-2 ${className}`}>
       <div className="flex justify-between items-center">
         <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
-        <span className="text-sm font-semibold text-[var(--color-fg)]">
+        <span 
+          className={`text-sm font-semibold text-[var(--color-fg)] ${isAnimated ? 'transition-all duration-700 ease-in-out' : ''}`}
+          style={{
+            transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+          }}
+        >
           {formatCurrency(total)}
         </span>
       </div>
       
       {/* Segmented bar with distinct colors */}
-      <div className="w-full h-2 bg-[var(--color-border)] rounded-full overflow-hidden relative">
+      <div className={`w-full h-1.5 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative shadow-sm ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
         <svg width="100%" height="100%" className="absolute inset-0">
           <defs>
             {/* Different colors for different segment types */}
@@ -113,7 +119,7 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
             
             return (
               <rect
-                key={index}
+                key={`${segment.label}-${segment.amount}`}
                 x={`${leftOffset}%`}
                 y="0"
                 width={`${percentage}%`}
@@ -121,6 +127,10 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
                 fill={`url(#${gradientId})`}
                 rx="0"
                 ry="0"
+                className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
+                style={{
+                  transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+                }}
               />
             );
           })}
@@ -134,12 +144,16 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
               y2="100%"
               stroke="var(--color-bg)"
               strokeWidth="1"
+              className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
+              style={{
+                transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+              }}
             />
           )}
         </svg>
       </div>
       
-      {/* Compact legend with clickable amounts */}
+      {/* Minimal legend with modern pills */}
       <div className="flex justify-between text-xs">
         {segments.map((segment, index) => {
           const percentage = (segment.amount / total) * 100;
@@ -156,27 +170,29 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
           }
           
           return (
-            <div key={index} className="flex items-center gap-1.5">
-              <div 
-                className="w-1.5 h-1.5 rounded-full" 
-                style={{ 
-                  backgroundColor: dotColor
-                }}
-              />
-              <span className="text-[var(--color-muted)] text-xs">
-                {segment.label}:
-              </span>
-              <Pill 
-                variant="toggle" 
-                size="sm" 
+            <div key={index} className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div 
+                  className="w-1.5 h-1.5 rounded-full" 
+                  style={{ 
+                    backgroundColor: dotColor
+                  }}
+                />
+                <span className="text-[var(--color-muted)] text-xs font-medium">
+                  {segment.label}
+                </span>
+              </div>
+              <button
                 onClick={onToggleMode}
-                className="text-xs px-2 py-1 font-mono"
+                className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
+                  isAnimated ? 'transition-all duration-500 ease-out' : ''
+                }`}
               >
                 {displayMode === 'percentage' 
                   ? `${percentage.toFixed(0)}%` 
                   : formatCurrency(segment.amount)
                 }
-              </Pill>
+              </button>
             </div>
           );
         })}
@@ -186,7 +202,7 @@ function SegmentedBar({ segments, total, label, className = "", displayMode, onT
 }
 
 // Overall assets vs liabilities comparison bar
-function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onToggleMode, className = "" }) {
+function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onToggleMode, className = "", isAnimated = false }) {
   const netWorth = totalAssets - totalLiabilities;
   const totalNetWorth = totalAssets + totalLiabilities;
   
@@ -213,13 +229,18 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
     <div className={`space-y-2 ${className}`}>
       <div className="flex justify-between items-center">
         <span className="text-sm font-medium text-[var(--color-fg)]">Net Worth</span>
-        <span className="text-sm font-semibold text-[var(--color-fg)]">
+        <span 
+          className={`text-sm font-semibold text-[var(--color-fg)] ${isAnimated ? 'transition-all duration-700 ease-in-out' : ''}`}
+          style={{
+            transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+          }}
+        >
           {formatCurrency(netWorth)}
         </span>
       </div>
       
       {/* Overall comparison bar */}
-      <div className="w-full h-2 bg-[var(--color-border)] rounded-full overflow-hidden relative">
+      <div className={`w-full h-1.5 bg-[var(--color-border)]/30 rounded-full overflow-hidden relative shadow-sm ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}>
         <svg width="100%" height="100%" className="absolute inset-0">
           <defs>
             <linearGradient id="assetsOverallGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -241,6 +262,10 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
             fill="url(#assetsOverallGradient)"
             rx="0"
             ry="0"
+            className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
+            style={{
+              transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+            }}
           />
           
           {/* Liabilities segment */}
@@ -252,6 +277,10 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
             fill="url(#liabilitiesOverallGradient)"
             rx="0"
             ry="0"
+            className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
+            style={{
+              transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+            }}
           />
           
           {/* Separator line */}
@@ -263,42 +292,50 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
               y2="100%"
               stroke="var(--color-bg)"
               strokeWidth="1"
+              className={isAnimated ? "transition-all duration-700 ease-in-out" : ""}
+              style={{
+                transition: isAnimated ? 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
+              }}
             />
           )}
         </svg>
       </div>
       
-      {/* Compact legend with clickable amounts */}
+      {/* Minimal legend with modern pills */}
       <div className="flex justify-between text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-          <span className="text-[var(--color-muted)] text-xs">Assets:</span>
-          <Pill 
-            variant="toggle" 
-            size="sm" 
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="text-[var(--color-muted)] text-xs font-medium">Assets</span>
+          </div>
+          <button
             onClick={onToggleMode}
-            className="text-xs px-2 py-1 font-mono"
+            className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
+              isAnimated ? 'transition-all duration-500 ease-out' : ''
+            }`}
           >
             {displayMode === 'percentage' 
               ? `${assetsPercentage.toFixed(0)}%` 
               : formatCurrency(totalAssets)
             }
-          </Pill>
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          <span className="text-[var(--color-muted)] text-xs">Liabilities:</span>
-          <Pill 
-            variant="toggle" 
-            size="sm" 
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+            <span className="text-[var(--color-muted)] text-xs font-medium">Liabilities</span>
+          </div>
+          <button
             onClick={onToggleMode}
-            className="text-xs px-2 py-1 font-mono"
+            className={`px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]/5 hover:border-[var(--color-muted)]/20 transition-all duration-200 hover:scale-105 cursor-pointer ${
+              isAnimated ? 'transition-all duration-500 ease-out' : ''
+            }`}
           >
             {displayMode === 'percentage' 
               ? `${liabilitiesPercentage.toFixed(0)}%` 
               : formatCurrency(totalLiabilities)
             }
-          </Pill>
+          </button>
         </div>
       </div>
     </div>
@@ -307,11 +344,23 @@ function OverallComparisonBar({ totalAssets, totalLiabilities, displayMode, onTo
 
 export default function AccountsSummaryCard() {
   const { allAccounts, loading } = useAccounts();
+  const { hoveredData, isHovering } = useNetWorthHover();
   const [displayMode, setDisplayMode] = useState('currency'); // 'currency' or 'percentage'
+  const [animatedData, setAnimatedData] = useState(null);
 
   const toggleDisplayMode = () => {
     setDisplayMode(prev => prev === 'currency' ? 'percentage' : 'currency');
   };
+
+  // Animate data changes when hover data changes
+  useEffect(() => {
+    if (hoveredData) {
+      setAnimatedData(hoveredData);
+    } else {
+      // Reset to current data when not hovering
+      setAnimatedData(null);
+    }
+  }, [hoveredData]);
 
   if (loading) {
     return (
@@ -334,32 +383,48 @@ export default function AccountsSummaryCard() {
     );
   }
 
-  // Categorize accounts
-  const categorizedAccounts = allAccounts.reduce((acc, account) => {
-    const category = categorizeAccount(account);
-    const amount = Math.abs(account.balance);
-    
-    if (!acc[category]) {
-      acc[category] = 0;
-    }
-    acc[category] += amount;
-    
-    return acc;
-  }, {});
+  // Use hovered data if available, otherwise use current account data
+  let assetsData, liabilitiesData, totalAssets, totalLiabilities;
 
-  // Prepare data for segmented bars
-  const assetsData = {
-    cash: categorizedAccounts.cash || 0,
-    investments: categorizedAccounts.investments || 0,
-  };
+  if (animatedData && animatedData.categorizedBalances) {
+    // Use historical hovered data
+    assetsData = {
+      cash: animatedData.categorizedBalances.cash || 0,
+      investments: animatedData.categorizedBalances.investments || 0,
+    };
+    liabilitiesData = {
+      credit: animatedData.categorizedBalances.credit || 0,
+      loans: animatedData.categorizedBalances.loans || 0,
+    };
+    totalAssets = animatedData.assets || 0;
+    totalLiabilities = animatedData.liabilities || 0;
+  } else {
+    // Use current account data
+    const categorizedAccounts = allAccounts.reduce((acc, account) => {
+      const category = categorizeAccount(account);
+      const amount = Math.abs(account.balance);
+      
+      if (!acc[category]) {
+        acc[category] = 0;
+      }
+      acc[category] += amount;
+      
+      return acc;
+    }, {});
 
-  const liabilitiesData = {
-    credit: categorizedAccounts.credit || 0,
-    loans: categorizedAccounts.loans || 0,
-  };
+    assetsData = {
+      cash: categorizedAccounts.cash || 0,
+      investments: categorizedAccounts.investments || 0,
+    };
 
-  const totalAssets = assetsData.cash + assetsData.investments;
-  const totalLiabilities = liabilitiesData.credit + liabilitiesData.loans;
+    liabilitiesData = {
+      credit: categorizedAccounts.credit || 0,
+      loans: categorizedAccounts.loans || 0,
+    };
+
+    totalAssets = assetsData.cash + assetsData.investments;
+    totalLiabilities = liabilitiesData.credit + liabilitiesData.loans;
+  }
 
   // Create segments for assets
   const assetSegments = [
@@ -375,8 +440,8 @@ export default function AccountsSummaryCard() {
 
   return (
     <Card width="1/3">
-      <div className="mb-4">
-        <div className="text-sm text-[var(--color-muted)]">Accounts Summary</div>
+      <div className="mb-6">
+        <div className="text-sm font-medium text-[var(--color-fg)]">Accounts Summary</div>
       </div>
       
       <div className="space-y-4">
@@ -385,6 +450,7 @@ export default function AccountsSummaryCard() {
           totalLiabilities={totalLiabilities}
           displayMode={displayMode}
           onToggleMode={toggleDisplayMode}
+          isAnimated={isHovering}
         />
         
         <SegmentedBar
@@ -393,6 +459,7 @@ export default function AccountsSummaryCard() {
           label="Assets"
           displayMode={displayMode}
           onToggleMode={toggleDisplayMode}
+          isAnimated={isHovering}
         />
         
         <SegmentedBar
@@ -401,6 +468,7 @@ export default function AccountsSummaryCard() {
           label="Liabilities"
           displayMode={displayMode}
           onToggleMode={toggleDisplayMode}
+          isAnimated={isHovering}
         />
       </div>
     </Card>

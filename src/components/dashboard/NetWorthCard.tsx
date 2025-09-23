@@ -4,19 +4,139 @@ import React, { useState, useEffect, useRef } from "react";
 import Card from "../ui/Card";
 import { useAccounts } from "../AccountsProvider";
 import { useUser } from "../UserProvider";
+import { useNetWorthHover } from "./NetWorthHoverContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+
+// Animated counter component for smooth number transitions
+function AnimatedCounter({ value, duration = 300 }) {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const animationRef = useRef(null);
+
+  useEffect(() => {
+    if (displayValue === value) return;
+
+    setIsAnimating(true);
+    
+    const startValue = displayValue;
+    const endValue = value;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Use easeOutCubic for smooth deceleration
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      
+      const currentValue = startValue + (endValue - startValue) * easeProgress;
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(endValue);
+        setIsAnimating(false);
+      }
+    };
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [value, duration, displayValue]);
+
+  return (
+    <span className={isAnimating ? 'transition-all duration-150' : ''}>
+      {formatCurrency(displayValue)}
+    </span>
+  );
+}
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+}
+
+// Helper function to categorize account balances (same logic as AccountsSummaryCard)
+function categorizeAccount(account) {
+  const accountType = (account.type || '').toLowerCase();
+  const accountSubtype = (account.subtype || '').toLowerCase();
+  const fullType = `${accountType} ${accountSubtype}`.trim();
+  
+  // Check if it's a liability first
+  const liabilityTypes = [
+    'credit card', 'credit', 'loan', 'mortgage', 
+    'line of credit', 'overdraft', 'other'
+  ];
+  
+  const isLiability = liabilityTypes.some(type => fullType.includes(type));
+  
+  if (isLiability) {
+    // Categorize liabilities
+    if (fullType.includes('credit card') || fullType.includes('credit')) {
+      return 'credit';
+    } else if (fullType.includes('loan') || fullType.includes('mortgage') || fullType.includes('line of credit')) {
+      return 'loans';
+    } else {
+      return 'credit'; // Default to credit for other liability types
+    }
+  } else {
+    // Categorize assets
+    if (fullType.includes('investment') || fullType.includes('brokerage') || 
+        fullType.includes('401k') || fullType.includes('ira') || 
+        fullType.includes('retirement') || fullType.includes('mutual fund') ||
+        fullType.includes('stock') || fullType.includes('bond')) {
+      return 'investments';
+    } else {
+      return 'cash'; // Default to cash for checking, savings, etc.
+    }
+  }
+}
+
+// Helper function to categorize account balances for historical data
+function categorizeAccountBalances(accountBalances, allAccounts) {
+  const categorized = {
+    cash: 0,
+    investments: 0,
+    credit: 0,
+    loans: 0
+  };
+
+  // Create a map of account ID to account details for quick lookup
+  const accountMap = {};
+  allAccounts.forEach(account => {
+    accountMap[account.id] = account;
+  });
+
+  // Categorize each account balance
+  Object.entries(accountBalances).forEach(([accountId, balance]) => {
+    const account = accountMap[accountId];
+    if (account) {
+      const category = categorizeAccount(account);
+      const amount = Math.abs(Number(balance) || 0);
+      categorized[category] += amount;
+    }
+  });
+
+  return categorized;
 }
 
 export default function NetWorthCard() {
   const { profile, user } = useUser();
+  const { allAccounts } = useAccounts();
+  const { setHoverData, clearHoverData } = useNetWorthHover();
   const [hoveredData, setHoveredData] = useState(null);
   const [netWorthHistory, setNetWorthHistory] = useState([]);
   const [currentNetWorth, setCurrentNetWorth] = useState(null);
@@ -164,7 +284,7 @@ export default function NetWorthCard() {
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
           <div className="text-2xl font-semibold text-[var(--color-fg)]">
-            {formatCurrency(displayData.value)}
+            <AnimatedCounter value={displayData.value} duration={250} />
           </div>
         </div>
         <div className="pt-4">
@@ -199,12 +319,42 @@ export default function NetWorthCard() {
   // Handle chart mouse events
   const handleMouseMove = (data: any) => {
     if (data && data.activeIndex !== undefined) {
-      setActiveIndex(parseInt(data.activeIndex));
+      const index = parseInt(data.activeIndex);
+      setActiveIndex(index);
+      
+      // Get the chart data for this index
+      const chartDataPoint = chartData[index];
+      if (chartDataPoint) {
+        // Find the corresponding historical data
+        const historicalData = netWorthHistory.find(item => 
+          new Date(item.date).toISOString().split('T')[0] === chartDataPoint.dateString
+        );
+        
+        if (historicalData) {
+          // Categorize the account balances for the AccountsSummaryCard
+          const categorizedBalances = categorizeAccountBalances(historicalData.accountBalances, allAccounts);
+          
+          setHoverData({
+            assets: historicalData.assets,
+            liabilities: historicalData.liabilities,
+            netWorth: historicalData.netWorth,
+            date: historicalData.date,
+            categorizedBalances: categorizedBalances
+          });
+        }
+      }
     }
   };
 
   const handleMouseLeave = () => {
     setActiveIndex(null);
+    clearHoverData();
+  };
+
+  // Handle mouse leave from the entire card area
+  const handleCardMouseLeave = () => {
+    setActiveIndex(null);
+    clearHoverData();
   };
 
   // Custom dot component that only shows on hover
@@ -230,13 +380,13 @@ export default function NetWorthCard() {
   };
 
   return (
-    <Card width="2/3">
+    <Card width="2/3" onMouseLeave={handleCardMouseLeave}>
       <div className="mb-4">
         <div className="flex justify-between items-start">
           <div>
             <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
             <div className="text-2xl font-semibold text-[var(--color-fg)]">
-              {formatCurrency(displayData?.value || 0)}
+              <AnimatedCounter value={displayData?.value || 0} duration={250} />
             </div>
           </div>
           <div className="text-right">
@@ -256,11 +406,12 @@ export default function NetWorthCard() {
       
       <div className="pt-4">
         <div 
-          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none"
+          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
           tabIndex={-1}
-          style={{ outline: 'none' }}
+          style={{ outline: 'none', height: '200px' }}
+          onMouseLeave={handleMouseLeave}
         >
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart 
               data={chartData}
               onMouseMove={handleMouseMove}

@@ -3,20 +3,23 @@ import NetWorthCard from "../../components/dashboard/NetWorthCard";
 import AccountsCard from "../../components/dashboard/AccountsCard.jsx";
 import AccountsSummaryCard from "../../components/dashboard/AccountsSummaryCard.jsx";
 import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningCard.jsx";
+import { NetWorthHoverProvider } from "../../components/dashboard/NetWorthHoverContext";
 
 export default function DashboardPage() {
   return (
     <PageContainer title="Dashboard">
-      <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <NetWorthCard />
-          <AccountsSummaryCard />
+      <NetWorthHoverProvider>
+        <div className="space-y-6">
+          <div className="flex flex-col lg:flex-row gap-6">
+            <NetWorthCard />
+            <AccountsSummaryCard />
+          </div>
+          <div className="flex flex-col lg:flex-row gap-6">
+            <AccountsCard />
+            <SpendingVsEarningCard />
+          </div>
         </div>
-        <div className="flex flex-col lg:flex-row gap-6">
-          <AccountsCard />
-          <SpendingVsEarningCard />
-        </div>
-      </div>
+      </NetWorthHoverProvider>
     </PageContainer>
   );
 }
