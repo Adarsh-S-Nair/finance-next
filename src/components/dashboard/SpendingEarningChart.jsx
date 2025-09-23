@@ -48,6 +48,21 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  // Observe container width and height
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = Math.max(300, Math.floor(entry.contentRect.width))
+        const h = Math.max(200, Math.floor(entry.contentRect.height))
+        setDims((d) => ({ ...d, width: w, height: h }))
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Fetch monthly spending and earning data
   useEffect(() => {
     const fetchSpendingEarningData = async () => {
@@ -64,6 +79,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
         }
         
         const result = await response.json();
+        console.log('API Response:', result);
         setMonthlyData(result.data || []);
         
       } catch (err) {
@@ -77,24 +93,9 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     fetchSpendingEarningData();
   }, [user?.id]);
 
-  // Observe container width and height
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const w = Math.max(300, Math.floor(entry.contentRect.width))
-        const h = Math.max(200, Math.floor(entry.contentRect.height))
-        setDims((d) => ({ ...d, width: w, height: h }))
-      }
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   // Remove height override - let container determine height
 
-  // Normalize data from API
+  // Normalize data
   const { months, incomeVals, spendingVals, maxAbs } = useMemo(() => {
     if (!monthlyData || monthlyData.length === 0) {
       return { months: [], incomeVals: [], spendingVals: [], maxAbs: 1 }
@@ -173,39 +174,6 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     const start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1)
     const end = new Date(now.getFullYear(), now.getMonth() - monthsBack + 1, 0)
     onSelectMonth({ month: label, startDate: formatDate(start), endDate: formatDate(end) })
-  }
-
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
-        <div className="text-[var(--color-muted)]">Loading spending data...</div>
-      </div>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
-        <div className="text-[var(--color-muted)] text-center">
-          <div>Unable to load spending data</div>
-          <div className="text-sm mt-1">{error}</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show empty state
-  if (!monthlyData || monthlyData.length === 0) {
-    return (
-      <div className="w-full flex items-center justify-center" style={{ height: `${dims.height}px` }}>
-        <div className="text-[var(--color-muted)] text-center">
-          <div>No spending data available</div>
-          <div className="text-sm mt-1">Connect accounts to see your spending patterns</div>
-        </div>
-      </div>
-    );
   }
 
   return (
