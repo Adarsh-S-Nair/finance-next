@@ -282,10 +282,12 @@ export default function AccountsPage() {
                     return (
                       <Card key={categoryKey} width="full">
                         {/* Category Header */}
-                        <div className="mb-4 pb-3 border-b border-[var(--color-border)]/30">
-                          <div className="text-sm font-semibold text-[var(--color-fg)]">{config.title}</div>
-                          <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                            {accounts.length} account{accounts.length !== 1 ? 's' : ''} • {formatCurrency(totalBalance)}
+                        <div className="mb-4 -mx-6 -mt-6 px-6 pt-6 pb-3 bg-[var(--color-bg)]/30 border-b border-[var(--color-border)]/30">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-[var(--color-fg)]">{config.title}</div>
+                            <div className="text-sm font-semibold text-[var(--color-fg)]">
+                              {formatCurrency(totalBalance)}
+                            </div>
                           </div>
                         </div>
                         
