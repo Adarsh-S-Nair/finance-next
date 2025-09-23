@@ -5,6 +5,13 @@ import ToastProvider from "../components/ToastProvider";
 import UserProvider from "../components/UserProvider";
 import { AccountsProvider } from "../components/AccountsProvider";
 
+export const metadata = {
+  title: {
+    template: "Zentari | %s",
+    default: "Zentari",
+  },
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">

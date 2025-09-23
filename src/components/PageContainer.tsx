@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode } from "react";
+import React, { ReactNode, useEffect } from "react";
 
 type Props = { 
   title?: string; 
@@ -9,6 +9,15 @@ type Props = {
 };
 
 export default function PageContainer({ title, children, action }: Props) {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (title && title.trim().length > 0) {
+      document.title = `Zentari | ${title}`;
+    } else {
+      document.title = "Zentari";
+    }
+  }, [title]);
+
   return (
     <div className="py-6">
       {action && (
