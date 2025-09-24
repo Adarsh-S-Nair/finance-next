@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Card from "../ui/Card";
 import { useAccounts } from "../AccountsProvider";
 import { useUser } from "../UserProvider";
+import { useNetWorth } from "../NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
@@ -136,56 +137,16 @@ function categorizeAccountBalances(accountBalances, allAccounts) {
 export default function NetWorthCard() {
   const { profile, user } = useUser();
   const { allAccounts } = useAccounts();
+  const { 
+    netWorthHistory, 
+    currentNetWorth, 
+    loading, 
+    error, 
+    refreshNetWorthData 
+  } = useNetWorth();
   const { setHoverData, clearHoverData } = useNetWorthHover();
   const [hoveredData, setHoveredData] = useState(null);
-  const [netWorthHistory, setNetWorthHistory] = useState([]);
-  const [currentNetWorth, setCurrentNetWorth] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
-
-  // Fetch current net worth and history from the API
-  const fetchNetWorthData = async () => {
-    if (!user?.id) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch current net worth
-      const currentResponse = await fetch(`/api/net-worth/current?userId=${user.id}`);
-      if (!currentResponse.ok) {
-        throw new Error('Failed to fetch current net worth');
-      }
-      const currentData = await currentResponse.json();
-      setCurrentNetWorth(currentData);
-      
-      // Fetch historical data for the chart
-      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}`);
-      if (!historyResponse.ok) {
-        throw new Error('Failed to fetch net worth history');
-      }
-      const historyData = await historyResponse.json();
-      
-      setNetWorthHistory(historyData.data || []);
-    } catch (err) {
-      console.error('Error fetching net worth data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch data when user changes
-  useEffect(() => {
-    if (user?.id) {
-      fetchNetWorthData();
-    } else {
-      setNetWorthHistory([]);
-      setCurrentNetWorth(null);
-      setError(null);
-    }
-  }, [user?.id]);
 
 
   if (loading) {
@@ -294,7 +255,7 @@ export default function NetWorthCard() {
                 Unable to load historical data
               </div>
               <button 
-                onClick={fetchNetWorthData}
+                onClick={refreshNetWorthData}
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
                 Try again

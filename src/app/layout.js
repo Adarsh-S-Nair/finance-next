@@ -4,6 +4,7 @@ import Topbar from "../components/Topbar";
 import ToastProvider from "../components/ToastProvider";
 import UserProvider from "../components/UserProvider";
 import { AccountsProvider } from "../components/AccountsProvider";
+import { NetWorthProvider } from "../components/NetWorthProvider";
 
 export const metadata = {
   title: {
@@ -19,8 +20,10 @@ export default function RootLayout({ children }) {
         <ToastProvider>
           <UserProvider>
             <AccountsProvider>
-              <Topbar />
-              <RouteTransition>{children}</RouteTransition>
+              <NetWorthProvider>
+                <Topbar />
+                <RouteTransition>{children}</RouteTransition>
+              </NetWorthProvider>
             </AccountsProvider>
           </UserProvider>
         </ToastProvider>

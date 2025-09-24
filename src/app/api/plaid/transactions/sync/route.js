@@ -1,6 +1,7 @@
 import { getPlaidClient, PLAID_ENV, getTransactions, syncTransactions } from '../../../../../lib/plaidClient';
 import { createClient } from '@supabase/supabase-js';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
+import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -189,6 +190,7 @@ export async function POST(request) {
     // Handle accounts data from Plaid response (for balance updates)
     let accountsToUpdate = [];
     let updatedAccountsCount = 0;
+    let snapshotsCreatedCount = 0;
     if (PLAID_ENV !== 'sandbox') {
       // In production mode, we get accounts data from the sync response
       // We need to collect accounts from all pagination batches
@@ -507,11 +509,11 @@ export async function POST(request) {
       });
 
       // Update balances for each account
-      let updatedAccountsCount = 0;
       for (const plaidAccount of accountsToUpdate) {
         const dbAccountId = accountMap[plaidAccount.account_id];
         if (dbAccountId && plaidAccount.balances) {
           try {
+            // Update the account balance in the accounts table
             const { error: updateError } = await supabase
               .from('accounts')
               .update({ 
@@ -529,6 +531,22 @@ export async function POST(request) {
                 available: plaidAccount.balances.available,
                 currency: plaidAccount.balances.iso_currency_code
               });
+
+              // Create account snapshot if conditions are met
+              try {
+                const snapshotResult = await createAccountSnapshotConditional(plaidAccount, dbAccountId);
+                if (snapshotResult.success && !snapshotResult.skipped) {
+                  snapshotsCreatedCount++;
+                  console.log(`📸 Created account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
+                } else if (snapshotResult.skipped) {
+                  console.log(`⏭️ Skipped account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
+                } else {
+                  console.warn(`⚠️ Failed to create account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.error}`);
+                }
+              } catch (snapshotError) {
+                console.warn(`⚠️ Error creating account snapshot for account ${plaidAccount.account_id}:`, snapshotError);
+                // Don't fail the whole process if snapshot creation fails
+              }
             }
           } catch (error) {
             console.error(`❌ Error updating balance for account ${plaidAccount.account_id}:`, error);
@@ -539,6 +557,9 @@ export async function POST(request) {
       }
       
       console.log(`💰 Updated balances for ${updatedAccountsCount} accounts`);
+      if (snapshotsCreatedCount > 0) {
+        console.log(`📸 Created ${snapshotsCreatedCount} account snapshots`);
+      }
     }
 
     // Update plaid item with sync status
@@ -567,6 +588,7 @@ export async function POST(request) {
       transactions_synced: transactionsToUpsert.length,
       pending_transactions_updated: pendingTransactionsToUpdate.length,
       accounts_updated: accountsToUpdate.length > 0 ? updatedAccountsCount : 0,
+      snapshots_created: accountsToUpdate.length > 0 ? snapshotsCreatedCount : 0,
       cursor: PLAID_ENV === 'sandbox' ? null : transactionCursor
     });
 
