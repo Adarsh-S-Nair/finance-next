@@ -6,7 +6,7 @@ import { useAccounts } from "../AccountsProvider";
 import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import LineChart from '../ui/LineChart';
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }) {
@@ -278,31 +278,28 @@ export default function NetWorthCard() {
   const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#484444';
 
   // Handle chart mouse events
-  const handleMouseMove = (data: any) => {
-    if (data && data.activeIndex !== undefined) {
-      const index = parseInt(data.activeIndex);
-      setActiveIndex(index);
+  const handleMouseMove = (data: any, index: number) => {
+    setActiveIndex(index);
+    
+    // Get the chart data for this index
+    const chartDataPoint = chartData[index];
+    if (chartDataPoint) {
+      // Find the corresponding historical data
+      const historicalData = netWorthHistory.find(item => 
+        new Date(item.date).toISOString().split('T')[0] === chartDataPoint.dateString
+      );
       
-      // Get the chart data for this index
-      const chartDataPoint = chartData[index];
-      if (chartDataPoint) {
-        // Find the corresponding historical data
-        const historicalData = netWorthHistory.find(item => 
-          new Date(item.date).toISOString().split('T')[0] === chartDataPoint.dateString
-        );
+      if (historicalData) {
+        // Categorize the account balances for the AccountsSummaryCard
+        const categorizedBalances = categorizeAccountBalances(historicalData.accountBalances, allAccounts);
         
-        if (historicalData) {
-          // Categorize the account balances for the AccountsSummaryCard
-          const categorizedBalances = categorizeAccountBalances(historicalData.accountBalances, allAccounts);
-          
-          setHoverData({
-            assets: historicalData.assets,
-            liabilities: historicalData.liabilities,
-            netWorth: historicalData.netWorth,
-            date: historicalData.date,
-            categorizedBalances: categorizedBalances
-          });
-        }
+        setHoverData({
+          assets: historicalData.assets,
+          liabilities: historicalData.liabilities,
+          netWorth: historicalData.netWorth,
+          date: historicalData.date,
+          categorizedBalances: categorizedBalances
+        });
       }
     }
   };
@@ -318,25 +315,18 @@ export default function NetWorthCard() {
     clearHoverData();
   };
 
-  // Custom dot component that only shows on hover
-  const CustomDot = (props: any) => {
-    const { cx, cy, payload, index } = props;
-    const isHovered = activeIndex === index;
-    
-    if (!isHovered) {
-      return null;
-    }
+  // Custom tooltip component
+  const CustomTooltip = (data: any, index: number) => {
+    const point = chartData[index];
+    if (!point) return null;
     
     return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={4}
-        fill={validAccentColor}
-        stroke="white"
-        strokeWidth={2}
-        style={{ cursor: 'pointer' }}
-      />
+      <div className="text-center">
+        <div className="font-semibold">{formatCurrency(point.value)}</div>
+        <div className="text-xs text-[var(--color-muted)]">
+          {point.month} {point.year}
+        </div>
+      </div>
     );
   };
 
@@ -372,41 +362,26 @@ export default function NetWorthCard() {
           style={{ outline: 'none', height: '200px' }}
           onMouseLeave={handleMouseLeave}
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart 
-              data={chartData}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={validAccentColor} stopOpacity={0.3}/>
-                  <stop offset="50%" stopColor={validAccentColor} stopOpacity={0.15}/>
-                  <stop offset="100%" stopColor={validAccentColor} stopOpacity={0.05}/>
-                </linearGradient>
-              </defs>
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke={validAccentColor}
-                strokeWidth={2}
-                fill="url(#netWorthGradient)"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="transparent"
-                strokeWidth={8}
-                dot={<CustomDot />}
-                activeDot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <LineChart
+            data={chartData}
+            dataKey="value"
+            width="100%"
+            height={200}
+            margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            strokeColor={validAccentColor}
+            strokeWidth={2}
+            showArea={true}
+            areaOpacity={0.3}
+            showDots={false}
+            dotColor={validAccentColor}
+            dotRadius={2}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            showTooltip={false}
+            gradientId="netWorthGradient"
+            curveType="monotone"
+            animationDuration={300}
+          />
         </div>
       </div>
     </Card>
