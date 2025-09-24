@@ -34,7 +34,10 @@
   --color-content-bg: #f7f8fa;
   
   /* Shadow colors */
-  --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  
+  /* Subtle card border */
+  --color-card-border: rgba(0, 0, 0, 0.06);
 }
 
 .dark {
@@ -73,7 +76,10 @@
   --color-content-bg: #262c34;
   
   /* Shadow colors */
-  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-shadow: rgba(0, 0, 0, 0.12);
+  
+  /* Subtle card border */
+  --color-card-border: rgba(255, 255, 255, 0.04);
 }
 
 /* Base application colors */

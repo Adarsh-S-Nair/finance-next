@@ -165,7 +165,7 @@ export default function AccountsPage() {
         ) : (
           <>
               {/* Net Worth and Accounts Summary Cards */}
-              <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex flex-col md:flex-row gap-6">
                 <NetWorthCard />
                 <AccountsSummaryCard />
                     </div>

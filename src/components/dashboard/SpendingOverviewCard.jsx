@@ -52,7 +52,12 @@ export default function SpendingOverviewCard() {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-[var(--color-background)] border border-[var(--color-border)] rounded-lg p-3 shadow-lg">
+        <div 
+          className="bg-[var(--color-bg)] border border-[var(--color-card-border)] rounded-lg p-3"
+          style={{
+            boxShadow: '0 2px 4px 0 var(--color-shadow), 0 1px 2px 0 var(--color-shadow)'
+          }}
+        >
           <div className="flex items-center gap-2 mb-1">
             <div 
               className="w-3 h-3 rounded-full" 

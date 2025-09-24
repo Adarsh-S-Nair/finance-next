@@ -24,7 +24,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="lg:ml-64 xl:ml-72 h-full bg-[var(--color-bg)] flex flex-col">
         <AppTopbar />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="mx-auto max-w-[1400px] px-4">
+          <div className="mx-auto max-w-[1400px] px-4 md:px-6 lg:px-8">
             <motion.div
               key={pathname}
               initial={{ opacity: 0, y: 20 }}
