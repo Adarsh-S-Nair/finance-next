@@ -231,7 +231,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
   }
 
   return (
-    <div ref={containerRef} className="w-full" style={{ height: `${dims.height}px`, position: 'relative' }}>
+    <div ref={containerRef} className="w-full h-full" style={{ position: 'relative' }}>
       {/* Tooltip */}
       {tooltip.visible && (
         <div

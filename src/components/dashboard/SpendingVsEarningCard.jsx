@@ -3,8 +3,22 @@
 import React from "react";
 import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChart";
+import { useUser } from "../UserProvider";
+import { useNetWorth } from "../NetWorthProvider";
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 export default function SpendingVsEarningCard() {
+  const { profile } = useUser();
+  const { currentNetWorth, loading: netWorthLoading } = useNetWorth();
+  
   // Mock data for the chart
   const chartData = [
     { 
@@ -32,12 +46,20 @@ export default function SpendingVsEarningCard() {
   ];
 
   return (
-    <Card width="2/3">
-      <div className="mb-4">
-        <div className="text-sm text-[var(--color-muted)]">Spending vs Earning</div>
+    <Card width="full" className="flex flex-col h-full">
+      <div className="mb-4 md:mb-6">
+        <div className="text-sm text-[var(--color-muted)]">Balance</div>
+        {!netWorthLoading && currentNetWorth && (
+          <div className="text-xl md:text-2xl font-semibold text-[var(--color-fg)] mt-1">
+            {formatCurrency(currentNetWorth.netWorth || 0)}
+          </div>
+        )}
+        {netWorthLoading && (
+          <div className="h-6 md:h-8 bg-[var(--color-border)] rounded w-24 md:w-32 mt-1 animate-pulse" />
+        )}
       </div>
       
-      <div className="h-48">
+      <div className="flex-1 min-h-0">
         <SpendingEarningChart 
           series={chartData}
           onSelectMonth={(data) => {

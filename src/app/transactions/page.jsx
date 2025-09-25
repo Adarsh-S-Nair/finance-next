@@ -3,6 +3,8 @@
 import PageContainer from "../../components/PageContainer";
 import Button from "../../components/ui/Button";
 import DynamicIcon from "../../components/DynamicIcon";
+import Drawer from "../../components/ui/Drawer";
+import SelectCategoryView from "../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect } from "react";
@@ -96,7 +98,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading }) {
 }
 
 // TransactionList component to avoid runtime errors
-function TransactionList({ transactions }) {
+function TransactionList({ transactions, onTransactionClick }) {
   const formatDateHeader = (dateString) => {
     if (!dateString) return 'Unknown Date';
     const date = new Date(dateString);
@@ -172,6 +174,7 @@ function TransactionList({ transactions }) {
                 key={transaction.id}
                 transaction={transaction}
                 isLast={index === grouped[dateKey].length - 1}
+                onTransactionClick={onTransactionClick}
               />
             ))}
           </div>
@@ -182,7 +185,7 @@ function TransactionList({ transactions }) {
 }
 
 // TransactionRow component for individual transactions
-function TransactionRow({ transaction, isLast }) {
+function TransactionRow({ transaction, isLast, onTransactionClick }) {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -193,9 +196,10 @@ function TransactionRow({ transaction, isLast }) {
 
   return (
     <div 
-      className={`flex items-center justify-between py-4 px-1 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors ${
+      className={`flex items-center justify-between py-4 px-1 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors cursor-pointer ${
         !isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
       }`}
+      onClick={() => onTransactionClick(transaction)}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div 
@@ -268,6 +272,9 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [currentDrawerView, setCurrentDrawerView] = useState('transaction-details');
 
   const fetchTransactions = async () => {
     // Don't fetch if profile is not loaded yet
@@ -303,6 +310,25 @@ export default function TransactionsPage() {
 
   const handleRefresh = () => {
     fetchTransactions();
+  };
+
+  const handleTransactionClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setIsDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setIsDrawerOpen(false);
+    setSelectedTransaction(null);
+    setCurrentDrawerView('transaction-details');
+  };
+
+  const handleCategoryClick = () => {
+    setCurrentDrawerView('select-category');
+  };
+
+  const handleBackToTransaction = () => {
+    setCurrentDrawerView('transaction-details');
   };
 
 
@@ -385,9 +411,182 @@ export default function TransactionsPage() {
             <p className="text-[var(--color-muted)] mb-4">Connect your bank accounts to see your financial activity</p>
           </div>
         ) : (
-          <TransactionList transactions={transactions} />
+          <TransactionList 
+            transactions={transactions} 
+            onTransactionClick={handleTransactionClick}
+          />
         )}
       </div>
+      
+      {/* Transaction Details Drawer */}
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={handleDrawerClose}
+        title="Transaction Details"
+        size="md"
+        views={[
+          {
+            id: 'transaction-details',
+            title: 'Transaction Details',
+            content: selectedTransaction && (
+              <div className="p-2">
+                {/* Transaction Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div 
+                      className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                      style={{
+                        backgroundColor: selectedTransaction.icon_url 
+                          ? 'var(--color-muted)/10' 
+                          : (selectedTransaction.category_hex_color || 'var(--color-accent)')
+                      }}
+                    >
+                      {selectedTransaction.icon_url ? (
+                        <img 
+                          src={selectedTransaction.icon_url} 
+                          alt={selectedTransaction.merchant_name || selectedTransaction.description || 'Transaction'}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            // Fallback to category icon if image fails to load
+                            e.target.style.display = 'none';
+                            const fallbackIcon = e.target.nextSibling;
+                            if (fallbackIcon) {
+                              fallbackIcon.style.display = 'block';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <DynamicIcon
+                        iconLib={selectedTransaction.category_icon_lib}
+                        iconName={selectedTransaction.category_icon_name}
+                        className="h-6 w-6 text-white"
+                        fallback={FiTag}
+                        style={{
+                          display: selectedTransaction.icon_url ? 'none' : 'block'
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-[var(--color-fg)] truncate text-lg">
+                        {selectedTransaction.merchant_name || selectedTransaction.description || 'Transaction'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-4">
+                    <div className={`font-semibold text-xl ${selectedTransaction.amount > 0 ? 'text-green-600' : 'text-[var(--color-fg)]'}`}>
+                      {selectedTransaction.amount > 0 ? '+' : ''}{formatCurrency(selectedTransaction.amount)}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Transaction Details Section */}
+                <div className="space-y-6">
+                  <div className="space-y-0">
+                    {/* Status */}
+                    <div className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+                      <span className="text-sm text-[var(--color-muted)]">Status</span>
+                      <span className={`text-sm ${selectedTransaction.pending ? 'italic' : ''}`}>
+                        {selectedTransaction.pending ? 'Pending' : 'Posted'}
+                      </span>
+                    </div>
+                    
+                    {/* Category */}
+                    {selectedTransaction.category_name && (
+                      <div 
+                        className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)] cursor-pointer hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors"
+                        onClick={handleCategoryClick}
+                      >
+                        <span className="text-sm text-[var(--color-muted)]">Category</span>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor: selectedTransaction.category_hex_color || 'var(--color-accent)'
+                            }}
+                          />
+                          <span className="text-sm text-[var(--color-fg)]">
+                            {selectedTransaction.category_name}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Account */}
+                    {selectedTransaction.account_name && (
+                      <div className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+                        <span className="text-sm text-[var(--color-muted)]">Account</span>
+                        <div className="flex items-center gap-3">
+                          {selectedTransaction.accounts?.institutions?.logo && (
+                            <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
+                              <img 
+                                src={selectedTransaction.accounts.institutions.logo} 
+                                alt={selectedTransaction.accounts.institutions.name || 'Institution'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          <div className="text-right">
+                            <div className="text-sm text-[var(--color-fg)] flex items-center gap-2">
+                              <span>{selectedTransaction.account_name}</span>
+                              {selectedTransaction.accounts?.mask && (
+                                <span className="text-xs text-[var(--color-muted)]">
+                                  •••• {selectedTransaction.accounts.mask}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Location */}
+                    {selectedTransaction.location && (
+                      <div className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+                        <span className="text-sm text-[var(--color-muted)]">Location</span>
+                        <span className="text-sm text-[var(--color-fg)]">
+                          {typeof selectedTransaction.location === 'string' 
+                            ? selectedTransaction.location 
+                            : selectedTransaction.location.address || 
+                              `${selectedTransaction.location.city || ''}, ${selectedTransaction.location.region || ''}`.replace(/^,\s*|,\s*$/g, '') ||
+                              'Location available'
+                          }
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Date */}
+                    {selectedTransaction.datetime && (
+                      <div className="flex justify-between items-center py-4 px-4">
+                        <span className="text-sm text-[var(--color-muted)]">Date</span>
+                        <span className="text-sm text-[var(--color-fg)]">
+                          {new Date(selectedTransaction.datetime).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          },
+          {
+            id: 'select-category',
+            title: 'Select Category',
+            showBackButton: true,
+            content: <SelectCategoryView />
+          }
+        ]}
+        currentViewId={currentDrawerView}
+        onViewChange={setCurrentDrawerView}
+        onBack={handleBackToTransaction}
+      />
     </PageContainer>
   );
 }

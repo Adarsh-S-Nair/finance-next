@@ -74,7 +74,7 @@ export default function RecentTransactionsCard() {
 
   if (loading) {
     return (
-      <Card width="2/3" className="animate-pulse">
+      <Card width="full" className="animate-pulse">
         <div className="mb-4">
           <div className="h-5 bg-[var(--color-border)] rounded w-32 mb-2" />
           <div className="h-4 bg-[var(--color-border)] rounded w-24" />
@@ -97,7 +97,7 @@ export default function RecentTransactionsCard() {
 
   if (error) {
     return (
-      <Card width="2/3">
+      <Card width="full">
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
           <div className="text-lg font-semibold text-[var(--color-fg)]">Unable to load</div>
@@ -123,7 +123,7 @@ export default function RecentTransactionsCard() {
 
   if (!transactions || transactions.length === 0) {
     return (
-      <Card width="2/3">
+      <Card width="full">
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
           <div className="text-lg font-semibold text-[var(--color-fg)]">No transactions</div>
@@ -145,7 +145,7 @@ export default function RecentTransactionsCard() {
   }
 
   return (
-    <Card width="2/3">
+    <Card width="full">
       <div className="mb-4 flex justify-between items-center">
         <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
         {transactions.length >= 4 && (
