@@ -7,9 +7,10 @@ import Drawer from "../../components/ui/Drawer";
 import SelectCategoryView from "../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "../../components/UserProvider";
 import Input from "../../components/ui/Input";
+import { supabase } from "../../lib/supabaseClient";
 
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {
@@ -59,7 +60,7 @@ function TransactionSkeleton() {
 }
 
 // SearchToolbar component for consistent styling
-function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading }) {
+function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters }) {
   return (
     <div className="sticky top-0 z-10 bg-[var(--color-bg)] backdrop-blur-sm border-b border-[var(--color-border)] mb-6">
       <div className="flex items-center gap-4 py-4">
@@ -88,6 +89,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading }) {
             variant="ghost"
             size="icon"
             aria-label="Filter Transactions"
+            onClick={onOpenFilters}
           >
             <FiFilter className="h-4 w-4" />
           </Button>
@@ -171,7 +173,7 @@ function TransactionList({ transactions, onTransactionClick }) {
           <div className="space-y-0">
             {grouped[dateKey].map((transaction, index) => (
               <TransactionRow 
-                key={transaction.id}
+                key={`${transaction.id}-${dateKey}-${index}`}
                 transaction={transaction}
                 isLast={index === grouped[dateKey].length - 1}
                 onTransactionClick={onTransactionClick}
@@ -196,6 +198,8 @@ function TransactionRow({ transaction, isLast, onTransactionClick }) {
 
   return (
     <div 
+      data-transaction-item
+      data-transaction-id={transaction.id}
       className={`flex items-center justify-between py-4 px-1 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors cursor-pointer ${
         !isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
       }`}
@@ -275,9 +279,19 @@ export default function TransactionsPage() {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [currentDrawerView, setCurrentDrawerView] = useState('transaction-details');
-
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [categoryGroups, setCategoryGroups] = useState([]);
+  const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
+  const [categoryGroupsError, setCategoryGroupsError] = useState(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [oldestId, setOldestId] = useState(null);
+  const sentinelRef = useRef(null);
+  const observerRef = useRef(null);
+  const PAGE_LIMIT = 30;
+  
+  // Fetch latest transactions
   const fetchTransactions = async () => {
-    // Don't fetch if profile is not loaded yet
     if (!profile?.id) {
       console.log('Profile not loaded yet, skipping transaction fetch');
       return;
@@ -286,8 +300,10 @@ export default function TransactionsPage() {
     try {
       setLoading(true);
       setError(null);
+      setHasMoreOlder(true);
+      setOldestId(null);
       
-      const response = await fetch(`/api/transactions?userId=${profile.id}`, {
+      const response = await fetch(`/api/transactions?userId=${profile.id}&limit=${PAGE_LIMIT}&offset=0`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -299,7 +315,13 @@ export default function TransactionsPage() {
       }
 
       const data = await response.json();
-      setTransactions(data.transactions || []);
+      const initial = data.transactions || [];
+      setTransactions(initial);
+      const last = initial[initial.length - 1];
+      setOldestId(last?.id || null);
+      // Use API-provided hasMore if available, else infer from page size
+      setHasMoreOlder(typeof data.hasMore === 'boolean' ? data.hasMore : (initial.length === PAGE_LIMIT));
+      console.log('Loaded', initial.length || 0, 'transactions');
     } catch (err) {
       console.error('Error fetching transactions:', err);
       setError(err.message);
@@ -309,6 +331,9 @@ export default function TransactionsPage() {
   };
 
   const handleRefresh = () => {
+    setTransactions([]);
+    setHasMoreOlder(true);
+    setOldestId(null);
     fetchTransactions();
   };
 
@@ -331,7 +356,6 @@ export default function TransactionsPage() {
     setCurrentDrawerView('transaction-details');
   };
 
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -339,19 +363,76 @@ export default function TransactionsPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Unknown Date';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-
   useEffect(() => {
     fetchTransactions();
-  }, [profile?.id]); // Re-fetch when profile loads
+  }, [profile?.id]);
+
+  // Load category groups when opening Filters (once per session)
+  useEffect(() => {
+    const loadCategoryGroups = async () => {
+      try {
+        setLoadingCategoryGroups(true);
+        setCategoryGroupsError(null);
+        const { data, error } = await supabase
+          .from('category_groups')
+          .select('id, name, icon_lib, icon_name, hex_color')
+          .order('name', { ascending: true });
+        if (error) throw error;
+        setCategoryGroups(data || []);
+      } catch (e) {
+        console.error('Failed to load category groups', e);
+        setCategoryGroupsError('Failed to load categories');
+      } finally {
+        setLoadingCategoryGroups(false);
+      }
+    };
+    if (isFiltersOpen && categoryGroups.length === 0 && !loadingCategoryGroups) {
+      loadCategoryGroups();
+    }
+  }, [isFiltersOpen, categoryGroups.length, loadingCategoryGroups]);
+
+  // Load older page using window pagination API
+  const loadMoreOlder = useCallback(async () => {
+    if (!profile?.id || loadingMore || !hasMoreOlder || !oldestId) return;
+    try {
+      setLoadingMore(true);
+      const resp = await fetch(`/api/transactions/window?userId=${profile.id}&direction=older&edgeId=${oldestId}&limit=${PAGE_LIMIT}`);
+      if (!resp.ok) throw new Error('Failed to load more transactions');
+      const data = await resp.json();
+      const newRows = data.transactions || [];
+      // Deduplicate by id
+      setTransactions((prev) => {
+        const existing = new Set(prev.map(t => t.id));
+        const toAppend = newRows.filter(t => !existing.has(t.id));
+        return prev.concat(toAppend);
+      });
+      setOldestId(data.windowEdges?.oldestId || oldestId);
+      setHasMoreOlder(Boolean(data.hasMoreOlder));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [profile?.id, oldestId, loadingMore, hasMoreOlder]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting) {
+        loadMoreOlder();
+      }
+    }, { root: null, rootMargin: '200px', threshold: 0.1 });
+    observer.observe(sentinelRef.current);
+    observerRef.current = observer;
+    return () => {
+      observer.disconnect();
+    };
+  }, [loadMoreOlder, sentinelRef.current]);
 
   // Show loading state
   if (loading || !profile?.id) {
@@ -362,6 +443,7 @@ export default function TransactionsPage() {
           setSearchQuery={setSearchQuery}
           onRefresh={handleRefresh}
           loading={loading}
+          onOpenFilters={() => setIsFiltersOpen(true)}
         />
         <TransactionSkeleton />
       </PageContainer>
@@ -377,6 +459,7 @@ export default function TransactionsPage() {
           setSearchQuery={setSearchQuery}
           onRefresh={handleRefresh}
           loading={loading}
+          onOpenFilters={() => setIsFiltersOpen(true)}
         />
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
@@ -399,6 +482,7 @@ export default function TransactionsPage() {
         setSearchQuery={setSearchQuery}
         onRefresh={handleRefresh}
         loading={loading}
+        onOpenFilters={() => setIsFiltersOpen(true)}
       />
       <div className="space-y-6">
         {/* Show empty state if no transactions */}
@@ -411,13 +495,85 @@ export default function TransactionsPage() {
             <p className="text-[var(--color-muted)] mb-4">Connect your bank accounts to see your financial activity</p>
           </div>
         ) : (
-          <TransactionList 
-            transactions={transactions} 
-            onTransactionClick={handleTransactionClick}
-          />
+          <div data-transaction-list>
+            <TransactionList 
+              transactions={transactions} 
+              onTransactionClick={handleTransactionClick}
+            />
+            {/* Loading and pagination controls */}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4 text-[var(--color-muted)]">
+                <FiRefreshCw className="h-4 w-4 animate-spin mr-2" />
+                <span>Loading more...</span>
+              </div>
+            )}
+            {!loadingMore && hasMoreOlder && (
+              <div className="flex items-center justify-center py-4">
+                <Button variant="ghost" onClick={loadMoreOlder}>Load older</Button>
+              </div>
+            )}
+            {!hasMoreOlder && transactions.length > 0 && (
+              <div className="text-center py-6 text-[var(--color-muted)]">
+                No more transactions
+              </div>
+            )}
+            {/* Sentinel for intersection observer */}
+            <div ref={sentinelRef} />
+          </div>
         )}
       </div>
       
+      {/* Filters Drawer */}
+      <Drawer
+        isOpen={isFiltersOpen}
+        onClose={() => setIsFiltersOpen(false)}
+        title="Filters"
+        size="md"
+      >
+        <div className="p-2">
+          <div className="space-y-1">
+            <div className="py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+              <span className="text-sm text-[var(--color-muted)]">Category</span>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {loadingCategoryGroups ? (
+                <div className="divide-y divide-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+                  {[...Array(6)].map((_, idx) => (
+                    <div key={idx} className="flex items-center gap-3 py-3 px-4">
+                      <div className="w-9 h-9 rounded-full bg-[var(--color-border)] animate-pulse" />
+                      <div className="h-4 w-40 bg-[var(--color-border)] rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : categoryGroupsError ? (
+                <div className="py-4 px-4 text-sm text-[var(--color-muted)]">{categoryGroupsError}</div>
+              ) : (
+                <div className="divide-y divide-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
+                  {categoryGroups.map((group) => (
+                    <div key={group.id} className="flex items-center gap-3 py-3 px-4 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors cursor-default">
+                      <div 
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: group.hex_color || 'var(--color-accent)' }}
+                      >
+                        <DynamicIcon
+                          iconLib={group.icon_lib}
+                          iconName={group.icon_name}
+                          className="h-5 w-5 text-white"
+                          fallback={FiTag}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-[var(--color-fg)] truncate">{group.name}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Drawer>
+
       {/* Transaction Details Drawer */}
       <Drawer
         isOpen={isDrawerOpen}
@@ -590,3 +746,4 @@ export default function TransactionsPage() {
     </PageContainer>
   );
 }
+
