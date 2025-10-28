@@ -102,9 +102,46 @@ export async function GET(request) {
 
     console.log(`🔍 Net Worth by Date API: Most recent snapshot date: ${mostRecentDate}`);
 
+    // Preload all snapshot balances once per account to avoid thousands of round-trips.
+    const { data: snapshots, error: snapshotsError } = await supabase
+      .from('account_snapshots')
+      .select('account_id, current_balance, recorded_at')
+      .in('account_id', accountIds)
+      .order('recorded_at', { ascending: true });
+
+    if (snapshotsError) {
+      console.error('Error fetching account snapshots:', snapshotsError);
+      return NextResponse.json({ error: 'Failed to fetch account snapshots' }, { status: 500 });
+    }
+
+    const snapshotsByAccount = new Map();
+    for (const snapshot of snapshots || []) {
+      if (!snapshot?.account_id || !snapshot?.recorded_at) continue;
+      const list = snapshotsByAccount.get(snapshot.account_id) || [];
+      const recordedAt = new Date(snapshot.recorded_at);
+      list.push({
+        balance: snapshot.current_balance || 0,
+        recordedAt,
+        recordedAtDate: recordedAt.toISOString().split('T')[0],
+      });
+      snapshotsByAccount.set(snapshot.account_id, list);
+    }
+
     // Generate all dates from first snapshot to today
     const allDates = generateAllDates(dateStrings, mostRecentDate);
     console.log(`🔍 Net Worth by Date API: Generated ${allDates.length} total dates (including interpolated days)`);
+
+    const todayIso = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(todayIso);
+    const snapshotDateSet = new Set(dateStrings);
+    const snapshotState = new Map();
+    for (const account of accounts) {
+      const items = snapshotsByAccount.get(account.id) || [];
+      snapshotState.set(account.id, {
+        index: -1,
+        snapshots: items,
+      });
+    }
 
     // Calculate net worth for each date
     const netWorthByDate = [];
@@ -119,12 +156,11 @@ export async function GET(request) {
       console.log(`  🎯 Target date: ${targetDate.toISOString()}`);
 
       // Check if this is today's date - if so, always use current balances from accounts table
-      const today = new Date().toISOString().split('T')[0];
-      const isToday = dateString === today;
-      const isFutureDate = new Date(dateString) > new Date(today);
-      const isInterpolatedDate = !dateStrings.includes(dateString) && !isFutureDate;
-      const hasSnapshotOnThisDate = dateStrings.includes(dateString);
-      
+      const isToday = dateString === todayIso;
+      const isFutureDate = new Date(dateString) > todayDate;
+      const isInterpolatedDate = !snapshotDateSet.has(dateString) && !isFutureDate;
+      const hasSnapshotOnThisDate = snapshotDateSet.has(dateString);
+
       if (isToday || isFutureDate) {
         console.log(`  🔄 Using current balances from accounts table for ${isFutureDate ? 'future' : 'today'} date`);
       } else if (hasSnapshotOnThisDate) {
@@ -138,79 +174,43 @@ export async function GET(request) {
         let balance = 0;
         let dataSource = '';
 
+        const state = snapshotState.get(account.id);
+        const snapshotsForAccount = state?.snapshots || [];
+
         if (isToday || isFutureDate) {
           // Always use current balance from accounts table for today and future dates
           balance = account.balances?.current || 0;
           dataSource = 'Current balance';
-        } else if (hasSnapshotOnThisDate) {
-          // For snapshot dates, first try to get snapshot on this exact date
-          const { data: snapshotOnDate, error: snapshotError } = await supabase
-            .from('account_snapshots')
-            .select('current_balance, recorded_at')
-            .eq('account_id', account.id)
-            .gte('recorded_at', dateString + 'T00:00:00Z')
-            .lt('recorded_at', dateString + 'T23:59:59Z')
-            .order('recorded_at', { ascending: false })
-            .limit(1);
-
-          if (snapshotError) {
-            console.error(`❌ Error fetching snapshot for account ${account.id} on ${dateString}:`, snapshotError);
-            continue;
-          }
-
-          if (snapshotOnDate && snapshotOnDate.length > 0) {
-            // Use snapshot from this exact date
-            balance = snapshotOnDate[0].current_balance || 0;
-            dataSource = `Snapshot from ${new Date(snapshotOnDate[0].recorded_at).toISOString().split('T')[0]}`;
-          } else {
-            // No snapshot on this date, use the most recent snapshot before this date
-            const { data: latestSnapshot, error: latestSnapshotError } = await supabase
-              .from('account_snapshots')
-              .select('current_balance, recorded_at')
-              .eq('account_id', account.id)
-              .lte('recorded_at', targetDate.toISOString())
-              .order('recorded_at', { ascending: false })
-              .limit(1);
-
-            if (latestSnapshotError) {
-              console.error(`❌ Error fetching latest snapshot for account ${account.id} on ${dateString}:`, latestSnapshotError);
-              continue;
-            }
-
-            balance = latestSnapshot && latestSnapshot.length > 0 
-              ? (latestSnapshot[0].current_balance || 0) 
-              : 0;
-
-            dataSource = latestSnapshot && latestSnapshot.length > 0 
-              ? `Latest snapshot from ${new Date(latestSnapshot[0].recorded_at).toISOString().split('T')[0]}`
-              : 'No snapshot available';
-          }
         } else {
-          // For interpolated dates, get the most recent snapshot on or before this date
-          const { data: latestSnapshot, error: snapshotError } = await supabase
-            .from('account_snapshots')
-            .select('current_balance, recorded_at')
-            .eq('account_id', account.id)
-            .lte('recorded_at', targetDate.toISOString())
-            .order('recorded_at', { ascending: false })
-            .limit(1);
-
-          if (snapshotError) {
-            console.error(`❌ Error fetching snapshot for account ${account.id} on ${dateString}:`, snapshotError);
-            continue;
+          let { index } = state || { index: -1 };
+          while (
+            index + 1 < snapshotsForAccount.length &&
+            snapshotsForAccount[index + 1].recordedAt <= targetDate
+          ) {
+            index += 1;
           }
 
-          balance = latestSnapshot && latestSnapshot.length > 0 
-            ? (latestSnapshot[0].current_balance || 0) 
-            : 0;
+          if (state) {
+            state.index = index;
+          }
 
-          dataSource = latestSnapshot && latestSnapshot.length > 0 
-            ? `Snapshot from ${new Date(latestSnapshot[0].recorded_at).toISOString().split('T')[0]}`
-            : 'No snapshot';
+          const snapshotEntry = index >= 0 ? snapshotsForAccount[index] : null;
+
+          if (snapshotEntry) {
+            balance = snapshotEntry.balance;
+            if (snapshotEntry.recordedAtDate === dateString) {
+              dataSource = `Snapshot from ${snapshotEntry.recordedAtDate}`;
+            } else {
+              dataSource = `Latest snapshot from ${snapshotEntry.recordedAtDate}`;
+            }
+          } else {
+            balance = 0;
+            dataSource = 'No snapshot available';
+          }
         }
 
         const isLiability = isLiabilityAccount(account);
-        
+
         console.log(`  💰 ${account.name} (${account.subtype || account.type}): $${balance} ${isLiability ? '(liability)' : '(asset)'} [${dataSource}]`);
 
         // Always include the account in the calculation
