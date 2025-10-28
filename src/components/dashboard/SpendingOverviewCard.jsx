@@ -18,7 +18,7 @@ export default function SpendingOverviewCard() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/transactions/spending-by-category?userId=${user.id}`);
+        const response = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=30`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch spending data');

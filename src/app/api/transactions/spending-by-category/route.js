@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,6 +10,8 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const daysParam = parseInt(searchParams.get('days') || '90', 10);
+    const MAX_DAYS = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 90;
 
     if (!userId) {
       return Response.json(
@@ -17,9 +20,12 @@ export async function GET(request) {
       );
     }
 
-    console.log('Fetching spending by category for user:', userId);
+    if (DEBUG) console.log('Fetching spending by category for user:', userId);
 
     // Get spending transactions grouped by category
+    const since = new Date();
+    since.setDate(since.getDate() - MAX_DAYS);
+
     const { data: transactions, error } = await supabase
       .from('transactions')
       .select(`
@@ -41,7 +47,8 @@ export async function GET(request) {
       `)
       .eq('accounts.user_id', userId)
       .lt('amount', 0) // Only spending transactions (negative amounts)
-      .not('system_categories', 'is', null);
+      .not('system_categories', 'is', null)
+      .gte('datetime', since.toISOString());
 
     if (error) {
       console.error('Error fetching spending by category:', error);
@@ -93,12 +100,7 @@ export async function GET(request) {
       }))
       .filter(category => category.percentage >= 1.0); // Only include categories >= 1%
 
-    console.log('📊 Spending by Category:', {
-      totalCategories: categoriesArray.length,
-      filteredCategories: filteredCategories.length,
-      totalSpending,
-      categories: filteredCategories
-    });
+    if (DEBUG) console.log(`📊 Spending by Category: categories=${filteredCategories.length} windowDays=${MAX_DAYS}`);
 
     return Response.json({ 
       categories: filteredCategories,

@@ -10,24 +10,7 @@ import RecentTransactionsCard from "../../components/dashboard/RecentTransaction
 export default function DashboardPage() {
   const { user } = useUser();
 
-  // Call the spending-earning API when dashboard loads
-  useEffect(() => {
-    const fetchSpendingEarning = async () => {
-      if (!user?.id) return;
-
-      try {
-        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}`);
-        if (response.ok) {
-          const result = await response.json();
-          console.log('📊 Monthly Spending & Earning Array:', result.data);
-        }
-      } catch (error) {
-        console.error('Error fetching spending/earning data:', error);
-      }
-    };
-
-    fetchSpendingEarning();
-  }, [user?.id]);
+  // Removed duplicate fetch; charts/components will fetch as needed
 
   return (
     <PageContainer title="Dashboard">

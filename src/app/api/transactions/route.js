@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -21,7 +22,7 @@ export async function GET(request) {
       );
     }
 
-    console.log(`Fetching ${limit} transactions from database for user: ${userId}, offset: ${offset}, afterId: ${afterId}, beforeId: ${beforeId}`);
+    if (DEBUG) console.log(`Transactions API: user=${userId} limit=${limit} offset=${offset} afterId=${afterId} beforeId=${beforeId}`);
 
     // Build the query
     let query = supabase
@@ -58,7 +59,7 @@ export async function GET(request) {
 
     // If afterId is provided, get transactions after that ID (older transactions)
     if (afterId) {
-      console.log(`Looking for older transactions after ID: ${afterId}`);
+      // Older window fetch
       
       // Get the datetime of the transaction with afterId to filter older transactions
       const { data: afterTransaction, error: afterError } = await supabase
@@ -67,23 +68,23 @@ export async function GET(request) {
         .eq('id', afterId)
         .single();
 
-      console.log('After transaction lookup:', { afterTransaction, afterError });
+      // Reduce verbose logging
 
       if (afterTransaction) {
         // Get transactions that are older (earlier datetime) than the afterId transaction
         const filterQuery = `datetime.lt.${afterTransaction.datetime},and(datetime.eq.${afterTransaction.datetime},created_at.lt.${afterTransaction.created_at})`;
-        console.log('Applying older transactions filter:', filterQuery);
+        // Reduced logging
         
         query = query
           .or(filterQuery)
           .limit(limit);
       } else {
         // If afterId not found, return empty result
-        console.log('AfterId not found, returning empty result');
+        // afterId not found, returning empty result
         query = query.limit(0);
       }
     } else if (beforeId) {
-      console.log(`Looking for newer transactions before ID: ${beforeId}`);
+      // Newer window fetch
       
       // Get the datetime of the transaction with beforeId to filter newer transactions (contiguous page above current)
       const { data: beforeTransaction, error: beforeError } = await supabase
@@ -92,13 +93,13 @@ export async function GET(request) {
         .eq('id', beforeId)
         .single();
 
-      console.log('Before transaction lookup:', { beforeTransaction, beforeError });
+      // Reduce verbose logging
 
       if (beforeTransaction) {
         // Get transactions that are newer (later datetime) than the beforeId transaction
         // We order ASC first to get the immediate next items after the boundary, then reverse before returning
         const filterQuery = `datetime.gt.${beforeTransaction.datetime},and(datetime.eq.${beforeTransaction.datetime},created_at.gt.${beforeTransaction.created_at})`;
-        console.log('Applying contiguous newer transactions filter (ASC then reverse):', filterQuery);
+        // Reduced logging
 
         // Rebuild query with ascending order for contiguous slice above current window
         query = supabase
@@ -136,12 +137,12 @@ export async function GET(request) {
           .limit(limit);
       } else {
         // If beforeId not found, return empty result
-        console.log('BeforeId not found, returning empty result');
+        // beforeId not found, returning empty result
         query = query.limit(0);
       }
     } else {
       // Standard offset-based pagination for initial load
-      console.log('Using standard offset-based pagination');
+      // Standard offset-based pagination
       query = query.range(offset, offset + limit - 1);
     }
 
@@ -169,8 +170,7 @@ export async function GET(request) {
       category_name: transaction.system_categories?.label || null
     }));
 
-    console.log(`Found ${transformedTransactions.length} transactions for user ${userId}`);
-    console.log('Transaction IDs:', transformedTransactions.map(t => t.id));
+    if (DEBUG) console.log(`Transactions API: returned=${transformedTransactions.length}`);
 
     // Check if there are more transactions available in the requested direction
     const hasMore = transformedTransactions.length === limit;

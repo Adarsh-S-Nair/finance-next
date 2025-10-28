@@ -6,6 +6,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
+
 // Helper function to generate all dates between two dates (inclusive)
 function generateDateRange(startDate, endDate) {
   const dates = [];
@@ -35,9 +37,11 @@ function generateAllDates(snapshotDates, mostRecentDate) {
   const today = new Date().toISOString().split('T')[0];
   const allDates = generateDateRange(earliestDate, today);
   
-  console.log(`📅 Generated ${allDates.length} dates from ${earliestDate} to ${today}`);
-  console.log(`📅 Original snapshot dates: ${snapshotDates.length}`);
-  console.log(`📅 Interpolated dates: ${allDates.length - snapshotDates.length}`);
+  if (DEBUG) {
+    console.log(`📅 Generated ${allDates.length} dates from ${earliestDate} to ${today}`);
+    console.log(`📅 Original snapshot dates: ${snapshotDates.length}`);
+    console.log(`📅 Interpolated dates: ${allDates.length - snapshotDates.length}`);
+  }
   
   return allDates;
 }
@@ -46,12 +50,14 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const maxDaysParam = parseInt(searchParams.get('maxDays') || '0', 10);
+    const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365; // cap to 1 year
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    console.log(`🔍 Net Worth by Date API: Getting net worth history for user ${userId}`);
+    if (DEBUG) console.log(`🔍 Net Worth by Date API: user ${userId}`);
 
     // Get all accounts for the user with their current balances
     const { data: accounts, error: accountsError } = await supabase
@@ -64,7 +70,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
 
-    console.log(`🔍 Net Worth by Date API: Found ${accounts.length} accounts`);
+    if (DEBUG) console.log(`🔍 Net Worth by Date API: accounts=${accounts.length}`);
 
     if (!accounts || accounts.length === 0) {
       return NextResponse.json({ 
@@ -92,19 +98,21 @@ export async function GET(request) {
       new Date(snapshot.recorded_at).toISOString().split('T')[0]
     ))];
 
-    console.log(`🔍 Net Worth by Date API: Found ${dateStrings.length} unique snapshot dates`);
-    console.log('🔍 Net Worth by Date API: Snapshot dates:', dateStrings);
-    console.log(`🔍 Net Worth by Date API: User has ${accounts.length} total accounts:`, accounts.map(acc => ({ id: acc.id, name: acc.name })));
+    if (DEBUG) console.log(`🔍 Net Worth by Date API: snapshotDates=${dateStrings.length}`);
 
     // Sort dates to find the most recent one
     const sortedDates = [...dateStrings].sort((a, b) => new Date(b) - new Date(a));
     const mostRecentDate = sortedDates.length > 0 ? sortedDates[0] : null;
 
-    console.log(`🔍 Net Worth by Date API: Most recent snapshot date: ${mostRecentDate}`);
+    if (DEBUG) console.log(`🔍 Net Worth by Date API: Most recent snapshot date: ${mostRecentDate}`);
 
     // Generate all dates from first snapshot to today
-    const allDates = generateAllDates(dateStrings, mostRecentDate);
-    console.log(`🔍 Net Worth by Date API: Generated ${allDates.length} total dates (including interpolated days)`);
+    let allDates = generateAllDates(dateStrings, mostRecentDate);
+    // Limit to last MAX_DAYS to bound processing
+    if (allDates.length > MAX_DAYS) {
+      allDates = allDates.slice(allDates.length - MAX_DAYS);
+    }
+    if (DEBUG) console.log(`🔍 Net Worth by Date API: datesProcessed=${allDates.length} (cap=${MAX_DAYS})`);
 
     // Calculate net worth for each date
     const netWorthByDate = [];
@@ -115,8 +123,7 @@ export async function GET(request) {
       let totalLiabilities = 0;
       const accountBalances = {};
 
-      console.log(`\n📅 Calculating net worth for date: ${dateString}`);
-      console.log(`  🎯 Target date: ${targetDate.toISOString()}`);
+      // Keep per-date logging minimal
 
       // Check if this is today's date - if so, always use current balances from accounts table
       const today = new Date().toISOString().split('T')[0];
@@ -125,13 +132,7 @@ export async function GET(request) {
       const isInterpolatedDate = !dateStrings.includes(dateString) && !isFutureDate;
       const hasSnapshotOnThisDate = dateStrings.includes(dateString);
       
-      if (isToday || isFutureDate) {
-        console.log(`  🔄 Using current balances from accounts table for ${isFutureDate ? 'future' : 'today'} date`);
-      } else if (hasSnapshotOnThisDate) {
-        console.log(`  📸 Using snapshot data for this date`);
-      } else if (isInterpolatedDate) {
-        console.log(`  📊 Interpolating data for missing date`);
-      }
+      // Intentionally reduced verbose logging here
 
       // For EACH of the user's accounts, get the balance for this date
       for (const account of accounts) {
@@ -211,7 +212,7 @@ export async function GET(request) {
 
         const isLiability = isLiabilityAccount(account);
         
-        console.log(`  💰 ${account.name} (${account.subtype || account.type}): $${balance} ${isLiability ? '(liability)' : '(asset)'} [${dataSource}]`);
+        // Omit per-account logs for performance
 
         // Always include the account in the calculation
         if (isLiability) {
@@ -224,9 +225,6 @@ export async function GET(request) {
       }
 
       const netWorth = totalAssets - totalLiabilities;
-      
-      console.log(`  📊 Assets: $${totalAssets.toFixed(2)}, Liabilities: $${totalLiabilities.toFixed(2)}, Net Worth: $${netWorth.toFixed(2)}`);
-      console.log(`  📈 Accounts included: ${Object.keys(accountBalances).length}/${accounts.length}`);
 
       netWorthByDate.push({
         date: dateString,
@@ -245,19 +243,12 @@ export async function GET(request) {
     // Sort by date
     netWorthByDate.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    console.log('\n📈 Final Net Worth by Date Results:');
-    console.log('=====================================');
-    netWorthByDate.forEach(item => {
-      let status = '';
-      if (item.usesCurrentBalances) {
-        status = '[CURRENT BALANCES]';
-      } else if (item.hasSnapshotOnDate) {
-        status = '[SNAPSHOT DATA]';
-      } else if (item.isInterpolated) {
-        status = '[INTERPOLATED]';
-      }
-      console.log(`${item.date}: Net Worth = $${item.netWorth.toFixed(2)} (Assets: $${item.assets.toFixed(2)}, Liabilities: $${item.liabilities.toFixed(2)}) ${status}`);
-    });
+    // Summarized tail log
+    if (DEBUG && netWorthByDate.length > 0) {
+      const first = netWorthByDate[0];
+      const last = netWorthByDate[netWorthByDate.length - 1];
+      console.log(`📈 Net Worth by Date: points=${netWorthByDate.length} range=${first.date}->${last.date}`);
+    }
 
     const response = {
       data: netWorthByDate,

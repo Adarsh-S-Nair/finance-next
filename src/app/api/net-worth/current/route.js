@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,7 +16,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    console.log(`🔍 Current Net Worth API: Getting net worth for user ${userId}`);
+    if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for user ${userId}`);
 
     // Get all accounts for the user with their current balances
     const { data: accounts, error: accountsError } = await supabase
@@ -28,14 +29,9 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
 
-    console.log(`🔍 Current Net Worth API: Found ${accounts.length} accounts`);
-    console.log('🔍 Current Net Worth API: Account details:', accounts.map(acc => ({
-      id: acc.id,
-      name: acc.name,
-      type: acc.subtype || acc.type,
-      balance: acc.balances?.current,
-      isLiability: isLiabilityAccount(acc)
-    })));
+    if (DEBUG) {
+      console.log(`🔍 Current Net Worth API: Found ${accounts.length} accounts`);
+    }
 
     if (!accounts || accounts.length === 0) {
       return NextResponse.json({ 
@@ -82,7 +78,7 @@ export async function GET(request) {
 
     const netWorth = totalAssets - totalLiabilities;
 
-    console.log(`🔍 Current Net Worth API: Assets: $${totalAssets.toFixed(2)}, Liabilities: $${totalLiabilities.toFixed(2)}, Net Worth: $${netWorth.toFixed(2)}`);
+    if (DEBUG) console.log(`🔍 Current Net Worth API: Assets: $${totalAssets.toFixed(2)}, Liabilities: $${totalLiabilities.toFixed(2)}, Net Worth: $${netWorth.toFixed(2)}`);
 
     const response = {
       netWorth: Math.round(netWorth * 100) / 100, // Round to 2 decimal places

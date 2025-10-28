@@ -72,14 +72,13 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}`);
+        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=12`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch spending/earning data');
         }
         
         const result = await response.json();
-        console.log('API Response:', result);
         setMonthlyData(result.data || []);
         
       } catch (err) {

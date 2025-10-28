@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,6 +10,8 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const monthsParam = parseInt(searchParams.get('months') || '24', 10);
+    const MAX_MONTHS = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 36) : 24;
 
     if (!userId) {
       return Response.json(
@@ -18,6 +21,9 @@ export async function GET(request) {
     }
 
     // Get all transactions for the user, grouped by month
+    const sinceDate = new Date();
+    sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
+
     const { data: transactions, error } = await supabase
       .from('transactions')
       .select(`
@@ -29,6 +35,7 @@ export async function GET(request) {
       `)
       .eq('accounts.user_id', userId)
       .not('datetime', 'is', null)
+      .gte('datetime', sinceDate.toISOString())
       .order('datetime', { ascending: true });
 
     if (error) {
@@ -92,7 +99,7 @@ export async function GET(request) {
       formattedMonth: `${monthNames[month.monthNumber - 1]} ${month.year}`
     }));
 
-    console.log('📊 Monthly Spending & Earning Array:', result);
+    if (DEBUG) console.log(`📊 Monthly Spending & Earning: months=${result.length} (cap=${MAX_MONTHS})`);
 
     return Response.json({ 
       data: result,

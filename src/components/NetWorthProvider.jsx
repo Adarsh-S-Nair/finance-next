@@ -44,7 +44,7 @@ export function NetWorthProvider({ children }) {
       setCurrentNetWorth(currentData);
       
       // Fetch historical data for the chart
-      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}`);
+      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}&maxDays=365`);
       if (!historyResponse.ok) {
         throw new Error('Failed to fetch net worth history');
       }
