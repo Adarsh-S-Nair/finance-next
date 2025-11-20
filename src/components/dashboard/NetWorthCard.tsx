@@ -152,21 +152,6 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   const [activeIndex, setActiveIndex] = useState(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
 
-
-  if (loading) {
-    return (
-      <Card width={width} className="animate-pulse" variant="glass">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <div className="h-4 bg-[var(--color-border)] rounded w-20 mb-2" />
-            <div className="h-6 bg-[var(--color-border)] rounded w-32" />
-          </div>
-        </div>
-        <div className="mt-4 h-32 bg-[var(--color-border)] rounded" />
-      </Card>
-    );
-  }
-
   // Process net worth history data for the chart
   const chartData = useMemo(() => {
     const data = netWorthHistory.map((item) => {
@@ -343,6 +328,19 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     return ((currentValue - startValue) / Math.abs(startValue)) * 100;
   }, [displayChartData, displayData]);
 
+  if (loading) {
+    return (
+      <Card width={width} className="animate-pulse" variant="glass">
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="h-4 bg-[var(--color-border)] rounded w-20 mb-2" />
+            <div className="h-6 bg-[var(--color-border)] rounded w-32" />
+          </div>
+        </div>
+        <div className="mt-4 h-32 bg-[var(--color-border)] rounded" />
+      </Card>
+    );
+  }
 
   // Handle error state
   if (error) {
