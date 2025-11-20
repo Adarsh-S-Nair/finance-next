@@ -30,91 +30,83 @@ const capitalizeWords = (str) => {
     .join(' ');
 };
 
-// Component for a section of accounts (e.g. Cash, Credit)
-const AccountSection = ({ title, accounts, institutionMap }) => {
-  if (!accounts || accounts.length === 0) return null;
-
-  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+// Component for rendering account rows within the unified list
+const AccountRow = ({ account, institutionMap, showDivider }) => {
+  const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
 
   return (
-    <div className="mb-8 last:mb-0">
-      {/* Section Header */}
-      <div className="flex items-center justify-between mb-3 pl-4 pr-6">
-        <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider">
-          {title} <span className="text-[var(--color-border)] mx-1">•</span> {accounts.length}
-        </h3>
-        <div className="text-sm font-medium text-[var(--color-muted)] text-right">
-          {formatCurrency(totalBalance)}
+    <div
+      className={`
+        group flex items-center justify-between px-5 py-3.5
+        hover:bg-[var(--color-card-highlight)] transition-all duration-200
+        ${showDivider ? 'border-b border-[var(--color-border)]/40' : ''}
+      `}
+    >
+      <div className="flex items-center gap-3.5 flex-1 min-w-0">
+        {/* Institution Logo */}
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50">
+          {institution.logo ? (
+            <img
+              src={institution.logo}
+              alt={institution.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div className={`w-full h-full flex items-center justify-center ${institution.logo ? 'hidden' : 'flex'}`}>
+            <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
+          </div>
+        </div>
+
+        {/* Account Info */}
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5">{account.name}</div>
+          <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+            <span className="truncate max-w-[180px]">{institution.name}</span>
+            {account.mask && (
+              <>
+                <span className="text-[var(--color-border)]">•</span>
+                <span className="font-mono">•••• {account.mask}</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Accounts List Card */}
-      <Card padding="none" variant="glass" className="overflow-hidden">
-        {accounts.map((account, index) => {
-          const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
+      {/* Balance */}
+      <div className="text-right ml-4">
+        <div className="font-semibold text-[var(--color-fg)] tabular-nums text-sm">
+          {formatCurrency(account.balance)}
+        </div>
+        <div className="text-xs text-[var(--color-muted)] mt-0.5">
+          {capitalizeWords(account.subtype || account.type)}
+        </div>
+      </div>
+    </div>
+  );
+};
 
-          return (
-            <div
-              key={account.id}
-              className={`
-                group flex items-center justify-between pl-4 py-4 pr-6
-                hover:bg-[var(--color-card-highlight)] transition-colors duration-200
-                ${index !== accounts.length - 1 ? 'border-b border-[var(--color-border)]/50' : ''}
-              `}
-            >
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                {/* Institution Logo - Square with rounded corners for better fit */}
-                <div className="w-8 h-8 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {institution.logo ? (
-                    <img
-                      src={institution.logo}
-                      alt={institution.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'block';
-                      }}
-                    />
-                  ) : null}
-                  {/* Fallback icon */}
-                  <PiBankFill className={`w-4 h-4 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium text-[var(--color-fg)] truncate text-sm">{account.name}</div>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-[var(--color-muted)] mt-0.5">
-                    <span className="truncate max-w-[150px]">{institution.name}</span>
-                    {account.mask && (
-                      <>
-                        <span className="w-0.5 h-0.5 rounded-full bg-[var(--color-muted)]" />
-                        <span className="font-mono text-[var(--color-muted)]">•••• {account.mask}</span>
-                      </>
-                    )}
-                    <span className="w-0.5 h-0.5 rounded-full bg-[var(--color-muted)]" />
-                    <span>{capitalizeWords(account.subtype || account.type)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center pl-4">
-                <div className="text-right">
-                  <div className="font-medium text-[var(--color-fg)] tabular-nums text-sm">
-                    {formatCurrency(account.balance)}
-                  </div>
-                  {(account.limit || account.monthlyPayment) && (
-                    <div className="text-xs text-[var(--color-muted)] mt-0.5 tabular-nums">
-                      {account.limit ? `Limit: ${formatCurrency(account.limit)}` :
-                        account.monthlyPayment ? `$${account.monthlyPayment}/mo` : ''}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </Card>
+// Component for category section headers within the unified list
+const CategoryHeader = ({ title, count, total, isFirst }) => {
+  return (
+    <div className={`
+      flex items-center justify-between px-5 py-3 bg-[var(--color-surface)]/30
+      ${!isFirst ? 'border-t border-[var(--color-border)]/50' : ''}
+    `}>
+      <div className="flex items-center gap-2">
+        <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wide">
+          {title}
+        </h3>
+        <span className="text-xs text-[var(--color-border)] font-medium">
+          {count}
+        </span>
+      </div>
+      <div className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
+        {formatCurrency(total)}
+      </div>
     </div>
   );
 };
@@ -231,31 +223,96 @@ export default function AccountsPage() {
                   </Button>
                 </div>
 
-                <div className="space-y-1">
-                  <AccountSection
-                    title="Cash & Checking"
-                    accounts={categorizedAccounts.cash}
-                    institutionMap={institutionMap}
-                  />
+                {/* Unified Accounts Card */}
+                <Card padding="none" variant="glass" className="overflow-hidden">
+                  {/* Cash & Checking Section */}
+                  {categorizedAccounts.cash.length > 0 && (
+                    <>
+                      <CategoryHeader
+                        title="Cash & Checking"
+                        count={categorizedAccounts.cash.length}
+                        total={categorizedAccounts.cash.reduce((sum, acc) => sum + acc.balance, 0)}
+                        isFirst={true}
+                      />
+                      {categorizedAccounts.cash.map((account, index) => (
+                        <AccountRow
+                          key={account.id}
+                          account={account}
+                          institutionMap={institutionMap}
+                          showDivider={index !== categorizedAccounts.cash.length - 1 ||
+                            categorizedAccounts.investments.length > 0 ||
+                            categorizedAccounts.credit.length > 0 ||
+                            categorizedAccounts.loans.length > 0}
+                        />
+                      ))}
+                    </>
+                  )}
 
-                  <AccountSection
-                    title="Investments"
-                    accounts={categorizedAccounts.investments}
-                    institutionMap={institutionMap}
-                  />
+                  {/* Investments Section */}
+                  {categorizedAccounts.investments.length > 0 && (
+                    <>
+                      <CategoryHeader
+                        title="Investments"
+                        count={categorizedAccounts.investments.length}
+                        total={categorizedAccounts.investments.reduce((sum, acc) => sum + acc.balance, 0)}
+                        isFirst={categorizedAccounts.cash.length === 0}
+                      />
+                      {categorizedAccounts.investments.map((account, index) => (
+                        <AccountRow
+                          key={account.id}
+                          account={account}
+                          institutionMap={institutionMap}
+                          showDivider={index !== categorizedAccounts.investments.length - 1 ||
+                            categorizedAccounts.credit.length > 0 ||
+                            categorizedAccounts.loans.length > 0}
+                        />
+                      ))}
+                    </>
+                  )}
 
-                  <AccountSection
-                    title="Credit Cards"
-                    accounts={categorizedAccounts.credit}
-                    institutionMap={institutionMap}
-                  />
+                  {/* Credit Cards Section */}
+                  {categorizedAccounts.credit.length > 0 && (
+                    <>
+                      <CategoryHeader
+                        title="Credit Cards"
+                        count={categorizedAccounts.credit.length}
+                        total={categorizedAccounts.credit.reduce((sum, acc) => sum + acc.balance, 0)}
+                        isFirst={categorizedAccounts.cash.length === 0 && categorizedAccounts.investments.length === 0}
+                      />
+                      {categorizedAccounts.credit.map((account, index) => (
+                        <AccountRow
+                          key={account.id}
+                          account={account}
+                          institutionMap={institutionMap}
+                          showDivider={index !== categorizedAccounts.credit.length - 1 ||
+                            categorizedAccounts.loans.length > 0}
+                        />
+                      ))}
+                    </>
+                  )}
 
-                  <AccountSection
-                    title="Loans & Mortgages"
-                    accounts={categorizedAccounts.loans}
-                    institutionMap={institutionMap}
-                  />
-                </div>
+                  {/* Loans & Mortgages Section */}
+                  {categorizedAccounts.loans.length > 0 && (
+                    <>
+                      <CategoryHeader
+                        title="Loans & Mortgages"
+                        count={categorizedAccounts.loans.length}
+                        total={categorizedAccounts.loans.reduce((sum, acc) => sum + acc.balance, 0)}
+                        isFirst={categorizedAccounts.cash.length === 0 &&
+                          categorizedAccounts.investments.length === 0 &&
+                          categorizedAccounts.credit.length === 0}
+                      />
+                      {categorizedAccounts.loans.map((account, index) => (
+                        <AccountRow
+                          key={account.id}
+                          account={account}
+                          institutionMap={institutionMap}
+                          showDivider={index !== categorizedAccounts.loans.length - 1}
+                        />
+                      ))}
+                    </>
+                  )}
+                </Card>
               </div>
             </>
           ) : (

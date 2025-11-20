@@ -18,13 +18,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const pathname = usePathname();
   const router = useRouter();
   const { profile, logout } = useUser();
-  const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
   const [displayName, setDisplayName] = useState("You");
   const [profileUrl, setProfileUrl] = useState(null as string | null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
-  const [previousPathname, setPreviousPathname] = useState(pathname);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -55,16 +53,6 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     void load();
   }, []);
 
-  // Track pathname changes for animations
-  useEffect(() => {
-    if (pathname !== previousPathname) {
-      setIsTransitioning(true);
-      setPreviousPathname(pathname);
-      const timer = setTimeout(() => setIsTransitioning(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [pathname, previousPathname]);
-
   const groups = useMemo(() => NAV_GROUPS, []);
 
   const onLogout = () => {
@@ -73,25 +61,38 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="h-16 shrink-0 flex items-center gap-3 px-4">
-        {/* Reverted to img tag for reliability. Ensure logo.svg handles dark/light modes or use filters if needed. */}
-        <img
+    <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
+      {/* Header - Static, no entrance animation */}
+      <div
+        className="h-20 shrink-0 flex items-center gap-3 px-6 border-b border-[var(--color-border)]"
+      >
+        <motion.img
           src="/logo.svg"
           alt="Zentari Logo"
-          className="h-10 w-10 object-contain dark:invert"
+          className="h-9 w-9 object-contain dark:invert"
+          whileHover={{ scale: 1.05, rotate: 5 }}
+          transition={{ type: "spring", stiffness: 400, damping: 15 }}
         />
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--color-fg)] font-sans">
-          ZENTARI
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--color-fg)] font-sans">
+          Zentari
         </h1>
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
+
+      {/* Navigation - Static, only hover/active animations */}
+      <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
         {groups.map((g) => (
-          <div key={g.title} className="mt-3 first:mt-0">
-            <div className="px-2 text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{g.title}</div>
-            <ul className="mt-2 space-y-1">
+          <div
+            key={g.title}
+            className="mb-6 last:mb-0"
+          >
+            <div className="px-3 mb-2 text-[10px] uppercase tracking-widest font-semibold text-[var(--color-muted)]">
+              {g.title}
+            </div>
+            <ul className="space-y-0.5">
               {g.items.map((it) => {
                 const active = pathname.startsWith(it.href);
+                const isHovered = hoveredItem === it.href;
+
                 return (
                   <li key={it.href}>
                     <Link
@@ -103,122 +104,128 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                         }
                         onNavigate?.();
                       }}
+                      onMouseEnter={() => !it.disabled && setHoveredItem(it.href)}
+                      onMouseLeave={() => setHoveredItem(null)}
                       aria-disabled={it.disabled || undefined}
                       className={clsx(
-                        "group relative flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm transition-all duration-200 ease-in-out",
+                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                         it.disabled
-                          ? "cursor-not-allowed text-[var(--color-muted)] opacity-70"
-                          : !active && "hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)] text-[var(--color-muted)]",
-                        active && !it.disabled && "bg-[var(--color-sidebar-active)] text-[var(--color-fg)] font-medium"
+                          ? "cursor-not-allowed opacity-50"
+                          : "cursor-pointer",
+                        active
+                          ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                       )}
                     >
-                      <motion.span 
-                        className="flex items-center gap-2"
-                        initial={false}
-                        animate={active ? { 
-                          scale: isTransitioning ? 0.98 : 1,
-                          x: isTransitioning ? 2 : 0
-                        } : { 
-                          scale: 1,
-                          x: 0
-                        }}
-                        transition={{ 
-                          type: "spring", 
-                          stiffness: 300, 
-                          damping: 25,
-                          duration: 0.2
-                        }}
-                      >
-                        <motion.span 
-                          className={it.disabled ? "opacity-40" : undefined}
-                          animate={active ? { 
-                            scale: 1.05,
-                            rotate: isTransitioning ? 5 : 0
-                          } : { 
-                            scale: 1,
-                            rotate: 0
-                          }}
-                          transition={{ 
-                            type: "spring", 
-                            stiffness: 400, 
-                            damping: 20,
-                            delay: 0.05
-                          }}
+                      {/* Enhanced active indicator - straight line */}
+                      {active && (
+                        <motion.div
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[var(--color-accent)]"
+                          layoutId="activeIndicator"
+                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                        />
+                      )}
+
+                      <span className="flex items-center gap-3 flex-1">
+                        <motion.span
+                          className="flex items-center justify-center"
+                          animate={
+                            active
+                              ? { scale: 1.05 }
+                              : isHovered
+                                ? { scale: 1.1 }
+                                : { scale: 1 }
+                          }
+                          transition={{ type: "spring", stiffness: 400, damping: 20 }}
                         >
-                          {it.icon && <it.icon className="h-4 w-4" />}
+                          {it.icon && <it.icon className="h-[18px] w-[18px]" />}
                         </motion.span>
-                        <motion.span 
-                          className={it.disabled ? "text-[var(--color-muted)]" : undefined}
-                          animate={active ? { 
-                            x: isTransitioning ? 1 : 0
-                          } : { 
-                            x: 0
-                          }}
-                          transition={{ 
-                            type: "spring", 
-                            stiffness: 300, 
-                            damping: 25,
-                            delay: 0.1
-                          }}
-                        >
+                        <span className="tracking-wide">
                           {it.label}
-                        </motion.span>
-                      </motion.span>
-                      {it.disabled && <FaLock className="h-3.5 w-3.5 text-[var(--color-muted)]" />}
+                        </span>
+                      </span>
+
+                      {it.disabled && (
+                        <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60" />
+                      )}
                     </Link>
                   </li>
                 );
               })}
             </ul>
-            <div className="my-3 h-px w-full bg-[var(--color-border)]" />
           </div>
         ))}
       </nav>
-      <div className="p-3 pt-0">
-        <div className="rounded-lg bg-[var(--color-surface)] p-3 border border-[var(--color-border)]">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+
+      {/* Profile Section - Static */}
+      <div
+        className="p-4 border-t border-[var(--color-border)]"
+      >
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--color-surface)] p-3 border border-[var(--color-border)] hover:border-[var(--color-muted)]/30 transition-all duration-200">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+            >
               {profileUrl ? (
-                <img src={profileUrl} alt="Profile" className="h-8 w-8 rounded-full object-cover" />
+                <img
+                  src={profileUrl}
+                  alt="Profile"
+                  className="h-9 w-9 rounded-full object-cover ring-2 ring-[var(--color-border)]"
+                />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-[var(--color-muted)]/20" />
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-neon-purple)] opacity-20" />
               )}
-              <div className="text-sm font-medium text-[var(--color-fg)]">{displayName}</div>
+            </motion.div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
+                {displayName}
+              </div>
+              <div className="text-xs text-[var(--color-muted)] truncate">
+                Account
+              </div>
             </div>
+          </div>
+
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Button
               onClick={onLogout}
               aria-label="Log out"
               title="Log out"
               variant="ghost"
               size="sm"
-              className="inline-flex items-center gap-2 rounded-[6px] text-[var(--color-fg)] hover:bg-[var(--color-bg)]"
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-all duration-200"
             >
-              <TbLogout className="h-4 w-4" />
+              <TbLogout className="h-[18px] w-[18px]" />
             </Button>
-            <ConfirmDialog
-              isOpen={showLogout}
-              onCancel={() => setShowLogout(false)}
-              onConfirm={async () => {
-                try {
-                  setIsSigningOut(true);
-                  logout(); 
-                  await supabase.auth.signOut();
-                  onNavigate?.();
-                  router.replace("/");
-                } finally {
-                  setIsSigningOut(false);
-                  setShowLogout(false);
-                }
-              }}
-              title="Sign out"
-              description="Are you sure you want to sign out?"
-              confirmLabel="Sign out"
-              busyLabel="Signing out..."
-              cancelLabel="Cancel"
-              variant="primary"
-              busy={isSigningOut}
-            />
-          </div>
+          </motion.div>
+
+          <ConfirmDialog
+            isOpen={showLogout}
+            onCancel={() => setShowLogout(false)}
+            onConfirm={async () => {
+              try {
+                setIsSigningOut(true);
+                logout();
+                await supabase.auth.signOut();
+                onNavigate?.();
+                router.replace("/");
+              } finally {
+                setIsSigningOut(false);
+                setShowLogout(false);
+              }
+            }}
+            title="Sign out"
+            description="Are you sure you want to sign out?"
+            confirmLabel="Sign out"
+            busyLabel="Signing out..."
+            cancelLabel="Cancel"
+            variant="primary"
+            busy={isSigningOut}
+          />
         </div>
       </div>
     </div>
