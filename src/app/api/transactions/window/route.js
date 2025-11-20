@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 // Window pagination API
 // Params:
@@ -30,7 +25,7 @@ export async function GET(request) {
     }
 
     // Lookup edge transaction to build a stable cursor on (datetime, created_at)
-    const { data: edgeTx, error: edgeErr } = await supabase
+    const { data: edgeTx, error: edgeErr } = await supabaseAdmin
       .from('transactions')
       .select('datetime, created_at')
       .eq('id', edgeId)

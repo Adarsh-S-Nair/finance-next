@@ -38,6 +38,7 @@ interface LineChartProps {
   showTooltip?: boolean;
   animationDuration?: number;
   curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter';
+  maxPoints?: number; // soft cap for performance
 }
 
 export default function LineChart({
@@ -70,7 +71,8 @@ export default function LineChart({
   tooltip,
   showTooltip = false,
   animationDuration = 300,
-  curveType = 'monotone'
+  curveType = 'monotone',
+  maxPoints = 300
 }: LineChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -99,21 +101,24 @@ export default function LineChart({
   const chartHeight = dimensions.height - margin.top - margin.bottom;
 
   // Calculate scales and path
-  const { pathData, areaPathData, xScale, yScale, points } = useMemo(() => {
+  const { pathData, areaPathData, xScale, yScale, points, sampledLength } = useMemo(() => {
     if (!data.length || chartWidth <= 0 || chartHeight <= 0) {
       return { pathData: '', areaPathData: '', xScale: 0, yScale: 0, points: [] };
     }
+    // Downsample large datasets for performance
+    const stride = Math.max(1, Math.ceil((data.length || 1) / Math.max(1, maxPoints)));
+    const sampled: DataPoint[] = stride > 1 ? data.filter((_, i) => i % stride === 0) : data;
 
-    const values = data.map(d => d[dataKey] || 0);
+    const values = sampled.map(d => d[dataKey] || 0);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const valueRange = maxValue - minValue || 1;
 
-    const xStep = chartWidth / (data.length - 1 || 1);
+    const xStep = chartWidth / (sampled.length - 1 || 1);
     const yScale = (value: number) => 
       chartHeight - ((value - minValue) / valueRange) * chartHeight;
 
-    const points = data.map((d, i) => ({
+    const points = sampled.map((d, i) => ({
       x: margin.left + i * xStep,
       y: margin.top + yScale(d[dataKey] || 0),
       data: d,
@@ -159,8 +164,8 @@ export default function LineChart({
       }
     }
 
-    return { pathData, areaPathData, xScale: xStep, yScale, points };
-  }, [data, dataKey, chartWidth, chartHeight, margin, curveType, showArea]);
+    return { pathData, areaPathData, xScale: xStep, yScale, points, sampledLength: sampled.length };
+  }, [data, dataKey, chartWidth, chartHeight, margin, curveType, showArea, maxPoints]);
 
   // Handle mouse events
   const handleMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
@@ -172,9 +177,9 @@ export default function LineChart({
     const x = event.clientX - rect.left - margin.left;
     const index = Math.round(x / xScale);
     
-    if (index >= 0 && index < data.length) {
+    if (index >= 0 && index < points.length) {
       setHoveredIndex(index);
-      onMouseMove(data[index], index);
+      onMouseMove(points[index].data, index);
     }
   };
 
@@ -246,7 +251,7 @@ export default function LineChart({
           {showArea && (
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={strokeColor} stopOpacity={areaOpacity} />
-              <stop offset="100%" stopColor={strokeColor} stopOpacity={0.05} />
+              <stop offset="90%" stopColor={strokeColor} stopOpacity={0} />
             </linearGradient>
           )}
         </defs>
@@ -259,7 +264,7 @@ export default function LineChart({
           <path
             d={areaPathData}
             fill={`url(#${gradientId})`}
-            opacity={areaOpacity}
+            style={{ opacity: 0.5 }}
           />
         )}
 

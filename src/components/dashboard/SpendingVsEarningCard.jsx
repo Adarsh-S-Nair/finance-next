@@ -46,11 +46,11 @@ export default function SpendingVsEarningCard() {
   ];
 
   return (
-    <Card width="full" className="flex flex-col h-full">
+    <Card width="full" className="flex flex-col h-full" variant="glass">
       <div className="mb-4 md:mb-6">
-        <div className="text-sm text-[var(--color-muted)]">Balance</div>
+        <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Balance</div>
         {!netWorthLoading && currentNetWorth && (
-          <div className="text-xl md:text-2xl font-semibold text-[var(--color-fg)] mt-1">
+          <div className="text-xl md:text-3xl font-medium text-[var(--color-fg)] mt-1">
             {formatCurrency(currentNetWorth.netWorth || 0)}
           </div>
         )}

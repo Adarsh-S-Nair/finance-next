@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useUser } from './UserProvider';
 
 const NetWorthContext = createContext();
@@ -12,13 +12,16 @@ export function NetWorthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastFetched, setLastFetched] = useState(null);
+  const abortRef = useRef(null);
+  const DISABLED = false; // temporarily disable all net worth fetching and data
 
   // Cache duration: 5 minutes (300000ms)
   const CACHE_DURATION = 5 * 60 * 1000;
 
   // Fetch net worth data from the API
   const fetchNetWorthData = async (forceRefresh = false) => {
-    if (!user?.id) {
+    if (DISABLED) {
+      setLoading(false);
       setNetWorthHistory([]);
       setCurrentNetWorth(null);
       setError(null);
@@ -34,17 +37,20 @@ export function NetWorthProvider({ children }) {
     try {
       setLoading(true);
       setError(null);
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
       
       // Fetch current net worth
-      const currentResponse = await fetch(`/api/net-worth/current?userId=${user.id}`);
+      const currentResponse = await fetch(`/api/net-worth/current?userId=${user.id}` , { signal: controller.signal });
       if (!currentResponse.ok) {
         throw new Error('Failed to fetch current net worth');
       }
       const currentData = await currentResponse.json();
       setCurrentNetWorth(currentData);
       
-      // Fetch historical data for the chart
-      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}&maxDays=365`);
+      // Fetch historical data for the chart (full payload for hover details)
+      const historyResponse = await fetch(`/api/net-worth/by-date?userId=${user.id}&maxDays=365`, { signal: controller.signal });
       if (!historyResponse.ok) {
         throw new Error('Failed to fetch net worth history');
       }
@@ -53,8 +59,10 @@ export function NetWorthProvider({ children }) {
       setNetWorthHistory(historyData.data || []);
       setLastFetched(Date.now());
     } catch (err) {
-      console.error('Error fetching net worth data:', err);
-      setError(err.message);
+      if (err?.name !== 'AbortError') {
+        console.error('Error fetching net worth data:', err);
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -62,15 +70,24 @@ export function NetWorthProvider({ children }) {
 
   // Load net worth data when user changes
   useEffect(() => {
+    if (DISABLED) {
+      setNetWorthHistory([]);
+      setCurrentNetWorth(null);
+      setError(null);
+      setLastFetched(null);
+      return;
+    }
+
     if (user?.id) {
       fetchNetWorthData();
     } else {
-      // Clear data when user logs out
       setNetWorthHistory([]);
       setCurrentNetWorth(null);
       setError(null);
       setLastFetched(null);
     }
+    
+    return () => { if (abortRef.current) abortRef.current.abort(); };
   }, [user?.id]);
 
   // Refresh net worth data (force fetch)

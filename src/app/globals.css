@@ -3,16 +3,16 @@
 
 /* App-wide utility tweaks */
 .container {
-  max-width: 1200px;
+  max-width: 1400px; /* Wider for dashboard */
 }
 
 .shadow-soft {
-  box-shadow: 0 10px 30px 0 color-mix(in_oklab, var(--color-fg), transparent 92%);
+  box-shadow: var(--glass-shadow);
 }
 
 .gradient-hero {
   background: radial-gradient(1200px 450px at 50% -50px,
-      color-mix(in_oklab, var(--color-fg), transparent 92%),
+      color-mix(in_oklab, var(--color-bg), var(--color-accent) 5%),
       transparent 60%);
 }
 
@@ -26,17 +26,45 @@
   inset: 0;
   background-image: linear-gradient(
       to right,
-      color-mix(in_oklab, var(--color-fg), transparent 96%) 1px,
+      color-mix(in_oklab, var(--color-fg), transparent 98%) 1px,
       transparent 1px
     ),
     linear-gradient(
       to bottom,
-      color-mix(in_oklab, var(--color-fg), transparent 96%) 1px,
+      color-mix(in_oklab, var(--color-fg), transparent 98%) 1px,
       transparent 1px
     );
-  background-size: 32px 32px;
-  mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 70%);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 80%);
   pointer-events: none;
+}
+
+/* Glassmorphism Card Style - More Matte */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Gradient Border Effect - Subtler */
+.gradient-border {
+  position: relative;
+  background: var(--color-surface);
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: inherit;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  margin: -1px;
+  border-radius: inherit;
+  background: linear-gradient(to bottom right, var(--color-border), var(--color-surface));
+  opacity: 0.5;
 }
 
 /* Inputs */
@@ -50,13 +78,19 @@
   background: var(--color-input-bg);
   color: var(--color-input-fg);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 2px; /* Sharper edges */
   padding: 10px 12px;
-  transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+  transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
+  font-family: var(--font-inter);
+  font-weight: 300;
 }
 .input::placeholder { color: var(--color-input-placeholder); }
-.input:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in_oklab,var(--color-ring),transparent 60%); border-color: var(--color-ring); }
-.help { color: var(--color-muted); font-size: 12px; }
+.input:focus { 
+  outline: none; 
+  box-shadow: 0 0 0 1px var(--color-ring); 
+  border-color: var(--color-ring); 
+}
+.help { color: var(--color-muted); font-size: 12px; font-weight: 300; }
 
 /* Route transition helpers */
 @keyframes fadeInUp {
@@ -72,4 +106,19 @@ body { overflow-x: hidden; min-height: 100vh; }
 @keyframes toastProgress {
   0% { width: 0%; }
   100% { width: 100%; }
+}
+
+/* Text utilities for thin typography */
+.text-thin { font-weight: 100; }
+.text-extralight { font-weight: 200; }
+.text-light { font-weight: 300; }
+
+/* Neon Text Effect - Removed Glow for Matte Look */
+.text-neon-blue {
+  color: var(--color-fg); /* Reset to foreground for better readability in matte theme */
+}
+
+/* Explicit colored text classes if needed */
+.text-accent-color {
+  color: var(--color-accent);
 }

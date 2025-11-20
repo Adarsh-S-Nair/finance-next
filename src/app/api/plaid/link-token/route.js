@@ -1,10 +1,5 @@
 import { createLinkToken } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
@@ -18,7 +13,7 @@ export async function POST(request) {
     }
 
     // Verify user exists
-    const { data: user, error: userError } = await supabase.auth.admin.getUserById(userId);
+    const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
     
     if (userError || !user) {
       return Response.json(

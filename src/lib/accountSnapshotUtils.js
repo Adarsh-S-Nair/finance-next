@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from './supabaseAdmin';
 
 /**
  * Creates account snapshots for a list of accounts
@@ -31,7 +26,7 @@ export async function createAccountSnapshots(accounts, accountIds) {
       };
     });
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('account_snapshots')
       .insert(snapshotsToInsert)
       .select();
@@ -56,7 +51,7 @@ export async function createAccountSnapshots(accounts, accountIds) {
  */
 export async function getMostRecentAccountSnapshot(accountId) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('account_snapshots')
       .select('*')
       .eq('account_id', accountId)
@@ -164,7 +159,7 @@ export async function createAccountSnapshotConditional(account, accountId) {
       recorded_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('account_snapshots')
       .insert(snapshotData)
       .select()
@@ -202,7 +197,7 @@ export async function createAccountSnapshot(account, accountId) {
       recorded_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('account_snapshots')
       .insert(snapshotData)
       .select()

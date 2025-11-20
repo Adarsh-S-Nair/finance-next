@@ -15,22 +15,11 @@ export default function DashboardPage() {
   return (
     <PageContainer title="Dashboard">
       <div className="space-y-4 md:space-y-6">
-        {/* First Row: Spending vs Earning and Spending Overview */}
-        <div className="flex flex-col lg:flex-row gap-4 md:gap-6 items-stretch">
-          <div className="w-full lg:w-2/3 flex">
-            <SpendingVsEarningCard />
-          </div>
-          <div className="w-full lg:w-1/3 flex">
-            <SpendingOverviewCard />
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <SpendingVsEarningCard />
+          <SpendingOverviewCard />
         </div>
-        
-        {/* Second Row: Recent Transactions (2/3 width, positioned to the right) */}
-        {/* <div className="flex justify-end">
-          <div className="w-2/3">
-            <RecentTransactionsCard />
-          </div>
-        </div> */}
+        <RecentTransactionsCard />
       </div>
     </PageContainer>
   );

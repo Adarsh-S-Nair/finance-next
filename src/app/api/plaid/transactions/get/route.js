@@ -1,14 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const limitParam = parseInt(searchParams.get('limit') || '0', 10);
+    const minimal = (searchParams.get('minimal') || '1') === '1';
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
     if (!userId) {
       return Response.json(
@@ -17,12 +15,29 @@ export async function GET(request) {
       );
     }
 
-    console.log('Fetching transactions for user:', userId);
+    console.log('Fetching transactions for user:', userId, `(limit=${limit}, minimal=${minimal})`);
 
-    // Get user's transactions from database by joining through accounts
-    const { data: transactions, error } = await supabase
-      .from('transactions')
-      .select(`
+    // Build a minimal-select by default to reduce payload size significantly
+    const selectFragment = minimal
+      ? `
+        id,
+        amount,
+        pending,
+        icon_url,
+        merchant_name,
+        description,
+        datetime,
+        accounts!inner (id, name, mask),
+        system_categories (
+          label,
+          category_groups (
+            icon_lib,
+            icon_name,
+            hex_color
+          )
+        )
+      `
+      : `
         *,
         accounts!inner (
           id,
@@ -47,11 +62,16 @@ export async function GET(request) {
             hex_color
           )
         )
-      `)
+      `;
+
+    // Get user's transactions from database by joining through accounts
+    const { data: transactions, error } = await supabaseAdmin
+      .from('transactions')
+      .select(selectFragment)
       .eq('accounts.user_id', userId)
       .order('datetime', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(1000); // Limit to prevent large responses
+      .limit(limit);
 
     if (error) {
       console.error('Error fetching transactions:', error);
@@ -61,22 +81,24 @@ export async function GET(request) {
       );
     }
 
-    // Transform the data to include account name and icon information for easier display
-    const transformedTransactions = transactions.map(transaction => ({
+    // Transform the data to include account/category info for easier display
+    const transformedTransactions = transactions.map((transaction) => ({
       ...transaction,
       account_name: transaction.accounts?.name || 'Unknown Account',
-      institution_name: transaction.accounts?.institutions?.name || 'Unknown Institution',
       category_icon_lib: transaction.system_categories?.category_groups?.icon_lib || null,
       category_icon_name: transaction.system_categories?.category_groups?.icon_name || null,
       category_hex_color: transaction.system_categories?.category_groups?.hex_color || null,
-      category_name: transaction.system_categories?.label || null
+      category_name: transaction.system_categories?.label || null,
+      // Preserve transaction.icon_url from DB; do not override with institution logo
     }));
 
     console.log(`Found ${transformedTransactions.length} transactions for user ${userId}`);
 
-    return Response.json({ 
+    return Response.json({
       transactions: transformedTransactions,
-      count: transformedTransactions.length
+      count: transformedTransactions.length,
+      limit,
+      minimal,
     });
   } catch (error) {
     console.error('Error in transactions GET API:', error);

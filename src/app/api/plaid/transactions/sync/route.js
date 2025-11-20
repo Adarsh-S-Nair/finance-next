@@ -1,12 +1,9 @@
 import { getPlaidClient, PLAID_ENV, getTransactions, syncTransactions } from '../../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function POST(request) {
   let plaidItemId = null; // Declare at function scope for error handling
@@ -15,7 +12,7 @@ export async function POST(request) {
     const { plaidItemId: requestPlaidItemId, userId, forceSync = false } = await request.json();
     plaidItemId = requestPlaidItemId; // Assign to function scope variable
 
-    console.log(`🔄 Transaction sync request for plaid item: ${plaidItemId} (user: ${userId})`);
+    if (DEBUG) console.log(`🔄 Transaction sync request for plaid item: ${plaidItemId} (user: ${userId})`);
 
     if (!plaidItemId || !userId) {
       return Response.json(
@@ -25,7 +22,7 @@ export async function POST(request) {
     }
 
     // Get the plaid item from database
-    const { data: plaidItem, error: itemError } = await supabase
+    const { data: plaidItem, error: itemError } = await supabaseAdminAdmin
       .from('plaid_items')
       .select('*')
       .eq('id', plaidItemId)
@@ -40,7 +37,7 @@ export async function POST(request) {
       );
     }
 
-    console.log(`📋 Found plaid item: ${plaidItem.item_id} (cursor: ${plaidItem.transaction_cursor || 'null'})`);
+    if (DEBUG) console.log(`📋 Found plaid item: ${plaidItem.item_id} (cursor: ${plaidItem.transaction_cursor || 'null'})`);
 
     // Check if already syncing (unless force sync is requested)
     if (plaidItem.sync_status === 'syncing' && !forceSync) {
@@ -55,7 +52,7 @@ export async function POST(request) {
     }
 
     // Update sync status to 'syncing'
-    await supabase
+    await supabaseAdmin
       .from('plaid_items')
       .update({ 
         sync_status: 'syncing',
@@ -68,16 +65,16 @@ export async function POST(request) {
     let transactionCursor = null; // Initialize for both modes
 
     // Use different approach based on environment
-    console.log(`🌍 Plaid Environment: ${PLAID_ENV}`);
+    if (DEBUG) console.log(`🌍 Plaid Environment: ${PLAID_ENV}`);
     if (PLAID_ENV === 'sandbox') {
-      console.log('🏖️ Sandbox mode: Using transactions/get endpoint');
+      if (DEBUG) console.log('🏖️ Sandbox mode: Using transactions/get endpoint');
       
       // For sandbox, get transactions from the last 30 days
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(endDate.getDate() - 30);
       
-      console.log('🔍 Date calculation:', {
+      if (DEBUG) console.log('🔍 Date calculation:', {
         endDate: endDate.toISOString(),
         startDate: startDate.toISOString(),
         endDateFormatted: endDate.toISOString().split('T')[0],
@@ -91,12 +88,14 @@ export async function POST(request) {
         count: 500
       };
 
-      console.log(`📥 Fetching transactions from ${request.start_date} to ${request.end_date}`);
-      console.log('🔍 Request details:', { 
+      if (DEBUG) {
+        console.log(`📥 Fetching transactions from ${request.start_date} to ${request.end_date}`);
+        console.log('🔍 Request details:', { 
         start_date: request.start_date, 
         end_date: request.end_date,
         count: request.count 
-      });
+        });
+      }
       
       let responseData;
       try {
@@ -113,10 +112,10 @@ export async function POST(request) {
       const { transactions } = responseData;
       allTransactions = transactions || [];
 
-      console.log(`📊 Received ${allTransactions.length} transactions from sandbox`);
+      if (DEBUG) console.log(`📊 Received ${allTransactions.length} transactions from sandbox`);
     } else {
       // Production mode: Use transactions/sync endpoint with cursor-based pagination
-      console.log('🚀 Production mode: Using transactions/sync endpoint');
+      if (DEBUG) console.log('🚀 Production mode: Using transactions/sync endpoint');
       
       // Initialize cursor from stored value
       transactionCursor = plaidItem.transaction_cursor;
@@ -126,11 +125,11 @@ export async function POST(request) {
       // Handle pagination if has_more is true
       while (hasMore) {
         try {
-          console.log(`📥 Syncing transactions with cursor: ${transactionCursor || 'null'}`);
+          if (DEBUG) console.log(`📥 Syncing transactions with cursor: ${transactionCursor || 'null'}`);
           
           const responseData = await syncTransactions(plaidItem.access_token, transactionCursor);
           
-          console.log('🔍 Full Plaid response data:', JSON.stringify(responseData, null, 2));
+          // Avoid logging entire Plaid response; can be very large
           
           const { 
             added, 
@@ -145,9 +144,11 @@ export async function POST(request) {
           // Combine added and modified transactions (modified are already processed)
           const batchTransactions = [...(added || []), ...(modified || [])];
           
-          console.log(`📊 Received ${batchTransactions.length} transactions in this batch (${added?.length || 0} added, ${modified?.length || 0} modified, ${removed?.length || 0} removed)`);
-          console.log(`📈 Transaction update status: ${transactions_update_status}`);
-          console.log(`🔄 Has more: ${has_more}, Next cursor: ${next_cursor || 'null'}`);
+          if (DEBUG) {
+            console.log(`📊 Received ${batchTransactions.length} transactions in this batch (${added?.length || 0} added, ${modified?.length || 0} modified, ${removed?.length || 0} removed)`);
+            console.log(`📈 Transaction update status: ${transactions_update_status}`);
+            console.log(`🔄 Has more: ${has_more}, Next cursor: ${next_cursor || 'null'}`);
+          }
           
           if (batchTransactions.length > 0) {
             allTransactions.push(...batchTransactions);
@@ -170,11 +171,11 @@ export async function POST(request) {
         }
       }
       
-      console.log(`📊 Total transactions received: ${allTransactions.length}`);
+      if (DEBUG) console.log(`📊 Total transactions received: ${allTransactions.length}`);
       
       if (allTransactions.length > 0) {
         // Log first few transactions for debugging
-        console.log('🔍 Sample transactions:', allTransactions.slice(0, 3).map(t => ({
+        if (DEBUG) console.log('🔍 Sample transactions:', allTransactions.slice(0, 3).map(t => ({
           id: t.transaction_id,
           description: t.name || t.original_description,
           amount: t.amount,
@@ -195,12 +196,12 @@ export async function POST(request) {
       // In production mode, we get accounts data from the sync response
       // We need to collect accounts from all pagination batches
       // For now, we'll get fresh account data from Plaid at the end of sync
-      console.log('🏦 Fetching fresh account data from Plaid for balance updates...');
+      if (DEBUG) console.log('🏦 Fetching fresh account data from Plaid for balance updates...');
       try {
         const { getAccounts } = await import('../../../../../lib/plaidClient');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         accountsToUpdate = accountsResponse.accounts || [];
-        console.log(`📊 Retrieved ${accountsToUpdate.length} accounts for balance updates`);
+        if (DEBUG) console.log(`📊 Retrieved ${accountsToUpdate.length} accounts for balance updates`);
       } catch (error) {
         console.error('❌ Failed to fetch accounts for balance updates:', error);
         // Don't fail the whole sync if account balance update fails
@@ -208,7 +209,7 @@ export async function POST(request) {
     }
 
     // Get all accounts for this plaid item
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, account_id')
       .eq('plaid_item_id', plaidItemId);
@@ -217,7 +218,7 @@ export async function POST(request) {
       throw new Error('Failed to fetch accounts');
     }
 
-    console.log(`🏦 Found ${accounts.length} accounts for this plaid item`);
+    if (DEBUG) console.log(`🏦 Found ${accounts.length} accounts for this plaid item`);
 
     // Create account_id to uuid mapping
     const accountMap = {};
@@ -272,7 +273,7 @@ export async function POST(request) {
     // Handle pending transaction updates (remove old pending, insert new posted)
     for (const pendingUpdate of pendingTransactionsToUpdate) {
       // Delete the pending transaction
-      await supabase
+      await supabaseAdmin
         .from('transactions')
         .delete()
         .eq('pending_plaid_transaction_id', pendingUpdate.pending_plaid_transaction_id)
@@ -281,7 +282,7 @@ export async function POST(request) {
 
     // Create category groups from transaction categories
     if (transactionsToUpsert.length > 0) {
-      console.log('🏷️ Processing category groups from transactions...');
+      if (DEBUG) console.log('🏷️ Processing category groups from transactions...');
       
       // Extract unique primary categories from transactions
       const primaryCategories = new Set();
@@ -292,10 +293,10 @@ export async function POST(request) {
       });
 
       if (primaryCategories.size > 0) {
-        console.log(`📋 Found ${primaryCategories.size} unique primary categories:`, Array.from(primaryCategories));
+        if (DEBUG) console.log(`📋 Found ${primaryCategories.size} unique primary categories`);
 
         // Get existing category groups
-        const { data: existingCategoryGroups, error: existingError } = await supabase
+        const { data: existingCategoryGroups, error: existingError } = await supabaseAdmin
           .from('category_groups')
           .select('name, hex_color');
 
@@ -319,15 +320,15 @@ export async function POST(request) {
               hex_color: uniqueColor
             });
             existingColors.push(uniqueColor); // Add to existing colors for next iteration
-            console.log(`🆕 Creating new category group: "${formattedName}" with color ${uniqueColor}`);
+            if (DEBUG) console.log(`🆕 Creating new category group: "${formattedName}"`);
           } else {
-            console.log(`✅ Category group already exists: "${formattedName}"`);
+            if (DEBUG) console.log(`✅ Category group already exists: "${formattedName}"`);
           }
         }
 
         // Insert new category groups
         if (newCategoryGroups.length > 0) {
-          const { error: categoryGroupsError } = await supabase
+          const { error: categoryGroupsError } = await supabaseAdmin
             .from('category_groups')
             .insert(newCategoryGroups);
 
@@ -336,11 +337,11 @@ export async function POST(request) {
             throw new Error(`Failed to insert category groups: ${categoryGroupsError.message}`);
           }
 
-          console.log(`✅ Successfully created ${newCategoryGroups.length} new category groups`);
+          if (DEBUG) console.log(`✅ Successfully created ${newCategoryGroups.length} new category groups`);
         }
 
         // Now process system_categories from detailed keys
-        console.log('🏷️ Processing system categories from detailed keys...');
+        if (DEBUG) console.log('🏷️ Processing system categories from detailed keys...');
         
         // Extract unique detailed categories from transactions
         const detailedCategories = new Set();
@@ -363,10 +364,10 @@ export async function POST(request) {
         });
 
         if (detailedCategories.size > 0) {
-          console.log(`📋 Found ${detailedCategories.size} unique detailed categories`);
+          if (DEBUG) console.log(`📋 Found ${detailedCategories.size} unique detailed categories`);
 
           // Get all category groups (including newly created ones) to build the mapping
-          const { data: allCategoryGroups, error: allGroupsError } = await supabase
+          const { data: allCategoryGroups, error: allGroupsError } = await supabaseAdmin
             .from('category_groups')
             .select('id, name');
 
@@ -382,7 +383,7 @@ export async function POST(request) {
           });
 
           // Get existing system categories
-          const { data: existingSystemCategories, error: existingSystemError } = await supabase
+          const { data: existingSystemCategories, error: existingSystemError } = await supabaseAdmin
             .from('system_categories')
             .select('label');
 
@@ -405,9 +406,9 @@ export async function POST(request) {
                 label: formattedLabel,
                 group_id: groupId
               });
-              console.log(`🆕 Creating new system category: "${formattedLabel}" in group ID ${groupId}`);
+              if (DEBUG) console.log(`🆕 Creating new system category: "${formattedLabel}" in group ID ${groupId}`);
             } else if (existingSystemLabels.has(formattedLabel)) {
-              console.log(`✅ System category already exists: "${formattedLabel}"`);
+              if (DEBUG) console.log(`✅ System category already exists: "${formattedLabel}"`);
             } else if (!groupId) {
               console.warn(`⚠️ No category group found for primary category: "${primary}"`);
             }
@@ -415,7 +416,7 @@ export async function POST(request) {
 
           // Insert new system categories
           if (newSystemCategories.length > 0) {
-            const { error: systemCategoriesError } = await supabase
+            const { error: systemCategoriesError } = await supabaseAdmin
               .from('system_categories')
               .insert(newSystemCategories);
 
@@ -424,7 +425,7 @@ export async function POST(request) {
               throw new Error(`Failed to insert system categories: ${systemCategoriesError.message}`);
             }
 
-            console.log(`✅ Successfully created ${newSystemCategories.length} new system categories`);
+            if (DEBUG) console.log(`✅ Successfully created ${newSystemCategories.length} new system categories`);
           }
         }
       }
@@ -432,10 +433,10 @@ export async function POST(request) {
 
     // Link transactions to their system categories
     if (transactionsToUpsert.length > 0) {
-      console.log('🔗 Linking transactions to system categories...');
+      if (DEBUG) console.log('🔗 Linking transactions to system categories...');
       
       // Get all system categories to build the mapping
-      const { data: allSystemCategories, error: systemCategoriesError } = await supabase
+      const { data: allSystemCategories, error: systemCategoriesError } = await supabaseAdmin
         .from('system_categories')
         .select('id, label');
 
@@ -475,14 +476,14 @@ export async function POST(request) {
         delete transactionData.original_transaction;
       }
 
-      console.log(`🔗 Linked ${linkedCount} transactions to system categories`);
+      if (DEBUG) console.log(`🔗 Linked ${linkedCount} transactions to system categories`);
     }
 
     // Upsert all transactions
     if (transactionsToUpsert.length > 0) {
-      console.log(`💾 Upserting ${transactionsToUpsert.length} transactions to database...`);
+      if (DEBUG) console.log(`💾 Upserting ${transactionsToUpsert.length} transactions to database...`);
       
-      const { error: transactionsError } = await supabase
+      const { error: transactionsError } = await supabaseAdmin
         .from('transactions')
         .upsert(transactionsToUpsert, {
           onConflict: 'plaid_transaction_id'
@@ -493,14 +494,14 @@ export async function POST(request) {
         throw new Error(`Failed to upsert transactions: ${transactionsError.message}`);
       }
       
-      console.log(`✅ Successfully upserted ${transactionsToUpsert.length} transactions`);
+      if (DEBUG) console.log(`✅ Successfully upserted ${transactionsToUpsert.length} transactions`);
     } else {
-      console.log('ℹ️ No transactions to upsert');
+      if (DEBUG) console.log('ℹ️ No transactions to upsert');
     }
 
     // Update account balances if we have fresh account data
     if (accountsToUpdate.length > 0) {
-      console.log('💰 Updating account balances...');
+      if (DEBUG) console.log('💰 Updating account balances...');
       
       // Create mapping from Plaid account_id to our database account records
       const accountMap = {};
@@ -514,7 +515,7 @@ export async function POST(request) {
         if (dbAccountId && plaidAccount.balances) {
           try {
             // Update the account balance in the accounts table
-            const { error: updateError } = await supabase
+            const { error: updateError } = await supabaseAdmin
               .from('accounts')
               .update({ 
                 balances: plaidAccount.balances,
@@ -526,20 +527,16 @@ export async function POST(request) {
               console.error(`❌ Failed to update balance for account ${plaidAccount.account_id}:`, updateError);
             } else {
               updatedAccountsCount++;
-              console.log(`✅ Updated balance for account ${plaidAccount.account_id}:`, {
-                current: plaidAccount.balances.current,
-                available: plaidAccount.balances.available,
-                currency: plaidAccount.balances.iso_currency_code
-              });
+              if (DEBUG) console.log(`✅ Updated balance for account ${plaidAccount.account_id}`);
 
               // Create account snapshot if conditions are met
               try {
                 const snapshotResult = await createAccountSnapshotConditional(plaidAccount, dbAccountId);
                 if (snapshotResult.success && !snapshotResult.skipped) {
                   snapshotsCreatedCount++;
-                  console.log(`📸 Created account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
+                  if (DEBUG) console.log(`📸 Created account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
                 } else if (snapshotResult.skipped) {
-                  console.log(`⏭️ Skipped account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
+                  if (DEBUG) console.log(`⏭️ Skipped account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.reason}`);
                 } else {
                   console.warn(`⚠️ Failed to create account snapshot for account ${plaidAccount.account_id}: ${snapshotResult.error}`);
                 }
@@ -556,9 +553,9 @@ export async function POST(request) {
         }
       }
       
-      console.log(`💰 Updated balances for ${updatedAccountsCount} accounts`);
+      if (DEBUG) console.log(`💰 Updated balances for ${updatedAccountsCount} accounts`);
       if (snapshotsCreatedCount > 0) {
-        console.log(`📸 Created ${snapshotsCreatedCount} account snapshots`);
+        if (DEBUG) console.log(`📸 Created ${snapshotsCreatedCount} account snapshots`);
       }
     }
 
@@ -574,7 +571,7 @@ export async function POST(request) {
       updateData.transaction_cursor = transactionCursor;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('plaid_items')
       .update(updateData)
       .eq('id', plaidItemId);
@@ -597,7 +594,7 @@ export async function POST(request) {
 
     // Update plaid item with error status
     if (plaidItemId) {
-      await supabase
+      await supabaseAdmin
         .from('plaid_items')
         .update({
           sync_status: 'error',

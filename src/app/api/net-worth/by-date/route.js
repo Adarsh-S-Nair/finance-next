@@ -1,10 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
@@ -56,6 +51,7 @@ export async function GET(request) {
     const userId = searchParams.get('userId');
     const maxDaysParam = parseInt(searchParams.get('maxDays') || '0', 10);
     const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365; // cap to 1 year
+    const minimal = (searchParams.get('minimal') || '0') === '1';
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -64,7 +60,7 @@ export async function GET(request) {
     if (DEBUG) console.log(`🔍 Net Worth by Date API: user ${userId}`);
 
     // Get all accounts for the user with their current balances
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype, balances')
       .eq('user_id', userId);
@@ -88,7 +84,7 @@ export async function GET(request) {
     const todayISODate = toISODateString(new Date());
     const endOfTodayISO = new Date(`${todayISODate}T23:59:59.999Z`).toISOString();
 
-    const { data: snapshotRows, error: snapshotsError } = await supabase
+    const { data: snapshotRows, error: snapshotsError } = await supabaseAdmin
       .from('account_snapshots')
       .select('account_id, current_balance, recorded_at')
       .in('account_id', accountIds)
@@ -171,24 +167,43 @@ export async function GET(request) {
 
       const netWorth = totalAssets - totalLiabilities;
 
-      netWorthByDate.push({
-        date: dateString,
-        assets: Math.round(totalAssets * 100) / 100,
-        liabilities: Math.round(totalLiabilities * 100) / 100,
-        netWorth: Math.round(netWorth * 100) / 100,
-        accountBalances,
-        totalAccounts,
-        accountsWithData: Object.keys(accountBalances).length,
-        usesCurrentBalances: isToday,
-        isInterpolated: isInterpolatedDate,
-        hasSnapshotOnDate: hasSnapshotOnThisDate
-      });
+      // Build either a minimal or full payload per date
+      if (minimal) {
+        netWorthByDate.push({
+          date: dateString,
+          netWorth: Math.round(netWorth * 100) / 100,
+          assets: Math.round(totalAssets * 100) / 100,
+          liabilities: Math.round(totalLiabilities * 100) / 100,
+        });
+      } else {
+        netWorthByDate.push({
+          date: dateString,
+          assets: Math.round(totalAssets * 100) / 100,
+          liabilities: Math.round(totalLiabilities * 100) / 100,
+          netWorth: Math.round(netWorth * 100) / 100,
+          accountBalances,
+          totalAccounts,
+          accountsWithData: Object.keys(accountBalances).length,
+          usesCurrentBalances: isToday,
+          isInterpolated: isInterpolatedDate,
+          hasSnapshotOnDate: hasSnapshotOnThisDate
+        });
+      }
     }
 
     if (DEBUG && netWorthByDate.length > 0) {
       const first = netWorthByDate[0];
       const last = netWorthByDate[netWorthByDate.length - 1];
       console.log(`📈 Net Worth by Date: points=${netWorthByDate.length} range=${first.date}->${last.date}`);
+    }
+
+    if (minimal) {
+      return NextResponse.json({
+        data: netWorthByDate,
+        totalDates: netWorthByDate.length,
+        totalAccounts,
+        minimal: true,
+      });
     }
 
     return NextResponse.json({

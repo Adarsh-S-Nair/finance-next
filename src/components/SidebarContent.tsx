@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { supabase } from "../lib/supabaseClient";
 import { NAV_GROUPS } from "./nav";
@@ -12,18 +12,13 @@ import { TbLogout } from "react-icons/tb";
 import Button from "./ui/Button";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import { useUser } from "./UserProvider";
-import { motion, AnimatePresence } from "framer-motion";
-import { getAccentTextColor } from "../lib/colorUtils";
-// Logo is served from public for reliable URL-based masking
+import { motion } from "framer-motion";
 
 export default function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, logout } = useUser();
-  const accentHex = profile?.accent_color ?? null;
-  const hasAccent = !!accentHex;
   const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
-  const isDefaultAccent = !profile?.accent_color;
   const [displayName, setDisplayName] = useState("You");
   const [profileUrl, setProfileUrl] = useState(null as string | null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -80,19 +75,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   return (
     <div className="flex h-full flex-col">
       <div className="h-16 shrink-0 flex items-center gap-3 px-4">
-        <span
-          aria-hidden
-          className="h-16 w-16 inline-block bg-[var(--color-accent)] flex-shrink-0"
-          style={{
-            WebkitMaskImage: "url(/logo.svg)",
-            maskImage: "url(/logo.svg)",
-            WebkitMaskSize: "contain",
-            maskSize: "contain",
-            WebkitMaskRepeat: "no-repeat",
-            maskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-            maskPosition: "center",
-          }}
+        {/* Reverted to img tag for reliability. Ensure logo.svg handles dark/light modes or use filters if needed. */}
+        <img
+          src="/logo.svg"
+          alt="Zentari Logo"
+          className="h-10 w-10 object-contain dark:invert"
         />
         <h1 className="text-2xl font-bold tracking-tight text-[var(--color-fg)] font-sans">
           ZENTARI
@@ -120,12 +107,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                       className={clsx(
                         "group relative flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm transition-all duration-200 ease-in-out",
                         it.disabled
-                          ? "cursor-not-allowed text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)] opacity-70"
-                          : !active && "hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] hover:shadow-sm",
-                        active && !it.disabled && clsx(
-                          "bg-[var(--color-accent)] shadow-sm",
-                          getAccentTextColor(isDarkMode, isDefaultAccent)
-                        )
+                          ? "cursor-not-allowed text-[var(--color-muted)] opacity-70"
+                          : !active && "hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)] text-[var(--color-muted)]",
+                        active && !it.disabled && "bg-[var(--color-sidebar-active)] text-[var(--color-fg)] font-medium"
                       )}
                     >
                       <motion.span 
@@ -164,13 +148,11 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                           {it.icon && <it.icon className="h-4 w-4" />}
                         </motion.span>
                         <motion.span 
-                          className={it.disabled ? "text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)]" : undefined}
+                          className={it.disabled ? "text-[var(--color-muted)]" : undefined}
                           animate={active ? { 
-                            x: isTransitioning ? 1 : 0,
-                            fontWeight: 500
+                            x: isTransitioning ? 1 : 0
                           } : { 
-                            x: 0,
-                            fontWeight: 400
+                            x: 0
                           }}
                           transition={{ 
                             type: "spring", 
@@ -182,26 +164,26 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
                           {it.label}
                         </motion.span>
                       </motion.span>
-                      {it.disabled && <FaLock className="h-3.5 w-3.5 text-[color-mix(in_oklab,var(--color-muted),var(--color-bg)_40%)]" />}
+                      {it.disabled && <FaLock className="h-3.5 w-3.5 text-[var(--color-muted)]" />}
                     </Link>
                   </li>
                 );
               })}
             </ul>
-            <div className="my-3 h-px w-full bg-[color-mix(in_oklab,var(--color-fg),transparent_92%)]" />
+            <div className="my-3 h-px w-full bg-[var(--color-border)]" />
           </div>
         ))}
       </nav>
       <div className="p-3 pt-0">
-        <div className="rounded-lg bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] p-3">
+        <div className="rounded-lg bg-[var(--color-surface)] p-3 border border-[var(--color-border)]">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {profileUrl ? (
                 <img src={profileUrl} alt="Profile" className="h-8 w-8 rounded-full object-cover" />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)]" />
+                <div className="h-8 w-8 rounded-full bg-[var(--color-muted)]/20" />
               )}
-              <div className="text-sm font-medium">{displayName}</div>
+              <div className="text-sm font-medium text-[var(--color-fg)]">{displayName}</div>
             </div>
             <Button
               onClick={onLogout}
@@ -209,7 +191,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               title="Log out"
               variant="ghost"
               size="sm"
-              className="inline-flex items-center gap-2 rounded-[6px] text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
+              className="inline-flex items-center gap-2 rounded-[6px] text-[var(--color-fg)] hover:bg-[var(--color-bg)]"
             >
               <TbLogout className="h-4 w-4" />
             </Button>
@@ -219,7 +201,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               onConfirm={async () => {
                 try {
                   setIsSigningOut(true);
-                  logout(); // Reset theme and accent immediately
+                  logout(); 
                   await supabase.auth.signOut();
                   onNavigate?.();
                   router.replace("/");
@@ -242,5 +224,3 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     </div>
   );
 }
-
-

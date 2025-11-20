@@ -92,8 +92,6 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     fetchSpendingEarningData();
   }, [user?.id]);
 
-  // Remove height override - let container determine height
-
   // Normalize data
   const { months, incomeVals, spendingVals, maxAbs } = useMemo(() => {
     if (!monthlyData || monthlyData.length === 0) {
@@ -235,15 +233,13 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       {tooltip.visible && (
         <div
           ref={tooltipRef}
+          className="glass-panel"
           style={{
             position: 'absolute',
             left: tooltip.x,
             top: tooltip.y,
-            background: 'var(--color-bg)',
-            border: '1px solid var(--color-border)',
             borderRadius: 8,
             padding: '12px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             zIndex: 10,
             pointerEvents: 'none',
           }}
@@ -252,14 +248,14 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
             {tooltip.month}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-neon-green)' }} />
             <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Income:</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
               {formatCurrency(tooltip.income)}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-neon-pink)' }} />
             <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Spending:</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
               {formatCurrency(tooltip.spending)}
@@ -271,13 +267,13 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       <svg width={dims.width} height={dims.height} style={{ overflow: 'visible' }} onMouseLeave={onLeave}>
         {/* Gradients */}
         <defs>
-          <linearGradient id="brandBarSolid" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={'var(--color-accent)'} stopOpacity="1" />
-            <stop offset="100%" stopColor={'var(--color-accent)'} stopOpacity="0.6" />
+          <linearGradient id="incomeGradient" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={'var(--color-neon-green)'} stopOpacity="0.8" />
+            <stop offset="100%" stopColor={'var(--color-neon-green)'} stopOpacity="0.4" />
           </linearGradient>
-          <linearGradient id="brandBarLight" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={'var(--color-accent)'} stopOpacity="0.6" />
-            <stop offset="100%" stopColor={'var(--color-accent)'} stopOpacity="0.3" />
+          <linearGradient id="spendingGradient" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={'var(--color-neon-pink)'} stopOpacity="0.8" />
+            <stop offset="100%" stopColor={'var(--color-neon-pink)'} stopOpacity="0.4" />
           </linearGradient>
         </defs>
 
@@ -291,7 +287,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
           {months.map((m, i) => {
             const cx = margin.left + step * i + step / 2
             return (
-              <text key={`lbl-${m}-${i}`} x={cx} y={dims.height - 5} textAnchor="middle" fontSize="10" fill="var(--color-muted)">
+              <text key={`lbl-${m}-${i}`} x={cx} y={dims.height - 5} textAnchor="middle" fontSize="10" fill="var(--color-muted)" fontWeight="300">
                 {m}
               </text>
             )
@@ -316,17 +312,17 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
               transform: isActive ? 'scale(1.02)' : 'scale(1.0)',
               transformOrigin: `${cx}px ${zeroY}px`
             }
-            const filter = isActive ? 'brightness(1.06) drop-shadow(0 2px 6px rgba(0,0,0,0.10))' : 'none'
+            const filter = isActive ? 'brightness(1.1) drop-shadow(0 0 4px rgba(255,255,255,0.1))' : 'none'
 
-            const incPath = roundedRectPath(x, incY, barWidth, incH, 10, 10, 0, 0)
-            const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 10, 10)
+            const incPath = roundedRectPath(x, incY, barWidth, incH, 2, 2, 0, 0)
+            const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 2, 2)
 
             return (
               <g key={`bar-${m}-${i}`} style={groupStyle}>
                 {/* Income */}
-                <path d={incPath} fill="url(#brandBarSolid)" filter={filter} />
+                <path d={incPath} fill="url(#incomeGradient)" filter={filter} />
                 {/* Spending */}
-                <path d={spdPath} fill="url(#brandBarLight)" filter={filter} />
+                <path d={spdPath} fill="url(#spendingGradient)" filter={filter} />
                 {/* Hover overlay for unified tooltip */}
                 <rect
                   x={x}

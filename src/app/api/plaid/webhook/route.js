@@ -1,13 +1,11 @@
 import { getPlaidClient } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
+const DISABLE_WEBHOOKS = process.env.NODE_ENV !== 'production' && process.env.DISABLE_WEBHOOKS === '1';
 
 // Verify webhook using Plaid's JWT verification
 async function verifyWebhookSignature(payload, signature) {
@@ -82,6 +80,9 @@ async function verifyWebhookSignature(payload, signature) {
 
 export async function POST(request) {
   try {
+    if (DISABLE_WEBHOOKS) {
+      return Response.json({ received: true, disabled: true });
+    }
     const payload = await request.text();
     // Handle case-insensitive header name
     const signature = request.headers.get('plaid-verification') || request.headers.get('Plaid-Verification');
@@ -93,7 +94,7 @@ export async function POST(request) {
     }
 
     const webhookData = JSON.parse(payload);
-    console.log('Received Plaid webhook:', webhookData.webhook_type, webhookData.webhook_code);
+    if (DEBUG) console.log('Received Plaid webhook:', webhookData.webhook_type, webhookData.webhook_code);
 
     // Handle different webhook types
     switch (webhookData.webhook_type) {
@@ -104,7 +105,7 @@ export async function POST(request) {
         await handleItemWebhook(webhookData);
         break;
       default:
-        console.log('Unhandled webhook type:', webhookData.webhook_type);
+        if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
     }
 
     return Response.json({ received: true });
@@ -120,10 +121,10 @@ export async function POST(request) {
 async function handleTransactionsWebhook(webhookData) {
   const { webhook_code, item_id, new_transactions, removed_transactions } = webhookData;
 
-  console.log(`Processing TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
+  if (DEBUG) console.log(`Processing TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
 
   // Get the plaid item from database
-  const { data: plaidItem, error: itemError } = await supabase
+  const { data: plaidItem, error: itemError } = await supabaseAdmin
     .from('plaid_items')
     .select('*')
     .eq('item_id', item_id)
@@ -140,7 +141,7 @@ async function handleTransactionsWebhook(webhookData) {
     case 'DEFAULT_UPDATE':
     case 'SYNC_UPDATES_AVAILABLE':
       // Trigger transaction sync for this item
-      console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+      if (DEBUG) console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
       
       try {
         // Import and call the sync function directly instead of making HTTP request
@@ -159,10 +160,12 @@ async function handleTransactionsWebhook(webhookData) {
         
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
-          console.log(`Webhook-triggered sync completed for item ${item_id}:`, {
-            transactions_synced: syncResult.transactions_synced,
-            pending_transactions_updated: syncResult.pending_transactions_updated
-          });
+          if (DEBUG) {
+            console.log(`Webhook-triggered sync completed for item ${item_id}:`, {
+              transactions_synced: syncResult.transactions_synced,
+              pending_transactions_updated: syncResult.pending_transactions_updated
+            });
+          }
         } else {
           const errorData = await syncResponse.json();
           console.error(`Webhook-triggered sync failed for item ${item_id}:`, errorData);
@@ -175,9 +178,9 @@ async function handleTransactionsWebhook(webhookData) {
     case 'TRANSACTIONS_REMOVED':
       // Handle removed transactions
       if (removed_transactions && removed_transactions.length > 0) {
-        console.log(`Removing ${removed_transactions.length} transactions for item: ${item_id}`);
+        if (DEBUG) console.log(`Removing ${removed_transactions.length} transactions for item: ${item_id}`);
         
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await supabaseAdmin
           .from('transactions')
           .delete()
           .in('plaid_transaction_id', removed_transactions);
@@ -185,23 +188,23 @@ async function handleTransactionsWebhook(webhookData) {
         if (deleteError) {
           console.error('Error removing transactions:', deleteError);
         } else {
-          console.log('Successfully removed transactions');
+          if (DEBUG) console.log('Successfully removed transactions');
         }
       }
       break;
 
     default:
-      console.log('Unhandled transaction webhook code:', webhook_code);
+      if (DEBUG) console.log('Unhandled transaction webhook code:', webhook_code);
   }
 }
 
 async function handleItemWebhook(webhookData) {
   const { webhook_code, item_id } = webhookData;
 
-  console.log(`Processing ITEM webhook: ${webhook_code} for item: ${item_id}`);
+  if (DEBUG) console.log(`Processing ITEM webhook: ${webhook_code} for item: ${item_id}`);
 
   // Get the plaid item from database
-  const { data: plaidItem, error: itemError } = await supabase
+  const { data: plaidItem, error: itemError } = await supabaseAdmin
     .from('plaid_items')
     .select('*')
     .eq('item_id', item_id)
@@ -215,7 +218,7 @@ async function handleItemWebhook(webhookData) {
   switch (webhook_code) {
     case 'ERROR':
       // Update plaid item with error status
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('plaid_items')
         .update({
           sync_status: 'error',
@@ -230,22 +233,16 @@ async function handleItemWebhook(webhookData) {
 
     case 'NEW_ACCOUNTS_AVAILABLE':
       // New accounts are available, sync them
-      console.log('New accounts available for item:', item_id);
+      if (DEBUG) console.log('New accounts available for item:', item_id);
       try {
         // Get fresh account data from Plaid
         const { getAccounts } = await import('../../../../lib/plaidClient');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         const { accounts } = accountsResponse;
         
-        console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
-        console.log('🔍 DEBUG: Full accounts response:', JSON.stringify(accountsResponse, null, 2));
-        console.log('🔍 DEBUG: Individual accounts:', accounts.map(acc => ({
-          account_id: acc.account_id,
-          name: acc.name,
-          type: acc.type,
-          subtype: acc.subtype,
-          mask: acc.mask
-        })));
+        if (DEBUG) {
+          console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
+        }
         
         // Process and save new accounts
         const accountsToInsert = accounts.map(account => ({
@@ -263,15 +260,12 @@ async function handleItemWebhook(webhookData) {
           plaid_item_id: plaidItem.id,
         }));
 
-        console.log('🔍 DEBUG: Accounts to insert:', accountsToInsert.map(acc => ({
-          account_id: acc.account_id,
-          name: acc.name,
-          type: acc.type,
-          subtype: acc.subtype
-        })));
+        if (DEBUG) {
+          console.log('🔍 DEBUG: Accounts to insert (count):', accountsToInsert.length);
+        }
 
         // Insert accounts (upsert to handle duplicates)
-        const { data: accountsData, error: accountsError } = await supabase
+        const { data: accountsData, error: accountsError } = await supabaseAdmin
           .from('accounts')
           .upsert(accountsToInsert, {
             onConflict: 'plaid_item_id,account_id'
@@ -281,14 +275,9 @@ async function handleItemWebhook(webhookData) {
         if (accountsError) {
           console.error('Error upserting new accounts:', accountsError);
         } else {
-          console.log(`✅ Synced ${accountsData.length} accounts for item ${item_id}`);
-          console.log('🔍 DEBUG: Synced accounts:', accountsData.map(acc => ({
-            id: acc.id,
-            account_id: acc.account_id,
-            name: acc.name,
-            type: acc.type,
-            subtype: acc.subtype
-          })));
+          if (DEBUG) {
+            console.log(`✅ Synced ${accountsData.length} accounts for item ${item_id}`);
+          }
         }
       } catch (accountSyncError) {
         console.error('Error syncing new accounts:', accountSyncError);
@@ -297,15 +286,15 @@ async function handleItemWebhook(webhookData) {
 
     case 'PENDING_EXPIRATION':
       // Item is about to expire, user needs to re-authenticate
-      console.log('Item pending expiration for item:', item_id);
+      if (DEBUG) console.log('Item pending expiration for item:', item_id);
       break;
 
     case 'USER_PERMISSION_REVOKED':
       // User has revoked access
-      console.log('User permission revoked for item:', item_id);
+      if (DEBUG) console.log('User permission revoked for item:', item_id);
       break;
 
     default:
-      console.log('Unhandled item webhook code:', webhook_code);
+      if (DEBUG) console.log('Unhandled item webhook code:', webhook_code);
   }
 }

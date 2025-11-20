@@ -1,10 +1,5 @@
 import { getAccounts } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function GET(request) {
   try {
@@ -19,7 +14,7 @@ export async function GET(request) {
     }
 
     // Get user's accounts from database
-    const { data: accounts, error } = await supabase
+    const { data: accounts, error } = await supabaseAdmin
       .from('accounts')
       .select(`
         *,
@@ -70,7 +65,7 @@ export async function DELETE(request) {
     }
 
     // Delete account (RLS will ensure user can only delete their own accounts)
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('accounts')
       .delete()
       .eq('id', accountId)

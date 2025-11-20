@@ -1,11 +1,6 @@
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 export async function POST(request) {
   try {
@@ -49,7 +44,7 @@ export async function POST(request) {
         institution = await getInstitution(actualInstitutionId);
 
         // Upsert institution in database
-        const { data: instData, error: institutionError } = await supabase
+        const { data: instData, error: institutionError } = await supabaseAdmin
           .from('institutions')
           .upsert({
             institution_id: institution.institution_id,
@@ -76,7 +71,7 @@ export async function POST(request) {
     }
 
     // First, create or update the plaid_item
-    const { data: plaidItemData, error: plaidItemError } = await supabase
+    const { data: plaidItemData, error: plaidItemError } = await supabaseAdmin
       .from('plaid_items')
       .upsert({
         user_id: userId,
@@ -114,7 +109,7 @@ export async function POST(request) {
     }));
 
     // Insert accounts (upsert to handle duplicates)
-    const { data: accountsData, error: accountsError } = await supabase
+    const { data: accountsData, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .upsert(accountsToInsert, {
         onConflict: 'plaid_item_id,account_id'

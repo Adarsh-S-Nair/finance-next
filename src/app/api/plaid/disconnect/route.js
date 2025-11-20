@@ -1,10 +1,5 @@
 import { removeItem } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
@@ -20,7 +15,7 @@ export async function POST(request) {
     }
 
     // Get the plaid item from database
-    const { data: plaidItem, error: itemError } = await supabase
+    const { data: plaidItem, error: itemError } = await supabaseAdmin
       .from('plaid_items')
       .select('*')
       .eq('id', plaidItemId)
@@ -57,7 +52,7 @@ export async function POST(request) {
     console.log('Plaid API succeeded, now deleting from database...');
     
     // Delete the plaid_item (this will cascade to accounts and transactions due to foreign key constraints)
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from('plaid_items')
       .delete()
       .eq('id', plaidItemId)

@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
@@ -22,7 +18,7 @@ export async function GET(request) {
     startDate.setMonth(startDate.getMonth() - months);
 
     // Get all accounts for the user
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, type, subtype')
       .eq('user_id', userId);
@@ -39,7 +35,7 @@ export async function GET(request) {
     const accountIds = accounts.map(account => account.id);
 
     // Get account snapshots within the date range
-    const { data: snapshots, error: snapshotsError } = await supabase
+    const { data: snapshots, error: snapshotsError } = await supabaseAdmin
       .from('account_snapshots')
       .select(`
         account_id,
@@ -95,11 +91,13 @@ export async function GET(request) {
     const netWorthHistory = Object.values(netWorthByDate)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    console.log(`🔍 API Debug: Found ${snapshots.length} snapshots`);
-    console.log(`🔍 API Debug: Generated ${netWorthHistory.length} net worth data points`);
-    console.log(`🔍 API Debug: Account IDs:`, accountIds);
-    console.log(`🔍 API Debug: Sample snapshots:`, snapshots.slice(0, 3));
-    console.log(`🔍 API Debug: Sample net worth data:`, netWorthHistory.slice(0, 3));
+    if (DEBUG) {
+      console.log(`🔍 API Debug: Found ${snapshots.length} snapshots`);
+      console.log(`🔍 API Debug: Generated ${netWorthHistory.length} net worth data points`);
+      console.log(`🔍 API Debug: Account IDs:`, accountIds);
+      console.log(`🔍 API Debug: Sample snapshots:`, snapshots.slice(0, 1));
+      console.log(`🔍 API Debug: Sample net worth data:`, netWorthHistory.slice(0, 1));
+    }
 
     // If we have less than 2 data points, generate some historical data
     if (netWorthHistory.length < 2) {
@@ -128,11 +126,11 @@ export async function GET(request) {
         });
       }
       
-      console.log('🔍 API Debug: Returning generated fallback data:', generatedData.slice(0, 3));
+      if (DEBUG) console.log('🔍 API Debug: Returning generated fallback data:', generatedData.slice(0, 1));
       return NextResponse.json({ data: generatedData });
     }
 
-    console.log('✅ API Debug: Returning real historical data:', netWorthHistory.slice(-3));
+    if (DEBUG) console.log('✅ API Debug: Returning real historical data:', netWorthHistory.slice(-1));
     return NextResponse.json({ data: netWorthHistory });
 
   } catch (error) {

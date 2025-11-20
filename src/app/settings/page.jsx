@@ -114,9 +114,9 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <section aria-labelledby="appearance-heading" className="mt-4 pl-6">
+      <section aria-labelledby="appearance-heading" className="mt-4 pl-6 relative z-20">
         <h2 id="appearance-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Appearance</h2>
-        <Card className="mt-3">
+        <Card className="mt-3" allowOverflow={true}>
           <div className="flex items-center justify-between py-2">
             <div>
               <div className="font-medium">Theme</div>
@@ -271,5 +271,3 @@ export default function SettingsPage() {
     </PageContainer>
   );
 }
-
-

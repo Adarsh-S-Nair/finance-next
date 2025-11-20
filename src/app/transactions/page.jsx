@@ -12,6 +12,8 @@ import { useUser } from "../../components/UserProvider";
 import Input from "../../components/ui/Input";
 import { supabase } from "../../lib/supabaseClient";
 
+const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
+
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {
   return (
@@ -209,16 +211,18 @@ function TransactionRow({ transaction, isLast, onTransactionClick }) {
         <div 
           className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
-            backgroundColor: transaction.icon_url 
-              ? 'var(--color-muted)/10' 
+            backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+              ? 'var(--color-muted)/10'
               : (transaction.category_hex_color || 'var(--color-accent)')
           }}
         >
-          {transaction.icon_url ? (
+          {(!DISABLE_LOGOS && transaction.icon_url) ? (
             <img 
               src={transaction.icon_url} 
               alt={transaction.merchant_name || transaction.description || 'Transaction'}
               className="w-full h-full object-contain"
+              loading="lazy"
+              decoding="async"
               onError={(e) => {
                 // Fallback to category icon if image fails to load
                 e.target.style.display = 'none';
@@ -235,7 +239,7 @@ function TransactionRow({ transaction, isLast, onTransactionClick }) {
             className="h-5 w-5 text-white"
             fallback={FiTag}
             style={{
-              display: transaction.icon_url ? 'none' : 'block'
+              display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
             }}
           />
         </div>
@@ -283,12 +287,8 @@ export default function TransactionsPage() {
   const [categoryGroups, setCategoryGroups] = useState([]);
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
-  const [hasMoreOlder, setHasMoreOlder] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [oldestId, setOldestId] = useState(null);
-  const sentinelRef = useRef(null);
-  const observerRef = useRef(null);
-  const PAGE_LIMIT = 30;
+  const PAGE_LIMIT = 20;
+  const initialAbortRef = useRef(null);
   
   // Fetch latest transactions
   const fetchTransactions = async () => {
@@ -300,14 +300,19 @@ export default function TransactionsPage() {
     try {
       setLoading(true);
       setError(null);
-      setHasMoreOlder(true);
-      setOldestId(null);
+      // Abort any in-flight initial fetch
+      if (initialAbortRef.current) {
+        initialAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      initialAbortRef.current = controller;
       
-      const response = await fetch(`/api/transactions?userId=${profile.id}&limit=${PAGE_LIMIT}&offset=0`, {
+      const response = await fetch(`/api/plaid/transactions/get?userId=${profile.id}&limit=${PAGE_LIMIT}&minimal=1`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -317,12 +322,9 @@ export default function TransactionsPage() {
       const data = await response.json();
       const initial = data.transactions || [];
       setTransactions(initial);
-      const last = initial[initial.length - 1];
-      setOldestId(last?.id || null);
-      // Use API-provided hasMore if available, else infer from page size
-      setHasMoreOlder(typeof data.hasMore === 'boolean' ? data.hasMore : (initial.length === PAGE_LIMIT));
       console.log('Loaded', initial.length || 0, 'transactions');
     } catch (err) {
+      if (err?.name === 'AbortError') return;
       console.error('Error fetching transactions:', err);
       setError(err.message);
     } finally {
@@ -332,8 +334,6 @@ export default function TransactionsPage() {
 
   const handleRefresh = () => {
     setTransactions([]);
-    setHasMoreOlder(true);
-    setOldestId(null);
     fetchTransactions();
   };
 
@@ -365,6 +365,9 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
+    return () => {
+      if (initialAbortRef.current) initialAbortRef.current.abort();
+    };
   }, [profile?.id]);
 
   // Load category groups when opening Filters (once per session)
@@ -391,48 +394,6 @@ export default function TransactionsPage() {
     }
   }, [isFiltersOpen, categoryGroups.length, loadingCategoryGroups]);
 
-  // Load older page using window pagination API
-  const loadMoreOlder = useCallback(async () => {
-    if (!profile?.id || loadingMore || !hasMoreOlder || !oldestId) return;
-    try {
-      setLoadingMore(true);
-      const resp = await fetch(`/api/transactions/window?userId=${profile.id}&direction=older&edgeId=${oldestId}&limit=${PAGE_LIMIT}`);
-      if (!resp.ok) throw new Error('Failed to load more transactions');
-      const data = await resp.json();
-      const newRows = data.transactions || [];
-      // Deduplicate by id
-      setTransactions((prev) => {
-        const existing = new Set(prev.map(t => t.id));
-        const toAppend = newRows.filter(t => !existing.has(t.id));
-        return prev.concat(toAppend);
-      });
-      setOldestId(data.windowEdges?.oldestId || oldestId);
-      setHasMoreOlder(Boolean(data.hasMoreOlder));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [profile?.id, oldestId, loadingMore, hasMoreOlder]);
-
-  // IntersectionObserver for infinite scroll
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting) {
-        loadMoreOlder();
-      }
-    }, { root: null, rootMargin: '200px', threshold: 0.1 });
-    observer.observe(sentinelRef.current);
-    observerRef.current = observer;
-    return () => {
-      observer.disconnect();
-    };
-  }, [loadMoreOlder, sentinelRef.current]);
 
   // Show loading state
   if (loading || !profile?.id) {
@@ -500,25 +461,7 @@ export default function TransactionsPage() {
               transactions={transactions} 
               onTransactionClick={handleTransactionClick}
             />
-            {/* Loading and pagination controls */}
-            {loadingMore && (
-              <div className="flex items-center justify-center py-4 text-[var(--color-muted)]">
-                <FiRefreshCw className="h-4 w-4 animate-spin mr-2" />
-                <span>Loading more...</span>
-              </div>
-            )}
-            {!loadingMore && hasMoreOlder && (
-              <div className="flex items-center justify-center py-4">
-                <Button variant="ghost" onClick={loadMoreOlder}>Load older</Button>
-              </div>
-            )}
-            {!hasMoreOlder && transactions.length > 0 && (
-              <div className="text-center py-6 text-[var(--color-muted)]">
-                No more transactions
-              </div>
-            )}
-            {/* Sentinel for intersection observer */}
-            <div ref={sentinelRef} />
+            {/* Simple list without infinite scroll */}
           </div>
         )}
       </div>
@@ -592,16 +535,18 @@ export default function TransactionsPage() {
                     <div 
                       className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                       style={{
-                        backgroundColor: selectedTransaction.icon_url 
-                          ? 'var(--color-muted)/10' 
+                        backgroundColor: (!DISABLE_LOGOS && selectedTransaction.icon_url)
+                          ? 'var(--color-muted)/10'
                           : (selectedTransaction.category_hex_color || 'var(--color-accent)')
                       }}
                     >
-                      {selectedTransaction.icon_url ? (
+                      {(!DISABLE_LOGOS && selectedTransaction.icon_url) ? (
                         <img 
                           src={selectedTransaction.icon_url} 
                           alt={selectedTransaction.merchant_name || selectedTransaction.description || 'Transaction'}
                           className="w-full h-full object-contain"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             // Fallback to category icon if image fails to load
                             e.target.style.display = 'none';
@@ -618,7 +563,7 @@ export default function TransactionsPage() {
                         className="h-6 w-6 text-white"
                         fallback={FiTag}
                         style={{
-                          display: selectedTransaction.icon_url ? 'none' : 'block'
+                          display: (!DISABLE_LOGOS && selectedTransaction.icon_url) ? 'none' : 'block'
                         }}
                       />
                     </div>

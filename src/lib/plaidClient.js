@@ -5,8 +5,10 @@ export const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
 export const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
 export const PLAID_SECRET = process.env.PLAID_SECRET;
 
+const globalForPlaid = global;
+
 // Lazy initialization of Plaid client
-let plaidClient = null;
+let plaidClient = globalForPlaid.plaidClient || null;
 
 function getPlaidClient() {
   if (!plaidClient) {
@@ -28,6 +30,9 @@ function getPlaidClient() {
 
     // Create Plaid client instance
     plaidClient = new PlaidApi(configuration);
+    if (process.env.NODE_ENV !== 'production') {
+      globalForPlaid.plaidClient = plaidClient;
+    }
   }
   
   return plaidClient;

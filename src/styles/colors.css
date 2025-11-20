@@ -1,92 +1,107 @@
 :root {
-  --color-bg: #ffffff;
-  --color-surface: #f0f1f3;
-  --color-fg: #484444; /* requested text color */
-  --color-muted: #6b7280; /* gray-500 */
-  --color-border: #e5e7eb; /* gray-200 */
-  --color-ring: #a5b4fc; /* indigo-300 */
+  /* Clean Light Mode - High Tech / Minimalist */
+  --color-bg: #fafafa; /* Zinc 50 - Reduced contrast with white cards */
+  --color-surface: #ffffff;
+  --color-fg: #18181b; /* Zinc 900 */
+  --color-muted: #71717a; /* Zinc 500 */
+  --color-border: #e4e4e7; /* Zinc 200 */
+  --color-ring: #a1a1aa; /* Zinc 400 */
 
-  --color-primary: #484444; /* requested button color */
-  --color-primary-hover: #3e3a3a;
+  /* Matte Accents - Light Mode */
+  --color-neon-blue: #3b82f6;
+  --color-neon-purple: #8b5cf6;
+  --color-neon-green: #10b981;
+  --color-neon-pink: #f43f5e;
+
+  --color-primary: #18181b; 
+  --color-primary-hover: #27272a;
   --color-on-primary: #ffffff;
 
-  /* Brand accent (default UI highlight follows primary in light mode) */
-  --color-accent: var(--color-primary);
-  --color-accent-hover: var(--color-primary-hover);
-  --color-on-accent: var(--color-on-primary);
+  --color-accent: var(--color-neon-blue);
+  --color-accent-hover: #2563eb;
+  --color-on-accent: #ffffff;
 
-  /* Success color (messages, confirmations) */
-  --color-success: #22c55e;
-  --color-success-hover: #16a34a;
+  --color-success: #10b981;
+  --color-success-hover: #059669;
   --color-on-success: #ffffff;
 
   --color-danger: #ef4444;
   --color-on-danger: #ffffff;
 
-  --color-warn: #f97316; /* orange-500 */
+  --color-warn: #f59e0b; 
   --color-on-warn: #ffffff;
 
   --color-input-bg: #ffffff;
-  --color-input-fg: #0f172a;
-  --color-input-placeholder: #94a3b8;
+  --color-input-fg: #18181b;
+  --color-input-placeholder: #a1a1aa;
 
-  /* Subtle content background distinct from base bg */
-  --color-content-bg: #f7f8fa;
+  --color-content-bg: #fafafa; /* Matches bg */
+  --color-sidebar-active: #f4f4f5; /* Zinc 100 - subtle selection */
   
-  /* Shadow colors */
-  --color-shadow: rgba(0, 0, 0, 0.08);
+  /* Glassmorphism helpers - Light Mode - Reduced Shadows for Matte look */
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.05);
+  --glass-shadow: none;
   
-  /* Subtle card border */
-  --color-card-border: rgba(0, 0, 0, 0.06);
+  --color-shadow: transparent;
+  --color-card-border: rgba(0, 0, 0, 0.04);
 }
 
 .dark {
-  --color-bg: #22272e; /* required dark background */
-  --color-surface: #2a3038;
-  --color-fg: #e6edf3;
-  --color-muted: #a3afba;
-  --color-border: #2d3748;
-  --color-ring: #7aa2f7;
+  /* Matte Dark Mode - Desaturated & Soft */
+  --color-bg: #18181b; /* Zinc 900 - matte black */
+  --color-surface: #1f1f22; /* Very slightly lighter than bg for subtle separation */
+  --color-fg: #e4e4e7; /* Zinc 200 */
+  --color-muted: #71717a; /* Zinc 500 */
+  --color-border: #27272a; /* Zinc 800 */
+  --color-ring: #52525b; /* Zinc 600 */
 
-  --color-primary: #e6edf3; /* light button in dark mode */
-  --color-primary-hover: #cdd6e0;
-  --color-on-primary: #ffffff; /* always white text for primary buttons */
+  /* Matte Accents - Dark Mode (Heavily Desaturated & Darker) */
+  --color-neon-blue: #60a5fa; /* Blue 400, but effectively muted by context */
+  --color-neon-purple: #a78bfa; /* Purple 400 */
+  --color-neon-green: #4ade80; /* Green 400 */
+  --color-neon-pink: #f472b6; /* Pink 400 */
 
-  /* Brand accent (default UI highlight follows primary in dark mode) */
-  --color-accent: var(--color-primary);
-  --color-accent-hover: var(--color-primary-hover);
-  --color-on-accent: var(--color-on-primary);
-
-  /* Success color (messages, confirmations) */
-  --color-success: #2ea043;
-  --color-success-hover: #238636;
-  --color-on-success: #ffffff;
-
-  --color-danger: #dc2626; /* slightly darker red for dark mode */
-  --color-on-danger: #ffffff; /* always white text for danger buttons */
-
-  --color-warn: #f08722; /* deeper orange for dark theme */
-  --color-on-warn: #ffffff;
-
-  --color-input-bg: #2b313a;
-  --color-input-fg: #e6edf3;
-  --color-input-placeholder: #9aa7b2;
-
-  /* Subtle content background distinct from base bg */
-  --color-content-bg: #262c34;
+  --color-primary: #fafafa; 
+  --color-primary-hover: #e4e4e7;
+  --color-on-primary: #09090b; 
   
-  /* Shadow colors */
-  --color-shadow: rgba(0, 0, 0, 0.12);
+  /* Accent is now soft blue */
+  --color-accent: var(--color-neon-blue);
+  --color-accent-hover: #93c5fd;
+  --color-on-accent: #09090b;
+
+  --color-success: var(--color-neon-green);
+  --color-success-hover: #22c55e;
+  --color-on-success: #09090b;
+
+  --color-danger: #f87171; /* Red 400 - softer */
+  --color-on-danger: #09090b; 
+
+  --color-warn: #fbbf24; /* Amber 400 */
+  --color-on-warn: #09090b;
+
+  --color-input-bg: #18181b;
+  --color-input-fg: #e4e4e7;
+  --color-input-placeholder: #52525b;
+
+  --color-content-bg: #18181b;
+  --color-sidebar-active: var(--color-surface); /* Keep consistent with previous dark mode style */
   
-  /* Subtle card border */
-  --color-card-border: rgba(255, 255, 255, 0.04);
+  /* Glassmorphism helpers - Dark Mode */
+  --glass-bg: rgba(24, 24, 27, 0.85); /* Matches Zinc 900 */
+  --glass-border: transparent; /* Removed outer border for flat look */
+  --glass-shadow: none;
+  
+  --color-shadow: transparent;
+  --color-card-border: transparent; /* Removed outer border for flat look */
 }
 
 /* Base application colors */
 html, body {
   background-color: var(--color-bg);
   color: var(--color-fg);
-  font-weight: 400; /* regular text weight */
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   margin: 0;
   padding: 0;
   width: 100%;
@@ -95,8 +110,9 @@ html, body {
 
 /* Focus outline color harmonized across components */
 :where(button, [role="button"], a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--color-ring);
+  outline: 1px solid var(--color-ring);
   outline-offset: 2px;
+  box-shadow: none;
 }
 
 /* Thin, minimal scrollbar styling */
@@ -107,8 +123,8 @@ html, body {
 
 /* Webkit scrollbar styling for Chrome, Safari, Edge */
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 *::-webkit-scrollbar-track {
@@ -117,7 +133,7 @@ html, body {
 
 *::-webkit-scrollbar-thumb {
   background-color: var(--color-border);
-  border-radius: 3px;
+  border-radius: 2px;
   border: none;
 }
 
@@ -129,33 +145,7 @@ html, body {
   background: transparent;
 }
 
-/* Even thinner scrollbars for main content areas */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: var(--color-border);
-  border-radius: 2px;
-  border: none;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-muted);
-}
-
-.scrollbar-thin::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-

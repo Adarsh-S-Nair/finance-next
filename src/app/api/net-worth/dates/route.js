@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
@@ -15,10 +11,10 @@ export async function GET(request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    console.log(`🔍 Dates API: Getting unique dates for user ${userId}`);
+    if (DEBUG) console.log(`🔍 Dates API: Getting unique dates for user ${userId}`);
 
     // Get all accounts for the user
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype')
       .eq('user_id', userId);
@@ -28,7 +24,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
 
-    console.log(`🔍 Dates API: Found ${accounts.length} accounts`);
+    if (DEBUG) console.log(`🔍 Dates API: Found ${accounts.length} accounts`);
 
     if (accounts.length === 0) {
       return NextResponse.json({ 
@@ -41,7 +37,7 @@ export async function GET(request) {
     const accountIds = accounts.map(account => account.id);
 
     // Get all unique dates from account snapshots
-    const { data: snapshots, error: snapshotsError } = await supabase
+    const { data: snapshots, error: snapshotsError } = await supabaseAdmin
       .from('account_snapshots')
       .select('recorded_at, current_balance, account_id')
       .in('account_id', accountIds)
@@ -52,7 +48,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch snapshots' }, { status: 500 });
     }
 
-    console.log(`🔍 Dates API: Found ${snapshots.length} total snapshots`);
+    if (DEBUG) console.log(`🔍 Dates API: Found ${snapshots.length} total snapshots`);
 
     // Group by date and calculate net worth for each date
     const netWorthByDate = {};
@@ -93,8 +89,10 @@ export async function GET(request) {
     const uniqueDates = Object.values(netWorthByDate)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    console.log(`🔍 Dates API: Generated ${uniqueDates.length} unique dates`);
-    console.log(`🔍 Dates API: Sample dates:`, uniqueDates.slice(0, 3));
+    if (DEBUG) {
+      console.log(`🔍 Dates API: Generated ${uniqueDates.length} unique dates`);
+      console.log(`🔍 Dates API: Sample dates:`, uniqueDates.slice(0, 1));
+    }
 
     return NextResponse.json({ 
       data: uniqueDates,

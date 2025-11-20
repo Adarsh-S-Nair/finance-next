@@ -1,52 +1,84 @@
-import React from 'react';
-import * as FaIcons from 'react-icons/fa';
-import * as MdIcons from 'react-icons/md';
-import * as GiIcons from 'react-icons/gi';
-import * as FiIcons from 'react-icons/fi';
-import * as IoIcons from 'react-icons/io';
-import * as Io5Icons from 'react-icons/io5';
-import * as RiIcons from 'react-icons/ri';
-import * as BsIcons from 'react-icons/bs';
-import * as BiIcons from 'react-icons/bi';
-import * as AiIcons from 'react-icons/ai';
-import * as TbIcons from 'react-icons/tb';
-import * as CgIcons from 'react-icons/cg';
-import * as HiIcons from 'react-icons/hi';
-import * as Hi2Icons from 'react-icons/hi2';
-import * as PiIcons from 'react-icons/pi';
+'use client';
 
-export const iconLibraries = {
-  Fa: FaIcons,
-  Md: MdIcons,
-  Gi: GiIcons,
-  Fi: FiIcons,
-  Io: IoIcons,
-  Io5: Io5Icons,
-  Ri: RiIcons,
-  Bs: BsIcons,
-  Bi: BiIcons,
-  Ai: AiIcons,
-  Tb: TbIcons,
-  Cg: CgIcons,
-  Hi: HiIcons,
-  Hi2: Hi2Icons,
-  Pi: PiIcons,
+import React, { useState, useEffect } from 'react';
+import * as FiIcons from 'react-icons/fi';
+
+// Map of loader functions to import libraries on demand
+const libLoaders = {
+  Fa: () => import('react-icons/fa'),
+  Md: () => import('react-icons/md'),
+  Gi: () => import('react-icons/gi'),
+  Fi: () => import('react-icons/fi'),
+  Io: () => import('react-icons/io'),
+  Io5: () => import('react-icons/io5'),
+  Ri: () => import('react-icons/ri'),
+  Bs: () => import('react-icons/bs'),
+  Bi: () => import('react-icons/bi'),
+  Ai: () => import('react-icons/ai'),
+  Tb: () => import('react-icons/tb'),
+  Cg: () => import('react-icons/cg'),
+  Hi: () => import('react-icons/hi'),
+  Hi2: () => import('react-icons/hi2'),
+  Pi: () => import('react-icons/pi'),
 };
 
-export default function DynamicIcon({ iconLib, iconName, className, fallback = FiIcons.FiTag }) {
-  // If no icon library or name is provided, use fallback
-  if (!iconLib || !iconName) {
-    const FallbackIcon = fallback;
-    return <FallbackIcon className={className} />;
-  }
+export default function DynamicIcon({ iconLib, iconName, className, fallback = FiIcons.FiTag, style }) {
+  const [IconComponent, setIconComponent] = useState(null);
 
-  const IconComponent = iconLibraries[iconLib]?.[iconName];
-  
-  if (IconComponent) {
-    return <IconComponent className={className} />;
-  }
+  useEffect(() => {
+    let isMounted = true;
 
-  // If icon not found, use fallback
+    const loadIcon = async () => {
+      // If no library or name, we'll use fallback
+      if (!iconLib || !iconName) {
+        if (isMounted) setIconComponent(null);
+        return;
+      }
+
+      // Check if it's the fallback library (Fi) which we preload for efficiency or simpler imports
+      // Optimization: If lib is Fi, we can use the static import if we wanted, but keeping consistent lazy loading is safer for memory
+      // Actually, FiIcons is imported statically above for fallback use, so we can check that cache.
+      if (iconLib === 'Fi' && FiIcons[iconName]) {
+        if (isMounted) setIconComponent(() => FiIcons[iconName]);
+        return;
+      }
+
+      const loader = libLoaders[iconLib];
+      if (!loader) {
+        console.warn(`DynamicIcon: Unknown library ${iconLib}`);
+        if (isMounted) setIconComponent(null);
+        return;
+      }
+
+      try {
+        const module = await loader();
+        const Icon = module[iconName];
+        if (isMounted) {
+          if (Icon) {
+            setIconComponent(() => Icon);
+          } else {
+            // Icon not found in library
+            setIconComponent(null);
+          }
+        }
+      } catch (err) {
+        console.error(`DynamicIcon: Failed to load icon ${iconLib}/${iconName}`, err);
+        if (isMounted) setIconComponent(null);
+      }
+    };
+
+    loadIcon();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [iconLib, iconName]);
+
   const FallbackIcon = fallback;
-  return <FallbackIcon className={className} />;
+
+  if (IconComponent) {
+    return <IconComponent className={className} style={style} />;
+  }
+
+  return <FallbackIcon className={className} style={style} />;
 }

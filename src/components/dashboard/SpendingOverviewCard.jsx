@@ -57,9 +57,9 @@ export default function SpendingOverviewCard() {
 
   if (loading) {
     return (
-      <Card width="full" className="flex flex-col h-full">
+      <Card width="full" className="flex flex-col h-full" variant="glass">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)]">Spending Overview</div>
+          <div className="text-sm text-[var(--color-muted)] font-light">Spending Overview</div>
         </div>
         
         <div className="flex-1 flex flex-col space-y-3 md:space-y-5">
@@ -88,9 +88,9 @@ export default function SpendingOverviewCard() {
 
   if (error || spendingData.length === 0) {
     return (
-      <Card width="full" className="flex flex-col h-full">
+      <Card width="full" className="flex flex-col h-full" variant="glass">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)]">Spending Overview</div>
+          <div className="text-sm text-[var(--color-muted)] font-light">Spending Overview</div>
         </div>
         
         <div className="flex-1 flex flex-col space-y-3 md:space-y-5">
@@ -99,10 +99,10 @@ export default function SpendingOverviewCard() {
           </div>
           <div className="flex-1 w-full flex items-center justify-center">
             <div className="text-center">
-              <div className="text-sm text-[var(--color-muted)] mb-2">
+              <div className="text-sm text-[var(--color-muted)] mb-2 font-light">
                 {error ? 'Error loading data' : 'No spending data'}
               </div>
-              <div className="text-xs text-[var(--color-muted)]">
+              <div className="text-xs text-[var(--color-muted)] font-light">
                 {error ? 'Please try again later' : 'Add transactions to see spending breakdown'}
               </div>
             </div>
@@ -113,25 +113,23 @@ export default function SpendingOverviewCard() {
   }
 
   return (
-    <Card width="full" className="flex flex-col h-full">
+    <Card width="full" className="flex flex-col h-full" variant="glass">
       <div className="mb-4 md:mb-6">
-        <div className="text-sm text-[var(--color-muted)] mb-1">Spending Overview</div>
-        <div className="text-xl md:text-2xl font-semibold text-[var(--color-fg)]">
+        <div className="text-sm text-[var(--color-muted)] mb-1 font-light uppercase tracking-wider">Spending Overview</div>
+        <div className="text-xl md:text-3xl font-thin text-[var(--color-fg)]">
           {formatCurrency(totalSpending)}
         </div>
-        <div className="text-xs text-[var(--color-muted)] mt-1">
+        <div className="text-xs text-[var(--color-muted)] mt-1 font-light">
           Past 30 days
         </div>
       </div>
       
       <div className="flex-1 flex flex-col space-y-3 md:space-y-5">
         {/* Segmented Bar */}
-        <div className="h-3 md:h-4 rounded-full overflow-hidden">
-          <div className="h-full flex gap-1">
+        <div className="h-2 md:h-3 rounded-sm overflow-hidden bg-[var(--color-border)]/10">
+          <div className="h-full flex gap-0.5">
             {spendingData.map((item, index) => {
               const percentage = totalSpending > 0 ? (item.total_spent / totalSpending) * 100 : 0;
-              const isFirst = index === 0;
-              const isLast = index === spendingData.length - 1;
               return (
                 <div 
                   key={index}
@@ -140,10 +138,7 @@ export default function SpendingOverviewCard() {
                     width: `${percentage}%`,
                     backgroundColor: item.hex_color,
                     opacity: 0.9,
-                    boxShadow: `0 0 8px ${item.hex_color}40, 0 0 4px ${item.hex_color}20`,
-                    borderRadius: isFirst && isLast ? '9999px' : 
-                                 isFirst ? '9999px 0 0 9999px' : 
-                                 isLast ? '0 9999px 9999px 0' : '0'
+                    boxShadow: `0 0 8px ${item.hex_color}60`,
                   }}
                 />
               );
@@ -154,17 +149,20 @@ export default function SpendingOverviewCard() {
         {/* Category Rows */}
         <div className="flex-1 space-y-2 md:space-y-3">
           {spendingData.map((entry, index) => (
-            <div key={index} className="flex items-center justify-between py-1 md:py-1.5 px-2 rounded-md hover:bg-[var(--color-muted)]/5 transition-colors">
+            <div key={index} className="flex items-center justify-between py-1 md:py-1.5 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors">
               <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                 <div 
-                  className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 shadow-sm" 
-                  style={{ backgroundColor: entry.hex_color }}
+                  className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" 
+                  style={{ 
+                    backgroundColor: entry.hex_color,
+                    boxShadow: `0 0 5px ${entry.hex_color}`
+                  }}
                 />
-                <span className="text-xs text-[var(--color-fg)] truncate">
+                <span className="text-xs text-[var(--color-fg)] truncate font-light">
                   {entry.label}
                 </span>
               </div>
-              <div className="text-xs md:text-sm font-semibold text-[var(--color-fg)] flex-shrink-0 ml-1 md:ml-2">
+              <div className="text-xs md:text-sm font-medium text-[var(--color-fg)] flex-shrink-0 ml-1 md:ml-2">
                 {formatCurrency(entry.total_spent)}
               </div>
             </div>

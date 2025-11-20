@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 import Card from "../ui/Card";
 import { useAccounts } from "../AccountsProvider";
 import { useUser } from "../UserProvider";
@@ -134,7 +135,9 @@ function categorizeAccountBalances(accountBalances, allAccounts) {
   return categorized;
 }
 
-export default function NetWorthCard() {
+type TimeRange = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL';
+
+export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3" | "1/3" | "1/2" | "1/4" }) {
   const { profile, user } = useUser();
   const { allAccounts } = useAccounts();
   const { 
@@ -147,11 +150,12 @@ export default function NetWorthCard() {
   const { setHoverData, clearHoverData } = useNetWorthHover();
   const [hoveredData, setHoveredData] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
 
 
   if (loading) {
     return (
-      <Card width="2/3" className="animate-pulse">
+      <Card width={width} className="animate-pulse" variant="glass">
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <div className="h-4 bg-[var(--color-border)] rounded w-20 mb-2" />
@@ -164,65 +168,156 @@ export default function NetWorthCard() {
   }
 
   // Process net worth history data for the chart
-  const chartData = netWorthHistory.map((item) => {
-    const date = new Date(item.date);
-    return {
-      month: date.toLocaleString('en-US', { month: 'short' }),
-      monthFull: date.toLocaleString('en-US', { month: 'long' }),
-      year: date.getFullYear(),
-      date: date,
-      dateString: item.date, // Keep original date string for exact display
-      value: item.netWorth || 0,
-      assets: item.assets || 0,
-      liabilities: item.liabilities || 0
-    };
-  });
-
-
-  // If no historical data, show current net worth as a single point
-  if (chartData.length === 0 && currentNetWorth) {
-    const now = new Date();
-    chartData.push({
-      month: now.toLocaleString('en-US', { month: 'short' }),
-      monthFull: now.toLocaleString('en-US', { month: 'long' }),
-      year: now.getFullYear(),
-      date: now,
-      dateString: now.toISOString().split('T')[0],
-      value: currentNetWorth.netWorth,
-      assets: currentNetWorth.assets,
-      liabilities: currentNetWorth.liabilities
+  const chartData = useMemo(() => {
+    const data = netWorthHistory.map((item) => {
+      const date = new Date(item.date);
+      return {
+        month: date.toLocaleString('en-US', { month: 'short' }),
+        monthFull: date.toLocaleString('en-US', { month: 'long' }),
+        year: date.getFullYear(),
+        date: date,
+        dateString: item.date, // Keep original date string for exact display
+        value: item.netWorth || 0,
+        assets: item.assets || 0,
+        liabilities: item.liabilities || 0
+      };
     });
-  }
 
-  // If only one data point, create a flat line by duplicating it
-  if (chartData.length === 1) {
-    const singlePoint = chartData[0];
-    const originalDate = new Date(singlePoint.date);
-    
-    // Create a second point 30 days earlier with the same value
-    const earlierDate = new Date(originalDate);
-    earlierDate.setDate(earlierDate.getDate() - 30);
-    
-    const flatLinePoint = {
-      month: earlierDate.toLocaleString('en-US', { month: 'short' }),
-      monthFull: earlierDate.toLocaleString('en-US', { month: 'long' }),
-      year: earlierDate.getFullYear(),
-      date: earlierDate,
-      dateString: earlierDate.toISOString().split('T')[0],
-      value: singlePoint.value,
-      assets: singlePoint.assets,
-      liabilities: singlePoint.liabilities
-    };
-    
-    // Insert at the beginning to maintain chronological order
-    chartData.unshift(flatLinePoint);
-  }
+    // If no historical data, show current net worth as a single point
+    if (data.length === 0 && currentNetWorth) {
+      const now = new Date();
+      data.push({
+        month: now.toLocaleString('en-US', { month: 'short' }),
+        monthFull: now.toLocaleString('en-US', { month: 'long' }),
+        year: now.getFullYear(),
+        date: now,
+        dateString: now.toISOString().split('T')[0],
+        value: currentNetWorth.netWorth,
+        assets: currentNetWorth.assets,
+        liabilities: currentNetWorth.liabilities
+      });
+    }
+    return data;
+  }, [netWorthHistory, currentNetWorth]);
 
-  // Get the most recent net worth from the actual data
-  const latestNetWorth = chartData.length > 0 ? chartData[chartData.length - 1].value : (currentNetWorth?.netWorth || 0);
+  // Calculate filtered data based on time range
+  const filteredData = useMemo(() => {
+    if (chartData.length === 0) return [];
+    if (timeRange === 'ALL') return chartData;
+
+    const now = new Date();
+    let startDate = new Date(now); // Clone now
+
+    switch (timeRange) {
+      case '1D':
+        startDate.setDate(now.getDate() - 1);
+        break;
+      case '1W':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '1M':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '3M':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'YTD':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case '1Y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        return chartData;
+    }
+    
+    // For 1D, we might want to just show the last few points or just the points after startDate
+    // If there are no points in the range, maybe show the last available point?
+    // Let's filter by date
+    const filtered = chartData.filter(item => item.date >= startDate);
+    
+    // If filtered is empty but we have data, maybe show at least the last point?
+    if (filtered.length === 0 && chartData.length > 0) {
+        return [chartData[chartData.length - 1]];
+    }
+    
+    return filtered;
+  }, [chartData, timeRange]);
+
+  // Ensure we have at least 2 points for a line, duplicating if needed
+  const displayChartData = useMemo(() => {
+    if (filteredData.length <= 1) {
+      const singlePoint = filteredData.length === 1 ? filteredData[0] : (chartData.length > 0 ? chartData[chartData.length - 1] : null);
+      
+      if (!singlePoint) return [];
+
+      const originalDate = new Date(singlePoint.date);
+      const earlierDate = new Date(originalDate);
+      
+      // Determine offset based on range
+      let daysOffset = 30;
+      if (timeRange === '1D') daysOffset = 1;
+      if (timeRange === '1W') daysOffset = 7;
+      
+      earlierDate.setDate(earlierDate.getDate() - daysOffset);
+      
+      const flatLinePoint = {
+        ...singlePoint,
+        month: earlierDate.toLocaleString('en-US', { month: 'short' }),
+        monthFull: earlierDate.toLocaleString('en-US', { month: 'long' }),
+        year: earlierDate.getFullYear(),
+        date: earlierDate,
+        dateString: earlierDate.toISOString().split('T')[0],
+      };
+      
+      return [flatLinePoint, singlePoint];
+    }
+    return filteredData;
+  }, [filteredData, chartData, timeRange]);
+
+
+  // Calculate Percentage Change
+  const percentChange = useMemo(() => {
+    if (displayChartData.length < 2) return 0;
+    const startValue = displayChartData[0].value;
+    // Use the currently displayed value (which updates on hover) instead of the last value
+    // But we need to be careful: 'displayData' is derived from 'activeIndex' or 'displayChartData.length - 1'
+    // So we should use 'displayData.value' here? No, percentChange is memoized on displayChartData only.
+    // Let's calculate it in the render or effect if it depends on hover.
+    // Actually, the requirement "update with the net worth on that day" means it's dynamic.
+    
+    return 0; // Placeholder, calculation moved to render
+  }, [displayChartData]);
+
+  // Determine available time ranges
+  const availableRanges = useMemo(() => {
+    if (chartData.length === 0) return ['ALL'];
+    
+    const now = new Date();
+    const oldestDate = chartData[0].date;
+    const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const ranges: TimeRange[] = [];
+    if (diffDays > 0) ranges.push('1D');
+    if (diffDays > 7) ranges.push('1W');
+    if (diffDays > 30) ranges.push('1M');
+    if (diffDays > 90) ranges.push('3M');
+    
+    // YTD check
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    if (oldestDate < startOfYear) ranges.push('YTD');
+    
+    if (diffDays > 365) ranges.push('1Y');
+    ranges.push('ALL');
+    
+    // Deduplicate and sort order if needed, but push order is fine.
+    // Ensure 'ALL' is always there.
+    return ranges;
+  }, [chartData]);
 
   // Get current display data (hovered or most recent)
-  const currentData = activeIndex !== null ? chartData[activeIndex] : chartData[chartData.length - 1];
+  const currentData = activeIndex !== null ? displayChartData[activeIndex] : displayChartData[displayChartData.length - 1];
   
   // Fallback data structure when no data is available
   const fallbackData = {
@@ -236,15 +331,26 @@ export default function NetWorthCard() {
   
   // Use currentData if available, otherwise use fallback
   const displayData = currentData || fallbackData;
-  
+
+  // Dynamic Percentage Change Calculation
+  const dynamicPercentChange = useMemo(() => {
+    if (displayChartData.length < 1) return 0;
+    
+    const startValue = displayChartData[0].value;
+    const currentValue = displayData.value;
+    
+    if (startValue === 0) return 0; // Avoid division by zero
+    return ((currentValue - startValue) / Math.abs(startValue)) * 100;
+  }, [displayChartData, displayData]);
+
 
   // Handle error state
   if (error) {
     return (
-      <Card width="2/3">
+      <Card width={width} variant="glass">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
-          <div className="text-2xl font-semibold text-[var(--color-fg)]">
+          <div className="text-sm text-[var(--color-muted)] font-light">Net Worth</div>
+          <div className="text-2xl font-light text-neon-blue">
             <AnimatedCounter value={displayData.value} duration={120} />
           </div>
         </div>
@@ -269,20 +375,22 @@ export default function NetWorthCard() {
 
 
   // Get accent color once - ensure it's a valid hex color
-  const accentColor = profile?.accent_color || (typeof window !== 'undefined' ? 
-    getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() : 
-    '#484444'
-  );
+  // For futuristic theme, we prefer the neon accent
+  const accentColor = profile?.accent_color && profile.accent_color.startsWith('#') 
+    ? profile.accent_color 
+    : (typeof window !== 'undefined' 
+        ? getComputedStyle(document.documentElement).getPropertyValue('--color-neon-blue').trim() 
+        : '#00f3ff');
   
   // Ensure we have a valid color (fallback to a default if needed)
-  const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#484444';
+  const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#00f3ff';
 
   // Handle chart mouse events
   const handleMouseMove = (data: any, index: number) => {
     setActiveIndex(index);
     
     // Get the chart data for this index
-    const chartDataPoint = chartData[index];
+    const chartDataPoint = displayChartData[index];
     if (chartDataPoint) {
       // Find the corresponding historical data
       const historicalData = netWorthHistory.find(item => 
@@ -290,8 +398,11 @@ export default function NetWorthCard() {
       );
       
       if (historicalData) {
-        // Categorize the account balances for the AccountsSummaryCard
-        const categorizedBalances = categorizeAccountBalances(historicalData.accountBalances, allAccounts);
+        // Only compute categorized balances if we have accountBalances (non-minimal payload)
+        let categorizedBalances = undefined as any;
+        if ((historicalData as any).accountBalances) {
+          categorizedBalances = categorizeAccountBalances((historicalData as any).accountBalances, allAccounts);
+        }
         
         setHoverData({
           assets: historicalData.assets,
@@ -317,13 +428,13 @@ export default function NetWorthCard() {
 
   // Custom tooltip component
   const CustomTooltip = (data: any, index: number) => {
-    const point = chartData[index];
+    const point = displayChartData[index];
     if (!point) return null;
     
     return (
       <div className="text-center">
-        <div className="font-semibold">{formatCurrency(point.value)}</div>
-        <div className="text-xs text-[var(--color-muted)]">
+        <div className="font-light">{formatCurrency(point.value)}</div>
+        <div className="text-xs text-[var(--color-muted)] font-light">
           {point.month} {point.year}
         </div>
       </div>
@@ -331,17 +442,19 @@ export default function NetWorthCard() {
   };
 
   return (
-    <Card width="2/3" onMouseLeave={handleCardMouseLeave}>
+    <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass">
       <div className="mb-4">
         <div className="flex justify-between items-start">
           <div>
-            <div className="text-sm text-[var(--color-muted)]">Net Worth</div>
-            <div className="text-2xl font-semibold text-[var(--color-fg)]">
-              <AnimatedCounter value={displayData?.value || 0} duration={120} />
+            <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider mb-1">Net Worth</div>
+            <div className="flex items-baseline gap-3">
+              <div className="text-2xl md:text-3xl font-medium text-[var(--color-fg)] tracking-tight">
+                <AnimatedCounter value={displayData?.value || 0} duration={120} />
+              </div>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-[var(--color-muted)]">
+          <div className="flex flex-col items-end gap-2">
+             <div className="text-xs text-[var(--color-muted)] font-light">
               {displayData?.dateString ? 
                 new Date(displayData.dateString).toLocaleDateString('en-US', { 
                   month: 'long', 
@@ -351,11 +464,23 @@ export default function NetWorthCard() {
                 `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
               }
             </div>
+            
+            {/* Percentage Pill - moved to top right */}
+            {dynamicPercentChange !== 0 && (
+              <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${
+                dynamicPercentChange >= 0 
+                  ? 'bg-emerald-400/10 text-emerald-400' 
+                  : 'bg-rose-400/10 text-rose-400'
+              }`}>
+                <span>{dynamicPercentChange >= 0 ? '↑' : '↓'}</span>
+                <span>{Math.abs(dynamicPercentChange).toFixed(1)}%</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
       
-      <div className="pt-4">
+      <div className="pt-4 pb-2">
         <div 
           className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
           tabIndex={-1}
@@ -363,25 +488,54 @@ export default function NetWorthCard() {
           onMouseLeave={handleMouseLeave}
         >
           <LineChart
-            data={chartData}
+            data={displayChartData}
             dataKey="value"
             width="100%"
             height={200}
             margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
             strokeColor={validAccentColor}
-            strokeWidth={2}
+            strokeWidth={3}
             showArea={true}
-            areaOpacity={0.3}
+            areaOpacity={0.1} 
             showDots={false}
             dotColor={validAccentColor}
-            dotRadius={2}
+            dotRadius={3}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             showTooltip={false}
             gradientId="netWorthGradient"
             curveType="monotone"
             animationDuration={300}
+            maxPoints={180}
           />
+        </div>
+      </div>
+
+      {/* Time Range Selector - moved to bottom and spread evenly */}
+      <div className="mt-2 pt-2 border-t border-[var(--color-border)]">
+        <div className="flex justify-between items-center w-full">
+          {availableRanges.map((range) => (
+            <div key={range} className="flex-1 flex justify-center">
+              <button
+                onClick={() => setTimeRange(range as TimeRange)}
+                className="relative px-3 py-1 text-[10px] font-medium rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
+                style={{
+                  color: timeRange === range ? '#fff' : 'var(--color-muted)'
+                }}
+              >
+                {timeRange === range && (
+                  <motion.div
+                    layoutId="activeTimeRange"
+                    className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+                <span className={`relative z-10 ${timeRange !== range ? "hover:text-[var(--color-fg)]" : ""}`}>
+                  {range}
+                </span>
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </Card>

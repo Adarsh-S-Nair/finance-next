@@ -6,9 +6,10 @@ import clsx from "clsx";
 type CardProps = {
   children: ReactNode;
   className?: string;
-  padding?: "sm" | "md" | "lg";
-  variant?: "default" | "subtle" | "danger";
+  padding?: "none" | "sm" | "md" | "lg";
+  variant?: "default" | "subtle" | "danger" | "glass";
   width?: "full" | "2/3" | "1/3" | "1/2" | "1/4";
+  allowOverflow?: boolean;
   onMouseLeave?: () => void;
   onMouseEnter?: () => void;
 };
@@ -17,15 +18,17 @@ export default function Card({
   children, 
   className, 
   padding = "md",
-  variant = "default",
+  variant = "glass", // Default to glass for the new look
   width = "full",
+  allowOverflow = false,
   onMouseLeave,
   onMouseEnter
 }: CardProps) {
   const paddingClasses = {
+    none: "p-0",
     sm: "p-3",
-    md: "p-4", 
-    lg: "p-6"
+    md: "p-5", 
+    lg: "p-8"
   };
 
   const widthClasses = {
@@ -36,28 +39,33 @@ export default function Card({
     "1/4": "w-full md:w-1/4"
   };
 
+  // Glassmorphism and gradient border styles
   const variantClasses = {
-    default: "bg-[var(--color-bg)] border border-[var(--color-card-border)]",
+    default: "bg-[var(--color-surface)] border border-[var(--color-card-border)] shadow-soft",
     subtle: "bg-[var(--color-bg)] border border-[var(--color-card-border)]",
-    danger: "bg-[color-mix(in_oklab,var(--color-danger),transparent_96%)] border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]"
+    danger: "bg-[color-mix(in_oklab,var(--color-danger),transparent_95%)] border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]",
+    glass: "glass-panel backdrop-blur-md"
   };
 
   return (
     <div 
       className={clsx(
-        "rounded-md",
+        "rounded-xl relative transition-all duration-300", // Increased corner rounding
+        allowOverflow ? "overflow-visible" : "overflow-hidden",
         paddingClasses[padding],
         widthClasses[width],
         variantClasses[variant],
         className
       )}
-      style={{
-        boxShadow: '0 2px 4px 0 var(--color-shadow), 0 1px 2px 0 var(--color-shadow)'
-      }}
       onMouseLeave={onMouseLeave}
       onMouseEnter={onMouseEnter}
     >
-      {children}
+      {variant === 'glass' && (
+        <div className="absolute inset-0 pointer-events-none border border-white/5 dark:border-white/[0.02] rounded-xl" />
+      )}
+      <div className="relative z-10">
+        {children}
+      </div>
     </div>
   );
 }

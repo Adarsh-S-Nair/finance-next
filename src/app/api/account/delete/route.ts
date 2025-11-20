@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
 import { removeItem } from "../../../../lib/plaidClient";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-    }
-
     // Get calling user's auth session via cookie header
     const authHeader = req.headers.get("Authorization");
     // In Next.js App Router, we can't directly use user session on server without a helper; instead,
@@ -22,11 +16,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create admin client with service role for user deletion
-    const admin = createClient(supabaseUrl, serviceKey);
-
     // Validate the token to fetch the user id
-    const { data: tokenUser, error: tokenErr } = await admin.auth.getUser(accessToken);
+    const { data: tokenUser, error: tokenErr } = await supabaseAdmin.auth.getUser(accessToken);
     if (tokenErr || !tokenUser?.user?.id) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
@@ -34,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Step 1: Get all Plaid items for this user
     console.log(`Fetching Plaid items for user: ${userId}`);
-    const { data: plaidItems, error: plaidItemsError } = await admin
+    const { data: plaidItems, error: plaidItemsError } = await supabaseAdmin
       .from("plaid_items")
       .select("*")
       .eq("user_id", userId);
@@ -82,14 +73,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Clean up profile data (optional; cascade can handle in DB if configured)
-    const { error: profileErr } = await admin.from("user_profiles").delete().eq("id", userId);
+    const { error: profileErr } = await supabaseAdmin.from("user_profiles").delete().eq("id", userId);
     if (profileErr && profileErr.code !== "PGRST116") {
       // ignore not-found; otherwise propagate
       return NextResponse.json({ error: profileErr.message }, { status: 400 });
     }
 
     // Step 4: Delete auth user (only after all Plaid items are successfully removed)
-    const { error: deleteErr } = await admin.auth.admin.deleteUser(userId);
+    const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteErr) {
       return NextResponse.json({ error: deleteErr.message }, { status: 400 });
     }

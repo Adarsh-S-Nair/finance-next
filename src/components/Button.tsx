@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useUser } from "./UserProvider";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle";
+  variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle" | "outline" | "glass" | "matte";
   size?: "sm" | "md" | "lg" | "iconSm" | "icon" | "iconLg";
   fullWidth?: boolean;
 };
@@ -26,6 +26,12 @@ const variants: Record<string, string> = {
     "bg-[var(--color-danger)] text-[var(--color-on-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),black_12%)] focus-visible:ring-[var(--color-danger)]",
   dangerSubtle:
     "bg-transparent text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] hover:text-[color-mix(in_oklab,var(--color-danger),black_10%)] focus-visible:ring-[var(--color-danger)]",
+  outline:
+    "bg-transparent border border-[var(--color-border)] text-[var(--color-fg)] shadow-sm hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5 transition-all duration-200",
+  glass:
+    "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/20 hover:border-[var(--color-accent)]/30 backdrop-blur-sm shadow-sm shadow-[var(--color-accent)]/5 transition-all duration-200",
+  matte:
+    "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -47,15 +53,29 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ? "h-9 w-9 p-0"
         : "h-10 px-4 py-2"; // md default
 
-    // Special handling for primary buttons in dark mode with default accent
-    const primaryVariantClass = variant === "primary" && isDarkMode && isDefaultAccent
-      ? "bg-[var(--color-accent)] text-black hover:bg-[var(--color-accent-hover)]"
-      : variants[variant];
+    // Determine base variant classes
+    let variantClasses = variants[variant];
+
+    // Dynamic text color handling for filled buttons
+    if (variant === "primary" || variant === "matte") {
+      if (!isDefaultAccent) {
+        // For custom accents, always use white text
+        variantClasses = variantClasses
+          .replace("text-[var(--color-on-accent)]", "text-white")
+          .replace("text-[var(--color-on-accent,white)]", "text-white");
+      } else if (isDarkMode) {
+        // For default accent in dark mode (which is light), ensure text is dark
+        // Note: CSS var(--color-on-accent) should handle this, but we explicitly ensure black for safety if CSS is lagging
+        variantClasses = variantClasses
+          .replace("text-[var(--color-on-accent)]", "text-black")
+          .replace("text-[var(--color-on-accent,white)]", "text-black");
+      }
+    }
 
     return (
       <button
         ref={ref}
-        className={clsx(baseStyles, primaryVariantClass, sizeClasses, fullWidth && "w-full", className)}
+        className={clsx(baseStyles, variantClasses, sizeClasses, fullWidth && "w-full", className)}
         {...props}
       >
         {children}

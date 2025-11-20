@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 export async function GET(request) {
   try {
@@ -19,7 +14,7 @@ export async function GET(request) {
     if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for user ${userId}`);
 
     // Get all accounts for the user with their current balances
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype, balances')
       .eq('user_id', userId);

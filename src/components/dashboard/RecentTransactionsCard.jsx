@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from '../ui/Card';
 import { useUser } from '../UserProvider';
 import DynamicIcon from '../DynamicIcon';
@@ -37,10 +37,12 @@ function formatDate(dateString) {
 
 
 export default function RecentTransactionsCard() {
+  const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
   const { user } = useUser();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const abortRef = useRef(null);
 
   // Fetch recent transactions
   useEffect(() => {
@@ -50,18 +52,28 @@ export default function RecentTransactionsCard() {
       try {
         setLoading(true);
         setError(null);
-        
-        const response = await fetch(`/api/plaid/transactions/get?userId=${user.id}`);
-        
+
+        // Abort any in-flight request
+        if (abortRef.current) {
+          abortRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        const response = await fetch(`/api/plaid/transactions/get?userId=${user.id}&limit=8&minimal=1`, {
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
         if (!response.ok) {
           throw new Error('Failed to fetch transactions');
         }
-        
+
         const result = await response.json();
-        // Get the most recent 4 transactions
+        // Use up to 4 most recent transactions for this small card
         setTransactions((result.transactions || []).slice(0, 4));
-        
       } catch (err) {
+        if (err?.name === 'AbortError') return;
         console.error('Error fetching transactions:', err);
         setError(err.message);
       } finally {
@@ -70,11 +82,14 @@ export default function RecentTransactionsCard() {
     };
 
     fetchTransactions();
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [user?.id]);
 
   if (loading) {
     return (
-      <Card width="full" className="animate-pulse">
+      <Card width="full" className="animate-pulse" variant="glass">
         <div className="mb-4">
           <div className="h-5 bg-[var(--color-border)] rounded w-32 mb-2" />
           <div className="h-4 bg-[var(--color-border)] rounded w-24" />
@@ -97,10 +112,10 @@ export default function RecentTransactionsCard() {
 
   if (error) {
     return (
-      <Card width="full">
+      <Card width="full" variant="glass">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
-          <div className="text-lg font-semibold text-[var(--color-fg)]">Unable to load</div>
+          <div className="text-sm text-[var(--color-muted)] font-light">Recent Transactions</div>
+          <div className="text-lg font-light text-[var(--color-fg)]">Unable to load</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
@@ -123,10 +138,10 @@ export default function RecentTransactionsCard() {
 
   if (!transactions || transactions.length === 0) {
     return (
-      <Card width="full">
+      <Card width="full" variant="glass">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
-          <div className="text-lg font-semibold text-[var(--color-fg)]">No transactions</div>
+          <div className="text-sm text-[var(--color-muted)] font-light">Recent Transactions</div>
+          <div className="text-lg font-light text-[var(--color-fg)]">No transactions</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
@@ -145,11 +160,11 @@ export default function RecentTransactionsCard() {
   }
 
   return (
-    <Card width="full">
+    <Card width="full" variant="glass">
       <div className="mb-4 flex justify-between items-center">
-        <div className="text-sm text-[var(--color-muted)]">Recent Transactions</div>
+        <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Recent Transactions</div>
         {transactions.length >= 4 && (
-          <button className="text-sm text-[var(--color-accent)] hover:underline">
+          <button className="text-sm text-[var(--color-accent)] hover:underline font-light">
             View all
           </button>
         )}
@@ -158,27 +173,31 @@ export default function RecentTransactionsCard() {
       <div className="space-y-1">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
-          const amountColor = isPositive ? 'text-green-600' : 'text-[var(--color-fg)]';
+          // Use generic positive/neutral colors which map to neon in dark mode via CSS variables if configured,
+          // or explicit neon classes if we want to force it.
+          const amountColor = isPositive ? 'text-green-600 dark:text-neon-green' : 'text-[var(--color-fg)]';
           
           return (
             <div 
               key={transaction.id || index} 
-              className="flex items-center justify-between py-2 px-2 rounded-md hover:bg-[var(--color-muted)]/5 transition-colors"
+              className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div 
                   className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                   style={{
-                    backgroundColor: transaction.icon_url 
-                      ? 'var(--color-muted)/10' 
+                    backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+                      ? 'var(--color-muted)/10'
                       : (transaction.category_hex_color || 'var(--color-accent)')
                   }}
                 >
-                  {transaction.icon_url ? (
+          {(!DISABLE_LOGOS && transaction.icon_url) ? (
                     <img 
                       src={transaction.icon_url} 
                       alt={transaction.merchant_name || transaction.description || 'Transaction'}
                       className="w-full h-full object-contain"
+              loading="lazy"
+              decoding="async"
                       onError={(e) => {
                         // Fallback to category icon if image fails to load
                         e.target.style.display = 'none';
@@ -195,12 +214,12 @@ export default function RecentTransactionsCard() {
                     className="h-4 w-4 text-white"
                     fallback={FiTag}
                     style={{
-                      display: transaction.icon_url ? 'none' : 'block'
+                      display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
                     }}
                   />
                 </div>
                 <div className="min-w-0 flex-1 mr-4">
-                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                  <div className="text-sm font-light text-[var(--color-fg)] truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
                   </div>
                 </div>
@@ -210,7 +229,7 @@ export default function RecentTransactionsCard() {
                   {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}
                 </div>
                 {transaction.pending && (
-                  <div className="text-xs text-[var(--color-muted)] italic">
+                  <div className="text-xs text-[var(--color-muted)] italic font-light">
                     Pending
                   </div>
                 )}

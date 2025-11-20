@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import { LuMenu } from "react-icons/lu";
+import DebugMemoryStats from "./DebugMemoryStats";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export default function AppTopbar() {
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' && <DebugMemoryStats />}
           {profileUrl ? (
             <img src={profileUrl} alt="Profile" className="ml-2 h-8 w-8 rounded-full object-cover" />
           ) : (

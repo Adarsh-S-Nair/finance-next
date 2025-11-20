@@ -1,10 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 export async function GET(request) {
   try {
@@ -16,7 +11,7 @@ export async function GET(request) {
     }
 
     // Get all accounts for the user
-    const { data: accounts, error: accountsError } = await supabase
+    const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype')
       .eq('user_id', userId);
@@ -39,7 +34,7 @@ export async function GET(request) {
     const accountIds = accounts.map(account => account.id);
 
     // Get all snapshots for these accounts
-    const { data: snapshots, error: snapshotsError } = await supabase
+    const { data: snapshots, error: snapshotsError } = await supabaseAdmin
       .from('account_snapshots')
       .select('*')
       .in('account_id', accountIds)

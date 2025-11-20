@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
@@ -19,7 +14,7 @@ export async function POST(request) {
     console.log('Sync all transactions request for user:', userId);
 
     // Get all plaid items for the user
-    const { data: plaidItems, error: itemsError } = await supabase
+    const { data: plaidItems, error: itemsError } = await supabaseAdmin
       .from('plaid_items')
       .select('*')
       .eq('user_id', userId)
