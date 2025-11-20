@@ -19,7 +19,7 @@ function AnimatedCounter({ value, duration = 120 }) {
     if (displayValue === value) return;
 
     setIsAnimating(true);
-    
+
     const startValue = displayValue;
     const endValue = value;
     const startTime = Date.now();
@@ -27,10 +27,10 @@ function AnimatedCounter({ value, duration = 120 }) {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Use easeOutCubic for smooth deceleration
       const easeProgress = 1 - Math.pow(1 - progress, 3);
-      
+
       const currentValue = startValue + (endValue - startValue) * easeProgress;
       setDisplayValue(currentValue);
 
@@ -45,7 +45,7 @@ function AnimatedCounter({ value, duration = 120 }) {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    
+
     animationRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -76,15 +76,15 @@ function categorizeAccount(account) {
   const accountType = (account.type || '').toLowerCase();
   const accountSubtype = (account.subtype || '').toLowerCase();
   const fullType = `${accountType} ${accountSubtype}`.trim();
-  
+
   // Check if it's a liability first
   const liabilityTypes = [
-    'credit card', 'credit', 'loan', 'mortgage', 
+    'credit card', 'credit', 'loan', 'mortgage',
     'line of credit', 'overdraft', 'other'
   ];
-  
+
   const isLiability = liabilityTypes.some(type => fullType.includes(type));
-  
+
   if (isLiability) {
     // Categorize liabilities
     if (fullType.includes('credit card') || fullType.includes('credit')) {
@@ -96,10 +96,10 @@ function categorizeAccount(account) {
     }
   } else {
     // Categorize assets
-    if (fullType.includes('investment') || fullType.includes('brokerage') || 
-        fullType.includes('401k') || fullType.includes('ira') || 
-        fullType.includes('retirement') || fullType.includes('mutual fund') ||
-        fullType.includes('stock') || fullType.includes('bond')) {
+    if (fullType.includes('investment') || fullType.includes('brokerage') ||
+      fullType.includes('401k') || fullType.includes('ira') ||
+      fullType.includes('retirement') || fullType.includes('mutual fund') ||
+      fullType.includes('stock') || fullType.includes('bond')) {
       return 'investments';
     } else {
       return 'cash'; // Default to cash for checking, savings, etc.
@@ -140,12 +140,12 @@ type TimeRange = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL';
 export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3" | "1/3" | "1/2" | "1/4" }) {
   const { profile, user } = useUser();
   const { allAccounts } = useAccounts();
-  const { 
-    netWorthHistory, 
-    currentNetWorth, 
-    loading, 
-    error, 
-    refreshNetWorthData 
+  const {
+    netWorthHistory,
+    currentNetWorth,
+    loading,
+    error,
+    refreshNetWorthData
   } = useNetWorth();
   const { setHoverData, clearHoverData } = useNetWorthHover();
   const [hoveredData, setHoveredData] = useState(null);
@@ -215,17 +215,17 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
       default:
         return chartData;
     }
-    
+
     // For 1D, we might want to just show the last few points or just the points after startDate
     // If there are no points in the range, maybe show the last available point?
     // Let's filter by date
     const filtered = chartData.filter(item => item.date >= startDate);
-    
+
     // If filtered is empty but we have data, maybe show at least the last point?
     if (filtered.length === 0 && chartData.length > 0) {
-        return [chartData[chartData.length - 1]];
+      return [chartData[chartData.length - 1]];
     }
-    
+
     return filtered;
   }, [chartData, timeRange]);
 
@@ -233,19 +233,19 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   const displayChartData = useMemo(() => {
     if (filteredData.length <= 1) {
       const singlePoint = filteredData.length === 1 ? filteredData[0] : (chartData.length > 0 ? chartData[chartData.length - 1] : null);
-      
+
       if (!singlePoint) return [];
 
       const originalDate = new Date(singlePoint.date);
       const earlierDate = new Date(originalDate);
-      
+
       // Determine offset based on range
       let daysOffset = 30;
       if (timeRange === '1D') daysOffset = 1;
       if (timeRange === '1W') daysOffset = 7;
-      
+
       earlierDate.setDate(earlierDate.getDate() - daysOffset);
-      
+
       const flatLinePoint = {
         ...singlePoint,
         month: earlierDate.toLocaleString('en-US', { month: 'short' }),
@@ -254,7 +254,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
         date: earlierDate,
         dateString: earlierDate.toISOString().split('T')[0],
       };
-      
+
       return [flatLinePoint, singlePoint];
     }
     return filteredData;
@@ -270,32 +270,32 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     // So we should use 'displayData.value' here? No, percentChange is memoized on displayChartData only.
     // Let's calculate it in the render or effect if it depends on hover.
     // Actually, the requirement "update with the net worth on that day" means it's dynamic.
-    
+
     return 0; // Placeholder, calculation moved to render
   }, [displayChartData]);
 
   // Determine available time ranges
   const availableRanges = useMemo(() => {
     if (chartData.length === 0) return ['ALL'];
-    
+
     const now = new Date();
     const oldestDate = chartData[0].date;
     const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     const ranges: TimeRange[] = [];
     if (diffDays > 0) ranges.push('1D');
     if (diffDays > 7) ranges.push('1W');
     if (diffDays > 30) ranges.push('1M');
     if (diffDays > 90) ranges.push('3M');
-    
+
     // YTD check
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     if (oldestDate < startOfYear) ranges.push('YTD');
-    
+
     if (diffDays > 365) ranges.push('1Y');
     ranges.push('ALL');
-    
+
     // Deduplicate and sort order if needed, but push order is fine.
     // Ensure 'ALL' is always there.
     return ranges;
@@ -303,7 +303,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
 
   // Get current display data (hovered or most recent)
   const currentData = activeIndex !== null ? displayChartData[activeIndex] : displayChartData[displayChartData.length - 1];
-  
+
   // Fallback data structure when no data is available
   const fallbackData = {
     value: currentNetWorth?.netWorth || 0,
@@ -313,17 +313,17 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     monthFull: new Date().toLocaleString('en-US', { month: 'long' }),
     year: new Date().getFullYear()
   };
-  
+
   // Use currentData if available, otherwise use fallback
   const displayData = currentData || fallbackData;
 
   // Dynamic Percentage Change Calculation
   const dynamicPercentChange = useMemo(() => {
     if (displayChartData.length < 1) return 0;
-    
+
     const startValue = displayChartData[0].value;
     const currentValue = displayData.value;
-    
+
     if (startValue === 0) return 0; // Avoid division by zero
     return ((currentValue - startValue) / Math.abs(startValue)) * 100;
   }, [displayChartData, displayData]);
@@ -358,7 +358,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
               <div className="text-sm text-[var(--color-muted)] mb-2">
                 Unable to load historical data
               </div>
-              <button 
+              <button
                 onClick={refreshNetWorthData}
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
@@ -374,34 +374,34 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
 
   // Get accent color once - ensure it's a valid hex color
   // For futuristic theme, we prefer the neon accent
-  const accentColor = profile?.accent_color && profile.accent_color.startsWith('#') 
-    ? profile.accent_color 
-    : (typeof window !== 'undefined' 
-        ? getComputedStyle(document.documentElement).getPropertyValue('--color-neon-blue').trim() 
-        : '#00f3ff');
-  
+  const accentColor = profile?.accent_color && profile.accent_color.startsWith('#')
+    ? profile.accent_color
+    : (typeof window !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--color-neon-blue').trim()
+      : '#00f3ff');
+
   // Ensure we have a valid color (fallback to a default if needed)
   const validAccentColor = accentColor && accentColor.startsWith('#') ? accentColor : '#00f3ff';
 
   // Handle chart mouse events
   const handleMouseMove = (data: any, index: number) => {
     setActiveIndex(index);
-    
+
     // Get the chart data for this index
     const chartDataPoint = displayChartData[index];
     if (chartDataPoint) {
       // Find the corresponding historical data
-      const historicalData = netWorthHistory.find(item => 
+      const historicalData = netWorthHistory.find(item =>
         new Date(item.date).toISOString().split('T')[0] === chartDataPoint.dateString
       );
-      
+
       if (historicalData) {
         // Only compute categorized balances if we have accountBalances (non-minimal payload)
         let categorizedBalances = undefined as any;
         if ((historicalData as any).accountBalances) {
           categorizedBalances = categorizeAccountBalances((historicalData as any).accountBalances, allAccounts);
         }
-        
+
         setHoverData({
           assets: historicalData.assets,
           liabilities: historicalData.liabilities,
@@ -428,7 +428,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   const CustomTooltip = (data: any, index: number) => {
     const point = displayChartData[index];
     if (!point) return null;
-    
+
     return (
       <div className="text-center">
         <div className="font-light">{formatCurrency(point.value)}</div>
@@ -440,102 +440,120 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   };
 
   return (
-    <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass">
-      <div className="mb-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider mb-1">Net Worth</div>
-            <div className="flex items-baseline gap-3">
-              <div className="text-2xl md:text-3xl font-medium text-[var(--color-fg)] tracking-tight">
-                <AnimatedCounter value={displayData?.value || 0} duration={120} />
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass">
+        <div className="mb-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
+              <div className="flex items-baseline gap-3">
+                <div className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
+                  <AnimatedCounter value={displayData?.value || 0} duration={120} />
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-             <div className="text-xs text-[var(--color-muted)] font-light">
-              {displayData?.dateString ? 
-                new Date(displayData.dateString).toLocaleDateString('en-US', { 
-                  month: 'long', 
-                  day: 'numeric', 
-                  year: 'numeric' 
-                }) : 
-                `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
-              }
-            </div>
-            
-            {/* Percentage Pill - moved to top right */}
-            {dynamicPercentChange !== 0 && (
-              <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${
-                dynamicPercentChange >= 0 
-                  ? 'bg-emerald-400/10 text-emerald-400' 
-                  : 'bg-rose-400/10 text-rose-400'
-              }`}>
-                <span>{dynamicPercentChange >= 0 ? '↑' : '↓'}</span>
-                <span>{Math.abs(dynamicPercentChange).toFixed(1)}%</span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-xs text-[var(--color-muted)] font-medium">
+                {displayData?.dateString ?
+                  new Date(displayData.dateString).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  }) :
+                  `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
+                }
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <div className="pt-4 pb-2">
-        <div 
-          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
-          tabIndex={-1}
-          style={{ outline: 'none', height: '200px' }}
-          onMouseLeave={handleMouseLeave}
-        >
-          <LineChart
-            data={displayChartData}
-            dataKey="value"
-            width="100%"
-            height={200}
-            margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            strokeColor={validAccentColor}
-            strokeWidth={3}
-            showArea={true}
-            areaOpacity={0.1} 
-            showDots={false}
-            dotColor={validAccentColor}
-            dotRadius={3}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            showTooltip={false}
-            gradientId="netWorthGradient"
-            curveType="monotone"
-            animationDuration={300}
-            maxPoints={180}
-          />
-        </div>
-      </div>
 
-      {/* Time Range Selector - moved to bottom and spread evenly */}
-      <div className="mt-2 pt-2 border-t border-[var(--color-border)]">
-        <div className="flex justify-between items-center w-full">
-          {availableRanges.map((range) => (
-            <div key={range} className="flex-1 flex justify-center">
-              <button
-                onClick={() => setTimeRange(range as TimeRange)}
-                className="relative px-3 py-1 text-[10px] font-medium rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
-                style={{
-                  color: timeRange === range ? '#fff' : 'var(--color-muted)'
-                }}
-              >
-                {timeRange === range && (
-                  <motion.div
-                    layoutId="activeTimeRange"
-                    className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
-                <span className={`relative z-10 ${timeRange !== range ? "hover:text-[var(--color-fg)]" : ""}`}>
-                  {range}
-                </span>
-              </button>
+              {/* Percentage Pill - moved to top right */}
+              {dynamicPercentChange !== 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${dynamicPercentChange >= 0
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                    }`}
+                >
+                  <span>{dynamicPercentChange >= 0 ? '↑' : '↓'}</span>
+                  <span>{Math.abs(dynamicPercentChange).toFixed(1)}%</span>
+                </motion.div>
+              )}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
-    </Card>
+
+        <div className="pt-4 pb-2">
+          <div
+            className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
+            tabIndex={-1}
+            style={{ outline: 'none', height: '200px' }}
+            onMouseLeave={handleMouseLeave}
+          >
+            <LineChart
+              data={displayChartData}
+              dataKey="value"
+              width="100%"
+              height={200}
+              margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              strokeColor={validAccentColor}
+              strokeWidth={3}
+              showArea={true}
+              areaOpacity={0.15}
+              showDots={false}
+              dotColor={validAccentColor}
+              dotRadius={4}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              showTooltip={false}
+              gradientId="netWorthGradient"
+              curveType="monotone"
+              animationDuration={800}
+              maxPoints={180}
+            />
+          </div>
+        </div>
+
+        {/* Time Range Selector - moved to bottom and spread evenly */}
+        <div className="mt-2 pt-2 border-t border-[var(--color-border)]/50">
+          <div className="flex justify-between items-center w-full">
+            {availableRanges.map((range) => {
+              const isActive = timeRange === range;
+              // Check if we're using the default accent color (neon blue)
+              const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
+              // In dark mode with default accent, use black text for contrast
+              const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+              const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
+
+              return (
+                <div key={range} className="flex-1 flex justify-center">
+                  <button
+                    onClick={() => setTimeRange(range as TimeRange)}
+                    className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
+                    style={{
+                      color: isActive ? activeTextColor : 'var(--color-muted)'
+                    }}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTimeRange"
+                        className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                    <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
+                      {range}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+    </motion.div>
   );
 }

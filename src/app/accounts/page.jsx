@@ -52,10 +52,10 @@ const AccountSection = ({ title, accounts, institutionMap }) => {
       <Card padding="none" variant="glass" className="overflow-hidden">
         {accounts.map((account, index) => {
           const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
-          
+
           return (
-            <div 
-              key={account.id} 
+            <div
+              key={account.id}
               className={`
                 group flex items-center justify-between pl-4 py-4 pr-6
                 hover:bg-[var(--color-card-highlight)] transition-colors duration-200
@@ -66,8 +66,8 @@ const AccountSection = ({ title, accounts, institutionMap }) => {
                 {/* Institution Logo - Square with rounded corners for better fit */}
                 <div className="w-8 h-8 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
                   {institution.logo ? (
-                    <img 
-                      src={institution.logo} 
+                    <img
+                      src={institution.logo}
                       alt={institution.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -105,8 +105,8 @@ const AccountSection = ({ title, accounts, institutionMap }) => {
                   </div>
                   {(account.limit || account.monthlyPayment) && (
                     <div className="text-xs text-[var(--color-muted)] mt-0.5 tabular-nums">
-                      {account.limit ? `Limit: ${formatCurrency(account.limit)}` : 
-                       account.monthlyPayment ? `$${account.monthlyPayment}/mo` : ''}
+                      {account.limit ? `Limit: ${formatCurrency(account.limit)}` :
+                        account.monthlyPayment ? `$${account.monthlyPayment}/mo` : ''}
                     </div>
                   )}
                 </div>
@@ -121,14 +121,14 @@ const AccountSection = ({ title, accounts, institutionMap }) => {
 
 export default function AccountsPage() {
   const { profile } = useUser();
-  const { 
+  const {
     accounts, // Institutions
     allAccounts, // Flat list of accounts
-    loading, 
-    error, 
-    refreshAccounts 
+    loading,
+    error,
+    refreshAccounts
   } = useAccounts();
-  
+
   const [showLinkModal, setShowLinkModal] = useState(false);
 
   // Organize accounts by category
@@ -136,7 +136,7 @@ export default function AccountsPage() {
     const fullType = `${account.type || ''} ${account.subtype || ''}`.toLowerCase();
     const liabilityTypes = ['credit card', 'credit', 'loan', 'mortgage', 'line of credit', 'overdraft'];
     const isLiability = liabilityTypes.some(t => fullType.includes(t));
-    
+
     if (isLiability) {
       if (fullType.includes('credit') && !fullType.includes('line of credit')) return 'credit';
       return 'loans';
@@ -220,10 +220,10 @@ export default function AccountsPage() {
                     <h2 className="text-lg font-semibold text-[var(--color-fg)]">All Accounts</h2>
                     <p className="text-sm text-[var(--color-muted)] mt-1">Manage your connected bank accounts and cards</p>
                   </div>
-                  <Button 
-                    size="sm" 
-                    variant="matte" 
-                    onClick={() => setShowLinkModal(true)} 
+                  <Button
+                    size="sm"
+                    variant="matte"
+                    onClick={() => setShowLinkModal(true)}
                     className="gap-1.5 !rounded-full pl-3 pr-4"
                   >
                     <PiPlus className="w-3.5 h-3.5" />
@@ -232,26 +232,26 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <AccountSection 
-                    title="Cash & Checking" 
+                  <AccountSection
+                    title="Cash & Checking"
                     accounts={categorizedAccounts.cash}
                     institutionMap={institutionMap}
                   />
-                  
-                  <AccountSection 
-                    title="Investments" 
+
+                  <AccountSection
+                    title="Investments"
                     accounts={categorizedAccounts.investments}
                     institutionMap={institutionMap}
                   />
-                  
-                  <AccountSection 
-                    title="Credit Cards" 
+
+                  <AccountSection
+                    title="Credit Cards"
                     accounts={categorizedAccounts.credit}
                     institutionMap={institutionMap}
                   />
-                  
-                  <AccountSection 
-                    title="Loans & Mortgages" 
+
+                  <AccountSection
+                    title="Loans & Mortgages"
                     accounts={categorizedAccounts.loans}
                     institutionMap={institutionMap}
                   />
@@ -274,9 +274,9 @@ export default function AccountsPage() {
           )}
         </div>
 
-        <PlaidLinkModal 
-          isOpen={showLinkModal} 
-          onClose={() => setShowLinkModal(false)} 
+        <PlaidLinkModal
+          isOpen={showLinkModal}
+          onClose={() => setShowLinkModal(false)}
         />
       </PageContainer>
     </NetWorthHoverProvider>

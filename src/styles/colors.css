@@ -1,71 +1,94 @@
 :root {
   /* Clean Light Mode - High Tech / Minimalist */
-  --color-bg: #fafafa; /* Zinc 50 - Reduced contrast with white cards */
+  --color-bg: #fafafa;
+  /* Zinc 50 - Reduced contrast with white cards */
   --color-surface: #ffffff;
-  --color-fg: #18181b; /* Zinc 900 */
-  --color-muted: #71717a; /* Zinc 500 */
-  --color-border: #e4e4e7; /* Zinc 200 */
-  --color-ring: #a1a1aa; /* Zinc 400 */
+  --color-fg: #18181b;
+  /* Zinc 900 */
+  --color-muted: #71717a;
+  /* Zinc 500 */
+  --color-border: #e4e4e7;
+  /* Zinc 200 */
+  --color-ring: #a1a1aa;
+  /* Zinc 400 */
 
-  /* Matte Accents - Light Mode */
-  --color-neon-blue: #3b82f6;
-  --color-neon-purple: #8b5cf6;
-  --color-neon-green: #10b981;
-  --color-neon-pink: #f43f5e;
+  /* Muted Accents - Light Mode (Professional & Harmonious) */
+  --color-neon-blue: #60a5fa;
+  /* Blue 400 - softer */
+  --color-neon-purple: #a78bfa;
+  /* Purple 400 - softer */
+  --color-neon-green: #34d399;
+  /* Emerald 400 - softer */
+  --color-neon-pink: #f472b6;
+  /* Pink 400 - softer */
 
-  --color-primary: #18181b; 
+  --color-primary: #18181b;
   --color-primary-hover: #27272a;
   --color-on-primary: #ffffff;
 
   --color-accent: var(--color-neon-blue);
-  --color-accent-hover: #2563eb;
+  --color-accent-hover: #3b82f6;
   --color-on-accent: #ffffff;
 
-  --color-success: #10b981;
-  --color-success-hover: #059669;
+  --color-success: #34d399;
+  --color-success-hover: #10b981;
   --color-on-success: #ffffff;
 
-  --color-danger: #ef4444;
+  --color-danger: #f87171;
+  /* Red 400 - softer */
   --color-on-danger: #ffffff;
 
-  --color-warn: #f59e0b; 
-  --color-on-warn: #ffffff;
+  --color-warn: #fbbf24;
+  /* Amber 400 - softer */
+  --color-on-warn: #18181b;
 
   --color-input-bg: #ffffff;
   --color-input-fg: #18181b;
   --color-input-placeholder: #a1a1aa;
 
-  --color-content-bg: #fafafa; /* Matches bg */
-  --color-sidebar-active: #f4f4f5; /* Zinc 100 - subtle selection */
-  
+  --color-content-bg: #fafafa;
+  /* Matches bg */
+  --color-sidebar-active: #f4f4f5;
+  /* Zinc 100 - subtle selection */
+
   /* Glassmorphism helpers - Light Mode - Reduced Shadows for Matte look */
   --glass-bg: rgba(255, 255, 255, 0.9);
   --glass-border: rgba(0, 0, 0, 0.05);
   --glass-shadow: none;
-  
+
   --color-shadow: transparent;
   --color-card-border: rgba(0, 0, 0, 0.04);
 }
 
 .dark {
-  /* Matte Dark Mode - Desaturated & Soft */
-  --color-bg: #18181b; /* Zinc 900 - matte black */
-  --color-surface: #1f1f22; /* Very slightly lighter than bg for subtle separation */
-  --color-fg: #e4e4e7; /* Zinc 200 */
-  --color-muted: #71717a; /* Zinc 500 */
-  --color-border: #27272a; /* Zinc 800 */
-  --color-ring: #52525b; /* Zinc 600 */
+  /* Matte Dark Mode - Balanced & Comfortable */
+  --color-bg: #1e1e21;
+  /* Custom - between Zinc 900 and 800 */
+  --color-surface: #212125;
+  /* Very subtle contrast with bg */
+  --color-fg: #e4e4e7;
+  /* Zinc 200 */
+  --color-muted: #a1a1aa;
+  /* Zinc 400 - lighter for better readability */
+  --color-border: #3f3f46;
+  /* Zinc 700 - subtle borders */
+  --color-ring: #71717a;
+  /* Zinc 500 */
 
-  /* Matte Accents - Dark Mode (Heavily Desaturated & Darker) */
-  --color-neon-blue: #60a5fa; /* Blue 400, but effectively muted by context */
-  --color-neon-purple: #a78bfa; /* Purple 400 */
-  --color-neon-green: #4ade80; /* Green 400 */
-  --color-neon-pink: #f472b6; /* Pink 400 */
+  /* Matte Accents - Dark Mode (Slightly brighter for lighter bg) */
+  --color-neon-blue: #60a5fa;
+  /* Blue 400 */
+  --color-neon-purple: #a78bfa;
+  /* Purple 400 */
+  --color-neon-green: #4ade80;
+  /* Green 400 */
+  --color-neon-pink: #f472b6;
+  /* Pink 400 */
 
-  --color-primary: #fafafa; 
+  --color-primary: #fafafa;
   --color-primary-hover: #e4e4e7;
-  --color-on-primary: #09090b; 
-  
+  --color-on-primary: #09090b;
+
   /* Accent is now soft blue */
   --color-accent: var(--color-neon-blue);
   --color-accent-hover: #93c5fd;
@@ -75,30 +98,36 @@
   --color-success-hover: #22c55e;
   --color-on-success: #09090b;
 
-  --color-danger: #f87171; /* Red 400 - softer */
-  --color-on-danger: #09090b; 
+  --color-danger: #f87171;
+  /* Red 400 - softer */
+  --color-on-danger: #09090b;
 
-  --color-warn: #fbbf24; /* Amber 400 */
+  --color-warn: #fbbf24;
+  /* Amber 400 */
   --color-on-warn: #09090b;
 
-  --color-input-bg: #18181b;
+  --color-input-bg: #212125;
+  /* Matches surface for consistency */
   --color-input-fg: #e4e4e7;
-  --color-input-placeholder: #52525b;
+  --color-input-placeholder: #71717a;
 
-  --color-content-bg: #18181b;
-  --color-sidebar-active: var(--color-surface); /* Keep consistent with previous dark mode style */
-  
+  --color-content-bg: #1e1e21;
+  /* Matches bg */
+  --color-sidebar-active: var(--color-surface);
+
   /* Glassmorphism helpers - Dark Mode */
-  --glass-bg: rgba(24, 24, 27, 0.85); /* Matches Zinc 900 */
-  --glass-border: transparent; /* Removed outer border for flat look */
+  --glass-bg: rgba(33, 33, 37, 0.85);
+  /* Matches surface */
+  --glass-border: transparent;
   --glass-shadow: none;
-  
+
   --color-shadow: transparent;
-  --color-card-border: transparent; /* Removed outer border for flat look */
+  --color-card-border: transparent;
 }
 
 /* Base application colors */
-html, body {
+html,
+body {
   background-color: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
