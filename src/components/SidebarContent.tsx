@@ -64,17 +64,18 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
       {/* Header - Static, no entrance animation */}
       <div
-        className="h-20 shrink-0 flex items-center gap-3 px-6 border-b border-[var(--color-border)]"
+        className="h-20 shrink-0 flex items-center justify-center gap-3 w-full border-b border-[var(--color-border)] dark:border-transparent"
       >
         <motion.img
           src="/logo.svg"
           alt="Zentari Logo"
-          className="h-9 w-9 object-contain dark:invert"
+          className="h-12 w-12 object-contain dark:invert"
+          style={{ filter: 'brightness(0) saturate(100%)', WebkitFilter: 'brightness(0) saturate(100%)' }}
           whileHover={{ scale: 1.05, rotate: 5 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
         />
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--color-fg)] font-sans">
-          Zentari
+        <h1 className="text-xl font-semibold tracking-wide text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+          ZENTARI
         </h1>
       </div>
 
@@ -159,7 +160,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
       {/* Profile Section - Static */}
       <div
-        className="p-4 border-t border-[var(--color-border)]"
+        className="p-4 border-t border-[var(--color-border)] dark:border-transparent"
       >
         <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--color-surface)] p-3 border border-[var(--color-border)] hover:border-[var(--color-muted)]/30 transition-all duration-200">
           <div className="flex items-center gap-3 flex-1 min-w-0">

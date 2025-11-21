@@ -5,6 +5,7 @@ import Button from "../../components/ui/Button";
 import DynamicIcon from "../../components/DynamicIcon";
 import Drawer from "../../components/ui/Drawer";
 import SelectCategoryView from "../../components/SelectCategoryView";
+import Card from "../../components/ui/Card";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -24,20 +25,19 @@ function TransactionSkeleton() {
           <div className="py-2 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
             <div className="h-4 bg-[var(--color-border)] rounded w-32" />
           </div>
-          
+
           {/* Transaction Rows Skeleton */}
           <div className="space-y-0">
             {[...Array(4)].map((_, index) => (
-              <div 
+              <div
                 key={index}
-                className={`flex items-center justify-between py-4 px-1 ${
-                  index < 3 ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
-                }`}
+                className={`flex items-center justify-between py-4 px-1 ${index < 3 ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
+                  }`}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   {/* Icon Circle Skeleton */}
                   <div className="w-10 h-10 bg-[var(--color-border)] rounded-full flex-shrink-0" />
-                  
+
                   {/* Text Content Skeleton */}
                   <div className="min-w-0 flex-1 mr-8">
                     <div className="h-4 bg-[var(--color-border)] rounded w-32 mb-2" />
@@ -47,7 +47,7 @@ function TransactionSkeleton() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Amount Skeleton */}
                 <div className="text-right flex-shrink-0">
                   <div className="h-4 bg-[var(--color-border)] rounded w-16" />
@@ -64,34 +64,36 @@ function TransactionSkeleton() {
 // SearchToolbar component for consistent styling
 function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters }) {
   return (
-    <div className="sticky top-0 z-10 bg-[var(--color-bg)] backdrop-blur-sm border-b border-[var(--color-border)] mb-6">
-      <div className="flex items-center gap-4 py-4">
+    <div className="sticky top-0 z-20 bg-[var(--color-bg)]/80 backdrop-blur-md border-b border-[var(--color-border)] mb-6 -mx-6 px-6 pt-4 pb-4 transition-all duration-200">
+      <div className="flex items-center gap-4">
         <div className="flex-1 max-w-4xl">
-          <div className="relative rounded-md border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-content-bg)]">
+          <div className="relative rounded-xl border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-surface)]/50 focus-within:bg-[var(--color-surface)] focus-within:border-[var(--color-accent)]/50 transition-all duration-200">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
             <Input
               placeholder="Search transactions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none text-sm"
             />
           </div>
         </div>
         <div className="flex items-center gap-2 ml-auto">
-          <Button 
+          <Button
             onClick={onRefresh}
             variant="ghost"
             size="icon"
             aria-label="Refresh Transactions"
             disabled={loading}
+            className="hover:bg-[var(--color-surface)]"
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button 
+          <Button
             variant="ghost"
             size="icon"
             aria-label="Filter Transactions"
             onClick={onOpenFilters}
+            className="hover:bg-[var(--color-surface)]"
           >
             <FiFilter className="h-4 w-4" />
           </Button>
@@ -109,17 +111,17 @@ function TransactionList({ transactions, onTransactionClick }) {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     // Check if it's today
     if (date.toDateString() === today.toDateString()) {
       return 'Today';
     }
-    
+
     // Check if it's yesterday
     if (date.toDateString() === yesterday.toDateString()) {
       return 'Yesterday';
     }
-    
+
     // For other dates, show the formatted date
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -129,17 +131,10 @@ function TransactionList({ transactions, onTransactionClick }) {
     });
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
-
   // Group transactions by date
   const groupTransactionsByDate = (transactions) => {
     const grouped = {};
-    
+
     transactions.forEach(transaction => {
       const dateKey = transaction.datetime ? new Date(transaction.datetime).toDateString() : 'Unknown';
       if (!grouped[dateKey]) {
@@ -147,41 +142,42 @@ function TransactionList({ transactions, onTransactionClick }) {
       }
       grouped[dateKey].push(transaction);
     });
-    
+
     // Sort dates in descending order (most recent first)
     const sortedDates = Object.keys(grouped).sort((a, b) => {
       if (a === 'Unknown') return 1;
       if (b === 'Unknown') return -1;
       return new Date(b) - new Date(a);
     });
-    
+
     return { grouped, sortedDates };
   };
 
   const { grouped, sortedDates } = groupTransactionsByDate(transactions);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-12">
       {sortedDates.map((dateKey) => (
-        <div key={dateKey} className="space-y-3">
-          {/* Date Header */}
-          <div className="py-2 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
-            <h3 className="text-sm font-medium text-[var(--color-muted)] tracking-wide">
+        <div key={dateKey} className="relative">
+          {/* Sticky Date Header */}
+          <div className="sticky top-[73px] z-10 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm mb-2">
+            <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider px-1">
               {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
             </h3>
           </div>
-          
-          {/* Transactions for this date */}
-          <div className="space-y-0">
-            {grouped[dateKey].map((transaction, index) => (
-              <TransactionRow 
-                key={`${transaction.id}-${dateKey}-${index}`}
-                transaction={transaction}
-                isLast={index === grouped[dateKey].length - 1}
-                onTransactionClick={onTransactionClick}
-              />
-            ))}
-          </div>
+
+          {/* Transactions Card */}
+          <Card variant="glass" padding="none" className="overflow-hidden border-[var(--color-border)]/40">
+            <div className="divide-y divide-[var(--color-border)]/40">
+              {grouped[dateKey].map((transaction, index) => (
+                <TransactionRow
+                  key={`${transaction.id}-${dateKey}-${index}`}
+                  transaction={transaction}
+                  onTransactionClick={onTransactionClick}
+                />
+              ))}
+            </div>
+          </Card>
         </div>
       ))}
     </div>
@@ -189,7 +185,7 @@ function TransactionList({ transactions, onTransactionClick }) {
 }
 
 // TransactionRow component for individual transactions
-function TransactionRow({ transaction, isLast, onTransactionClick }) {
+function TransactionRow({ transaction, onTransactionClick }) {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -197,30 +193,27 @@ function TransactionRow({ transaction, isLast, onTransactionClick }) {
     }).format(amount);
   };
 
-
   return (
-    <div 
+    <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className={`flex items-center justify-between py-4 px-1 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors cursor-pointer ${
-        !isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]' : ''
-      }`}
+      className="group flex items-center justify-between py-4 px-5 hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995]"
       onClick={() => onTransactionClick(transaction)}
     >
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div 
-          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+      <div className="flex items-center gap-4 min-w-0 flex-1">
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-[var(--color-border)]/20 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-md"
           style={{
             backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-              ? 'var(--color-muted)/10'
+              ? 'var(--color-surface)'
               : (transaction.category_hex_color || 'var(--color-accent)')
           }}
         >
           {(!DISABLE_LOGOS && transaction.icon_url) ? (
-            <img 
-              src={transaction.icon_url} 
+            <img
+              src={transaction.icon_url}
               alt={transaction.merchant_name || transaction.description || 'Transaction'}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
               onError={(e) => {
@@ -243,29 +236,23 @@ function TransactionRow({ transaction, isLast, onTransactionClick }) {
             }}
           />
         </div>
-        <div className="min-w-0 flex-1 mr-8">
-          <div className="font-medium text-[var(--color-fg)] truncate">
+        <div className="min-w-0 flex-1 mr-4">
+          <div className="font-medium text-[var(--color-fg)] truncate text-sm transition-colors">
             {transaction.merchant_name || transaction.description || 'Transaction'}
           </div>
           {transaction.category_name && (
-            <div className="text-xs text-[var(--color-muted)] mt-1 flex items-center gap-1.5">
-              <div 
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{
-                  backgroundColor: transaction.category_hex_color || 'var(--color-accent)'
-                }}
-              />
+            <div className="text-xs text-[var(--color-muted)] mt-0.5 flex items-center gap-1.5">
               <span className="truncate">{transaction.category_name}</span>
             </div>
           )}
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <div className={`font-medium ${transaction.amount > 0 ? 'text-green-600' : 'text-[var(--color-fg)]'}`}>
+        <div className={`font-semibold text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
           {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
         </div>
         {transaction.pending && (
-          <div className="text-xs text-[var(--color-muted)] italic">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
             Pending
           </div>
         )}
@@ -289,7 +276,7 @@ export default function TransactionsPage() {
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
   const PAGE_LIMIT = 20;
   const initialAbortRef = useRef(null);
-  
+
   // Fetch latest transactions
   const fetchTransactions = async () => {
     if (!profile?.id) {
@@ -306,7 +293,7 @@ export default function TransactionsPage() {
       }
       const controller = new AbortController();
       initialAbortRef.current = controller;
-      
+
       const response = await fetch(`/api/plaid/transactions/get?userId=${profile.id}&limit=${PAGE_LIMIT}&minimal=1`, {
         method: 'GET',
         headers: {
@@ -399,7 +386,7 @@ export default function TransactionsPage() {
   if (loading || !profile?.id) {
     return (
       <PageContainer title="Transactions" padding="pb-6">
-        <SearchToolbar 
+        <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={handleRefresh}
@@ -415,7 +402,7 @@ export default function TransactionsPage() {
   if (error) {
     return (
       <PageContainer title="Transactions" padding="pb-6">
-        <SearchToolbar 
+        <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onRefresh={handleRefresh}
@@ -438,7 +425,7 @@ export default function TransactionsPage() {
 
   return (
     <PageContainer title="Transactions" padding="pb-6">
-      <SearchToolbar 
+      <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onRefresh={handleRefresh}
@@ -457,15 +444,15 @@ export default function TransactionsPage() {
           </div>
         ) : (
           <div data-transaction-list>
-            <TransactionList 
-              transactions={transactions} 
+            <TransactionList
+              transactions={transactions}
               onTransactionClick={handleTransactionClick}
             />
             {/* Simple list without infinite scroll */}
           </div>
         )}
       </div>
-      
+
       {/* Filters Drawer */}
       <Drawer
         isOpen={isFiltersOpen}
@@ -494,7 +481,7 @@ export default function TransactionsPage() {
                 <div className="divide-y divide-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
                   {categoryGroups.map((group) => (
                     <div key={group.id} className="flex items-center gap-3 py-3 px-4 hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors cursor-default">
-                      <div 
+                      <div
                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: group.hex_color || 'var(--color-accent)' }}
                       >
@@ -532,7 +519,7 @@ export default function TransactionsPage() {
                 {/* Transaction Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div 
+                    <div
                       className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                       style={{
                         backgroundColor: (!DISABLE_LOGOS && selectedTransaction.icon_url)
@@ -541,10 +528,10 @@ export default function TransactionsPage() {
                       }}
                     >
                       {(!DISABLE_LOGOS && selectedTransaction.icon_url) ? (
-                        <img 
-                          src={selectedTransaction.icon_url} 
+                        <img
+                          src={selectedTransaction.icon_url}
                           alt={selectedTransaction.merchant_name || selectedTransaction.description || 'Transaction'}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-cover"
                           loading="lazy"
                           decoding="async"
                           onError={(e) => {
@@ -579,7 +566,7 @@ export default function TransactionsPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Transaction Details Section */}
                 <div className="space-y-6">
                   <div className="space-y-0">
@@ -590,16 +577,16 @@ export default function TransactionsPage() {
                         {selectedTransaction.pending ? 'Pending' : 'Posted'}
                       </span>
                     </div>
-                    
+
                     {/* Category */}
                     {selectedTransaction.category_name && (
-                      <div 
+                      <div
                         className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)] cursor-pointer hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors"
                         onClick={handleCategoryClick}
                       >
                         <span className="text-sm text-[var(--color-muted)]">Category</span>
                         <div className="flex items-center gap-2">
-                          <div 
+                          <div
                             className="w-2 h-2 rounded-full flex-shrink-0"
                             style={{
                               backgroundColor: selectedTransaction.category_hex_color || 'var(--color-accent)'
@@ -611,7 +598,7 @@ export default function TransactionsPage() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Account */}
                     {selectedTransaction.account_name && (
                       <div className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
@@ -619,8 +606,8 @@ export default function TransactionsPage() {
                         <div className="flex items-center gap-3">
                           {selectedTransaction.accounts?.institutions?.logo && (
                             <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
-                              <img 
-                                src={selectedTransaction.accounts.institutions.logo} 
+                              <img
+                                src={selectedTransaction.accounts.institutions.logo}
                                 alt={selectedTransaction.accounts.institutions.name || 'Institution'}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -642,22 +629,22 @@ export default function TransactionsPage() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Location */}
                     {selectedTransaction.location && (
                       <div className="flex justify-between items-center py-4 px-4 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_90%)]">
                         <span className="text-sm text-[var(--color-muted)]">Location</span>
                         <span className="text-sm text-[var(--color-fg)]">
-                          {typeof selectedTransaction.location === 'string' 
-                            ? selectedTransaction.location 
-                            : selectedTransaction.location.address || 
-                              `${selectedTransaction.location.city || ''}, ${selectedTransaction.location.region || ''}`.replace(/^,\s*|,\s*$/g, '') ||
-                              'Location available'
+                          {typeof selectedTransaction.location === 'string'
+                            ? selectedTransaction.location
+                            : selectedTransaction.location.address ||
+                            `${selectedTransaction.location.city || ''}, ${selectedTransaction.location.region || ''}`.replace(/^,\s*|,\s*$/g, '') ||
+                            'Location available'
                           }
                         </span>
                       </div>
                     )}
-                    
+
                     {/* Date */}
                     {selectedTransaction.datetime && (
                       <div className="flex justify-between items-center py-4 px-4">
@@ -691,4 +678,3 @@ export default function TransactionsPage() {
     </PageContainer>
   );
 }
-

@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Inter } from 'next/font/google';
+import { Inter, Poppins } from 'next/font/google';
 import RouteTransition from "../components/RouteTransition";
 import Topbar from "../components/Topbar";
 import ToastProvider from "../components/ToastProvider";
@@ -14,6 +14,12 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
+});
+
 export const metadata = {
   title: {
     template: "Zentari | %s",
@@ -23,7 +29,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
       <body className="font-light">
         <ToastProvider>
           <UserProvider>
