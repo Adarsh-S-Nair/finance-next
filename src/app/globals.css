@@ -3,7 +3,8 @@
 
 /* App-wide utility tweaks */
 .container {
-  max-width: 1400px; /* Wider for dashboard */
+  max-width: 1400px;
+  /* Wider for dashboard */
 }
 
 .shadow-soft {
@@ -20,20 +21,17 @@
 .bg-grid {
   position: relative;
 }
+
 .bg-grid::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(
-      to right,
+  background-image: linear-gradient(to right,
       color-mix(in_oklab, var(--color-fg), transparent 98%) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
+      transparent 1px),
+    linear-gradient(to bottom,
       color-mix(in_oklab, var(--color-fg), transparent 98%) 1px,
-      transparent 1px
-    );
+      transparent 1px);
   background-size: 40px 40px;
   mask-image: radial-gradient(ellipse at 50% 0%, black 10%, transparent 80%);
   pointer-events: none;
@@ -56,6 +54,7 @@
   border: 1px solid transparent;
   border-radius: inherit;
 }
+
 .gradient-border::before {
   content: '';
   position: absolute;
@@ -73,49 +72,91 @@
   flex-direction: column;
   gap: 6px;
 }
+
 .input {
   appearance: none;
   background: var(--color-input-bg);
   color: var(--color-input-fg);
   border: 1px solid var(--color-border);
-  border-radius: 2px; /* Sharper edges */
+  border-radius: 2px;
+  /* Sharper edges */
   padding: 10px 12px;
   transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
   font-family: var(--font-inter);
   font-weight: 300;
 }
-.input::placeholder { color: var(--color-input-placeholder); }
-.input:focus { 
-  outline: none; 
-  box-shadow: 0 0 0 1px var(--color-ring); 
-  border-color: var(--color-ring); 
+
+.input::placeholder {
+  color: var(--color-input-placeholder);
 }
-.help { color: var(--color-muted); font-size: 12px; font-weight: 300; }
+
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--color-ring);
+  border-color: var(--color-ring);
+}
+
+.help {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 300;
+}
 
 /* Route transition helpers */
 @keyframes fadeInUp {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-html { overflow-x: hidden; }
-body { overflow-x: hidden; min-height: 100vh; }
-.route-transition { min-height: calc(100vh - 5rem); overflow: hidden; will-change: transform; }
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.route-transition {
+  min-height: calc(100vh - 5rem);
+  overflow: visible;
+}
 
 /* Toast progress animation */
 @keyframes toastProgress {
-  0% { width: 0%; }
-  100% { width: 100%; }
+  0% {
+    width: 0%;
+  }
+
+  100% {
+    width: 100%;
+  }
 }
 
 /* Text utilities for thin typography */
-.text-thin { font-weight: 100; }
-.text-extralight { font-weight: 200; }
-.text-light { font-weight: 300; }
+.text-thin {
+  font-weight: 100;
+}
+
+.text-extralight {
+  font-weight: 200;
+}
+
+.text-light {
+  font-weight: 300;
+}
 
 /* Neon Text Effect - Removed Glow for Matte Look */
 .text-neon-blue {
-  color: var(--color-fg); /* Reset to foreground for better readability in matte theme */
+  color: var(--color-fg);
+  /* Reset to foreground for better readability in matte theme */
 }
 
 /* Explicit colored text classes if needed */

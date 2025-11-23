@@ -68,10 +68,38 @@ export default function Drawer({
 
   useEffect(() => {
     if (!isOpen) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    // Calculate scrollbar width
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    // Store original styles
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyPaddingRight = document.body.style.paddingRight;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    const topbar = document.getElementById('app-topbar');
+    const originalTopbarPaddingRight = topbar ? topbar.style.paddingRight : '';
+
+    // Apply styles
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    document.body.style.setProperty('overflow', 'hidden', 'important');
+
+    // Add padding to body to prevent content shift
+    document.body.style.paddingRight = `${parseInt(window.getComputedStyle(document.body).paddingRight || '0') + scrollbarWidth}px`;
+
+    // Add padding to fixed topbar to prevent shift
+    if (topbar) {
+      topbar.style.paddingRight = `${parseInt(window.getComputedStyle(topbar).paddingRight || '0') + scrollbarWidth}px`;
+    }
+
     return () => {
-      document.body.style.overflow = original;
+      // Restore styles
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.paddingRight = originalBodyPaddingRight;
+      if (topbar) {
+        topbar.style.paddingRight = originalTopbarPaddingRight;
+      }
     };
   }, [isOpen]);
 
@@ -149,7 +177,7 @@ export default function Drawer({
             <div className="sm:hidden flex items-center justify-center pt-2">
               <div className="h-1.5 w-12 rounded-full bg-[var(--color-border)]" />
             </div>
-            
+
             {/* Header with back button */}
             <div className="mb-3">
               <div className="flex items-center gap-3">
@@ -172,7 +200,7 @@ export default function Drawer({
                 )}
               </div>
             </div>
-            
+
             {/* Content with slide animation */}
             <motion.div
               key={currentViewId || 'default'}

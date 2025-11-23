@@ -6,14 +6,23 @@ import DynamicIcon from "../../components/DynamicIcon";
 import Drawer from "../../components/ui/Drawer";
 import SelectCategoryView from "../../components/SelectCategoryView";
 import Card from "../../components/ui/Card";
-import { FiRefreshCw, FiFilter, FiSearch, FiTag } from "react-icons/fi";
+import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { useUser } from "../../components/UserProvider";
 import Input from "../../components/ui/Input";
 import { supabase } from "../../lib/supabaseClient";
+import PageToolbar from "../../components/PageToolbar";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
+
+
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount);
+};
 
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {
@@ -64,7 +73,7 @@ function TransactionSkeleton() {
 // SearchToolbar component for consistent styling
 function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters }) {
   return (
-    <div className="sticky top-0 z-20 bg-[var(--color-bg)]/80 backdrop-blur-md border-b border-[var(--color-border)] mb-6 -mx-6 px-6 pt-4 pb-4 transition-all duration-200">
+    <PageToolbar>
       <div className="flex items-center gap-4">
         <div className="flex-1 max-w-4xl">
           <div className="relative rounded-xl border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-surface)]/50 focus-within:bg-[var(--color-surface)] focus-within:border-[var(--color-accent)]/50 transition-all duration-200">
@@ -99,7 +108,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
           </Button>
         </div>
       </div>
-    </div>
+    </PageToolbar>
   );
 }
 
@@ -160,7 +169,7 @@ function TransactionList({ transactions, onTransactionClick }) {
       {sortedDates.map((dateKey) => (
         <div key={dateKey} className="relative">
           {/* Sticky Date Header */}
-          <div className="sticky top-[73px] z-10 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm mb-2">
+          <div className="sticky top-[124px] z-20 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm mb-2">
             <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider px-1">
               {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
             </h3>
@@ -186,12 +195,7 @@ function TransactionList({ transactions, onTransactionClick }) {
 
 // TransactionRow component for individual transactions
 function TransactionRow({ transaction, onTransactionClick }) {
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+
 
   return (
     <div
@@ -265,6 +269,8 @@ export default function TransactionsPage() {
   const { profile } = useUser();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingPrev, setLoadingPrev] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -274,44 +280,54 @@ export default function TransactionsPage() {
   const [categoryGroups, setCategoryGroups] = useState([]);
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
-  const PAGE_LIMIT = 20;
-  const initialAbortRef = useRef(null);
 
-  // Fetch latest transactions
-  const fetchTransactions = async () => {
-    if (!profile?.id) {
-      console.log('Profile not loaded yet, skipping transaction fetch');
-      return;
+  const [nextCursor, setNextCursor] = useState(null);
+  const [prevCursor, setPrevCursor] = useState(null);
+
+  const PAGE_LIMIT = 20;
+  const MAX_ITEMS = 50; // Maximum number of items to keep in DOM
+  const initialAbortRef = useRef(null);
+  const topSentinelRef = useRef(null);
+  const bottomSentinelRef = useRef(null);
+  const containerRef = useRef(null);
+  const prevScrollHeightRef = useRef(0);
+  const isPrependRef = useRef(false);
+
+  // Fetch transactions helper
+  const fetchTransactionsData = async (cursor = null, direction = 'forward') => {
+    if (!profile?.id) return null;
+
+    const params = new URLSearchParams({
+      userId: profile.id,
+      limit: PAGE_LIMIT.toString(),
+      minimal: '1',
+      direction
+    });
+
+    if (cursor) {
+      params.append('cursorDate', cursor.date);
+      params.append('cursorId', cursor.id);
     }
+
+    const response = await fetch(`/api/plaid/transactions/get?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch transactions');
+    return await response.json();
+  };
+
+  // Initial fetch
+  const fetchInitialTransactions = async () => {
+    if (!profile?.id) return;
 
     try {
       setLoading(true);
       setError(null);
-      // Abort any in-flight initial fetch
-      if (initialAbortRef.current) {
-        initialAbortRef.current.abort();
-      }
-      const controller = new AbortController();
-      initialAbortRef.current = controller;
+      if (initialAbortRef.current) initialAbortRef.current.abort();
 
-      const response = await fetch(`/api/plaid/transactions/get?userId=${profile.id}&limit=${PAGE_LIMIT}&minimal=1`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
-      }
-
-      const data = await response.json();
-      const initial = data.transactions || [];
-      setTransactions(initial);
-      console.log('Loaded', initial.length || 0, 'transactions');
+      const data = await fetchTransactionsData();
+      setTransactions(data.transactions || []);
+      setNextCursor(data.nextCursor);
+      setPrevCursor(data.prevCursor); // Usually null for initial fetch unless we started in middle
     } catch (err) {
-      if (err?.name === 'AbortError') return;
       console.error('Error fetching transactions:', err);
       setError(err.message);
     } finally {
@@ -321,37 +337,123 @@ export default function TransactionsPage() {
 
   const handleRefresh = () => {
     setTransactions([]);
-    fetchTransactions();
+    setNextCursor(null);
+    setPrevCursor(null);
+    fetchInitialTransactions();
   };
 
-  const handleTransactionClick = (transaction) => {
-    setSelectedTransaction(transaction);
-    setIsDrawerOpen(true);
-  };
+  // Load more (next page - older transactions)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !nextCursor) return;
 
-  const handleDrawerClose = () => {
-    setIsDrawerOpen(false);
-    setSelectedTransaction(null);
-    setCurrentDrawerView('transaction-details');
-  };
+    try {
+      setLoadingMore(true);
+      const data = await fetchTransactionsData(nextCursor, 'forward');
 
-  const handleCategoryClick = () => {
-    setCurrentDrawerView('select-category');
-  };
+      if (data.transactions.length > 0) {
+        setTransactions(prev => {
+          const newTransactions = [...prev, ...data.transactions];
+          // Windowing: Remove from top if too many
+          if (newTransactions.length > MAX_ITEMS) {
+            const overflow = newTransactions.length - MAX_ITEMS;
+            const keptTransactions = newTransactions.slice(overflow);
+            // Update prevCursor to the first item of the new list
+            setPrevCursor({
+              date: keptTransactions[0].datetime,
+              id: keptTransactions[0].id
+            });
+            return keptTransactions;
+          }
+          return newTransactions;
+        });
+        setNextCursor(data.nextCursor);
+      } else {
+        setNextCursor(null); // End of list
+      }
+    } catch (err) {
+      console.error('Error loading more:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, nextCursor, profile?.id]);
 
-  const handleBackToTransaction = () => {
-    setCurrentDrawerView('transaction-details');
-  };
+  // Load previous (prev page - newer transactions)
+  const loadPrev = useCallback(async () => {
+    if (loadingPrev || !prevCursor) return;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+    try {
+      setLoadingPrev(true);
+      // Capture current scroll height before adding items
+      prevScrollHeightRef.current = document.documentElement.scrollHeight;
+      isPrependRef.current = true;
+
+      const data = await fetchTransactionsData(prevCursor, 'backward');
+
+      if (data.transactions.length > 0) {
+        setTransactions(prev => {
+          const newTransactions = [...data.transactions, ...prev];
+          // Windowing: Remove from bottom if too many
+          if (newTransactions.length > MAX_ITEMS) {
+            const keptTransactions = newTransactions.slice(0, MAX_ITEMS);
+            // Update nextCursor to the last item of the new list
+            setNextCursor({
+              date: keptTransactions[keptTransactions.length - 1].datetime,
+              id: keptTransactions[keptTransactions.length - 1].id
+            });
+            return keptTransactions;
+          }
+          return newTransactions;
+        });
+        setPrevCursor(data.prevCursor);
+      } else {
+        setPrevCursor(null); // Start of list
+        isPrependRef.current = false; // Nothing added, no need to adjust
+      }
+    } catch (err) {
+      console.error('Error loading prev:', err);
+      isPrependRef.current = false;
+    } finally {
+      setLoadingPrev(false);
+    }
+  }, [loadingPrev, prevCursor, profile?.id]);
+
+  // Restore scroll position after prepending items
+  useLayoutEffect(() => {
+    if (isPrependRef.current) {
+      const currentScrollHeight = document.documentElement.scrollHeight;
+      const diff = currentScrollHeight - prevScrollHeightRef.current;
+      if (diff > 0) {
+        window.scrollBy(0, diff);
+      }
+      isPrependRef.current = false;
+    }
+  }, [transactions]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (entry.target === bottomSentinelRef.current) {
+              loadMore();
+            } else if (entry.target === topSentinelRef.current) {
+              loadPrev();
+            }
+          }
+        });
+      },
+      { rootMargin: '400px' } // Load before reaching the edge
+    );
+
+    if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
+    if (topSentinelRef.current) observer.observe(topSentinelRef.current);
+
+    return () => observer.disconnect();
+  }, [loadMore, loadPrev]);
 
   useEffect(() => {
-    fetchTransactions();
+    fetchInitialTransactions();
     return () => {
       if (initialAbortRef.current) initialAbortRef.current.abort();
     };
@@ -381,6 +483,25 @@ export default function TransactionsPage() {
     }
   }, [isFiltersOpen, categoryGroups.length, loadingCategoryGroups]);
 
+
+  const handleTransactionClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setIsDrawerOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setIsDrawerOpen(false);
+    setSelectedTransaction(null);
+    setCurrentDrawerView('transaction-details');
+  };
+
+  const handleCategoryClick = () => {
+    setCurrentDrawerView('select-category');
+  };
+
+  const handleBackToTransaction = () => {
+    setCurrentDrawerView('transaction-details');
+  };
 
   // Show loading state
   if (loading || !profile?.id) {
@@ -415,7 +536,7 @@ export default function TransactionsPage() {
           </div>
           <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">Error loading transactions</h3>
           <p className="text-[var(--color-muted)] mb-4">{error}</p>
-          <Button onClick={fetchTransactions}>
+          <Button onClick={fetchInitialTransactions}>
             Try Again
           </Button>
         </div>
@@ -432,7 +553,12 @@ export default function TransactionsPage() {
         loading={loading}
         onOpenFilters={() => setIsFiltersOpen(true)}
       />
-      <div className="space-y-6">
+      <div className="space-y-0" ref={containerRef}>
+        {/* Top Sentinel for scrolling up */}
+        <div ref={topSentinelRef} className="h-4 w-full flex justify-center items-center">
+          {loadingPrev && <FiLoader className="animate-spin text-[var(--color-muted)]" />}
+        </div>
+
         {/* Show empty state if no transactions */}
         {transactions.length === 0 && !loading ? (
           <div className="text-center py-12">
@@ -448,9 +574,13 @@ export default function TransactionsPage() {
               transactions={transactions}
               onTransactionClick={handleTransactionClick}
             />
-            {/* Simple list without infinite scroll */}
           </div>
         )}
+
+        {/* Bottom Sentinel for scrolling down */}
+        <div ref={bottomSentinelRef} className="h-20 w-full flex justify-center items-center">
+          {loadingMore && <FiLoader className="animate-spin text-[var(--color-muted)]" />}
+        </div>
       </div>
 
       {/* Filters Drawer */}

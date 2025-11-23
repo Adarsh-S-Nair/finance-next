@@ -8,6 +8,11 @@ export async function GET(request) {
     const minimal = (searchParams.get('minimal') || '1') === '1';
     const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
+    // Cursor-based pagination params
+    const cursorDate = searchParams.get('cursorDate'); // datetime
+    const cursorId = searchParams.get('cursorId'); // transaction id
+    const direction = searchParams.get('direction') || 'forward'; // 'forward' (older) or 'backward' (newer)
+
     if (!userId) {
       return Response.json(
         { error: 'User ID is required' },
@@ -15,7 +20,7 @@ export async function GET(request) {
       );
     }
 
-    console.log('Fetching transactions for user:', userId, `(limit=${limit}, minimal=${minimal})`);
+    console.log('Fetching transactions for user:', userId, `(limit=${limit}, minimal=${minimal}, dir=${direction})`);
 
     // Build a minimal-select by default to reduce payload size significantly
     const selectFragment = minimal
@@ -65,13 +70,56 @@ export async function GET(request) {
       `;
 
     // Get user's transactions from database by joining through accounts
-    const { data: transactions, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('transactions')
       .select(selectFragment)
-      .eq('accounts.user_id', userId)
-      .order('datetime', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .eq('accounts.user_id', userId);
+
+    // Apply cursor-based pagination
+    if (cursorDate && cursorId) {
+      if (direction === 'forward') {
+        // Fetch older transactions (datetime < cursor OR (datetime = cursor AND id < cursorId))
+        // Since Supabase doesn't support tuple comparison easily in JS client, we use this logic:
+        // We want items that appear AFTER the cursor in the sort order (DESC).
+        // Sort order is datetime DESC, created_at DESC (using created_at as tie breaker if id is not sequential/reliable, but id is usually UUID. Let's use datetime and id for stability if id is sortable, or just datetime and created_at).
+        // The original code used `order('datetime', { ascending: false }).order('created_at', { ascending: false })`.
+        // Let's stick to that sort order.
+        // To get the "next" page (older items), we need items with datetime <= cursorDate.
+        // Ideally we use row-value comparison, but here we can filter:
+        // datetime < cursorDate OR (datetime = cursorDate AND created_at < cursorCreatedAt)
+        // To simplify, let's just use datetime for now, but that might miss items with same datetime.
+        // A robust way is using the `lt` filter on a composite index, but Supabase JS client is limited.
+        // Let's try to use the RPC or just simple filtering.
+        // Actually, we can use `.lt('datetime', cursorDate)` but that misses same-time items.
+        // For simplicity and robustness with the JS client, let's use a filter that might over-fetch slightly or use a raw query if needed.
+        // But wait, we can chain `.or`.
+        // `and(datetime.eq.${cursorDate},id.lt.${cursorId}),datetime.lt.${cursorDate}`
+
+        // Let's assume we pass the exact datetime string.
+        query = query.or(`datetime.lt.${cursorDate},and(datetime.eq.${cursorDate},id.lt.${cursorId})`);
+      } else {
+        // Fetch newer transactions (backward)
+        // We want items appearing BEFORE the cursor in the sort order.
+        // i.e. datetime > cursor OR (datetime = cursor AND id > cursorId)
+        query = query.or(`datetime.gt.${cursorDate},and(datetime.eq.${cursorDate},id.gt.${cursorId})`);
+      }
+    }
+
+    // Apply sorting
+    if (direction === 'forward') {
+      // Standard sort: Newest first
+      query = query
+        .order('datetime', { ascending: false })
+        .order('id', { ascending: false });
+    } else {
+      // Backward sort: Oldest first (so we get the ones immediately preceding the cursor)
+      // We will reverse this list before returning
+      query = query
+        .order('datetime', { ascending: true })
+        .order('id', { ascending: true });
+    }
+
+    const { data: transactions, error } = await query.limit(limit);
 
     if (error) {
       console.error('Error fetching transactions:', error);
@@ -81,8 +129,13 @@ export async function GET(request) {
       );
     }
 
+    // If backward, we need to reverse the array to restore correct order (Newest -> Oldest)
+    const orderedTransactions = direction === 'backward'
+      ? (transactions || []).reverse()
+      : (transactions || []);
+
     // Transform the data to include account/category info for easier display
-    const transformedTransactions = transactions.map((transaction) => ({
+    const transformedTransactions = orderedTransactions.map((transaction) => ({
       ...transaction,
       account_name: transaction.accounts?.name || 'Unknown Account',
       category_icon_lib: transaction.system_categories?.category_groups?.icon_lib || null,
@@ -99,6 +152,18 @@ export async function GET(request) {
       count: transformedTransactions.length,
       limit,
       minimal,
+      nextCursor: transformedTransactions.length > 0
+        ? {
+          date: transformedTransactions[transformedTransactions.length - 1].datetime,
+          id: transformedTransactions[transformedTransactions.length - 1].id
+        }
+        : null,
+      prevCursor: transformedTransactions.length > 0
+        ? {
+          date: transformedTransactions[0].datetime,
+          id: transformedTransactions[0].id
+        }
+        : null,
     });
   } catch (error) {
     console.error('Error in transactions GET API:', error);

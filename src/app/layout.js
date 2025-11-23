@@ -1,6 +1,5 @@
 import "./globals.css";
 import { Inter, Poppins } from 'next/font/google';
-import RouteTransition from "../components/RouteTransition";
 import Topbar from "../components/Topbar";
 import ToastProvider from "../components/ToastProvider";
 import UserProvider from "../components/UserProvider";
@@ -36,7 +35,7 @@ export default function RootLayout({ children }) {
             <AccountsProvider>
               <NetWorthProvider>
                 <Topbar />
-                <RouteTransition>{children}</RouteTransition>
+                {children}
                 {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' ? <DebugFetchMonitor /> : null}
               </NetWorthProvider>
             </AccountsProvider>

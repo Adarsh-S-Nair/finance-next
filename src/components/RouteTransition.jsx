@@ -59,7 +59,7 @@ export default function RouteTransition({ children }) {
     <motion.div
       key={pathname}
       initial={first.current || visibilityPaused.current ? false : { x: 48 * dir.current }}
-      animate={{ x: 0 }}
+      animate={{ x: 0, transitionEnd: { transform: "none" } }}
       transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
       className="route-transition"
       suppressHydrationWarning
