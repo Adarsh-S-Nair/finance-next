@@ -58,9 +58,9 @@ export default function RouteTransition({ children }) {
   return (
     <motion.div
       key={pathname}
-      initial={first.current || visibilityPaused.current ? false : { x: 48 * dir.current }}
-      animate={{ x: 0, transitionEnd: { transform: "none" } }}
-      transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
+      initial={first.current || visibilityPaused.current ? false : { opacity: 0, x: 100 * dir.current }}
+      animate={{ opacity: 1, x: 0, transitionEnd: { transform: "none" } }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
       className="route-transition"
       suppressHydrationWarning
     >

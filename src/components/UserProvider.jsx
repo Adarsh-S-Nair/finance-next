@@ -10,9 +10,9 @@ const UserContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  setTheme: (_theme) => {},
-  setAccentColor: (_hexOrNull) => {},
-  logout: () => {},
+  setTheme: (_theme) => { },
+  setAccentColor: (_hexOrNull) => { },
+  logout: () => { },
 });
 
 export function useUser() {
@@ -38,18 +38,18 @@ export default function UserProvider({ children }) {
       try {
         const { data } = await supabase.auth.getUser();
         u = data?.user ?? null;
-      } catch {}
+      } catch { }
       if (!u) {
         try {
           const { data } = await supabase.auth.refreshSession();
           u = data?.session?.user ?? null;
-        } catch {}
+        } catch { }
       }
       if (!u) {
         try {
           const { data } = await supabase.auth.getSession();
           u = data?.session?.user ?? null;
-        } catch {}
+        } catch { }
       }
       if (u) setUser(u);
       return u;
@@ -81,11 +81,17 @@ export default function UserProvider({ children }) {
     try {
       const { profile } = await fetchUserProfile();
       setProfile(profile);
-      if (profile?.theme) {
-        applyTheme(profile.theme);
-      }
-      if (profile && Object.prototype.hasOwnProperty.call(profile, 'accent_color')) {
-        applyAccent(profile.accent_color);
+
+      // Only apply theme/accent if we are NOT on a public route
+      const isPublicRoute = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
+
+      if (!isPublicRoute) {
+        if (profile?.theme) {
+          applyTheme(profile.theme);
+        }
+        if (profile && Object.prototype.hasOwnProperty.call(profile, 'accent_color')) {
+          applyAccent(profile.accent_color);
+        }
       }
     } catch (error) {
       console.error("[UserProvider] refreshProfile error", error);
@@ -100,39 +106,58 @@ export default function UserProvider({ children }) {
       profileLoadingRef.current = true;
       setLoading(true);
       refreshProfile().finally(() => {
-        setLoading(false);
-        setAuthTransition(false);
+        // Only clear loading if we've already navigated away from public routes
+        // Otherwise, keep spinning until the route change in the other effect branch handles it
+        const isPublic = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
+        if (!isPublic) {
+          setLoading(false);
+          setAuthTransition(false);
+        }
         profileLoadingRef.current = false;
       });
+    } else if (user && profile) {
+      // If we have user and profile, ensure theme is correct based on route
+      // This handles the case where we navigate from Landing (public) -> Dashboard (protected)
+      const isPublicRoute = pathname === "/" || pathname.startsWith("/auth");
+      if (!isPublicRoute) {
+        if (profile.theme) applyTheme(profile.theme);
+        if (Object.prototype.hasOwnProperty.call(profile, 'accent_color')) applyAccent(profile.accent_color);
+
+        // Ensure loading overlay is removed once we are on a protected route
+        if (loading || authTransition) {
+          setLoading(false);
+          setAuthTransition(false);
+        }
+      }
     }
-  }, [user, profile]);
+  }, [user, profile, pathname, applyTheme, applyAccent, refreshProfile]);
 
   useEffect(() => {
     let isMounted = true;
     const onVisibility = async () => {
       if (!document.hidden) {
         try {
-          try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
+          try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
           // Rehydrate auth when tab becomes visible again
           const u = await ensureUser();
         } catch (e) {
           console.log("[UserProvider] visibilitychange error", e);
         }
       } else {
-        try { if (supabase?.auth && typeof supabase.auth.stopAutoRefresh === 'function') supabase.auth.stopAutoRefresh(); } catch {}
+        try { if (supabase?.auth && typeof supabase.auth.stopAutoRefresh === 'function') supabase.auth.stopAutoRefresh(); } catch { }
       }
     };
     const onFocus = async () => {
       try {
-        try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
+        try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
         const u = await ensureUser();
-      } catch {}
+      } catch { }
     };
     const onOnline = async () => {
       try {
-        try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch {}
+        try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
         const u = await ensureUser();
-      } catch {}
+      } catch { }
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);

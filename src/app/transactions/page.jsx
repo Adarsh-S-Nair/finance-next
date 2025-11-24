@@ -299,13 +299,13 @@ const FilterSelector = ({ options, value, onChange, label }) => {
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className={`flex-1 relative py-1.5 px-3 text-xs font-medium transition-colors duration-200 z-10 ${isActive ? 'text-[var(--color-fg)]' : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
+              className={`flex-1 relative py-1.5 px-3 text-xs font-medium transition-colors duration-200 z-10 ${isActive ? 'text-white' : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
                 }`}
             >
               {isActive && (
                 <motion.div
                   layoutId={`selector-bg-${label}`}
-                  className="absolute inset-0 bg-[var(--color-bg)] rounded-lg shadow-sm border border-[var(--color-border)]/50"
+                  className="absolute inset-0 bg-[var(--color-accent)] rounded-lg shadow-sm"
                   initial={false}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   style={{ zIndex: -1 }}
@@ -406,7 +406,7 @@ const FiltersContent = ({
               key={option.value}
               onClick={() => setDateRange(option.value)}
               className={`py-2 px-2 text-xs font-medium rounded-xl border transition-all duration-200 ${dateRange === option.value
-                  ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)] text-[var(--color-accent)]'
+                  ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
                   : 'bg-[var(--color-surface)] border-[var(--color-border)]/50 text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
                 }`}
             >
@@ -439,72 +439,75 @@ const FiltersContent = ({
         <label className="text-xs font-medium text-[var(--color-fg)] px-1">
           Categories {(selectedGroupIds.length > 0 || selectedCategoryIds.length > 0) && `(${selectedGroupIds.length + selectedCategoryIds.length})`}
         </label>
-        <div className="max-h-[300px] overflow-y-auto rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-surface)]/30 p-1">
+        <div className="max-h-[400px] overflow-y-auto pr-1">
           {loadingCategoryGroups ? (
-            <div className="p-3 space-y-2">
-              {[...Array(4)].map((_, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-[var(--color-border)] animate-pulse" />
-                  <div className="h-3 w-32 bg-[var(--color-border)] rounded animate-pulse" />
+            <div className="space-y-4">
+              {[...Array(3)].map((_, idx) => (
+                <div key={idx} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-[var(--color-border)]/30 animate-pulse" />
+                    <div className="h-4 w-24 bg-[var(--color-border)]/30 rounded animate-pulse" />
+                  </div>
+                  <div className="flex gap-2 pl-8">
+                    <div className="h-6 w-16 bg-[var(--color-border)]/30 rounded-full animate-pulse" />
+                    <div className="h-6 w-20 bg-[var(--color-border)]/30 rounded-full animate-pulse" />
+                  </div>
                 </div>
               ))}
             </div>
           ) : categoryGroupsError ? (
             <div className="py-3 px-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-4">
               {categoryGroups.map((group) => {
                 const isGroupSelected = selectedGroupIds.includes(group.id);
                 const isExpanded = expandedGroups[group.id];
-                const hasSelectedChildren = group.system_categories?.some(c => selectedCategoryIds.includes(c.id));
+                const selectedChildCount = group.system_categories?.filter(c => selectedCategoryIds.includes(c.id)).length || 0;
+                const totalChildCount = group.system_categories?.length || 0;
+                const isPartiallySelected = selectedChildCount > 0 && selectedChildCount < totalChildCount;
 
                 return (
-                  <div key={group.id} className="rounded-lg overflow-hidden">
-                    <div className={`flex items-center py-1.5 px-2 transition-colors duration-200 group/item ${isGroupSelected ? 'bg-[var(--color-accent)]/10' : 'hover:bg-[var(--color-surface)]'
-                      }`}>
+                  <div key={group.id} className="space-y-2">
+                    {/* Group Header */}
+                    <div className="flex items-center justify-between group/header">
                       <button
                         onClick={() => toggleGroupExpand(group.id)}
-                        className="p-1 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-                      >
-                        <FiChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? '' : '-rotate-90'}`} />
-                      </button>
-
-                      <button
-                        onClick={() => toggleGroup(group.id)}
-                        className="flex-1 flex items-center gap-2 min-w-0 text-left ml-1"
+                        className="flex items-center gap-2 text-left flex-1 min-w-0"
                       >
                         <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm"
+                          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm transition-transform duration-200 group-hover/header:scale-110"
                           style={{ backgroundColor: group.hex_color || 'var(--color-accent)' }}
                         >
                           <DynamicIcon
                             iconLib={group.icon_lib}
                             iconName={group.icon_name}
-                            className="h-2.5 w-2.5 text-white"
+                            className="h-3 w-3 text-white"
                             fallback={FiTag}
                           />
                         </div>
-                        <span className={`text-xs font-medium truncate ${isGroupSelected ? 'text-[var(--color-accent)]' : 'text-[var(--color-fg)]'
-                          }`}>
+                        <span className="text-sm font-medium text-[var(--color-fg)] truncate">
                           {group.name}
                         </span>
+                        <FiChevronDown
+                          className={`w-3.5 h-3.5 text-[var(--color-muted)] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        />
                       </button>
 
-                      <div className="flex items-center">
-                        <div
-                          onClick={() => toggleGroup(group.id)}
-                          className={`w-4 h-4 rounded border flex items-center justify-center transition-all duration-200 cursor-pointer ${isGroupSelected
-                              ? 'bg-[var(--color-accent)] border-[var(--color-accent)] shadow-sm scale-100'
-                              : `border-[var(--color-border)] bg-[var(--color-surface)] ${hasSelectedChildren ? 'border-[var(--color-accent)]' : 'group-hover/item:border-[var(--color-muted)]'}`
-                            }`}
-                        >
-                          {isGroupSelected && <FiX className="w-2.5 h-2.5 text-white" />}
-                          {!isGroupSelected && hasSelectedChildren && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />}
-                        </div>
-                      </div>
+                      <button
+                        onClick={() => toggleGroup(group.id)}
+                        className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-200 ${isGroupSelected
+                            ? 'bg-[var(--color-accent)] border-[var(--color-accent)] shadow-sm'
+                            : isPartiallySelected
+                              ? 'bg-[var(--color-surface)] border-[var(--color-accent)]'
+                              : 'bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-muted)]'
+                          }`}
+                      >
+                        {isGroupSelected && <FiX className="w-3 h-3 text-white" />}
+                        {!isGroupSelected && isPartiallySelected && <div className="w-2 h-2 rounded-sm bg-[var(--color-accent)]" />}
+                      </button>
                     </div>
 
-                    {/* Nested Categories */}
+                    {/* Nested Categories (Chips) */}
                     <AnimatePresence>
                       {isExpanded && group.system_categories && (
                         <motion.div
@@ -514,34 +517,19 @@ const FiltersContent = ({
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="pl-9 pr-2 py-1 space-y-0.5 relative">
-                            {/* Vertical line connector */}
-                            <div className="absolute left-[1.65rem] top-0 bottom-2 w-px bg-[var(--color-border)]/30" />
-
+                          <div className="flex flex-wrap gap-2 pl-8 pb-1">
                             {group.system_categories.map(category => {
                               const isCatSelected = selectedCategoryIds.includes(category.id);
                               return (
                                 <button
                                   key={category.id}
                                   onClick={() => toggleCategory(category.id)}
-                                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md group/cat relative transition-colors ${isCatSelected ? 'bg-[var(--color-accent)]/5' : 'hover:bg-[var(--color-surface)]'
+                                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-200 ${isCatSelected
+                                      ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
+                                      : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
                                     }`}
                                 >
-                                  {/* Horizontal connector */}
-                                  <div className="absolute left-[-0.6rem] top-1/2 w-2 h-px bg-[var(--color-border)]/30" />
-
-                                  <span className={`text-xs truncate text-left transition-colors ${isCatSelected ? 'text-[var(--color-accent)] font-medium' : 'text-[var(--color-muted)] group-hover/cat:text-[var(--color-fg)]'
-                                    }`}>
-                                    {category.label}
-                                  </span>
-                                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all duration-200 ${isCatSelected
-                                      ? 'bg-[var(--color-accent)] border-[var(--color-accent)] shadow-sm'
-                                      : 'border-[var(--color-border)] group-hover/cat:border-[var(--color-muted)] bg-[var(--color-surface)]'
-                                    }`}>
-                                    {isCatSelected && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>}
-                                  </div>
+                                  {category.label}
                                 </button>
                               );
                             })}

@@ -35,16 +35,16 @@ export default function Topbar() {
     };
   }, []);
 
-  if (isAuthedRoute) return null;
+  if (isAuthedRoute || isAuth) return null;
   if (isLanding && user) return null;
 
   return (
-    <header className="sticky top-0 z-20 w-full bg-[var(--color-bg)]/70 backdrop-blur">
+    <header className="sticky top-0 z-20 w-full bg-white/70 backdrop-blur border-b border-zinc-100">
       <div className="container mx-auto flex items-center justify-between px-6 py-2 h-20">
         <Link href="/" className="flex items-center flex-shrink-0">
           <span
             aria-hidden
-            className="block h-16 w-16 bg-[var(--color-accent)] flex-shrink-0"
+            className="block h-16 w-16 bg-zinc-900 flex-shrink-0"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
