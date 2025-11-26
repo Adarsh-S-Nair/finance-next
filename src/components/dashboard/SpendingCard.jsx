@@ -53,8 +53,8 @@ export default function SpendingCard() {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   };
 
@@ -75,77 +75,110 @@ export default function SpendingCard() {
 
   // Calculate percentage change
   const percentChange = previousSpending === 0 ? 0 : ((currentSpending - previousSpending) / previousSpending) * 100;
-  // For spending, usually less is better, but let's stick to standard red/green for up/down or context aware?
-  // User didn't specify, but usually spending up is "bad" (red) and down is "good" (green).
-  // However, for consistency with trends: Up = Red (more spending), Down = Green (less spending).
   const isGoodChange = percentChange <= 0;
 
-  // Filled Area Sparkline Component
-  const Sparkline = ({ data, color = "currentColor" }) => {
+  // Curved Area Chart Component
+  const CurvedChart = ({ data, color = "currentColor" }) => {
     if (!data || data.length < 2) return null;
 
-    const height = 100;
-    const width = 200;
-    const max = Math.max(...data.map(d => d.spending));
-    const min = Math.min(...data.map(d => d.spending));
+    const height = 150;
+    const width = 300;
+    const padding = 5;
+
+    const values = data.map(d => d.spending);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
     const range = max - min || 1;
 
-    const points = data.map((d, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((d.spending - min) / range) * height;
-      return `${x},${y}`;
-    }).join(' ');
+    // Coordinate calculation
+    const points = values.map((val, i) => {
+      const x = (i / (values.length - 1)) * width;
+      // Add padding to avoid cutting off peaks
+      // Lower the graph by multiplying by 0.6 (60% height) and adding offset
+      const y = height - ((val - min) / range) * (height * 0.6) - padding;
+      return [x, y];
+    });
 
-    const fillPoints = `${points} ${width},${height} 0,${height}`;
+    // Smoothing logic (Catmull-Rom to Bezier)
+    const line = (pointA, pointB) => {
+      const lengthX = pointB[0] - pointA[0];
+      const lengthY = pointB[1] - pointA[1];
+      return {
+        length: Math.sqrt(Math.pow(lengthX, 2) + Math.pow(lengthY, 2)),
+        angle: Math.atan2(lengthY, lengthX)
+      };
+    };
+
+    const controlPoint = (current, previous, next, reverse) => {
+      const p = previous || current;
+      const n = next || current;
+      const o = line(p, n);
+      const angle = o.angle + (reverse ? Math.PI : 0);
+      const length = o.length * 0.2;
+      const x = current[0] + Math.cos(angle) * length;
+      const y = current[1] + Math.sin(angle) * length;
+      return [x, y];
+    };
+
+    const bezierCommand = (point, i, a) => {
+      const [cpsX, cpsY] = controlPoint(a[i - 1], a[i - 2], point);
+      const [cpeX, cpeY] = controlPoint(point, a[i - 1], a[i + 1], true);
+      return `C ${cpsX},${cpsY} ${cpeX},${cpeY} ${point[0]},${point[1]}`;
+    };
+
+    const d = points.reduce((acc, point, i, a) => i === 0
+      ? `M ${point[0]},${point[1]}`
+      : `${acc} ${bezierCommand(point, i, a)}`
+      , '');
+
+    // Close the path for fill
+    const fillPath = `${d} L ${width},${height} L 0,${height} Z`;
 
     return (
       <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
         <defs>
           <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0.0" />
           </linearGradient>
         </defs>
-        <polygon
-          points={fillPoints}
+        <path
+          d={fillPath}
           fill="url(#spendingGradient)"
         />
-        <polyline
-          points={points}
+        <path
+          d={d}
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
         />
       </svg>
     );
   };
 
   return (
-    <Card width="full" className="h-full relative overflow-hidden group">
-      {/* Background Sparkline */}
-      <div className="absolute inset-x-0 bottom-0 h-24 z-0 text-rose-500 opacity-30 pointer-events-none">
-        <Sparkline data={spendingData?.history || []} color="currentColor" />
-      </div>
-
-      <div className="relative z-10 flex flex-col h-full justify-between p-1">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-muted)] mb-1">Spending</h3>
-            <div className="text-2xl font-bold tracking-tight">
-              {formatCurrency(currentSpending)}
-            </div>
+    <Card width="full" padding="none" className="h-full relative overflow-hidden group border-0 shadow-sm bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl">
+      <div className="relative z-10 flex flex-col h-full justify-between p-6">
+        <div>
+          <h3 className="text-sm font-medium text-[var(--color-muted)] mb-1">Spending</h3>
+          <div className="text-3xl font-bold tracking-tight text-[var(--color-text)]">
+            {formatCurrency(currentSpending)}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-2">
-          <span className={`text-xs font-bold flex items-center gap-0.5 ${!isGoodChange ? 'text-rose-500' : 'text-emerald-500'}`}>
+        <div className="flex items-center gap-2 mt-4">
+          <span className={`text-sm font-bold flex items-center gap-0.5 ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(1)}%
           </span>
           <span className="text-xs text-[var(--color-muted)] font-medium">vs last month</span>
         </div>
+      </div>
+
+      {/* Background Chart - positioned to fill bottom area */}
+      <div className="absolute inset-x-0 bottom-0 h-32 z-0 text-rose-500 opacity-20 pointer-events-none translate-y-4">
+        <CurvedChart data={spendingData?.history || []} color="currentColor" />
       </div>
     </Card>
   );

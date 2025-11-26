@@ -14,9 +14,9 @@ type CardProps = {
   onMouseEnter?: () => void;
 };
 
-export default function Card({ 
-  children, 
-  className, 
+export default function Card({
+  children,
+  className,
   padding = "md",
   variant = "glass", // Default to glass for the new look
   width = "full",
@@ -27,14 +27,14 @@ export default function Card({
   const paddingClasses = {
     none: "p-0",
     sm: "p-3",
-    md: "p-5", 
+    md: "p-5",
     lg: "p-8"
   };
 
   const widthClasses = {
     full: "w-full",
     "2/3": "w-full md:w-2/3",
-    "1/3": "w-full md:w-1/3", 
+    "1/3": "w-full md:w-1/3",
     "1/2": "w-full md:w-1/2",
     "1/4": "w-full md:w-1/4"
   };
@@ -48,7 +48,7 @@ export default function Card({
   };
 
   return (
-    <div 
+    <div
       className={clsx(
         "rounded-xl relative transition-all duration-300", // Increased corner rounding
         allowOverflow ? "overflow-visible" : "overflow-hidden",
@@ -63,7 +63,7 @@ export default function Card({
       {variant === 'glass' && (
         <div className="absolute inset-0 pointer-events-none border border-white/5 dark:border-white/[0.02] rounded-xl" />
       )}
-      <div className="relative z-10">
+      <div className="relative z-10 h-full">
         {children}
       </div>
     </div>
