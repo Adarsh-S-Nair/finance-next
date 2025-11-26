@@ -7,20 +7,20 @@ describe('Transactions Sync Endpoint Logic', () => {
   describe('Environment-based API Selection', () => {
     it('should use /transactions/get in sandbox mode', () => {
       const PLAID_ENV = 'sandbox';
-      
+
       const shouldUseGetEndpoint = PLAID_ENV === 'sandbox';
       const shouldUseSyncEndpoint = PLAID_ENV !== 'sandbox';
-      
+
       expect(shouldUseGetEndpoint).toBe(true);
       expect(shouldUseSyncEndpoint).toBe(false);
     });
 
     it('should use /transactions/sync in production mode', () => {
       const PLAID_ENV = 'production';
-      
+
       const shouldUseGetEndpoint = PLAID_ENV === 'sandbox';
       const shouldUseSyncEndpoint = PLAID_ENV !== 'sandbox';
-      
+
       expect(shouldUseGetEndpoint).toBe(false);
       expect(shouldUseSyncEndpoint).toBe(true);
     });
@@ -30,7 +30,7 @@ describe('Transactions Sync Endpoint Logic', () => {
     it('should trigger sync for transaction update webhooks', () => {
       const webhookCodes = [
         'INITIAL_UPDATE',
-        'HISTORICAL_UPDATE', 
+        'HISTORICAL_UPDATE',
         'DEFAULT_UPDATE',
         'SYNC_UPDATES_AVAILABLE'
       ];
@@ -48,9 +48,9 @@ describe('Transactions Sync Endpoint Logic', () => {
 
     it('should handle TRANSACTIONS_REMOVED without triggering sync', () => {
       const webhookCode = 'TRANSACTIONS_REMOVED';
-      
+
       const shouldTriggerSync = !['TRANSACTIONS_REMOVED'].includes(webhookCode);
-      
+
       expect(shouldTriggerSync).toBe(false);
     });
   });
@@ -80,7 +80,7 @@ describe('Transactions Sync Endpoint Logic', () => {
       ];
 
       const status = 'HISTORICAL_UPDATE_COMPLETE';
-      
+
       expect(validStatuses).toContain(status);
     });
 
@@ -93,7 +93,7 @@ describe('Transactions Sync Endpoint Logic', () => {
 
       const secondBatch = {
         transactions: [4, 5],
-        next_cursor: 'cursor-2', 
+        next_cursor: 'cursor-2',
         has_more: false
       };
 
@@ -131,7 +131,7 @@ describe('Transactions Sync Endpoint Logic', () => {
       // Simulate safety check
       let totalTransactions = 0;
       let batchCount = 0;
-      
+
       while (batchCount < maxBatches && totalTransactions < maxTransactions) {
         totalTransactions += batchSize;
         batchCount++;
@@ -145,41 +145,43 @@ describe('Transactions Sync Endpoint Logic', () => {
   describe('Sandbox vs Production Behavior', () => {
     it('should not update cursor in sandbox mode', () => {
       const PLAID_ENV = 'sandbox';
-      
+
       const shouldUpdateCursor = PLAID_ENV !== 'sandbox';
-      
+
       expect(shouldUpdateCursor).toBe(false);
     });
 
     it('should update cursor in production mode', () => {
       const PLAID_ENV = 'production';
-      
+
       const shouldUpdateCursor = PLAID_ENV !== 'sandbox';
-      
+
       expect(shouldUpdateCursor).toBe(true);
     });
 
     it('should use date range in sandbox mode', () => {
       const PLAID_ENV = 'sandbox';
-      
+
       if (PLAID_ENV === 'sandbox') {
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(endDate.getDate() - 30);
-        
+
         const daysDifference = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-        
-        expect(daysDifference).toBe(30);
+
+        // Should be 30 days (±1 for timezone differences)
+        expect(daysDifference).toBeGreaterThanOrEqual(29);
+        expect(daysDifference).toBeLessThanOrEqual(31);
       }
     });
 
     it('should use cursor in production mode', () => {
       const PLAID_ENV = 'production';
-      
+
       if (PLAID_ENV !== 'sandbox') {
         const storedCursor = 'stored-cursor-123';
         const useCursor = storedCursor || null;
-        
+
         expect(useCursor).toBe('stored-cursor-123');
       }
     });
@@ -189,27 +191,27 @@ describe('Transactions Sync Endpoint Logic', () => {
     it('should handle missing plaid item gracefully', () => {
       const plaidItem = null;
       const error = { message: 'Item not found' };
-      
+
       const shouldReturn404 = !plaidItem && !!error;
-      
+
       expect(shouldReturn404).toBe(true);
     });
 
     it('should skip sync if item is already syncing', () => {
       const syncStatus = 'syncing';
       const forceSync = false;
-      
+
       const shouldSkip = syncStatus === 'syncing' && !forceSync;
-      
+
       expect(shouldSkip).toBe(true);
     });
 
     it('should allow sync if forceSync is true', () => {
       const syncStatus = 'syncing';
       const forceSync = true;
-      
+
       const shouldSkip = syncStatus === 'syncing' && !forceSync;
-      
+
       expect(shouldSkip).toBe(false);
     });
   });
