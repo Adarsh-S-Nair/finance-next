@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Card from "../ui/Card";
 import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
-import { FiActivity, FiTrendingUp, FiTrendingDown } from "react-icons/fi";
+
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {
@@ -129,7 +129,8 @@ export default function DashboardNetWorthCard() {
   if (isCustomAccent && profile?.accent_color) {
     // Custom accent: Use darkened color with white text
     const darkenedAccent = darkenColor(profile.accent_color);
-    cardStyle = { backgroundColor: darkenedAccent };
+    const darkerAccent = darkenColor(darkenedAccent, 0.3);
+    cardStyle = { background: `linear-gradient(135deg, ${darkenedAccent} 0%, ${darkerAccent} 100%)` };
     textColorClass = "text-white";
     borderClass = "border-transparent";
     patternColorClass = "text-white";
@@ -137,7 +138,8 @@ export default function DashboardNetWorthCard() {
     // Default accent: Use CSS variables (like matte button)
     // Light mode: --color-accent is dark (#18181b), so white text
     // Dark mode: --color-accent is light (#fafafa), so dark text
-    cardStyle = { backgroundColor: 'var(--color-accent)' };
+    // Using color-mix to create a subtle gradient from the base accent color
+    cardStyle = { background: `linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent), black 10%) 100%)` };
     textColorClass = "text-[var(--color-on-accent)]";
     borderClass = "border-[var(--color-accent)]/20";
     patternColorClass = "text-[var(--color-on-accent)]";
@@ -160,20 +162,19 @@ export default function DashboardNetWorthCard() {
       style={cardStyle}
       className={`relative overflow-hidden rounded-3xl border ${borderClass} p-6 h-full flex flex-col justify-between ${textColorClass}`}
     >
-      {/* Simple Swirly Background Design */}
+      {/* Modern Solid Circle Background Design */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* Subtle Ambient Glow */}
-        <div className={`absolute top-0 right-0 w-[400px] h-[400px] blur-[100px] rounded-full transform translate-x-1/3 -translate-y-1/3 ${isCustomAccent ? 'bg-white opacity-20' : 'bg-[var(--color-on-accent)] opacity-15'}`} />
+        {/* Large solid circle top right */}
+        <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-        {/* Simple Swirly SVG Pattern */}
-        <svg className={`absolute inset-0 w-full h-full ${patternColorClass}`} viewBox="0 0 400 200" preserveAspectRatio="none">
-          {/* Elegant flowing S-curves */}
-          <path d="M0,100 C100,50 150,150 250,100 S350,50 400,100" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.25" />
-          <path d="M0,120 C100,70 150,170 250,120 S350,70 400,120" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+        {/* Overlapping solid circle mid right */}
+        <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-          {/* Gentle wave at bottom */}
-          <path d="M0,160 Q100,140 200,160 T400,160" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.15" />
-        </svg>
+        {/* Small solid circle bottom right */}
+        <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+
+        {/* Solid circle bottom left */}
+        <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
       </div>
 
       <div className="relative z-10">
@@ -182,15 +183,12 @@ export default function DashboardNetWorthCard() {
           <AnimatedCounter value={netWorthValue} />
         </div>
       </div>
-
-      {/* Trend at the bottom */}
       <div className="relative z-10 flex items-center gap-3 mt-4">
         <div className={`flex items-center gap-1 font-bold text-sm ${trendColorClass}`}>
-          {percentChange >= 0 ? <FiTrendingUp className="w-4 h-4" /> : <FiTrendingDown className="w-4 h-4" />}
-          <span>{Math.abs(percentChange).toFixed(1)}%</span>
+          <span>{percentChange >= 0 ? '+' : '-'}{Math.abs(percentChange).toFixed(1)}%</span>
         </div>
         <span className={`text-xs font-medium ${vsTextColorClass}`}>vs last month</span>
       </div>
-    </motion.div>
+    </motion.div >
   );
 }

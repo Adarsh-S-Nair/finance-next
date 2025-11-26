@@ -9,13 +9,12 @@ import RecentTransactionsCard from "../../components/dashboard/RecentTransaction
 import DashboardNetWorthCard from "../../components/dashboard/DashboardNetWorthCard";
 import IncomeCard from "../../components/dashboard/IncomeCard";
 import SpendingCard from "../../components/dashboard/SpendingCard";
-import TestLogsButton from "../../components/TestLogsButton";
 
 export default function DashboardPage() {
   const { user } = useUser();
 
   return (
-    <PageContainer title="Dashboard" action={<TestLogsButton />}>
+    <PageContainer title="Dashboard">
       <div className="space-y-6">
         {/* Top Row: Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
