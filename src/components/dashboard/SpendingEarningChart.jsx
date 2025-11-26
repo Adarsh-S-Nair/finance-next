@@ -87,7 +87,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
 
     const ticks = []
     for (let v = startTick; v <= endTick; v += stepValue) {
-      if (v !== 0) ticks.push(v)
+      ticks.push(v)  // Include all ticks including 0
     }
 
     return { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange, ticks }
@@ -106,7 +106,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
   const scale = innerHeight / adjustedRange
 
   const step = months.length > 0 ? innerWidth / months.length : innerWidth
-  const barWidth = Math.max(10, step * 0.32)
+  const barWidth = Math.min(60, Math.max(10, step * 0.65))  // Cap at 60px max
 
   const yFromValue = (v) => v >= 0 ? zeroY - (v * scale) : zeroY
   const hFromValue = (v) => Math.max(1, Math.abs(v) * scale)
@@ -194,7 +194,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
                   stroke="var(--color-border)"
                   strokeWidth="1"
                   strokeDasharray="4 4"
-                  opacity="0.5"
+                  opacity="0.8"
                 />
                 <text
                   x={margin.left - 8}
@@ -204,15 +204,12 @@ export default function SpendingEarningChart({ onSelectMonth }) {
                   fill="var(--color-muted)"
                   fontWeight="300"
                 >
-                  {Math.abs(tick) >= 1000 ? `${Math.abs(tick) / 1000}k` : Math.abs(tick)}
+                  {tick >= 1000 ? `${tick / 1000}k` : tick <= -1000 ? `-${Math.abs(tick) / 1000}k` : tick}
                 </text>
               </g>
             )
           })}
         </g>
-
-        {/* Zero line */}
-        <line x1={margin.left} x2={width - margin.right} y1={zeroY} y2={zeroY} stroke="var(--color-border)" strokeWidth="1" />
 
         {/* Month labels */}
         <g>
