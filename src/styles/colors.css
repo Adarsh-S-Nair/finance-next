@@ -58,6 +58,9 @@
 
   --color-shadow: transparent;
   --color-card-border: rgba(0, 0, 0, 0.04);
+
+  /* Chart Colors - Dynamic based on accent */
+  --color-chart-expense: color-mix(in srgb, var(--color-accent), black 30%);
 }
 
 .dark {
@@ -123,6 +126,9 @@
 
   --color-shadow: transparent;
   --color-card-border: transparent;
+
+  /* Chart Colors - Dynamic based on accent */
+  --color-chart-expense: color-mix(in srgb, var(--color-accent), white 30%);
 }
 
 /* Base application colors */

@@ -71,16 +71,16 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       try {
         setLoading(true);
         setError(null);
-        
+
         const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=12`);
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch spending/earning data');
         }
-        
+
         const result = await response.json();
         setMonthlyData(result.data || []);
-        
+
       } catch (err) {
         console.error('Error fetching spending/earning data:', err);
         setError(err.message);
@@ -93,9 +93,9 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
   }, [user?.id]);
 
   // Normalize data
-  const { months, incomeVals, spendingVals, maxAbs } = useMemo(() => {
+  const { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange } = useMemo(() => {
     if (!monthlyData || monthlyData.length === 0) {
-      return { months: [], incomeVals: [], spendingVals: [], maxAbs: 1 }
+      return { months: [], incomeVals: [], spendingVals: [], maxIncome: 0, maxSpending: 0, totalRange: 1 }
     }
 
     // Convert API data to chart format
@@ -103,23 +103,47 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
     const incomeVals = monthlyData.map(month => month.earning || 0)
     const spendingVals = monthlyData.map(month => -(month.spending || 0)) // Make negative for chart
 
-    // Calculate max absolute value for scaling
-    const maxAbs = Math.max(1, ...incomeVals.map((v) => Math.abs(v)), ...spendingVals.map((v) => Math.abs(v)))
-    
-    return { months, incomeVals, spendingVals, maxAbs }
+    // Calculate max absolute values for scaling
+    const maxIncome = Math.max(0, ...incomeVals)
+    const maxSpending = Math.max(0, ...spendingVals.map(v => Math.abs(v)))
+    const totalRange = Math.max(1, maxIncome + maxSpending)
+
+    return { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange }
   }, [monthlyData])
 
   // Layout
-  const margin = { top: 5, right: 10, bottom: 15, left: 10 }
+  const margin = { top: 60, right: 20, bottom: 30, left: 20 }
   const innerWidth = Math.max(0, dims.width - margin.left - margin.right)
   const innerHeight = Math.max(0, dims.height - margin.top - margin.bottom)
-  const zeroY = margin.top + innerHeight / 2
+
+  // Dynamic zero line positioning
+  // If totalRange is 0 (no data), center it. Otherwise, position based on ratio.
+  // We want the zero line to be at a position such that maxIncome takes up the top portion
+  // and maxSpending takes up the bottom portion.
+  // ratio = maxIncome / totalRange. This is the % of height needed for income.
+  // zeroY should be at top + (maxIncome / totalRange) * innerHeight
+  // BUT we need to be careful. If maxIncome is 0, zeroY is at top. If maxSpending is 0, zeroY is at bottom.
+  // We add a small buffer (e.g. 5%) to top and bottom so bars don't touch edges exactly if possible, 
+  // or we can just let them touch. Let's let them touch for "full card" feel, maybe 5% padding.
+
+  const paddingFactor = 1.05 // 5% padding total
+  const adjustedRange = totalRange * paddingFactor
+  const zeroY = margin.top + (maxIncome / adjustedRange) * innerHeight + (innerHeight * (paddingFactor - 1) / 2)
 
   const step = months.length > 0 ? innerWidth / months.length : innerWidth
   const barWidth = Math.max(10, step * 0.32)
 
-  const yFromValue = (v) => zeroY - (v / maxAbs) * (innerHeight / 2)
-  const hFromValue = (v) => Math.max(1, Math.abs((v / maxAbs) * (innerHeight / 2)))
+  // Scale factor: how many pixels per unit of value
+  const scale = innerHeight / adjustedRange
+
+  const hFromValue = (v) => Math.max(1, Math.abs(v) * scale)
+  const yFromValue = (v) => {
+    if (v >= 0) {
+      return zeroY - (v * scale)
+    } else {
+      return zeroY
+    }
+  }
 
   const formatDate = (d) => {
     const y = d.getFullYear()
@@ -140,11 +164,11 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       tooltipWidth = tooltipRect.width
       tooltipHeight = tooltipRect.height
     }
-    
+
     // Calculate cursor position relative to container
     const cursorX = e.clientX - rect.left
     const cursorY = e.clientY - rect.top
-    
+
     // Calculate initial position preferences (right and above cursor)
     const offset = 12
     let finalX = cursorX + offset
@@ -191,7 +215,7 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       income: inc,
       spending: Math.abs(spd),
     }
-    
+
     setActiveMonth(month)
     if (tooltipRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -248,14 +272,14 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
             {tooltip.month}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-neon-green)' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)' }} />
             <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Income:</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
               {formatCurrency(tooltip.income)}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-neon-pink)' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-chart-expense)' }} />
             <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Spending:</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
               {formatCurrency(tooltip.spending)}
@@ -265,18 +289,6 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       )}
 
       <svg width={dims.width} height={dims.height} style={{ overflow: 'visible' }} onMouseLeave={onLeave}>
-        {/* Gradients */}
-        <defs>
-          <linearGradient id="incomeGradient" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={'var(--color-neon-green)'} stopOpacity="0.8" />
-            <stop offset="100%" stopColor={'var(--color-neon-green)'} stopOpacity="0.4" />
-          </linearGradient>
-          <linearGradient id="spendingGradient" x1="0" y1={margin.top} x2="0" y2={margin.top + innerHeight} gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={'var(--color-neon-pink)'} stopOpacity="0.8" />
-            <stop offset="100%" stopColor={'var(--color-neon-pink)'} stopOpacity="0.4" />
-          </linearGradient>
-        </defs>
-
         {/* Zero line */}
         <g>
           <line x1={margin.left} x2={dims.width - margin.right} y1={zeroY} y2={zeroY} stroke="var(--color-border)" strokeWidth="1" />
@@ -320,9 +332,9 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
             return (
               <g key={`bar-${m}-${i}`} style={groupStyle}>
                 {/* Income */}
-                <path d={incPath} fill="url(#incomeGradient)" filter={filter} />
+                <path d={incPath} fill="var(--color-accent)" filter={filter} />
                 {/* Spending */}
-                <path d={spdPath} fill="url(#spendingGradient)" filter={filter} />
+                <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
                 {/* Hover overlay for unified tooltip */}
                 <rect
                   x={x}
