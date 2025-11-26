@@ -112,20 +112,11 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
   }, [monthlyData])
 
   // Layout
-  const margin = { top: 60, right: 20, bottom: 30, left: 20 }
+  const margin = { top: 10, right: 20, bottom: 30, left: 60 } // Increased left margin for Y-axis
   const innerWidth = Math.max(0, dims.width - margin.left - margin.right)
   const innerHeight = Math.max(0, dims.height - margin.top - margin.bottom)
 
   // Dynamic zero line positioning
-  // If totalRange is 0 (no data), center it. Otherwise, position based on ratio.
-  // We want the zero line to be at a position such that maxIncome takes up the top portion
-  // and maxSpending takes up the bottom portion.
-  // ratio = maxIncome / totalRange. This is the % of height needed for income.
-  // zeroY should be at top + (maxIncome / totalRange) * innerHeight
-  // BUT we need to be careful. If maxIncome is 0, zeroY is at top. If maxSpending is 0, zeroY is at bottom.
-  // We add a small buffer (e.g. 5%) to top and bottom so bars don't touch edges exactly if possible, 
-  // or we can just let them touch. Let's let them touch for "full card" feel, maybe 5% padding.
-
   const paddingFactor = 1.05 // 5% padding total
   const adjustedRange = totalRange * paddingFactor
   const zeroY = margin.top + (maxIncome / adjustedRange) * innerHeight + (innerHeight * (paddingFactor - 1) / 2)
@@ -144,6 +135,40 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       return zeroY
     }
   }
+
+  // Generate Y-axis ticks
+  const ticks = useMemo(() => {
+    if (adjustedRange <= 0) return []
+    // Aim for about 5 ticks
+    const targetTicks = 5
+    const roughStep = adjustedRange / targetTicks
+
+    // Round to nice numbers (100, 500, 1000, etc.)
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)))
+    const normalizedStep = roughStep / magnitude
+    let niceStep
+    if (normalizedStep < 1.5) niceStep = 1
+    else if (normalizedStep < 3) niceStep = 2
+    else if (normalizedStep < 7) niceStep = 5
+    else niceStep = 10
+
+    const stepValue = niceStep * magnitude
+
+    // Calculate start and end based on maxSpending (negative) and maxIncome (positive)
+    // We want ticks that cover the visible range
+    const minVal = -maxSpending * paddingFactor
+    const maxVal = maxIncome * paddingFactor
+
+    const startTick = Math.ceil(minVal / stepValue) * stepValue
+    const endTick = Math.floor(maxVal / stepValue) * stepValue
+
+    const result = []
+    for (let v = startTick; v <= endTick; v += stepValue) {
+      if (v === 0) continue // Skip 0 as we draw the zero line separately
+      result.push(v)
+    }
+    return result
+  }, [adjustedRange, maxIncome, maxSpending, paddingFactor])
 
   const formatDate = (d) => {
     const y = d.getFullYear()
@@ -289,6 +314,47 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
       )}
 
       <svg width={dims.width} height={dims.height} style={{ overflow: 'visible' }} onMouseLeave={onLeave}>
+        <defs>
+          <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+            <rect width="8" height="8" fill="transparent" />
+            <path d="M0 0h8v4h-8z" fill="rgba(255,255,255,0.15)" />
+          </pattern>
+        </defs>
+
+        {/* Grid Lines & Y-Axis Labels */}
+        <g>
+          {ticks.map((tick) => {
+            const y = yFromValue(tick)
+            // Only draw if within bounds
+            if (y < margin.top || y > dims.height - margin.bottom) return null
+
+            return (
+              <g key={`tick-${tick}`}>
+                <line
+                  x1={margin.left}
+                  x2={dims.width - margin.right}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--color-border)"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  opacity="0.5"
+                />
+                <text
+                  x={margin.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="10"
+                  fill="var(--color-muted)"
+                  fontWeight="300"
+                >
+                  {Math.abs(tick) >= 1000 ? `${Math.abs(tick) / 1000}k` : Math.abs(tick)}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+
         {/* Zero line */}
         <g>
           <line x1={margin.left} x2={dims.width - margin.right} y1={zeroY} y2={zeroY} stroke="var(--color-border)" strokeWidth="1" />
@@ -326,15 +392,18 @@ export default function SpendingEarningChart({ series, title = 'Spending vs Earn
             }
             const filter = isActive ? 'brightness(1.1) drop-shadow(0 0 4px rgba(255,255,255,0.1))' : 'none'
 
-            const incPath = roundedRectPath(x, incY, barWidth, incH, 2, 2, 0, 0)
-            const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 2, 2)
+            const incPath = roundedRectPath(x, incY, barWidth, incH, 12, 12, 0, 0)
+            const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 12, 12)
 
             return (
               <g key={`bar-${m}-${i}`} style={groupStyle}>
-                {/* Income */}
+                {/* Income with Pattern Overlay */}
                 <path d={incPath} fill="var(--color-accent)" filter={filter} />
+                <path d={incPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
+
                 {/* Spending */}
                 <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
+
                 {/* Hover overlay for unified tooltip */}
                 <rect
                   x={x}

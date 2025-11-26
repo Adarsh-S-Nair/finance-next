@@ -32,12 +32,12 @@ export default function SpendingVsEarningCard() {
   ];
 
   return (
-    <Card width="full" className="flex flex-col h-full relative" variant="glass" padding="none">
-      <div className="absolute top-6 left-6 z-10">
-        <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Cashflow</div>
+    <Card width="full" className="grid grid-rows-[auto_1fr] h-full" variant="glass">
+      <div className="mb-4">
+        <div className="text-sm text-[var(--color-muted)] font-light tracking-wider">Cashflow</div>
       </div>
 
-      <div className="w-full h-full">
+      <div className="min-h-0">
         <SpendingEarningChart
           series={chartData}
           onSelectMonth={(data) => {

@@ -32,10 +32,12 @@ export default function DashboardPage() {
 
         {/* Middle Row: Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-full">
+          <div className="lg:col-span-2 h-[400px]">
             <SpendingVsEarningCard />
           </div>
-          <SpendingOverviewCard />
+          <div className="h-[400px]">
+            <SpendingOverviewCard />
+          </div>
         </div>
 
         {/* Bottom Row: Transactions */}
