@@ -196,12 +196,14 @@ export default function AccountsPage() {
           {hasAccounts ? (
             <>
               {/* Summary Section */}
-              <div className="flex flex-col lg:flex-row gap-6">
-                <div className="lg:w-2/3">
-                  <NetWorthCard width="full" />
-                </div>
-                <div className="lg:w-1/3">
-                  <AccountsSummaryCard width="full" />
+              <div className="max-w-5xl mx-auto w-full">
+                <div className="flex flex-col lg:flex-row gap-6">
+                  <div className="lg:w-2/3">
+                    <NetWorthCard width="full" />
+                  </div>
+                  <div className="lg:w-1/3">
+                    <AccountsSummaryCard width="full" />
+                  </div>
                 </div>
               </div>
 

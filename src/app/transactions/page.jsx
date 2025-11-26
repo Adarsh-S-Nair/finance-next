@@ -406,8 +406,8 @@ const FiltersContent = ({
               key={option.value}
               onClick={() => setDateRange(option.value)}
               className={`py-2 px-2 text-xs font-medium rounded-xl border transition-all duration-200 ${dateRange === option.value
-                  ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
-                  : 'bg-[var(--color-surface)] border-[var(--color-border)]/50 text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
+                ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
+                : 'bg-[var(--color-surface)] border-[var(--color-border)]/50 text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
                 }`}
             >
               {option.label}
@@ -496,10 +496,10 @@ const FiltersContent = ({
                       <button
                         onClick={() => toggleGroup(group.id)}
                         className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-200 ${isGroupSelected
-                            ? 'bg-[var(--color-accent)] border-[var(--color-accent)] shadow-sm'
-                            : isPartiallySelected
-                              ? 'bg-[var(--color-surface)] border-[var(--color-accent)]'
-                              : 'bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-muted)]'
+                          ? 'bg-[var(--color-accent)] border-[var(--color-accent)] shadow-sm'
+                          : isPartiallySelected
+                            ? 'bg-[var(--color-surface)] border-[var(--color-accent)]'
+                            : 'bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-muted)]'
                           }`}
                       >
                         {isGroupSelected && <FiX className="w-3 h-3 text-white" />}
@@ -525,8 +525,8 @@ const FiltersContent = ({
                                   key={category.id}
                                   onClick={() => toggleCategory(category.id)}
                                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-200 ${isCatSelected
-                                      ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
-                                      : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
+                                    ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
+                                    : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
                                     }`}
                                 >
                                   {category.label}
@@ -692,13 +692,38 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // First, sync all Plaid items
+      const response = await fetch('/api/plaid/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: profile.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Sync failed:', errorData);
+        // Continue to refetch even if sync fails
+      } else {
+        const syncResult = await response.json();
+        console.log('Sync completed:', syncResult);
+      }
+    } catch (error) {
+      console.error('Error during sync:', error);
+      // Continue to refetch even if sync fails
+    }
+
+    // Then refetch transactions from database
     setTransactions([]);
     setNextCursor(null);
     setPrevCursor(null);
     setSearchQuery(""); // Clear search on refresh
     setDebouncedSearchQuery(""); // Clear debounced search too
-    fetchInitialTransactions();
+    await fetchInitialTransactions();
   };
 
   // Load more (next page - older transactions)

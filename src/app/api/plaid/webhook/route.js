@@ -3,9 +3,13 @@ import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
+import { createLogger } from '../../../../lib/logger';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const DISABLE_WEBHOOKS = process.env.NODE_ENV !== 'production' && process.env.DISABLE_WEBHOOKS === '1';
+
+// Initialize logger for webhook
+const logger = createLogger('plaid-webhook');
 
 // Verify webhook using Plaid's JWT verification
 async function verifyWebhookSignature(payload, signature) {
@@ -17,7 +21,7 @@ async function verifyWebhookSignature(payload, signature) {
 
     // Decode JWT header to get key ID
     const header = JSON.parse(Buffer.from(signature.split('.')[0], 'base64url').toString());
-    
+
     if (header.alg !== 'ES256') {
       console.error('Invalid algorithm:', header.alg);
       return false;
@@ -42,7 +46,7 @@ async function verifyWebhookSignature(payload, signature) {
     }
 
     const { key } = await response.json();
-    
+
     // Convert JWK to PEM format using Node.js crypto
     const jwk = {
       kty: key.kty,
@@ -51,26 +55,26 @@ async function verifyWebhookSignature(payload, signature) {
       y: key.y,
       use: key.use
     };
-    
+
     const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
-    
+
     // Verify the JWT
     const decoded = jwt.verify(signature, publicKey, { algorithms: ['ES256'] });
-    
+
     // Verify the payload hash
     const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
     if (decoded.request_body_sha256 !== payloadHash) {
       console.error('Payload hash mismatch');
       return false;
     }
-    
+
     // Verify the webhook is recent (within 5 minutes)
     const now = Math.floor(Date.now() / 1000);
     if (now - decoded.iat > 300) {
       console.error('Webhook is too old');
       return false;
     }
-    
+
     return true;
   } catch (error) {
     console.error('Webhook verification failed:', error);
@@ -81,19 +85,31 @@ async function verifyWebhookSignature(payload, signature) {
 export async function POST(request) {
   try {
     if (DISABLE_WEBHOOKS) {
+      logger.info('Webhook disabled in development mode');
       return Response.json({ received: true, disabled: true });
     }
     const payload = await request.text();
     // Handle case-insensitive header name
     const signature = request.headers.get('plaid-verification') || request.headers.get('Plaid-Verification');
 
+    logger.info('Webhook received', {
+      hasSignature: !!signature,
+      payloadLength: payload.length
+    });
+
     // Verify webhook signature using Plaid's JWT verification
     if (!(await verifyWebhookSignature(payload, signature))) {
-      console.error('Invalid webhook signature');
+      logger.error('Invalid webhook signature');
+      await logger.flush();
       return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const webhookData = JSON.parse(payload);
+    logger.info('Webhook verified and parsed', {
+      webhook_type: webhookData.webhook_type,
+      webhook_code: webhookData.webhook_code,
+      item_id: webhookData.item_id
+    });
     if (DEBUG) console.log('Received Plaid webhook:', webhookData.webhook_type, webhookData.webhook_code);
 
     // Handle different webhook types
@@ -108,9 +124,15 @@ export async function POST(request) {
         if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
     }
 
+    logger.info('Webhook processed successfully');
+    await logger.flush();
     return Response.json({ received: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    logger.error('Error processing webhook', error, {
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
+    await logger.flush();
     return Response.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -121,6 +143,12 @@ export async function POST(request) {
 async function handleTransactionsWebhook(webhookData) {
   const { webhook_code, item_id, new_transactions, removed_transactions } = webhookData;
 
+  logger.info('Processing TRANSACTIONS webhook', {
+    webhook_code,
+    item_id,
+    new_transactions_count: new_transactions || 0,
+    removed_transactions_count: removed_transactions?.length || 0
+  });
   if (DEBUG) console.log(`Processing TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
 
   // Get the plaid item from database
@@ -131,7 +159,7 @@ async function handleTransactionsWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    console.error('Plaid item not found for webhook:', item_id, itemError);
+    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
@@ -141,12 +169,13 @@ async function handleTransactionsWebhook(webhookData) {
     case 'DEFAULT_UPDATE':
     case 'SYNC_UPDATES_AVAILABLE':
       // Trigger transaction sync for this item
+      logger.info('Triggering transaction sync', { item_id, webhook_code });
       if (DEBUG) console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
-      
+
       try {
         // Import and call the sync function directly instead of making HTTP request
         const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
-        
+
         // Create a mock request object for the sync endpoint
         const syncRequest = {
           json: async () => ({
@@ -157,9 +186,14 @@ async function handleTransactionsWebhook(webhookData) {
         };
 
         const syncResponse = await syncEndpoint(syncRequest);
-        
+
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
+          logger.info('Transaction sync completed', {
+            item_id,
+            transactions_synced: syncResult.transactions_synced,
+            pending_transactions_updated: syncResult.pending_transactions_updated
+          });
           if (DEBUG) {
             console.log(`Webhook-triggered sync completed for item ${item_id}:`, {
               transactions_synced: syncResult.transactions_synced,
@@ -168,26 +202,31 @@ async function handleTransactionsWebhook(webhookData) {
           }
         } else {
           const errorData = await syncResponse.json();
-          console.error(`Webhook-triggered sync failed for item ${item_id}:`, errorData);
+          logger.error('Transaction sync failed', null, { item_id, error: errorData });
         }
       } catch (error) {
-        console.error(`Error in webhook-triggered sync for item ${item_id}:`, error);
+        logger.error('Error in webhook-triggered sync', error, { item_id });
       }
       break;
 
     case 'TRANSACTIONS_REMOVED':
       // Handle removed transactions
       if (removed_transactions && removed_transactions.length > 0) {
+        logger.info('Removing transactions', {
+          item_id,
+          count: removed_transactions.length
+        });
         if (DEBUG) console.log(`Removing ${removed_transactions.length} transactions for item: ${item_id}`);
-        
+
         const { error: deleteError } = await supabaseAdmin
           .from('transactions')
           .delete()
           .in('plaid_transaction_id', removed_transactions);
 
         if (deleteError) {
-          console.error('Error removing transactions:', deleteError);
+          logger.error('Error removing transactions', null, { error: deleteError });
         } else {
+          logger.info('Successfully removed transactions', { count: removed_transactions.length });
           if (DEBUG) console.log('Successfully removed transactions');
         }
       }
@@ -239,11 +278,11 @@ async function handleItemWebhook(webhookData) {
         const { getAccounts } = await import('../../../../lib/plaidClient');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         const { accounts } = accountsResponse;
-        
+
         if (DEBUG) {
           console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
         }
-        
+
         // Process and save new accounts
         const accountsToInsert = accounts.map(account => ({
           user_id: plaidItem.user_id,

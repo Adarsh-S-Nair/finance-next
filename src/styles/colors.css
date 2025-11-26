@@ -26,9 +26,9 @@
   --color-primary-hover: #27272a;
   --color-on-primary: #ffffff;
 
-  --color-accent: var(--color-neon-blue);
-  --color-accent-hover: #3b82f6;
-  --color-on-accent: #ffffff;
+  --color-accent: var(--color-primary);
+  --color-accent-hover: var(--color-primary-hover);
+  --color-on-accent: var(--color-on-primary);
 
   --color-success: #34d399;
   --color-success-hover: #10b981;
@@ -89,10 +89,10 @@
   --color-primary-hover: #e4e4e7;
   --color-on-primary: #09090b;
 
-  /* Accent is now soft blue */
-  --color-accent: var(--color-neon-blue);
-  --color-accent-hover: #93c5fd;
-  --color-on-accent: #09090b;
+  /* Accent defaults to primary (white) */
+  --color-accent: var(--color-primary);
+  --color-accent-hover: var(--color-primary-hover);
+  --color-on-accent: var(--color-on-primary);
 
   --color-success: var(--color-neon-green);
   --color-success-hover: #22c55e;

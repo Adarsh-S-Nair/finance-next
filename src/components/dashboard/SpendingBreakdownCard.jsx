@@ -9,7 +9,7 @@ export default function SpendingBreakdownCard() {
       <div className="mb-4">
         <div className="text-sm text-[var(--color-muted)]">Spending Breakdown</div>
       </div>
-      
+
       <div className="text-center py-8">
         <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)] rounded-full flex items-center justify-center mb-4">
           <div className="text-2xl text-[var(--color-muted)]">📊</div>
