@@ -48,15 +48,21 @@ export default function MonthlyOverviewCard() {
     }).format(value);
   };
 
+  const isIncomeHigher = (currentData?.income || 0) >= (currentData?.spending || 0);
+
   const Legend = (
     <div className="flex items-center gap-4">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+          <svg width="12" height="2" className="overflow-visible">
+            <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
+          </svg>
           <span className="text-xs text-[var(--color-muted)]">Income</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-[var(--color-chart-expense)]" />
+          <svg width="12" height="2" className="overflow-visible">
+            <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-chart-expense)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" />
+          </svg>
           <span className="text-xs text-[var(--color-muted)]">Spending</span>
         </div>
       </div>
@@ -68,20 +74,20 @@ export default function MonthlyOverviewCard() {
   );
 
   return (
-    <Card title="Monthly Overview" action={Legend}>
-      <div className="mb-6">
+    <Card title="Monthly Overview" action={Legend} padding="none">
+      <div className="mb-6 px-5">
         <div className="flex items-baseline gap-4">
-          <div>
-            <div className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-              {formatCurrency(currentData?.spending || 0)}
-            </div>
-            <div className="text-xs text-[var(--color-muted)]">Spending</div>
-          </div>
-          <div className="opacity-50">
-            <div className="text-lg font-medium tracking-tight text-[var(--color-fg)]">
+          <div className={!isIncomeHigher ? "opacity-50" : ""}>
+            <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
               {formatCurrency(currentData?.income || 0)}
             </div>
             <div className="text-xs text-[var(--color-muted)]">Income</div>
+          </div>
+          <div className={isIncomeHigher ? "opacity-50" : ""}>
+            <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
+              {formatCurrency(currentData?.spending || 0)}
+            </div>
+            <div className="text-xs text-[var(--color-muted)]">Spending</div>
           </div>
         </div>
       </div>
@@ -91,7 +97,7 @@ export default function MonthlyOverviewCard() {
           data={chartData}
           width="100%"
           height="100%"
-          margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          margin={{ top: 10, right: 0, bottom: 0, left: 0 }}
           lines={[
             {
               dataKey: "income",

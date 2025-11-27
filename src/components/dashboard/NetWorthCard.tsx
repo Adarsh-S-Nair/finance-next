@@ -445,8 +445,8 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass">
-        <div className="mb-4">
+      <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">
+        <div className="mb-4 px-6 pt-6">
           <div className="flex justify-between items-start">
             <div>
               <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
@@ -498,7 +498,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
               dataKey="value"
               width="100%"
               height={200}
-              margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
               strokeWidth={3}
               showArea={true}
               areaOpacity={0.15}
@@ -516,7 +516,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
         </div>
 
         {/* Time Range Selector - moved to bottom and spread evenly */}
-        <div className="mt-2 pt-2 border-t border-[var(--color-border)]/50">
+        <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
           <div className="flex justify-between items-center w-full">
             {availableRanges.map((range) => {
               const isActive = timeRange === range;
