@@ -60,7 +60,9 @@
   --color-card-border: rgba(0, 0, 0, 0.04);
 
   /* Chart Colors - Dynamic based on accent */
-  --color-chart-expense: color-mix(in srgb, var(--color-accent), black 30%);
+  --color-chart-income: color-mix(in srgb, var(--color-accent), var(--color-muted) 25%);
+  --color-chart-expense: color-mix(in srgb, var(--color-chart-income), white 30%);
+  --color-chart-pattern: rgba(255, 255, 255, 0.15);
 }
 
 .dark {
@@ -128,7 +130,9 @@
   --color-card-border: transparent;
 
   /* Chart Colors - Dynamic based on accent */
-  --color-chart-expense: color-mix(in srgb, var(--color-accent), white 30%);
+  --color-chart-income: color-mix(in srgb, var(--color-accent), var(--color-muted) 25%);
+  --color-chart-expense: color-mix(in srgb, var(--color-chart-income), black 30%);
+  --color-chart-pattern: rgba(0, 0, 0, 0.2);
 }
 
 /* Base application colors */

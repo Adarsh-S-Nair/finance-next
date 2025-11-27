@@ -6,16 +6,48 @@ import { useUser } from "../UserProvider";
 
 export default function MonthlyOverviewCard() {
   const [activeIndex, setActiveIndex] = useState(null);
-
   const [chartData, setChartData] = useState([]);
+  const [availableMonths, setAvailableMonths] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(null);
 
   const { user } = useUser();
 
+  // Fetch available months
   useEffect(() => {
-    const fetchMonthlyData = async () => {
+    const fetchAvailableMonths = async () => {
       if (!user?.id) return;
       try {
-        const response = await fetch(`/api/transactions/monthly-overview?userId=${user.id}`);
+        const response = await fetch(`/api/transactions/available-months?userId=${user.id}`);
+        if (!response.ok) throw new Error('Failed to fetch available months');
+        const result = await response.json();
+        setAvailableMonths(result.months || []);
+
+        // Set current month as default
+        if (result.months && result.months.length > 0) {
+          setSelectedMonth(result.months[0].value); // First item is current month (sorted newest first)
+        }
+      } catch (error) {
+        console.error("Error fetching available months:", error);
+      }
+    };
+
+    fetchAvailableMonths();
+  }, [user?.id]);
+
+  // Fetch data for selected month
+  useEffect(() => {
+    const fetchMonthlyData = async () => {
+      if (!user?.id || !selectedMonth) return;
+
+      try {
+        // Parse the month value (format: "YYYY-MM")
+        const [year, month] = selectedMonth.split('-');
+        const monthIndex = parseInt(month) - 1; // Convert to 0-indexed
+
+        const response = await fetch(
+          `/api/transactions/monthly-overview?userId=${user.id}&month=${monthIndex}&year=${year}`
+        );
+
         if (!response.ok) throw new Error('Failed to fetch monthly overview data');
         const result = await response.json();
         setChartData(result.data);
@@ -25,7 +57,7 @@ export default function MonthlyOverviewCard() {
     };
 
     fetchMonthlyData();
-  }, [user?.id]);
+  }, [user?.id, selectedMonth]);
 
   const handleMouseMove = (data, index) => {
     setActiveIndex(index);
@@ -63,13 +95,12 @@ export default function MonthlyOverviewCard() {
             </div>
             <div className="h-3 w-px bg-[var(--color-border)]" />
             <Dropdown
-              label="Options"
+              label={availableMonths.find(m => m.value === selectedMonth)?.label || "Select Month"}
               size="sm"
-              items={[
-                { label: "This Month", onClick: () => console.log("This Month") },
-                { label: "Last Month", onClick: () => console.log("Last Month") },
-                { label: "Last 3 Months", onClick: () => console.log("Last 3 Months") },
-              ]}
+              items={availableMonths.map(month => ({
+                label: month.label,
+                onClick: () => setSelectedMonth(month.value)
+              }))}
               align="right"
             />
           </div>
@@ -79,17 +110,17 @@ export default function MonthlyOverviewCard() {
         <div className="flex items-baseline justify-between pb-6">
           {/* Values */}
           <div className="flex items-baseline gap-4">
-            <div className={!isIncomeHigher ? "opacity-50" : ""}>
+            <div className={!isIncomeHigher ? "opacity-65" : ""}>
               <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
                 {formatCurrency(currentData?.income || 0)}
               </div>
-              <div className="text-xs text-[var(--color-muted)]">Income</div>
+              <div className="text-xs text-[var(--color-fg)]">Income</div>
             </div>
-            <div className={isIncomeHigher ? "opacity-50" : ""}>
+            <div className={isIncomeHigher ? "opacity-75" : ""}>
               <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
                 {formatCurrency(currentData?.spending || 0)}
               </div>
-              <div className="text-xs text-[var(--color-muted)]">Spending</div>
+              <div className="text-xs text-[var(--color-fg)]">Spending</div>
             </div>
           </div>
 

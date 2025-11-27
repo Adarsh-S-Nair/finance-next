@@ -34,9 +34,8 @@ function roundedRectPath(x, y, w, h, rTopLeft, rTopRight, rBottomRight, rBottomL
   ].join(' ')
 }
 
-export default function SpendingEarningChart({ onSelectMonth }) {
+export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
   const { user } = useUser();
-  const [monthlyData, setMonthlyData] = useState([])
   const [activeMonth, setActiveMonth] = useState(null)
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, month: '', income: 0, spending: 0 })
   const containerRef = useRef(null);
@@ -57,31 +56,15 @@ export default function SpendingEarningChart({ onSelectMonth }) {
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Fetch data
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.id) return;
-      try {
-        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=12`);
-        if (!response.ok) throw new Error('Failed to fetch data');
-        const result = await response.json();
-        setMonthlyData(result.data || []);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      }
-    };
-    fetchData();
-  }, [user?.id]);
-
   // Process data
   const { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange, ticks } = useMemo(() => {
-    if (!monthlyData || monthlyData.length === 0) {
+    if (!data || data.length === 0) {
       return { months: [], incomeVals: [], spendingVals: [], maxIncome: 0, maxSpending: 0, totalRange: 1, ticks: [] }
     }
 
-    const months = monthlyData.map(month => month.monthName.substring(0, 3))
-    const incomeVals = monthlyData.map(month => month.earning || 0)
-    const spendingVals = monthlyData.map(month => -(month.spending || 0))
+    const months = data.map(month => month.monthName.substring(0, 3))
+    const incomeVals = data.map(month => month.earning || 0)
+    const spendingVals = data.map(month => -(month.spending || 0))
 
     const maxIncome = Math.max(0, ...incomeVals)
     const maxSpending = Math.max(0, ...spendingVals.map(v => Math.abs(v)))
@@ -108,7 +91,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
     }
 
     return { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange, ticks }
-  }, [monthlyData])
+  }, [data])
 
   // Dynamic dimensions
   const { width, height } = dimensions;
@@ -189,7 +172,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
         <defs>
           <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
             <rect width="8" height="8" fill="transparent" />
-            <path d="M0 0h8v4h-8z" fill="rgba(255,255,255,0.15)" />
+            <path d="M0 0h8v4h-8z" fill="var(--color-chart-pattern)" />
           </pattern>
         </defs>
 
@@ -265,9 +248,10 @@ export default function SpendingEarningChart({ onSelectMonth }) {
                   transformOrigin: `${cx}px ${zeroY}px`
                 }}
               >
-                <path d={incPath} fill="var(--color-accent)" filter={filter} />
+                <path d={incPath} fill="var(--color-chart-income)" filter={filter} />
                 <path d={incPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
                 <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
+                <path d={spdPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
 
                 <rect
                   x={x}
