@@ -25,4 +25,12 @@ global.console = {
 }
 
 // Restore console in case tests need it
+// Restore console in case tests need it
 global.console = originalConsole
+
+// Mock ResizeObserver for Recharts
+global.ResizeObserver = class ResizeObserver {
+  observe() { }
+  unobserve() { }
+  disconnect() { }
+};
