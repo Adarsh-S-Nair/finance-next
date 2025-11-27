@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useUser } from '../UserProvider';
 
 function formatCurrency(amount) {
@@ -39,6 +39,23 @@ export default function SpendingEarningChart({ onSelectMonth }) {
   const [monthlyData, setMonthlyData] = useState([])
   const [activeMonth, setActiveMonth] = useState(null)
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, month: '', income: 0, spending: 0 })
+  const containerRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 280 });
+
+  // Handle Resize
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setDimensions({ width, height });
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Fetch data
   useEffect(() => {
@@ -93,9 +110,8 @@ export default function SpendingEarningChart({ onSelectMonth }) {
     return { months, incomeVals, spendingVals, maxIncome, maxSpending, totalRange, ticks }
   }, [monthlyData])
 
-  // Fixed dimensions for consistent rendering
-  const width = 800
-  const height = 280
+  // Dynamic dimensions
+  const { width, height } = dimensions;
   const margin = { top: 10, right: 20, bottom: 30, left: 40 }
   const innerWidth = width - margin.left - margin.right
   const innerHeight = height - margin.top - margin.bottom
@@ -134,7 +150,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
   }
 
   return (
-    <div className="w-full h-full relative">
+    <div ref={containerRef} className="w-full h-full relative">
       {tooltip.visible && (
         <div
           className="glass-panel absolute pointer-events-none z-10"
@@ -168,7 +184,6 @@ export default function SpendingEarningChart({ onSelectMonth }) {
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full h-full"
-        preserveAspectRatio="none"
         onMouseLeave={onLeave}
       >
         <defs>

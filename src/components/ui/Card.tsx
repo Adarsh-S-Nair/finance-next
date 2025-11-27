@@ -100,7 +100,7 @@ export default function Card({
       )}
 
       <div className={clsx(
-        "relative z-10 h-full",
+        "relative z-10 flex-1 min-h-0",
         // If header exists, reduce top padding of content
         (title || action) && padding !== 'none' ? 'pt-0' : '',
         paddingClasses[padding]
