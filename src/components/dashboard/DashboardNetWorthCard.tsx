@@ -123,6 +123,7 @@ export default function DashboardNetWorthCard() {
   // Dynamic styles - follow same pattern as Button matte variant
   let cardStyle = {};
   let textColorClass = "";
+  let titleColorClass = "";
   let borderClass = "";
   let patternColorClass = "";
 
@@ -132,6 +133,7 @@ export default function DashboardNetWorthCard() {
     const darkerAccent = darkenColor(darkenedAccent, 0.3);
     cardStyle = { background: `linear-gradient(135deg, ${darkenedAccent} 0%, ${darkerAccent} 100%)` };
     textColorClass = "text-white";
+    titleColorClass = "text-white";
     borderClass = "border-transparent";
     patternColorClass = "text-white";
   } else {
@@ -141,6 +143,7 @@ export default function DashboardNetWorthCard() {
     // Using color-mix to create a subtle gradient from the base accent color
     cardStyle = { background: `linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent), black 10%) 100%)` };
     textColorClass = "text-[var(--color-on-accent)]";
+    titleColorClass = "text-[var(--color-on-accent)]";
     borderClass = "border-[var(--color-accent)]/20";
     patternColorClass = "text-[var(--color-on-accent)]";
   }
@@ -156,7 +159,7 @@ export default function DashboardNetWorthCard() {
   return (
     <Card
       title="Total Net Worth"
-      titleColor="text-white"
+      titleColor={titleColorClass}
       style={cardStyle}
       padding="none"
       className={`relative overflow-hidden rounded-3xl border ${borderClass} h-full ${textColorClass}`}
