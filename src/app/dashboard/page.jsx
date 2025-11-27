@@ -9,6 +9,8 @@ import DashboardNetWorthCard from "../../components/dashboard/DashboardNetWorthC
 import IncomeCard from "../../components/dashboard/IncomeCard";
 import SpendingCard from "../../components/dashboard/SpendingCard";
 import PlaceholderCard from "../../components/dashboard/PlaceholderCard";
+import Dropdown from "../../components/ui/Dropdown";
+import Button from "../../components/Button";
 
 // Map string keys to actual components
 const componentMap = {
@@ -88,7 +90,22 @@ export default function DashboardPage() {
   };
 
   return (
-    <PageContainer title="Dashboard">
+    <PageContainer
+      title="Dashboard"
+      action={
+        <Dropdown
+          label="Test Dropdown"
+          size="sm"
+          items={[
+            { label: "Option 1", onClick: () => console.log("Option 1 clicked") },
+            { label: "Option 2", onClick: () => console.log("Option 2 clicked") },
+            { label: "Option 3", onClick: () => console.log("Option 3 clicked") },
+            { label: "Disabled Option", disabled: true },
+          ]}
+          align="right"
+        />
+      }
+    >
       <div className="space-y-6">
         {dashboardLayout.map((row) => (
           <div key={row.id} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
