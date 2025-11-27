@@ -154,41 +154,46 @@ export default function DashboardNetWorthCard() {
   const vsTextColorClass = isCustomAccent ? 'text-white/70' : 'text-[var(--color-on-accent)]/50';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.5 }}
+    <Card
+      title="Total Net Worth"
+      titleColor="text-white"
       style={cardStyle}
-      className={`relative overflow-hidden rounded-3xl border ${borderClass} p-6 h-full flex flex-col justify-between ${textColorClass}`}
+      padding="none"
+      className={`relative overflow-hidden rounded-3xl border ${borderClass} h-full ${textColorClass}`}
+      background={
+        /* Modern Solid Circle Background Design */
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          {/* Large solid circle top right */}
+          <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+
+          {/* Overlapping solid circle mid right */}
+          <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+
+          {/* Small solid circle bottom right */}
+          <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+
+          {/* Solid circle bottom left */}
+          <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+        </div>
+      }
     >
-      {/* Modern Solid Circle Background Design */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* Large solid circle top right */}
-        <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-        {/* Overlapping solid circle mid right */}
-        <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+      <div className="relative z-10 h-full flex flex-col justify-between p-5 pt-0">
+        <div>
+          {/* Spacer or content if needed, but title is now in header. 
+               We need to keep the value at the top. */}
+          <div className="text-3xl md:text-4xl font-medium tracking-tighter text-[var(--color-on-accent)]">
+            <AnimatedCounter value={netWorthValue} />
+          </div>
+        </div>
 
-        {/* Small solid circle bottom right */}
-        <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-
-        {/* Solid circle bottom left */}
-        <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-      </div>
-
-      <div className="relative z-10">
-        <h3 className={`text-sm font-medium mb-1 text-zinc-500 dark:text-zinc-400`}>Total Net Worth</h3>
-        <div className="text-3xl md:text-4xl font-medium tracking-tighter text-[var(--color-on-accent)]">
-          <AnimatedCounter value={netWorthValue} />
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-1 font-bold text-sm ${trendColorClass}`}>
+            <span>{percentChange >= 0 ? '+' : '-'}{Math.abs(percentChange).toFixed(1)}%</span>
+          </div>
+          <span className={`text-xs font-medium ${labelColorClass}`}>vs last month</span>
         </div>
       </div>
-      <div className="relative z-10 flex items-center gap-3 mt-4">
-        <div className={`flex items-center gap-1 font-bold text-sm ${trendColorClass}`}>
-          <span>{percentChange >= 0 ? '+' : '-'}{Math.abs(percentChange).toFixed(1)}%</span>
-        </div>
-        <span className={`text-xs font-medium text-zinc-500 dark:text-zinc-400`}>vs last month</span>
-      </div>
-    </motion.div >
+    </Card>
   );
 }

@@ -4,8 +4,14 @@ import React, { ReactNode } from "react";
 import clsx from "clsx";
 
 type CardProps = {
+  title?: ReactNode;
+  action?: ReactNode;
+  titleClassName?: string;
+  titleColor?: string;
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
+  background?: ReactNode;
   padding?: "none" | "sm" | "md" | "lg";
   variant?: "default" | "subtle" | "danger" | "glass";
   width?: "full" | "2/3" | "1/3" | "1/2" | "1/4";
@@ -15,8 +21,14 @@ type CardProps = {
 };
 
 export default function Card({
+  title,
+  action,
+  titleClassName,
+  titleColor,
   children,
   className,
+  style,
+  background,
   padding = "md",
   variant = "glass", // Default to glass for the new look
   width = "full",
@@ -49,10 +61,10 @@ export default function Card({
 
   return (
     <div
+      style={style}
       className={clsx(
-        "rounded-xl relative transition-all duration-300", // Increased corner rounding
+        "rounded-xl relative transition-all duration-300 flex flex-col", // Increased corner rounding, flex col for header
         allowOverflow ? "overflow-visible" : "overflow-hidden",
-        paddingClasses[padding],
         widthClasses[width],
         variantClasses[variant],
         className
@@ -60,10 +72,39 @@ export default function Card({
       onMouseLeave={onMouseLeave}
       onMouseEnter={onMouseEnter}
     >
+      {background}
+
       {variant === 'glass' && (
         <div className="absolute inset-0 pointer-events-none border border-white/5 dark:border-white/[0.02] rounded-xl" />
       )}
-      <div className="relative z-10 h-full">
+
+      {/* Header Section */}
+      {(title || action) && (
+        <div className={clsx(
+          "relative z-10 flex items-center justify-between",
+          // If padding is none, we still want some padding for the header usually, 
+          // but let's respect the padding prop for consistency, or default to md for header if none
+          padding === 'none' ? 'px-5 pt-5 pb-2' : clsx(paddingClasses[padding], 'pb-2')
+        )}>
+          {title && (
+            <div className={clsx(
+              "text-sm font-medium",
+              titleColor || "text-zinc-500 dark:text-zinc-400",
+              titleClassName
+            )}>
+              {title}
+            </div>
+          )}
+          {action && <div>{action}</div>}
+        </div>
+      )}
+
+      <div className={clsx(
+        "relative z-10 h-full",
+        // If header exists, reduce top padding of content
+        (title || action) && padding !== 'none' ? 'pt-0' : '',
+        paddingClasses[padding]
+      )}>
         {children}
       </div>
     </div>

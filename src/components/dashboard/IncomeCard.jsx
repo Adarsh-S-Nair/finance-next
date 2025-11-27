@@ -157,10 +157,9 @@ export default function IncomeCard() {
   };
 
   return (
-    <Card width="full" padding="none" className="h-full relative overflow-hidden group rounded-3xl">
-      <div className="relative z-10 flex flex-col h-full justify-between p-6">
+    <Card width="full" padding="none" title="Income" className="h-full relative overflow-hidden group rounded-3xl">
+      <div className="relative z-10 flex flex-col h-full justify-between p-5 pt-0">
         <div>
-          <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Income</h3>
           <div className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
             {formatCurrency(currentIncome)}
           </div>

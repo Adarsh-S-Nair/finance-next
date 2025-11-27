@@ -96,7 +96,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
   // Fixed dimensions for consistent rendering
   const width = 800
   const height = 280
-  const margin = { top: 10, right: 20, bottom: 25, left: 60 }
+  const margin = { top: 10, right: 20, bottom: 30, left: 40 }
   const innerWidth = width - margin.left - margin.right
   const innerHeight = height - margin.top - margin.bottom
 
@@ -216,7 +216,7 @@ export default function SpendingEarningChart({ onSelectMonth }) {
           {months.map((m, i) => {
             const cx = margin.left + step * i + step / 2
             return (
-              <text key={`lbl-${m}-${i}`} x={cx} y={height - 5} textAnchor="middle" fontSize="10" fill="var(--color-muted)" fontWeight="300">
+              <text key={`lbl-${m}-${i}`} x={cx} y={height - 15} textAnchor="middle" fontSize="10" fill="var(--color-muted)" fontWeight="300">
                 {m}
               </text>
             )
