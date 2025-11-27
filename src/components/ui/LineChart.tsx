@@ -1,6 +1,17 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  ReferenceDot
+} from 'recharts';
 
 interface DataPoint {
   [key: string]: any;
@@ -9,7 +20,7 @@ interface DataPoint {
 
 interface LineChartProps {
   data: DataPoint[];
-  dataKey: string;
+  dataKey?: string;
   width?: number | string;
   height?: number | string;
   margin?: { top: number; right: number; bottom: number; left: number };
@@ -30,15 +41,16 @@ interface LineChartProps {
   gridColor?: string;
   showXAxis?: boolean;
   showYAxis?: boolean;
+  xAxisDataKey?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
   formatXAxis?: (value: any) => string;
   formatYAxis?: (value: any) => string;
-  tooltip?: (data: DataPoint, index: number) => React.ReactNode;
+  tooltip?: (data: any, index: number) => React.ReactNode;
   showTooltip?: boolean;
   animationDuration?: number;
-  curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter';
-  maxPoints?: number; // soft cap for performance
+  curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter' | 'basis';
+  maxPoints?: number; // Kept for prop compatibility, but Recharts handles data well
 }
 
 export default function LineChart({
@@ -46,15 +58,15 @@ export default function LineChart({
   dataKey = 'value',
   width = '100%',
   height = 200,
-  margin = { top: 20, right: 20, bottom: 20, left: 20 },
+  margin = { top: 10, right: 10, bottom: 10, left: 10 },
   strokeColor = 'var(--color-accent)',
   strokeWidth = 2,
   fillColor,
   showDots = false,
   dotColor,
-  dotRadius = 2,
-  showArea = false,
-  areaOpacity = 0.3,
+  dotRadius = 4,
+  showArea = true,
+  areaOpacity = 0.2,
   onMouseMove,
   onMouseLeave,
   className = '',
@@ -64,167 +76,52 @@ export default function LineChart({
   gridColor = 'var(--color-border)',
   showXAxis = false,
   showYAxis = false,
+  xAxisDataKey = 'name',
   xAxisLabel,
   yAxisLabel,
   formatXAxis,
   formatYAxis,
   tooltip,
   showTooltip = false,
-  animationDuration = 300,
+  animationDuration = 800,
   curveType = 'monotone',
-  maxPoints = 300
 }: LineChartProps) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
 
-  // Calculate dimensions
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({
-          width: typeof width === 'number' ? width : rect.width,
-          height: typeof height === 'number' ? height : rect.height
-        });
-      }
-    };
+  // Handle Mouse Move on Overlay
+  const handleOverlayMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current || !data.length) return;
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, [width, height]);
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const chartWidth = rect.width;
 
-  // Calculate chart dimensions
-  const chartWidth = dimensions.width - margin.left - margin.right;
-  const chartHeight = dimensions.height - margin.top - margin.bottom;
+    // Calculate index based on x position
+    // Assuming data points are evenly distributed
+    const index = Math.min(
+      Math.max(0, Math.round((x / chartWidth) * (data.length - 1))),
+      data.length - 1
+    );
 
-  // Calculate scales and path
-  const { pathData, areaPathData, xScale, yScale, points, sampledLength } = useMemo(() => {
-    if (!data.length || chartWidth <= 0 || chartHeight <= 0) {
-      return { pathData: '', areaPathData: '', xScale: 0, yScale: 0, points: [] };
-    }
-    // Downsample large datasets for performance
-    const stride = Math.max(1, Math.ceil((data.length || 1) / Math.max(1, maxPoints)));
-    const sampled: DataPoint[] = stride > 1 ? data.filter((_, i) => i % stride === 0) : data;
+    setActiveIndex(index);
 
-    const values = sampled.map(d => d[dataKey] || 0);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const valueRange = maxValue - minValue || 1;
-
-    const xStep = chartWidth / (sampled.length - 1 || 1);
-    const yScale = (value: number) =>
-      chartHeight - ((value - minValue) / valueRange) * chartHeight;
-
-    const points = sampled.map((d, i) => ({
-      x: margin.left + i * xStep,
-      y: margin.top + yScale(d[dataKey] || 0),
-      data: d,
-      index: i
-    }));
-
-    // Generate path data based on curve type
-    let pathData = '';
-    let areaPathData = '';
-
-    if (points.length > 0) {
-      if (curveType === 'linear') {
-        pathData = points.map((point, i) =>
-          `${i === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
-        ).join(' ');
-      } else if (curveType === 'monotone') {
-        // Simple monotone curve approximation
-        pathData = points.map((point, i) => {
-          if (i === 0) return `M ${point.x} ${point.y}`;
-          if (i === points.length - 1) return `L ${point.x} ${point.y}`;
-
-          const prev = points[i - 1];
-          const next = points[i + 1];
-          const cp1x = prev.x + (point.x - prev.x) / 3;
-          const cp1y = prev.y;
-          const cp2x = point.x - (next.x - point.x) / 3;
-          const cp2y = point.y;
-
-          return `C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${point.x} ${point.y}`;
-        }).join(' ');
-      } else {
-        // Default to linear for other curve types
-        pathData = points.map((point, i) =>
-          `${i === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
-        ).join(' ');
-      }
-
-      // Generate area path
-      if (showArea) {
-        const firstPoint = points[0];
-        const lastPoint = points[points.length - 1];
-        areaPathData = `${pathData} L ${lastPoint.x} ${margin.top + chartHeight} L ${firstPoint.x} ${margin.top + chartHeight} Z`;
-      }
-    }
-
-    return { pathData, areaPathData, xScale: xStep, yScale, points, sampledLength: sampled.length };
-  }, [data, dataKey, chartWidth, chartHeight, margin, curveType, showArea, maxPoints]);
-
-  // Handle mouse events
-  const handleMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (!data.length || !onMouseMove) return;
-
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const x = event.clientX - rect.left - margin.left;
-    const index = Math.round(x / xScale);
-
-    if (index >= 0 && index < points.length) {
-      setHoveredIndex(index);
-      onMouseMove(points[index].data, index);
+    if (onMouseMove) {
+      onMouseMove(data[index], index);
     }
   };
 
-  const handleMouseLeave = () => {
-    setHoveredIndex(null);
-    if (onMouseLeave) onMouseLeave();
+  // Handle Mouse Leave on Overlay
+  const handleOverlayMouseLeave = () => {
+    setActiveIndex(null);
+    if (onMouseLeave) {
+      onMouseLeave();
+    }
   };
 
-  // Generate grid lines
-  const gridLines = useMemo(() => {
-    if (!showGrid || !data.length) return null;
-
-    const values = data.map(d => d[dataKey] || 0);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const valueRange = maxValue - minValue || 1;
-
-    const gridLines = [];
-    const numLines = 5;
-
-    for (let i = 0; i <= numLines; i++) {
-      const value = minValue + (valueRange * i) / numLines;
-      const y = margin.top + ((maxValue - value) / valueRange) * chartHeight;
-
-      gridLines.push(
-        <line
-          key={`grid-${i}`}
-          x1={margin.left}
-          x2={margin.left + chartWidth}
-          y1={y}
-          y2={y}
-          stroke={gridColor}
-          strokeWidth={1}
-          opacity={0.3}
-        />
-      );
-    }
-
-    return gridLines;
-  }, [showGrid, data, dataKey, chartWidth, chartHeight, margin, gridColor]);
-
-  if (!data.length) {
+  if (!data || data.length === 0) {
     return (
       <div
-        ref={containerRef}
         className={`flex items-center justify-center ${className}`}
         style={{ width, height, ...style }}
       >
@@ -236,85 +133,106 @@ export default function LineChart({
   return (
     <div
       ref={containerRef}
-      className={className}
+      className={`relative ${className}`}
       style={{ width, height, ...style }}
+      onMouseMove={handleOverlayMouseMove}
+      onMouseLeave={handleOverlayMouseLeave}
     >
-      <svg
-        ref={svgRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{ overflow: 'visible' }}
-      >
-        <defs>
-          {showArea && (
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart
+          data={data}
+          margin={margin}
+        >
+          <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity={areaOpacity} />
-              <stop offset="90%" stopColor={strokeColor} stopOpacity={0} />
+              <stop offset="5%" stopColor={strokeColor} stopOpacity={areaOpacity} />
+              <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
             </linearGradient>
+          </defs>
+
+          {showGrid && (
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke={gridColor}
+              vertical={false}
+              opacity={0.3}
+            />
           )}
-        </defs>
 
-        {/* Grid lines */}
-        {gridLines}
-
-        {/* Area fill */}
-        {showArea && areaPathData && (
-          <path
-            d={areaPathData}
-            fill={`url(#${gradientId})`}
-            style={{ opacity: 0.5 }}
+          {/* Always render XAxis to support ReferenceLine, even if hidden */}
+          <XAxis
+            dataKey={xAxisDataKey}
+            hide={!showXAxis}
+            tickFormatter={formatXAxis}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
           />
-        )}
 
-        {/* Line */}
-        {pathData && (
-          <path
-            d={pathData}
-            fill="none"
+          {showYAxis && (
+            <YAxis
+              tickFormatter={formatYAxis}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
+              width={40}
+            />
+          )}
+
+          {showTooltip && (
+            <Tooltip
+              content={<CustomTooltip tooltip={tooltip} data={data} />}
+              cursor={{ stroke: 'var(--color-border)', strokeWidth: 1, strokeDasharray: '4 4' }}
+            />
+          )}
+
+          <Area
+            type={curveType}
+            dataKey={dataKey}
             stroke={strokeColor}
             strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill={showArea ? `url(#${gradientId})` : 'none'}
+            animationDuration={animationDuration}
+            activeDot={false} // We handle active dot manually
+            dot={showDots ? {
+              r: dotRadius,
+              fill: dotColor || strokeColor,
+              strokeWidth: 0
+            } : false}
           />
-        )}
 
-        {/* Dots - only show on hover or if showDots is explicitly true */}
-        {points.map((point, index) => {
-          const isHovered = hoveredIndex === index;
-          const shouldShow = showDots || isHovered;
+          {/* Manual Active Visuals */}
+          {activeIndex !== null && (
+            <>
+              <ReferenceLine
+                x={data[activeIndex][xAxisDataKey]}
+                stroke="var(--color-border)"
+                strokeDasharray="3 3"
+                strokeWidth={1}
+              />
+              <ReferenceDot
+                x={data[activeIndex][xAxisDataKey]}
+                y={data[activeIndex][dataKey]}
+                r={dotRadius + 2}
+                fill={dotColor || strokeColor}
+                stroke="var(--color-bg)"
+                strokeWidth={2}
+              />
+            </>
+          )}
+        </AreaChart>
+      </ResponsiveContainer>
 
-          if (!shouldShow) return null;
-
-          return (
-            <circle
-              key={`dot-${index}`}
-              cx={point.x}
-              cy={point.y}
-              r={isHovered ? dotRadius + 2 : dotRadius}
-              fill={dotColor || strokeColor}
-              stroke="white"
-              strokeWidth={isHovered ? 2 : 1}
-              style={{ cursor: 'pointer' }}
-            />
-          );
-        })}
-
-        {/* Tooltip */}
-        {showTooltip && tooltip && hoveredIndex !== null && (
-          <foreignObject
-            x={points[hoveredIndex]?.x - 50}
-            y={points[hoveredIndex]?.y - 40}
-            width={100}
-            height={30}
-          >
-            <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-2 py-1 text-xs">
-              {tooltip(data[hoveredIndex], hoveredIndex)}
-            </div>
-          </foreignObject>
-        )}
-      </svg>
     </div>
   );
 }
+
+// Helper for Tooltip
+const CustomTooltip = ({ active, payload, tooltip, data }: any) => {
+  if (active && payload && payload.length && tooltip) {
+    const dataPoint = payload[0].payload;
+    const index = data.indexOf(dataPoint);
+    return tooltip(dataPoint, index);
+  }
+  return null;
+};

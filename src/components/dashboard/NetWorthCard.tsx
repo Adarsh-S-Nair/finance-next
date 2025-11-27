@@ -512,7 +512,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
               gradientId="netWorthGradient"
               curveType="monotone"
               animationDuration={800}
-              maxPoints={180}
+              xAxisDataKey="dateString"
             />
           </div>
         </div>
