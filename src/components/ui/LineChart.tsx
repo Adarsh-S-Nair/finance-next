@@ -28,6 +28,40 @@ interface LineChartProps {
   strokeWidth?: number;
   strokeOpacity?: number;
   fillColor?: string;
+  showDots?: boolean;
+  dotColor?: string;
+  dotRadius?: number;
+  showArea?: boolean;
+  areaOpacity?: number;
+  onMouseMove?: (data: any, index: number) => void;
+  onMouseLeave?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  gradientId?: string;
+  showGrid?: boolean;
+  gridColor?: string;
+  showXAxis?: boolean;
+  showYAxis?: boolean;
+  xAxisDataKey?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
+  formatXAxis?: (value: any) => string;
+  formatYAxis?: (value: any) => string;
+  tooltip?: (data: any, index: number) => React.ReactNode;
+  showTooltip?: boolean;
+  animationDuration?: number;
+  curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter' | 'basis';
+  lines?: {
+    dataKey: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    strokeOpacity?: number;
+    strokeDasharray?: string;
+    fillColor?: string;
+    gradientId?: string;
+    showArea?: boolean;
+    areaOpacity?: number;
+  }[];
 }
 
 export default function LineChart({
@@ -63,9 +97,36 @@ export default function LineChart({
   showTooltip = false,
   animationDuration = 800,
   curveType = 'monotone',
+  lines,
 }: LineChartProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
+
+  // Normalize lines configuration
+  const chartLines = React.useMemo(() => {
+    if (lines && lines.length > 0) {
+      return lines.map((line, index) => ({
+        dataKey: line.dataKey,
+        strokeColor: line.strokeColor || strokeColor,
+        strokeWidth: line.strokeWidth || strokeWidth,
+        strokeOpacity: line.strokeOpacity || strokeOpacity,
+        strokeDasharray: line.strokeDasharray,
+        gradientId: line.gradientId || `${gradientId}-${index}`,
+        showArea: line.showArea !== undefined ? line.showArea : showArea,
+        areaOpacity: line.areaOpacity !== undefined ? line.areaOpacity : areaOpacity,
+      }));
+    }
+    return [{
+      dataKey,
+      strokeColor,
+      strokeWidth,
+      strokeOpacity,
+      strokeDasharray: undefined,
+      gradientId,
+      showArea,
+      areaOpacity,
+    }];
+  }, [lines, dataKey, strokeColor, strokeWidth, strokeOpacity, gradientId, showArea, areaOpacity]);
 
   // Handle Mouse Move on Overlay
   const handleOverlayMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -122,10 +183,12 @@ export default function LineChart({
           margin={margin}
         >
           <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={strokeColor} stopOpacity={areaOpacity} />
-              <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
-            </linearGradient>
+            {chartLines.map((line) => (
+              <linearGradient key={line.gradientId} id={line.gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
+                <stop offset="95%" stopColor={line.strokeColor} stopOpacity={0} />
+              </linearGradient>
+            ))}
           </defs>
 
           {showGrid && (
@@ -164,21 +227,25 @@ export default function LineChart({
             />
           )}
 
-          <Area
-            type={curveType}
-            dataKey={dataKey}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-            strokeOpacity={strokeOpacity}
-            fill={showArea ? `url(#${gradientId})` : 'none'}
-            animationDuration={animationDuration}
-            activeDot={false} // We handle active dot manually
-            dot={showDots ? {
-              r: dotRadius,
-              fill: dotColor || strokeColor,
-              strokeWidth: 0
-            } : false}
-          />
+          {chartLines.map((line) => (
+            <Area
+              key={line.dataKey}
+              type={curveType}
+              dataKey={line.dataKey}
+              stroke={line.strokeColor}
+              strokeWidth={line.strokeWidth}
+              strokeOpacity={line.strokeOpacity}
+              strokeDasharray={line.strokeDasharray}
+              fill={line.showArea ? `url(#${line.gradientId})` : 'none'}
+              animationDuration={animationDuration}
+              activeDot={false} // We handle active dot manually
+              dot={showDots ? {
+                r: dotRadius,
+                fill: dotColor || line.strokeColor,
+                strokeWidth: 0
+              } : false}
+            />
+          ))}
 
           {/* Manual Active Visuals */}
           {activeIndex !== null && (
@@ -189,14 +256,17 @@ export default function LineChart({
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />
-              <ReferenceDot
-                x={data[activeIndex][xAxisDataKey]}
-                y={data[activeIndex][dataKey]}
-                r={dotRadius + 2}
-                fill={dotColor || strokeColor}
-                stroke="var(--color-bg)"
-                strokeWidth={2}
-              />
+              {chartLines.map((line) => (
+                <ReferenceDot
+                  key={line.dataKey}
+                  x={data[activeIndex][xAxisDataKey]}
+                  y={data[activeIndex][line.dataKey]}
+                  r={dotRadius + 2}
+                  fill={dotColor || line.strokeColor}
+                  stroke="var(--color-bg)"
+                  strokeWidth={2}
+                />
+              ))}
             </>
           )}
         </AreaChart>

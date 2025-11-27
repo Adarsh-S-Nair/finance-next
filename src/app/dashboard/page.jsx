@@ -23,15 +23,30 @@ const componentMap = {
 export default function DashboardPage() {
   const { user } = useUser();
 
+  // Tailwind class maps to ensure classes are generated
+  const colSpanMap = {
+    1: 'lg:col-span-1',
+    2: 'lg:col-span-2',
+    3: 'lg:col-span-3',
+  };
+
+  const gridColsMap = {
+    1: 'sm:grid-cols-1',
+    2: 'sm:grid-cols-2',
+    3: 'sm:grid-cols-3',
+  };
+
   // Helper to render a single item (component, container, or spacer)
   const renderItem = (item, index) => {
+    const colSpanClass = item.colSpan?.lg ? colSpanMap[item.colSpan.lg] : '';
+
     // Handle Spacer
     if (item.type === 'spacer') {
       return (
         <div
           key={`spacer-${index}`}
           className={`
-            ${item.colSpan?.lg ? `lg:col-span-${item.colSpan.lg}` : ''}
+            ${colSpanClass}
             ${item.className || ''}
           `}
         />
@@ -40,12 +55,13 @@ export default function DashboardPage() {
 
     // Handle Container (Nested Grid)
     if (item.type === 'container') {
+      const gridColsClass = item.gridCols?.sm ? gridColsMap[item.gridCols.sm] : '';
       return (
         <div
           key={`container-${index}`}
           className={`
-            ${item.colSpan?.lg ? `lg:col-span-${item.colSpan.lg}` : ''}
-            grid grid-cols-1 ${item.gridCols?.sm ? `sm:grid-cols-${item.gridCols.sm}` : ''} 
+            ${colSpanClass}
+            grid grid-cols-1 ${gridColsClass}
             gap-${item.gap || 6} h-full
           `}
         >
@@ -62,7 +78,7 @@ export default function DashboardPage() {
       <div
         key={`item-${index}`}
         className={`
-          ${item.colSpan?.lg ? `lg:col-span-${item.colSpan.lg}` : ''}
+          ${colSpanClass}
           ${item.height || 'h-full'}
         `}
       >
