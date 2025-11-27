@@ -26,31 +26,8 @@ interface LineChartProps {
   margin?: { top: number; right: number; bottom: number; left: number };
   strokeColor?: string;
   strokeWidth?: number;
+  strokeOpacity?: number;
   fillColor?: string;
-  showDots?: boolean;
-  dotColor?: string;
-  dotRadius?: number;
-  showArea?: boolean;
-  areaOpacity?: number;
-  onMouseMove?: (data: any, index: number) => void;
-  onMouseLeave?: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-  gradientId?: string;
-  showGrid?: boolean;
-  gridColor?: string;
-  showXAxis?: boolean;
-  showYAxis?: boolean;
-  xAxisDataKey?: string;
-  xAxisLabel?: string;
-  yAxisLabel?: string;
-  formatXAxis?: (value: any) => string;
-  formatYAxis?: (value: any) => string;
-  tooltip?: (data: any, index: number) => React.ReactNode;
-  showTooltip?: boolean;
-  animationDuration?: number;
-  curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter' | 'basis';
-  maxPoints?: number; // Kept for prop compatibility, but Recharts handles data well
 }
 
 export default function LineChart({
@@ -61,6 +38,7 @@ export default function LineChart({
   margin = { top: 10, right: 10, bottom: 10, left: 10 },
   strokeColor = 'var(--color-accent)',
   strokeWidth = 2,
+  strokeOpacity = 0.8,
   fillColor,
   showDots = false,
   dotColor,
@@ -191,6 +169,7 @@ export default function LineChart({
             dataKey={dataKey}
             stroke={strokeColor}
             strokeWidth={strokeWidth}
+            strokeOpacity={strokeOpacity}
             fill={showArea ? `url(#${gradientId})` : 'none'}
             animationDuration={animationDuration}
             activeDot={false} // We handle active dot manually
