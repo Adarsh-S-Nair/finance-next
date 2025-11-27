@@ -178,8 +178,8 @@ export default function DashboardNetWorthCard() {
       </div>
 
       <div className="relative z-10">
-        <h3 className={`text-sm font-medium mb-1 ${labelColorClass}`}>Total Net Worth</h3>
-        <div className="text-4xl md:text-5xl font-bold tracking-tighter">
+        <h3 className={`text-sm font-medium mb-1 text-zinc-500 dark:text-zinc-400`}>Total Net Worth</h3>
+        <div className="text-3xl md:text-4xl font-medium tracking-tighter text-[var(--color-on-accent)]">
           <AnimatedCounter value={netWorthValue} />
         </div>
       </div>
@@ -187,7 +187,7 @@ export default function DashboardNetWorthCard() {
         <div className={`flex items-center gap-1 font-bold text-sm ${trendColorClass}`}>
           <span>{percentChange >= 0 ? '+' : '-'}{Math.abs(percentChange).toFixed(1)}%</span>
         </div>
-        <span className={`text-xs font-medium ${vsTextColorClass}`}>vs last month</span>
+        <span className={`text-xs font-medium text-zinc-500 dark:text-zinc-400`}>vs last month</span>
       </div>
     </motion.div >
   );

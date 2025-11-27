@@ -115,7 +115,7 @@ export default function LineChart({
     const valueRange = maxValue - minValue || 1;
 
     const xStep = chartWidth / (sampled.length - 1 || 1);
-    const yScale = (value: number) => 
+    const yScale = (value: number) =>
       chartHeight - ((value - minValue) / valueRange) * chartHeight;
 
     const points = sampled.map((d, i) => ({
@@ -131,7 +131,7 @@ export default function LineChart({
 
     if (points.length > 0) {
       if (curveType === 'linear') {
-        pathData = points.map((point, i) => 
+        pathData = points.map((point, i) =>
           `${i === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
         ).join(' ');
       } else if (curveType === 'monotone') {
@@ -139,19 +139,19 @@ export default function LineChart({
         pathData = points.map((point, i) => {
           if (i === 0) return `M ${point.x} ${point.y}`;
           if (i === points.length - 1) return `L ${point.x} ${point.y}`;
-          
+
           const prev = points[i - 1];
           const next = points[i + 1];
           const cp1x = prev.x + (point.x - prev.x) / 3;
           const cp1y = prev.y;
           const cp2x = point.x - (next.x - point.x) / 3;
           const cp2y = point.y;
-          
+
           return `C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${point.x} ${point.y}`;
         }).join(' ');
       } else {
         // Default to linear for other curve types
-        pathData = points.map((point, i) => 
+        pathData = points.map((point, i) =>
           `${i === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
         ).join(' ');
       }
@@ -176,7 +176,7 @@ export default function LineChart({
 
     const x = event.clientX - rect.left - margin.left;
     const index = Math.round(x / xScale);
-    
+
     if (index >= 0 && index < points.length) {
       setHoveredIndex(index);
       onMouseMove(points[index].data, index);
@@ -196,14 +196,14 @@ export default function LineChart({
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const valueRange = maxValue - minValue || 1;
-    
+
     const gridLines = [];
     const numLines = 5;
-    
+
     for (let i = 0; i <= numLines; i++) {
       const value = minValue + (valueRange * i) / numLines;
       const y = margin.top + ((maxValue - value) / valueRange) * chartHeight;
-      
+
       gridLines.push(
         <line
           key={`grid-${i}`}
@@ -217,13 +217,13 @@ export default function LineChart({
         />
       );
     }
-    
+
     return gridLines;
   }, [showGrid, data, dataKey, chartWidth, chartHeight, margin, gridColor]);
 
   if (!data.length) {
     return (
-      <div 
+      <div
         ref={containerRef}
         className={`flex items-center justify-center ${className}`}
         style={{ width, height, ...style }}
@@ -234,7 +234,7 @@ export default function LineChart({
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={className}
       style={{ width, height, ...style }}
@@ -284,7 +284,7 @@ export default function LineChart({
         {points.map((point, index) => {
           const isHovered = hoveredIndex === index;
           const shouldShow = showDots || isHovered;
-          
+
           if (!shouldShow) return null;
 
           return (

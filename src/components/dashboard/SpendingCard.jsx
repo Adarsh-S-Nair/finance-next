@@ -159,20 +159,20 @@ export default function SpendingCard() {
   };
 
   return (
-    <Card width="full" padding="none" className="h-full relative overflow-hidden group border-0 shadow-sm bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl">
+    <Card width="full" padding="none" className="h-full relative overflow-hidden group rounded-3xl">
       <div className="relative z-10 flex flex-col h-full justify-between p-6">
         <div>
-          <h3 className="text-sm font-medium text-[var(--color-muted)] mb-1">Spending</h3>
-          <div className="text-3xl font-bold tracking-tight text-[var(--color-text)]">
+          <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Spending</h3>
+          <div className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
             {formatCurrency(currentSpending)}
           </div>
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <span className={`text-sm font-bold flex items-center gap-0.5 ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <span className={`text-sm font-medium flex items-center gap-0.5 ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(1)}%
           </span>
-          <span className="text-xs text-[var(--color-muted)] font-medium">vs last month</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">vs last month</span>
         </div>
       </div>
 

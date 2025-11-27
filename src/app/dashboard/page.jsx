@@ -4,8 +4,6 @@ import { useEffect } from "react";
 import { useUser } from "../../components/UserProvider";
 import PageContainer from "../../components/PageContainer";
 import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningCard.jsx";
-import SpendingOverviewCard from "../../components/dashboard/SpendingOverviewCard.jsx";
-import RecentTransactionsCard from "../../components/dashboard/RecentTransactionsCard.jsx";
 import DashboardNetWorthCard from "../../components/dashboard/DashboardNetWorthCard";
 import IncomeCard from "../../components/dashboard/IncomeCard";
 import SpendingCard from "../../components/dashboard/SpendingCard";
@@ -30,18 +28,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Middle Row: Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-[400px]">
-            <SpendingVsEarningCard />
-          </div>
-          <div className="h-[400px]">
-            <SpendingOverviewCard />
-          </div>
+        {/* Charts */}
+        <div className="h-[400px]">
+          <SpendingVsEarningCard />
         </div>
-
-        {/* Bottom Row: Transactions */}
-        <RecentTransactionsCard />
       </div>
     </PageContainer>
   );

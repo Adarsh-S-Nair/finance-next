@@ -34,7 +34,7 @@ export default function SpendingVsEarningCard() {
   return (
     <Card width="full" className="h-full relative py-5 px-0" variant="glass">
       <div className="absolute top-5 left-5 z-20">
-        <div className="text-sm text-[var(--color-muted)] font-light tracking-wider">Cashflow</div>
+        <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Cashflow</div>
       </div>
 
       <div className="w-full h-full pt-12">
