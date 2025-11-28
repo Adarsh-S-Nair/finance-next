@@ -120,9 +120,12 @@ export default function DashboardNetWorthCard() {
 
   if (isCustomAccent && profile?.accent_color) {
     // Custom accent: Use darkened color with white text
-    const darkenedAccent = darkenColor(profile.accent_color);
-    const darkerAccent = darkenColor(darkenedAccent, 0.3);
-    cardStyle = { background: `linear-gradient(135deg, ${darkenedAccent} 0%, ${darkerAccent} 100%)` };
+    const darkenedAccent = darkenColor(profile.accent_color, 0.2);
+    const darkerAccent = darkenColor(darkenedAccent, 0.4);
+    cardStyle = {
+      background: `linear-gradient(to right, ${darkerAccent} 0%, ${darkenedAccent} 50%, ${darkerAccent} 100%)`,
+      boxShadow: `0 14px 35px -12px ${darkenedAccent}`
+    };
     textColorClass = "text-white";
     titleColorClass = "text-white";
     borderClass = "border-transparent";
@@ -132,7 +135,10 @@ export default function DashboardNetWorthCard() {
     // Light mode: --color-accent is dark (#18181b), so white text
     // Dark mode: --color-accent is light (#fafafa), so dark text
     // Using color-mix to create a subtle gradient from the base accent color
-    cardStyle = { background: `linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent), black 10%) 100%)` };
+    cardStyle = {
+      background: `linear-gradient(to right, color-mix(in srgb, var(--color-accent), black 20%) 0%, color-mix(in srgb, var(--color-accent), white 5%) 50%, color-mix(in srgb, var(--color-accent), black 20%) 100%)`,
+      boxShadow: `0 14px 35px -12px var(--color-accent)`
+    };
     textColorClass = "text-[var(--color-on-accent)]";
     titleColorClass = "text-[var(--color-on-accent)]";
     borderClass = "border-[var(--color-accent)]/20";

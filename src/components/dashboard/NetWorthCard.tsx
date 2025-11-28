@@ -450,9 +450,18 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
           <div className="flex justify-between items-start">
             <div>
               <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
-              <div className="flex items-baseline gap-3">
-                <div className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
+              <div className="flex flex-col">
+                <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
                   <AnimatedCounter value={displayData?.value || 0} duration={120} />
+                </div>
+                <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-emerald-500' :
+                    dynamicPercentChange < 0 ? 'text-rose-500' :
+                      'text-[var(--color-muted)]'
+                  }`}>
+                  {dynamicPercentChange > 0 ? '+' : ''}
+                  {formatCurrency(displayData.value - (displayChartData[0]?.value || 0))}
+                  {' '}
+                  ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
                 </div>
               </div>
             </div>
@@ -468,20 +477,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
                 }
               </div>
 
-              {/* Percentage Pill - moved to top right */}
-              {dynamicPercentChange !== 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${dynamicPercentChange >= 0
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                    }`}
-                >
-                  <span>{dynamicPercentChange >= 0 ? '↑' : '↓'}</span>
-                  <span>{Math.abs(dynamicPercentChange).toFixed(1)}%</span>
-                </motion.div>
-              )}
+
             </div>
           </div>
         </div>
@@ -499,7 +495,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
               width="100%"
               height={200}
               margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
-              strokeWidth={3}
+              strokeWidth={2}
               showArea={true}
               areaOpacity={0.15}
               showDots={false}
