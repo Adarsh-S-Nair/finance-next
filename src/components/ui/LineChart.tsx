@@ -248,7 +248,7 @@ export default function LineChart({
           ))}
 
           {/* Manual Active Visuals */}
-          {activeIndex !== null && (
+          {activeIndex !== null && data[activeIndex] && (
             <>
               <ReferenceLine
                 x={data[activeIndex][xAxisDataKey]}
