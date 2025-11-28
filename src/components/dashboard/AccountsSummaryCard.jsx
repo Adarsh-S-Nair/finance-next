@@ -16,7 +16,7 @@ function AnimatedCounter({ value, duration = 120 }) {
     if (displayValue === value) return;
 
     setIsAnimating(true);
-    
+
     const startValue = displayValue;
     const endValue = value;
     const startTime = Date.now();
@@ -24,10 +24,10 @@ function AnimatedCounter({ value, duration = 120 }) {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Use easeOutCubic for smooth deceleration
       const easeProgress = 1 - Math.pow(1 - progress, 3);
-      
+
       const currentValue = startValue + (endValue - startValue) * easeProgress;
       setDisplayValue(currentValue);
 
@@ -42,7 +42,7 @@ function AnimatedCounter({ value, duration = 120 }) {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    
+
     animationRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -73,15 +73,15 @@ function categorizeAccount(account) {
   const accountType = (account.type || '').toLowerCase();
   const accountSubtype = (account.subtype || '').toLowerCase();
   const fullType = `${accountType} ${accountSubtype}`.trim();
-  
+
   // Check if it's a liability first
   const liabilityTypes = [
-    'credit card', 'credit', 'loan', 'mortgage', 
+    'credit card', 'credit', 'loan', 'mortgage',
     'line of credit', 'overdraft', 'other'
   ];
-  
+
   const isLiability = liabilityTypes.some(type => fullType.includes(type));
-  
+
   if (isLiability) {
     // Categorize liabilities
     if (fullType.includes('credit card') || fullType.includes('credit')) {
@@ -93,10 +93,10 @@ function categorizeAccount(account) {
     }
   } else {
     // Categorize assets
-    if (fullType.includes('investment') || fullType.includes('brokerage') || 
-        fullType.includes('401k') || fullType.includes('ira') || 
-        fullType.includes('retirement') || fullType.includes('mutual fund') ||
-        fullType.includes('stock') || fullType.includes('bond')) {
+    if (fullType.includes('investment') || fullType.includes('brokerage') ||
+      fullType.includes('401k') || fullType.includes('ira') ||
+      fullType.includes('retirement') || fullType.includes('mutual fund') ||
+      fullType.includes('stock') || fullType.includes('bond')) {
       return 'investments';
     } else {
       return 'cash'; // Default to cash for checking, savings, etc.
@@ -140,77 +140,98 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
           <AnimatedCounter value={displayValue} duration={120} />
         </span>
       </div>
-      
+
       {/* Modern segmented bar with gaps and interaction */}
-      <div 
-        className={`w-full h-3 flex gap-1 ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}
+      <div
+        className={`w-full h-3 flex ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}
         onMouseLeave={() => setHoveredSegment(null)}
       >
         {segments.map((segment, index) => {
-           const percentage = (segment.amount / total) * 100;
-           
-           // Determine colors
-           let color = 'var(--color-neon-blue)';
-           if (segment.label === 'Investments') color = 'var(--color-neon-purple)';
-           else if (segment.label === 'Credit') color = 'var(--color-neon-pink)';
-           else if (segment.label === 'Loans') color = 'var(--color-warn)';
-           
-           const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
-           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+          const percentage = (segment.amount / total) * 100;
 
-           return (
-             <div
-               key={segment.label}
-               className={`h-full rounded-sm transition-all duration-200 cursor-pointer relative group`}
-               style={{ 
-                 width: `${percentage}%`,
-                 backgroundColor: color,
-                 opacity: isDimmed ? 0.3 : 1,
-                 boxShadow: isHovered ? `0 0 10px ${color}` : 'none',
-                 zIndex: isHovered ? 10 : 1
-               }}
-               onMouseEnter={() => setHoveredSegment(segment)}
-             />
-           );
+          // Determine colors
+          let color = 'var(--color-neon-green)';
+          let border = 'none';
+
+          if (segment.label === 'Investments') {
+            color = 'color-mix(in srgb, var(--color-neon-green), transparent 90%)'; // Very transparent
+            border = '1px solid color-mix(in srgb, var(--color-neon-green), transparent 50%)'; // Glassy border
+          }
+          else if (segment.label === 'Credit') color = '#ef4444';
+          else if (segment.label === 'Loans') {
+            color = 'color-mix(in srgb, #ef4444, transparent 90%)';
+            border = '1px solid color-mix(in srgb, #ef4444, transparent 50%)';
+          }
+
+          const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
+          const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+
+          return (
+            <div
+              key={segment.label}
+              className={`h-full first:rounded-l-sm last:rounded-r-sm transition-all duration-200 cursor-pointer relative group`}
+              style={{
+                width: `${percentage}%`,
+                backgroundColor: color,
+                border: border,
+                backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.15), rgba(0,0,0,0.1))',
+                opacity: isDimmed ? 0.3 : 1,
+                boxShadow: isHovered
+                  ? `0 0 10px ${color}, inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)`
+                  : 'inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)',
+                zIndex: isHovered ? 10 : 1
+              }}
+              onMouseEnter={() => setHoveredSegment(segment)}
+            />
+          );
         })}
       </div>
-      
+
       {/* Modern legend with hover interactions */}
       <div className="space-y-2 text-xs">
         {segments.map((segment, index) => {
-           let dotColor = 'var(--color-neon-blue)';
-           if (segment.label === 'Investments') dotColor = 'var(--color-neon-purple)';
-           else if (segment.label === 'Credit') dotColor = 'var(--color-neon-pink)';
-           else if (segment.label === 'Loans') dotColor = 'var(--color-warn)';
-           
-           const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
-           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
-           
-           return (
-             <div 
-               key={index} 
-               className={`flex items-center justify-between transition-opacity duration-200 cursor-pointer hover:opacity-100 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
-               onMouseEnter={() => setHoveredSegment(segment)}
-               onMouseLeave={() => setHoveredSegment(null)}
-             >
-               <div className="flex items-center gap-2">
-                 <div 
-                   className="w-2 h-2 rounded-full transition-all duration-200" 
-                   style={{ 
-                     backgroundColor: dotColor,
-                     boxShadow: isHovered ? `0 0 8px ${dotColor}` : `0 0 5px ${dotColor}`,
-                     transform: isHovered ? 'scale(1.2)' : 'scale(1)'
-                   }}
-                 />
-                 <span className={`text-[var(--color-muted)] font-light transition-colors ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
-                   {segment.label}
-                 </span>
-               </div>
-               <span className={`text-[var(--color-fg)] font-light transition-all ${isHovered ? 'font-medium' : ''}`}>
-                 {formatCurrency(segment.amount)}
-               </span>
-             </div>
-           );
+          let dotColor = 'var(--color-neon-green)';
+          let dotBorder = 'none';
+
+          if (segment.label === 'Investments') {
+            dotColor = 'color-mix(in srgb, var(--color-neon-green), transparent 90%)';
+            dotBorder = '1px solid color-mix(in srgb, var(--color-neon-green), transparent 50%)';
+          }
+          else if (segment.label === 'Credit') dotColor = '#ef4444';
+          else if (segment.label === 'Loans') {
+            dotColor = 'color-mix(in srgb, #ef4444, transparent 90%)';
+            dotBorder = '1px solid color-mix(in srgb, #ef4444, transparent 50%)';
+          }
+
+          const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
+          const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+
+          return (
+            <div
+              key={index}
+              className={`flex items-center justify-between transition-opacity duration-200 cursor-pointer hover:opacity-100 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+              onMouseEnter={() => setHoveredSegment(segment)}
+              onMouseLeave={() => setHoveredSegment(null)}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-2 h-2 rounded-full transition-all duration-200"
+                  style={{
+                    backgroundColor: dotColor,
+                    border: dotBorder,
+                    boxShadow: isHovered ? `0 0 8px ${dotColor}` : `0 0 5px ${dotColor}`,
+                    transform: isHovered ? 'scale(1.2)' : 'scale(1)'
+                  }}
+                />
+                <span className={`text-[var(--color-muted)] font-light transition-colors ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                  {segment.label}
+                </span>
+              </div>
+              <span className={`text-[var(--color-fg)] font-light transition-all ${isHovered ? 'font-medium' : ''}`}>
+                {formatCurrency(segment.amount)}
+              </span>
+            </div>
+          );
         })}
       </div>
     </div>
@@ -278,12 +299,12 @@ export default function AccountsSummaryCard({ width = "full" }) {
     const categorizedAccounts = allAccounts.reduce((acc, account) => {
       const category = categorizeAccount(account);
       const amount = Math.abs(account.balance);
-      
+
       if (!acc[category]) {
         acc[category] = 0;
       }
       acc[category] += amount;
-      
+
       return acc;
     }, {});
 
@@ -318,7 +339,7 @@ export default function AccountsSummaryCard({ width = "full" }) {
       <div className="mb-6">
         <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Accounts Summary</div>
       </div>
-      
+
       <div className="flex-1 flex flex-col justify-center gap-8">
         <SegmentedBar
           segments={assetSegments}
@@ -327,9 +348,9 @@ export default function AccountsSummaryCard({ width = "full" }) {
           isAnimated={isHovering}
           className="flex-1 flex flex-col justify-center"
         />
-        
+
         <div className="h-px bg-[var(--color-border)]/30 w-full" />
-        
+
         <SegmentedBar
           segments={liabilitySegments}
           total={totalLiabilities}
