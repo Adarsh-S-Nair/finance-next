@@ -124,7 +124,7 @@ export default function DashboardNetWorthCard() {
     const darkerAccent = darkenColor(darkenedAccent, 0.4);
     cardStyle = {
       background: `linear-gradient(to right, ${darkerAccent} 0%, ${darkenedAccent} 50%, ${darkerAccent} 100%)`,
-      boxShadow: `0 14px 35px -12px ${darkenedAccent}`
+      boxShadow: `0 10px 25px -10px color-mix(in srgb, ${darkenedAccent} 40%, transparent)`
     };
     textColorClass = "text-white";
     titleColorClass = "text-white";
@@ -137,7 +137,7 @@ export default function DashboardNetWorthCard() {
     // Using color-mix to create a subtle gradient from the base accent color
     cardStyle = {
       background: `linear-gradient(to right, color-mix(in srgb, var(--color-accent), black 20%) 0%, color-mix(in srgb, var(--color-accent), white 5%) 50%, color-mix(in srgb, var(--color-accent), black 20%) 100%)`,
-      boxShadow: `0 14px 35px -12px var(--color-accent)`
+      boxShadow: `0 10px 25px -10px color-mix(in srgb, var(--color-accent) 40%, transparent)`
     };
     textColorClass = "text-[var(--color-on-accent)]";
     titleColorClass = "text-[var(--color-on-accent)]";

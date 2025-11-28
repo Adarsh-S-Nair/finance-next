@@ -34,8 +34,8 @@ export default function AppTopbar() {
   }, [pathname]);
 
   return (
-    <header id="app-topbar" className="fixed top-0 right-0 left-0 lg:left-64 xl:left-72 z-40 min-h-16 bg-[var(--color-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-bg),transparent_6%)] border-b border-[var(--color-border)] dark:border-transparent flex flex-col">
-      <div className="mx-auto max-w-[1400px] px-4 h-16 w-full flex items-center gap-3 shrink-0">
+    <header id="app-topbar" className="fixed top-0 right-0 left-0 lg:left-60 xl:left-64 z-40 min-h-16 bg-[var(--color-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-bg),transparent_6%)] border-b border-[var(--color-border)] dark:border-transparent flex flex-col">
+      <div className="mx-auto max-w-5xl px-4 h-16 w-full flex items-center gap-3 shrink-0">
         <button id="sidebar-toggle" className="lg:hidden p-2 cursor-pointer rounded-md">
           <LuMenu className="h-4 w-4" />
         </button>

@@ -43,14 +43,14 @@ export default function DashboardPage() {
     <PageContainer
       title="Dashboard"
     >
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Content Area */}
-        <div className="flex-1 lg:w-0 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {dashboardLayout.main.map((item) => renderItem(item))}
         </div>
 
         {/* Sidebar */}
-        <div className="w-full lg:w-80 xl:w-96 space-y-6">
+        <div className="lg:col-span-1 space-y-6">
           {dashboardLayout.sidebar.map((item) => renderItem(item))}
         </div>
       </div>

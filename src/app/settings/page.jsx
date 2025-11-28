@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
   const handleConfirmDisconnect = async () => {
     const { institution } = disconnectModal;
-    
+
     if (!institution.plaidItemId) {
       alert('Unable to disconnect: Missing Plaid item information.');
       return;
@@ -70,7 +70,7 @@ export default function SettingsPage() {
     try {
       setIsDisconnecting(true);
       console.log('Disconnecting institution:', institution.name, 'plaidItemId:', institution.plaidItemId);
-      
+
       const response = await fetch('/api/plaid/disconnect', {
         method: 'POST',
         headers: {
@@ -89,13 +89,13 @@ export default function SettingsPage() {
 
       const result = await response.json();
       console.log('Disconnect successful:', result);
-      
+
       // Refresh accounts to reflect the changes
       refreshAccounts();
-      
+
       // Close the modal
       setDisconnectModal({ isOpen: false, institution: null });
-      
+
     } catch (error) {
       console.error('Error disconnecting institution:', error);
       alert(`Failed to disconnect ${institution.name}: ${error.message}`);
@@ -138,7 +138,7 @@ export default function SettingsPage() {
       <section aria-labelledby="institutions-heading" className="mt-8 pl-6">
         <div className="flex items-center justify-between mb-3">
           <h2 id="institutions-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Connected Institutions</h2>
-          <Button 
+          <Button
             onClick={handleAddAccount}
             variant="ghost"
             size="icon"
@@ -170,8 +170,8 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-4 py-3">
                     <div className="w-10 h-10 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                       {institution.logo ? (
-                        <img 
-                          src={institution.logo} 
+                        <img
+                          src={institution.logo}
                           alt={`${institution.name} logo`}
                           className="w-full h-full object-contain"
                           onError={(e) => {
@@ -180,7 +180,7 @@ export default function SettingsPage() {
                           }}
                         />
                       ) : null}
-                      <PiBankFill 
+                      <PiBankFill
                         className={`h-5 w-5 text-[var(--color-accent)] ${institution.logo ? 'hidden' : 'block'}`}
                       />
                     </div>
@@ -264,7 +264,7 @@ export default function SettingsPage() {
       />
 
       {/* Plaid Link Modal */}
-      <PlaidLinkModal 
+      <PlaidLinkModal
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
       />

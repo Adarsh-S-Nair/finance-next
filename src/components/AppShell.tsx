@@ -21,10 +21,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       <Sidebar />
-      <div className="lg:ml-64 xl:ml-72 min-h-screen flex flex-col">
+      <div className="lg:ml-60 xl:ml-64 min-h-screen flex flex-col">
         <AppTopbar />
         <main className="flex-1 pt-16">
-          <div className="mx-auto max-w-[1400px] px-4 md:px-6 lg:px-8">
+          <div className="mx-auto max-w-5xl px-4 md:px-6 lg:px-8">
             {children}
           </div>
         </main>
