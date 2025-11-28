@@ -7,6 +7,8 @@ import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
 
 
+
+
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -85,17 +87,6 @@ export default function DashboardNetWorthCard() {
     return ((current - start) / Math.abs(start)) * 100;
   }, [chartData]);
 
-  if (loading) {
-    return (
-      <Card width="full" className="h-full relative overflow-hidden">
-        <div className="animate-pulse flex flex-col h-full justify-between p-2">
-          <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-24 mb-4" />
-          <div className="h-10 bg-zinc-200 dark:bg-zinc-800 rounded w-48" />
-        </div>
-      </Card>
-    );
-  }
-
   const netWorthValue = currentNetWorth?.netWorth || 0;
 
   // Determine styling based on accent color
@@ -156,32 +147,38 @@ export default function DashboardNetWorthCard() {
       : 'text-rose-500 dark:text-rose-600');
   const vsTextColorClass = isCustomAccent ? 'text-white/70' : 'text-[var(--color-on-accent)]/50';
 
+  const isLoadingState = loading;
+
   return (
     <Card
       title="Total Net Worth"
-      titleColor={titleColorClass}
-      style={cardStyle}
+      titleColor={isLoadingState ? "text-transparent" : titleColorClass}
+      style={isLoadingState ? {} : cardStyle}
       padding="none"
-      className={`relative overflow-hidden rounded-3xl border ${borderClass} h-full ${textColorClass}`}
+      className={`relative overflow-hidden rounded-3xl border ${isLoadingState ? 'border-transparent bg-zinc-100 dark:bg-zinc-900/50' : borderClass} h-full ${isLoadingState ? 'text-transparent' : textColorClass}`}
       background={
-        /* Modern Solid Circle Background Design */
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          {/* Large solid circle top right */}
-          <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+        isLoadingState ? (
+          <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
+        ) : (
+          /* Modern Solid Circle Background Design */
+          <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+            {/* Large solid circle top right */}
+            <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-          {/* Overlapping solid circle mid right */}
-          <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+            {/* Overlapping solid circle mid right */}
+            <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-          {/* Small solid circle bottom right */}
-          <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+            {/* Small solid circle bottom right */}
+            <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
 
-          {/* Solid circle bottom left */}
-          <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-        </div>
+            {/* Solid circle bottom left */}
+            <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
+          </div>
+        )
       }
     >
 
-      <div className="relative z-10 h-full flex flex-col justify-between p-5 pt-0">
+      <div className={`relative z-10 h-full flex flex-col justify-between p-5 pt-0 ${isLoadingState ? 'opacity-0' : ''}`}>
         <div>
           {/* Spacer or content if needed, but title is now in header. 
                We need to keep the value at the top. */}

@@ -6,6 +6,8 @@ import SpendingEarningChart from "./SpendingEarningChart";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
 
+
+
 export default function SpendingVsEarningCard() {
   const { user } = useUser();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
@@ -66,68 +68,76 @@ export default function SpendingVsEarningCard() {
 
   const isIncomeHigher = totalIncome >= totalSpending;
 
+  const showLoading = isLoading;
+
   return (
-    <Card padding="none" className="h-full">
-      {/* Custom Header */}
-      <div className="px-5 pt-5 pb-4">
-        <div className="flex items-start justify-between">
-          {/* Title and Values */}
-          <div>
-            <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Cashflow
+    <Card padding="none" className={`h-full relative overflow-hidden ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
+      {showLoading && (
+        <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
+      )}
+
+      <div className={showLoading ? 'opacity-0' : ''}>
+        {/* Custom Header */}
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-start justify-between">
+            {/* Title and Values */}
+            <div>
+              <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Cashflow
+              </div>
+
+              <div className="flex items-baseline gap-4">
+                <div className={!isIncomeHigher ? "opacity-65" : ""}>
+                  <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
+                    {formatCurrency(totalIncome)}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg)]">Income</div>
+                </div>
+                <div className={isIncomeHigher ? "opacity-75" : ""}>
+                  <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
+                    {formatCurrency(totalSpending)}
+                  </div>
+                  <div className="text-xs text-[var(--color-fg)]">Spending</div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-baseline gap-4">
-              <div className={!isIncomeHigher ? "opacity-65" : ""}>
-                <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                  {isLoading ? "..." : formatCurrency(totalIncome)}
-                </div>
-                <div className="text-xs text-[var(--color-fg)]">Income</div>
-              </div>
-              <div className={isIncomeHigher ? "opacity-75" : ""}>
-                <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                  {isLoading ? "..." : formatCurrency(totalSpending)}
-                </div>
-                <div className="text-xs text-[var(--color-fg)]">Spending</div>
-              </div>
-            </div>
-          </div>
+            {/* Dropdown and Legend stacked */}
+            <div className="flex flex-col items-end gap-3">
+              <Dropdown
+                label={periodOptions.find(p => p.value === selectedPeriod)?.label || "6 Months"}
+                size="sm"
+                items={periodOptions.map(period => ({
+                  label: period.label,
+                  onClick: () => setSelectedPeriod(period.value)
+                }))}
+                align="right"
+              />
 
-          {/* Dropdown and Legend stacked */}
-          <div className="flex flex-col items-end gap-3">
-            <Dropdown
-              label={periodOptions.find(p => p.value === selectedPeriod)?.label || "6 Months"}
-              size="sm"
-              items={periodOptions.map(period => ({
-                label: period.label,
-                onClick: () => setSelectedPeriod(period.value)
-              }))}
-              align="right"
-            />
-
-            {/* Legend with circles */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
-                <span className="text-xs text-[var(--color-muted)]">Income</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-[var(--color-chart-expense)]" />
-                <span className="text-xs text-[var(--color-muted)]">Spending</span>
+              {/* Legend with circles */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Income</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-chart-expense)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Chart */}
-      <div className="h-64 w-full">
-        <SpendingEarningChart
-          data={chartData}
-          onSelectMonth={(data) => {
-            console.log('Selected month:', data);
-          }}
-        />
+        {/* Chart */}
+        <div className="h-64 w-full">
+          <SpendingEarningChart
+            data={chartData}
+            onSelectMonth={(data) => {
+              console.log('Selected month:', data);
+            }}
+          />
+        </div>
       </div>
     </Card>
   );

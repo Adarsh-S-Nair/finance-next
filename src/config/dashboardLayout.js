@@ -30,16 +30,7 @@ export const dashboardLayout = {
       id: 'net-worth',
       component: 'DashboardNetWorthCard'
     },
-    // Income Card
-    {
-      id: 'income',
-      component: 'IncomeCard'
-    },
-    // Spending Card
-    {
-      id: 'spending',
-      component: 'SpendingCard'
-    },
+
     // Widgets Placeholder
     {
       id: 'widgets',
