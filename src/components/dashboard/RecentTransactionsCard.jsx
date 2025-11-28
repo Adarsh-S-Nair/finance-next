@@ -20,7 +20,7 @@ function formatDate(dateString) {
   const now = new Date();
   const diffTime = Math.abs(now - date);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 1) {
     return 'Today';
   } else if (diffDays === 2) {
@@ -28,9 +28,9 @@ function formatDate(dateString) {
   } else if (diffDays <= 7) {
     return `${diffDays - 1} days ago`;
   } else {
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
   }
 }
@@ -90,17 +90,15 @@ export default function RecentTransactionsCard() {
   if (loading) {
     return (
       <Card width="full" className="animate-pulse" variant="glass">
-        <div className="mb-4">
-          <div className="h-5 bg-[var(--color-border)] rounded w-32 mb-2" />
-          <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+        <div className="mb-4 flex justify-between items-center">
+          <div className="h-4 bg-[var(--color-border)] rounded w-32" />
         </div>
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[var(--color-border)] rounded-full" />
-              <div className="flex-1">
-                <div className="h-4 bg-[var(--color-border)] rounded w-24 mb-1" />
-                <div className="h-3 bg-[var(--color-border)] rounded w-16" />
+            <div key={i} className="flex items-center justify-between py-2 px-2">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="w-8 h-8 bg-[var(--color-border)] rounded-full flex-shrink-0" />
+                <div className="h-4 bg-[var(--color-border)] rounded w-32" />
               </div>
               <div className="h-4 bg-[var(--color-border)] rounded w-16" />
             </div>
@@ -123,7 +121,7 @@ export default function RecentTransactionsCard() {
               <div className="text-sm text-[var(--color-muted)] mb-2">
                 {error}
               </div>
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
@@ -169,21 +167,21 @@ export default function RecentTransactionsCard() {
           </button>
         )}
       </div>
-      
+
       <div className="space-y-1">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
           // Use generic positive/neutral colors which map to neon in dark mode via CSS variables if configured,
           // or explicit neon classes if we want to force it.
           const amountColor = isPositive ? 'text-green-600 dark:text-neon-green' : 'text-[var(--color-fg)]';
-          
+
           return (
-            <div 
-              key={transaction.id || index} 
+            <div
+              key={transaction.id || index}
               className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div 
+                <div
                   className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                   style={{
                     backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
@@ -191,13 +189,13 @@ export default function RecentTransactionsCard() {
                       : (transaction.category_hex_color || 'var(--color-accent)')
                   }}
                 >
-          {(!DISABLE_LOGOS && transaction.icon_url) ? (
-                    <img 
-                      src={transaction.icon_url} 
+                  {(!DISABLE_LOGOS && transaction.icon_url) ? (
+                    <img
+                      src={transaction.icon_url}
                       alt={transaction.merchant_name || transaction.description || 'Transaction'}
                       className="w-full h-full object-contain"
-              loading="lazy"
-              decoding="async"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         // Fallback to category icon if image fails to load
                         e.target.style.display = 'none';
@@ -238,7 +236,7 @@ export default function RecentTransactionsCard() {
           );
         })}
       </div>
-      
+
     </Card>
   );
 }
