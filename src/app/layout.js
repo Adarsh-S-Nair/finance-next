@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Inter, Poppins } from 'next/font/google';
+import { Outfit, Poppins } from 'next/font/google';
 import Topbar from "../components/Topbar";
 import ToastProvider from "../components/ToastProvider";
 import UserProvider from "../components/UserProvider";
@@ -7,10 +7,10 @@ import { AccountsProvider } from "../components/AccountsProvider";
 import { NetWorthProvider } from "../components/NetWorthProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ['latin'],
-  weight: ['100', '200', '300', '400', '500', '600'],
-  variable: '--font-inter',
+  weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-outfit',
 });
 
 const poppins = Poppins({
@@ -28,7 +28,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+    <html lang="en" className={`${outfit.variable} ${poppins.variable}`}>
       <body className="font-light">
         <ToastProvider>
           <UserProvider>

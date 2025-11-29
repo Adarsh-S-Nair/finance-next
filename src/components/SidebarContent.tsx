@@ -64,7 +64,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
       {/* Header - Static, no entrance animation */}
       <div
-        className="h-16 shrink-0 flex items-center justify-center gap-3 w-full border-b border-[var(--color-border)] dark:border-transparent pr-6"
+        className="h-16 shrink-0 flex items-center justify-center w-full border-b border-[var(--color-border)] dark:border-transparent pr-6"
       >
         <motion.div
           className="h-10 w-10 bg-[var(--color-accent)]"
@@ -81,7 +81,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
           whileHover={{ scale: 1.05, rotate: 5 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
         />
-        <h1 className="text-lg font-semibold tracking-wide text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+        <h1 className="text-base font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
           ZENTARI
         </h1>
       </div>

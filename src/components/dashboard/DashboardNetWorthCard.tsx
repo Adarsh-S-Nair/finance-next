@@ -184,11 +184,9 @@ export default function DashboardNetWorthCard() {
       }
     >
 
-      <div className={`relative z-10 h-full flex flex-col justify-between p-5 pt-0 ${isLoadingState ? 'opacity-0' : ''}`}>
+      <div className={`relative z-10 h-full flex flex-col gap-1 p-5 pt-0 ${isLoadingState ? 'opacity-0' : ''}`}>
         <div>
-          {/* Spacer or content if needed, but title is now in header. 
-               We need to keep the value at the top. */}
-          <div className="text-3xl md:text-4xl font-medium tracking-tighter text-[var(--color-on-accent)]">
+          <div className="text-2xl md:text-3xl font-medium tracking-tighter text-[var(--color-on-accent)]">
             <AnimatedCounter value={netWorthValue} />
           </div>
         </div>
