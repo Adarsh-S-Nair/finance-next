@@ -6,6 +6,7 @@ import UserProvider from "../components/UserProvider";
 import { AccountsProvider } from "../components/AccountsProvider";
 import { NetWorthProvider } from "../components/NetWorthProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
+import DynamicFavicon from "../components/DynamicFavicon";
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -30,6 +31,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${outfit.variable} ${poppins.variable}`}>
       <body className="font-light">
+        <DynamicFavicon />
         <ToastProvider>
           <UserProvider>
             <AccountsProvider>
