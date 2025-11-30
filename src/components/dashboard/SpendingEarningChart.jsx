@@ -135,10 +135,6 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
         onMouseLeave={onLeave}
       >
         <defs>
-          <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-            <rect width="8" height="8" fill="transparent" />
-            <path d="M0 0h8v4h-8z" fill="var(--color-chart-pattern)" />
-          </pattern>
           <linearGradient id="bar3D" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="black" stopOpacity="0.3" />
             <stop offset="15%" stopColor="black" stopOpacity="0.1" />
@@ -223,12 +219,10 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
                 {/* Income Bar */}
                 <path d={incPath} fill="var(--color-chart-income)" filter={filter} />
                 <path d={incPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
-                <path d={incPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
 
                 {/* Spending Bar */}
                 <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
                 <path d={spdPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
-                <path d={spdPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
 
                 <rect
                   x={x}

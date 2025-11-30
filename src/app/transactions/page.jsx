@@ -1027,10 +1027,10 @@ function TransactionsContent() {
         setLoadingCategoryGroups(false);
       }
     };
-    if (isFiltersOpen && categoryGroups.length === 0 && !loadingCategoryGroups) {
+    if ((isFiltersOpen || (isDrawerOpen && currentDrawerView === 'select-category')) && categoryGroups.length === 0 && !loadingCategoryGroups) {
       loadCategoryGroups();
     }
-  }, [isFiltersOpen, categoryGroups.length, loadingCategoryGroups]);
+  }, [isFiltersOpen, isDrawerOpen, currentDrawerView, categoryGroups.length, loadingCategoryGroups]);
 
   // Calculate active filter count
   const getActiveFilterCount = () => {

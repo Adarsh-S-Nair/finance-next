@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import Card from "../ui/Card";
 import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
+import Link from "next/link";
+import { FiArrowUpRight } from "react-icons/fi";
 
 
 
@@ -157,7 +159,12 @@ export default function DashboardNetWorthCard() {
 
   return (
     <Card
-      title="Total Net Worth"
+      title={
+        <Link href="/accounts" className={`flex items-center gap-2 hover:opacity-80 transition-opacity ${isLoadingState ? "pointer-events-none" : ""}`}>
+          <span>Total Net Worth</span>
+          <FiArrowUpRight className="w-4 h-4" />
+        </Link>
+      }
       titleColor={isLoadingState ? "text-transparent" : titleColorClass}
       style={isLoadingState ? {} : cardStyle}
       padding="none"

@@ -142,18 +142,18 @@ export default function Drawer({
             role="dialog"
             aria-modal="true"
             className={clsx(
-              "relative z-10 w-full border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl",
+              "relative z-10 w-full border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl flex flex-col",
               // Mobile bottom sheet look
-              "rounded-t-lg rounded-b-none pt-3 pb-4 px-4",
+              "rounded-t-lg rounded-b-none",
               // Desktop drawer look - all corners rounded
-              "sm:rounded-lg sm:pt-4 sm:pb-4 sm:px-4",
+              "sm:rounded-lg",
               // Width constraints only from small screens and up
               size === "sm" && "sm:max-w-sm",
               size === "md" && "sm:max-w-md",
               size === "lg" && "sm:max-w-lg",
               size === "xl" && "sm:max-w-xl",
               // Height constraints
-              "h-[75vh] sm:h-full sm:max-h-[100vh] overflow-y-auto",
+              "h-[75vh] sm:h-full sm:max-h-[100vh]",
               className
             )}
             // Animate differently for mobile bottom sheet vs desktop right drawer
@@ -174,12 +174,12 @@ export default function Drawer({
             }}
           >
             {/* Mobile drag handle */}
-            <div className="sm:hidden flex items-center justify-center pt-2">
+            <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none">
               <div className="h-1.5 w-12 rounded-full bg-[var(--color-border)]" />
             </div>
 
             {/* Header with back button */}
-            <div className="mb-3">
+            <div className="px-4 py-3 border-b border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-10">
               <div className="flex items-center gap-3">
                 {showBackButton && (
                   <button
@@ -202,16 +202,24 @@ export default function Drawer({
             </div>
 
             {/* Content with slide animation */}
-            <motion.div
-              key={currentViewId || 'default'}
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -20, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              {displayContent}
-            </motion.div>
-            {footer && <div className="mt-4 flex items-center justify-end gap-2">{footer}</div>}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <motion.div
+                key={currentViewId || 'default'}
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="h-full"
+              >
+                {displayContent}
+              </motion.div>
+            </div>
+
+            {footer && (
+              <div className="p-4 border-t border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)]">
+                <div className="flex items-center justify-end gap-2">{footer}</div>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}
