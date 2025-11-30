@@ -358,90 +358,50 @@ export async function POST(request) {
         // Now process system_categories from detailed keys
         if (DEBUG) console.log('🏷️ Processing system categories from detailed keys...');
 
-        // Extract unique detailed categories from transactions
-        const detailedCategories = new Set();
-        const categoryGroupMap = new Map(); // Map primary category to category group ID
+        // Get all category groups (including newly created ones)
+        const { data: allCategoryGroups, error: allGroupsError } = await supabaseAdmin
+          .from('category_groups')
+          .select('id, name');
 
-        transactionsToUpsert.forEach(transaction => {
-          if (transaction.personal_finance_category?.detailed && transaction.personal_finance_category?.primary) {
-            const detailed = transaction.personal_finance_category.detailed;
-            const primary = transaction.personal_finance_category.primary;
+        if (allGroupsError) {
+          console.error('❌ Failed to fetch all category groups:', allGroupsError);
+          throw new Error(`Failed to fetch all category groups: ${allGroupsError.message}`);
+        }
 
-            // Remove the primary key from the beginning of detailed string
-            if (detailed.startsWith(primary + '_')) {
-              const cleanedDetailed = detailed.substring(primary.length + 1); // +1 for the underscore
-              detailedCategories.add({
-                detailed: cleanedDetailed,
-                primary: primary
-              });
-            }
-          }
-        });
+        // Get existing system categories
+        const { data: existingSystemCategories, error: existingSystemError } = await supabaseAdmin
+          .from('system_categories')
+          .select('label');
 
-        if (detailedCategories.size > 0) {
-          if (DEBUG) console.log(`📋 Found ${detailedCategories.size} unique detailed categories`);
+        if (existingSystemError) {
+          console.error('❌ Failed to fetch existing system categories:', existingSystemError);
+          throw new Error(`Failed to fetch existing system categories: ${existingSystemError.message}`);
+        }
 
-          // Get all category groups (including newly created ones) to build the mapping
-          const { data: allCategoryGroups, error: allGroupsError } = await supabaseAdmin
-            .from('category_groups')
-            .select('id, name');
+        const existingSystemLabels = existingSystemCategories?.map(sc => sc.label) || [];
 
-          if (allGroupsError) {
-            console.error('❌ Failed to fetch all category groups:', allGroupsError);
-            throw new Error(`Failed to fetch all category groups: ${allGroupsError.message}`);
-          }
+        // Use utility function to identify new system categories (deduplicated)
+        const { getNewSystemCategories } = await import('../../../../../lib/categoryUtils');
+        const newSystemCategories = getNewSystemCategories(
+          transactionsToUpsert,
+          existingSystemLabels,
+          allCategoryGroups
+        );
 
-          // Build mapping from primary category name to category group ID
-          allCategoryGroups.forEach(group => {
-            const primaryName = group.name.toUpperCase().replace(/\s+/g, '_');
-            categoryGroupMap.set(primaryName, group.id);
-          });
+        // Insert new system categories
+        if (newSystemCategories.length > 0) {
+          if (DEBUG) console.log(`🆕 Creating ${newSystemCategories.length} new system categories`);
 
-          // Get existing system categories
-          const { data: existingSystemCategories, error: existingSystemError } = await supabaseAdmin
+          const { error: systemCategoriesError } = await supabaseAdmin
             .from('system_categories')
-            .select('label');
+            .insert(newSystemCategories);
 
-          if (existingSystemError) {
-            console.error('❌ Failed to fetch existing system categories:', existingSystemError);
-            throw new Error(`Failed to fetch existing system categories: ${existingSystemError.message}`);
+          if (systemCategoriesError) {
+            console.error('❌ Failed to insert system categories:', systemCategoriesError);
+            throw new Error(`Failed to insert system categories: ${systemCategoriesError.message}`);
           }
 
-          const existingSystemLabels = new Set(existingSystemCategories?.map(sc => sc.label) || []);
-
-          // Create new system categories
-          const newSystemCategories = [];
-          for (const { detailed, primary } of detailedCategories) {
-            const formattedLabel = formatCategoryName(detailed);
-            const primaryName = primary.toUpperCase();
-            const groupId = categoryGroupMap.get(primaryName);
-
-            if (!existingSystemLabels.has(formattedLabel) && groupId) {
-              newSystemCategories.push({
-                label: formattedLabel,
-                group_id: groupId
-              });
-              if (DEBUG) console.log(`🆕 Creating new system category: "${formattedLabel}" in group ID ${groupId}`);
-            } else if (existingSystemLabels.has(formattedLabel)) {
-              if (DEBUG) console.log(`✅ System category already exists: "${formattedLabel}"`);
-            } else if (!groupId) {
-              console.warn(`⚠️ No category group found for primary category: "${primary}"`);
-            }
-          }
-
-          // Insert new system categories
-          if (newSystemCategories.length > 0) {
-            const { error: systemCategoriesError } = await supabaseAdmin
-              .from('system_categories')
-              .insert(newSystemCategories);
-
-            if (systemCategoriesError) {
-              console.error('❌ Failed to insert system categories:', systemCategoriesError);
-              throw new Error(`Failed to insert system categories: ${systemCategoriesError.message}`);
-            }
-
-            if (DEBUG) console.log(`✅ Successfully created ${newSystemCategories.length} new system categories`);
-          }
+          if (DEBUG) console.log(`✅ Successfully created ${newSystemCategories.length} new system categories`);
         }
       }
     }

@@ -1102,6 +1102,40 @@ export default function TransactionsPage() {
     setCurrentDrawerView('transaction-details');
   };
 
+  const handleCategorySelect = async (category) => {
+    if (!selectedTransaction) return;
+
+    // Find the group for this category to get the color/icon
+    const group = categoryGroups.find(g => g.system_categories.some(c => c.id === category.id));
+
+    // Optimistic update
+    const updatedTransaction = {
+      ...selectedTransaction,
+      category_id: category.id,
+      category_name: category.label,
+      category_hex_color: group?.hex_color,
+      category_icon_lib: group?.icon_lib,
+      category_icon_name: group?.icon_name
+    };
+
+    setSelectedTransaction(updatedTransaction);
+    setTransactions(prev => prev.map(t => t.id === selectedTransaction.id ? updatedTransaction : t));
+    setCurrentDrawerView('transaction-details');
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: category.id })
+        .eq('id', selectedTransaction.id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating category:', err);
+      // Revert on error (optional, but good practice)
+      // For now, we'll just log it.
+    }
+  };
+
   // Use transactions directly since they are now server-filtered
   const filteredTransactions = transactions;
 
@@ -1330,7 +1364,11 @@ export default function TransactionsPage() {
             id: 'select-category',
             title: 'Select Category',
             showBackButton: true,
-            content: <SelectCategoryView />
+            content: <SelectCategoryView
+              categoryGroups={categoryGroups}
+              onSelectCategory={handleCategorySelect}
+              currentCategoryId={selectedTransaction?.category_id}
+            />
           }
         ]}
         currentViewId={currentDrawerView}
