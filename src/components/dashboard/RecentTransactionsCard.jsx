@@ -16,22 +16,43 @@ function formatCurrency(amount) {
 }
 
 function formatDate(dateString) {
+  if (!dateString) return '';
+
+  // If dateString is YYYY-MM-DD (from new date column), parse it as UTC midnight
+  // If it's ISO datetime (from old datetime column), it's also UTC
   const date = new Date(dateString);
   const now = new Date();
-  const diffTime = Math.abs(now - date);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 1) {
+  // Get UTC components from the transaction date
+  const txYear = date.getUTCFullYear();
+  const txMonth = date.getUTCMonth();
+  const txDay = date.getUTCDate();
+
+  // Get local components from current date
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth();
+  const nowDay = now.getDate();
+
+  // Create comparable date objects set to midnight local time
+  const txDateLocal = new Date(txYear, txMonth, txDay);
+  const nowDateLocal = new Date(nowYear, nowMonth, nowDay);
+
+  const diffTime = nowDateLocal - txDateLocal;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
     return 'Today';
-  } else if (diffDays === 2) {
+  } else if (diffDays === 1) {
     return 'Yesterday';
-  } else if (diffDays <= 7) {
-    return `${diffDays - 1} days ago`;
+  } else if (diffDays > 0 && diffDays <= 7) {
+    return `${diffDays} days ago`;
   } else {
-    return date.toLocaleDateString('en-US', {
+    // Format as "Nov 28" using UTC components to ensure it stays as 28th
+    return new Intl.DateTimeFormat('en-US', {
       month: 'short',
-      day: 'numeric'
-    });
+      day: 'numeric',
+      timeZone: 'UTC' // Force UTC timezone for formatting
+    }).format(date);
   }
 }
 
@@ -219,6 +240,9 @@ export default function RecentTransactionsCard() {
                 <div className="min-w-0 flex-1 mr-4">
                   <div className="text-sm font-light text-[var(--color-fg)] truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] font-light">
+                    {formatDate(transaction.date || transaction.datetime)}
                   </div>
                 </div>
               </div>

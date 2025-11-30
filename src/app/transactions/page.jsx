@@ -125,28 +125,46 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
 const TransactionList = memo(function TransactionList({ transactions, onTransactionClick, isSearching }) {
   const formatDateHeader = (dateString) => {
     if (!dateString) return 'Unknown Date';
+
+    // Parse the date string (which is UTC)
     const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const now = new Date();
+
+    // Get UTC components from the transaction date
+    const txYear = date.getUTCFullYear();
+    const txMonth = date.getUTCMonth();
+    const txDay = date.getUTCDate();
+
+    // Get local components from current date
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth();
+    const nowDay = now.getDate();
+
+    // Create comparable date objects set to midnight local time
+    const txDateLocal = new Date(txYear, txMonth, txDay);
+    const nowDateLocal = new Date(nowYear, nowMonth, nowDay);
+
+    const diffTime = nowDateLocal - txDateLocal;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     // Check if it's today
-    if (date.toDateString() === today.toDateString()) {
+    if (diffDays === 0) {
       return 'Today';
     }
 
     // Check if it's yesterday
-    if (date.toDateString() === yesterday.toDateString()) {
+    if (diffDays === 1) {
       return 'Yesterday';
     }
 
-    // For other dates, show the formatted date
-    return date.toLocaleDateString('en-US', {
+    // For other dates, show the formatted date using UTC timezone
+    return new Intl.DateTimeFormat('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
-    });
+      day: 'numeric',
+      timeZone: 'UTC'
+    }).format(date);
   };
 
   // Memoize expensive grouping operation
@@ -154,7 +172,22 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
     const grouped = {};
 
     transactions.forEach(transaction => {
-      const dateKey = transaction.datetime ? new Date(transaction.datetime).toDateString() : 'Unknown';
+      // Use the explicit date column if available, otherwise fall back to datetime
+      // Both are stored/treated as UTC, so toDateString() on a Date object created from them works
+      // provided we treat them as UTC dates.
+      // Actually, new Date("2025-11-28") is UTC. new Date("2025-11-28T00:00:00Z") is UTC.
+      // So toDateString() returns local date string "Thu Nov 27 2025" if in EST.
+      // We want the UTC date string.
+
+      const dateStr = transaction.date || transaction.datetime;
+      let dateKey = 'Unknown';
+
+      if (dateStr) {
+        const d = new Date(dateStr);
+        // Format as YYYY-MM-DD to ensure consistent grouping key
+        dateKey = d.toISOString().split('T')[0];
+      }
+
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }

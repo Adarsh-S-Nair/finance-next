@@ -20,13 +20,19 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
   const StatusIcon = transaction.pending ? FiClock : FiCheckCircle;
 
   // Format date - shorter format to prevent wrapping
-  const formattedDate = transaction.datetime ? new Date(transaction.datetime).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric'
-  }) : 'Unknown Date';
+  // Use UTC components to ensure date stays consistent regardless of local timezone
+  // Prefer the new 'date' column if available, otherwise fall back to datetime
+  const dateToFormat = transaction.date || transaction.datetime;
+
+  const formattedDate = dateToFormat
+    ? new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC', // Always use UTC for the date part
+      ...(transaction.datetime ? { hour: 'numeric', minute: 'numeric' } : {}) // Only show time if we have precise datetime
+    }).format(new Date(dateToFormat))
+    : 'Unknown Date';
 
   // Format location
   const locationString = typeof transaction.location === 'string'
