@@ -5,14 +5,15 @@ import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChart";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
-
-
+import { useRouter } from "next/navigation";
 
 export default function SpendingVsEarningCard() {
   const { user } = useUser();
+  const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
   const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hoveredData, setHoveredData] = useState(null);
 
   // Period options
   const periodOptions = [
@@ -66,9 +67,35 @@ export default function SpendingVsEarningCard() {
     };
   }, [chartData]);
 
-  const isIncomeHigher = totalIncome >= totalSpending;
+  // Determine values to display (hovered or total)
+  const displayIncome = hoveredData ? hoveredData.earning : totalIncome;
+  const displaySpending = hoveredData ? hoveredData.spending : totalSpending;
+  const isIncomeHigher = displayIncome >= displaySpending;
 
   const showLoading = isLoading;
+
+  const handleSelectMonth = (data) => {
+    if (!data) return;
+    const { year, monthNumber } = data;
+
+    // Calculate start and end dates
+    // monthNumber is 1-indexed (1=Jan, 12=Dec)
+    const startDate = new Date(year, monthNumber - 1, 1);
+    const endDate = new Date(year, monthNumber, 0); // Last day of month
+
+    // Format dates as YYYY-MM-DD
+    const formatDate = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const startStr = formatDate(startDate);
+    const endStr = formatDate(endDate);
+
+    router.push(`/transactions?startDate=${startStr}&endDate=${endStr}`);
+  };
 
   return (
     <Card padding="none" className={`h-full relative overflow-hidden ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
@@ -83,19 +110,19 @@ export default function SpendingVsEarningCard() {
             {/* Title and Values */}
             <div>
               <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Cashflow
+                {hoveredData ? hoveredData.monthName : 'Cashflow'}
               </div>
 
               <div className="flex items-baseline gap-4">
                 <div className={!isIncomeHigher ? "opacity-65" : ""}>
                   <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(totalIncome)}
+                    {formatCurrency(displayIncome)}
                   </div>
                   <div className="text-xs text-[var(--color-fg)]">Income</div>
                 </div>
                 <div className={isIncomeHigher ? "opacity-75" : ""}>
                   <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(totalSpending)}
+                    {formatCurrency(displaySpending)}
                   </div>
                   <div className="text-xs text-[var(--color-fg)]">Spending</div>
                 </div>
@@ -133,9 +160,8 @@ export default function SpendingVsEarningCard() {
         <div className="h-64 w-full">
           <SpendingEarningChart
             data={chartData}
-            onSelectMonth={(data) => {
-              console.log('Selected month:', data);
-            }}
+            onHover={(data) => setHoveredData(data)}
+            onSelectMonth={handleSelectMonth}
           />
         </div>
       </div>

@@ -15,6 +15,7 @@ import Input from "../../components/ui/Input";
 import { supabase } from "../../lib/supabaseClient";
 import PageToolbar from "../../components/PageToolbar";
 import TransactionDetails from "../../components/transactions/TransactionDetails";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
@@ -628,13 +629,17 @@ const FiltersContent = ({
 
 export default function TransactionsPage() {
   const { profile } = useUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingPrev, setLoadingPrev] = useState(false);
   const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || "");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchParams.get('search') || "");
   const [isPending, startTransition] = useTransition();
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -644,14 +649,77 @@ export default function TransactionsPage() {
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
 
-  // Filter states
-  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
-  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
-  const [dateRange, setDateRange] = useState('all'); // 'all', 'today', 'week', 'month', '30days', 'custom'
-  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
-  const [transactionType, setTransactionType] = useState('all'); // 'all', 'income', 'expense'
-  const [transactionStatus, setTransactionStatus] = useState('all'); // 'all', 'pending', 'completed'
+  // Filter states initialized from URL
+  const [selectedGroupIds, setSelectedGroupIds] = useState(() =>
+    searchParams.get('groupIds')?.split(',').filter(Boolean) || []
+  );
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(() =>
+    searchParams.get('categoryIds')?.split(',').filter(Boolean) || []
+  );
+  const [amountRange, setAmountRange] = useState(() => ({
+    min: searchParams.get('minAmount') || '',
+    max: searchParams.get('maxAmount') || ''
+  }));
+
+  const [dateRange, setDateRange] = useState(() => {
+    const range = searchParams.get('dateRange');
+    if (range) return range;
+    if (searchParams.get('startDate') || searchParams.get('endDate')) return 'custom';
+    return 'all';
+  });
+
+  const [customDateRange, setCustomDateRange] = useState(() => ({
+    start: searchParams.get('startDate') || '',
+    end: searchParams.get('endDate') || ''
+  }));
+
+  const [transactionType, setTransactionType] = useState(() =>
+    searchParams.get('type') || 'all'
+  );
+  const [transactionStatus, setTransactionStatus] = useState(() =>
+    searchParams.get('status') || 'all'
+  );
+
+  // Sync state changes to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    if (debouncedSearchQuery) params.set('search', debouncedSearchQuery);
+    if (transactionType !== 'all') params.set('type', transactionType);
+    if (transactionStatus !== 'all') params.set('status', transactionStatus);
+    if (amountRange.min) params.set('minAmount', amountRange.min);
+    if (amountRange.max) params.set('maxAmount', amountRange.max);
+    if (selectedGroupIds.length > 0) params.set('groupIds', selectedGroupIds.join(','));
+    if (selectedCategoryIds.length > 0) params.set('categoryIds', selectedCategoryIds.join(','));
+
+    if (dateRange !== 'all') {
+      params.set('dateRange', dateRange);
+      if (dateRange === 'custom') {
+        if (customDateRange.start) params.set('startDate', customDateRange.start);
+        if (customDateRange.end) params.set('endDate', customDateRange.end);
+      }
+    }
+
+    // Only update if the params string has changed to avoid loops/redundant pushes
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+
+    if (newSearch !== currentSearch) {
+      router.push(`${pathname}?${newSearch}`, { scroll: false });
+    }
+  }, [
+    debouncedSearchQuery,
+    transactionType,
+    transactionStatus,
+    amountRange,
+    dateRange,
+    customDateRange,
+    selectedGroupIds,
+    selectedCategoryIds,
+    pathname,
+    router,
+    searchParams
+  ]);
 
   const [nextCursor, setNextCursor] = useState(null);
   const [prevCursor, setPrevCursor] = useState(null);

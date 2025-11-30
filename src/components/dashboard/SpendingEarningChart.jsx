@@ -34,10 +34,9 @@ function roundedRectPath(x, y, w, h, rTopLeft, rTopRight, rBottomRight, rBottomL
   ].join(' ')
 }
 
-export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
+export default function SpendingEarningChart({ onSelectMonth, onHover, data = [] }) {
   const { user } = useUser();
   const [activeMonth, setActiveMonth] = useState(null)
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, month: '', income: 0, spending: 0 })
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 280 });
 
@@ -105,65 +104,31 @@ export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
   const scale = innerHeight / adjustedRange
 
   const step = months.length > 0 ? innerWidth / months.length : innerWidth
-  const barWidth = Math.min(60, Math.max(10, step * 0.65))  // Cap at 60px max
+  const barWidth = Math.min(40, Math.max(8, step * 0.45))  // Cap at 40px max, thinner bars
 
   const yFromValue = (v) => v >= 0 ? zeroY - (v * scale) : zeroY
   const hFromValue = (v) => Math.max(1, Math.abs(v) * scale)
 
-  const onMove = (e, month, inc, spd) => {
-    const svg = e.currentTarget.closest('svg')
-    const rect = svg.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
+  const onMove = (e, month, inc, spd, fullData) => {
     setActiveMonth(month)
-    setTooltip({
-      visible: true,
-      x: Math.min(x + 12, width - 200),
-      y: Math.max(y - 80, 5),
-      month,
-      income: inc,
-      spending: Math.abs(spd),
-    })
+    if (onHover) {
+      onHover({
+        monthName: fullData.monthName,
+        earning: inc,
+        spending: Math.abs(spd)
+      })
+    }
   }
 
   const onLeave = () => {
     setActiveMonth(null)
-    setTooltip(prev => ({ ...prev, visible: false }))
+    if (onHover) {
+      onHover(null)
+    }
   }
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
-      {tooltip.visible && (
-        <div
-          className="glass-panel absolute pointer-events-none z-10"
-          style={{
-            left: `${(tooltip.x / width) * 100}%`,
-            top: `${(tooltip.y / height) * 100}%`,
-            borderRadius: 8,
-            padding: '12px',
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-fg)', marginBottom: 8 }}>
-            {tooltip.month}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-accent)' }} />
-            <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Income:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
-              {formatCurrency(tooltip.income)}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-chart-expense)' }} />
-            <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Spending:</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-fg)' }}>
-              {formatCurrency(tooltip.spending)}
-            </span>
-          </div>
-        </div>
-      )}
-
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full h-full"
@@ -174,6 +139,13 @@ export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
             <rect width="8" height="8" fill="transparent" />
             <path d="M0 0h8v4h-8z" fill="var(--color-chart-pattern)" />
           </pattern>
+          <linearGradient id="bar3D" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="black" stopOpacity="0.3" />
+            <stop offset="15%" stopColor="black" stopOpacity="0.1" />
+            <stop offset="40%" stopColor="white" stopOpacity="0.1" />
+            <stop offset="85%" stopColor="black" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="black" stopOpacity="0.3" />
+          </linearGradient>
         </defs>
 
         {/* Grid Lines & Y-Axis */}
@@ -248,9 +220,14 @@ export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
                   transformOrigin: `${cx}px ${zeroY}px`
                 }}
               >
+                {/* Income Bar */}
                 <path d={incPath} fill="var(--color-chart-income)" filter={filter} />
+                <path d={incPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
                 <path d={incPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
+
+                {/* Spending Bar */}
                 <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
+                <path d={spdPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
                 <path d={spdPath} fill="url(#diagonalHatch)" filter={filter} style={{ pointerEvents: 'none' }} />
 
                 <rect
@@ -258,9 +235,11 @@ export default function SpendingEarningChart({ onSelectMonth, data = [] }) {
                   y={margin.top}
                   width={barWidth}
                   height={innerHeight}
-                  fill="transparent"
-                  onMouseMove={(e) => onMove(e, m, inc, spd)}
-                  onMouseEnter={(e) => onMove(e, m, inc, spd)}
+                  fill="white"
+                  opacity={0}
+                  onMouseMove={(e) => onMove(e, m, inc, spd, data[i])}
+                  onMouseEnter={(e) => onMove(e, m, inc, spd, data[i])}
+                  onClick={() => onSelectMonth && onSelectMonth(data[i])}
                   style={{ cursor: 'pointer' }}
                 />
               </g>
