@@ -174,11 +174,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
       {sortedDates.map((dateKey, groupIndex) => (
         <div
           key={dateKey}
-          className="relative animate-slide-up"
-          style={{
-            animationDelay: `${groupIndex * 50}ms`,
-            animationFillMode: 'backwards'
-          }}
+          className="relative"
         >
           {/* Sticky Date Header */}
           <div className="sticky top-[124px] z-20 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm mb-2">
@@ -216,11 +212,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className="group flex items-center justify-between py-4 px-5 hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995] animate-fade-in-item"
-      style={{
-        animationDelay: `${(groupIndex * 50) + (index * 30)}ms`,
-        animationFillMode: 'backwards'
-      }}
+      className="group flex items-center justify-between py-4 px-5 hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995]"
       onClick={() => onTransactionClick(transaction)}
     >
       <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -1050,7 +1042,7 @@ export default function TransactionsPage() {
 
   if ((loading && !debouncedSearchQuery) || !profile?.id) {
     return (
-      <PageContainer title="Transactions" padding="pb-6">
+      <PageContainer padding="pb-6">
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1110,7 +1102,7 @@ export default function TransactionsPage() {
   // Show error state
   if (error) {
     return (
-      <PageContainer title="Transactions" padding="pb-6">
+      <PageContainer padding="pb-6">
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1134,7 +1126,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <PageContainer title="Transactions" padding="pb-6">
+    <PageContainer padding="pb-6">
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}

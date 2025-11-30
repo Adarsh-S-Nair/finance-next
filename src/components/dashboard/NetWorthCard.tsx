@@ -440,114 +440,108 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-    >
-      <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">
-        <div className="mb-4 px-6 pt-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
-              <div className="flex flex-col">
-                <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
-                  <AnimatedCounter value={displayData?.value || 0} duration={120} />
-                </div>
-                <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-emerald-500' :
-                    dynamicPercentChange < 0 ? 'text-rose-500' :
-                      'text-[var(--color-muted)]'
-                  }`}>
-                  {dynamicPercentChange > 0 ? '+' : ''}
-                  {formatCurrency(displayData.value - (displayChartData[0]?.value || 0))}
-                  {' '}
-                  ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
-                </div>
+    <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">
+      <div className="mb-4 px-6 pt-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
+            <div className="flex flex-col">
+              <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
+                <AnimatedCounter value={displayData?.value || 0} duration={120} />
               </div>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="text-xs text-[var(--color-muted)] font-medium">
-                {displayData?.dateString ?
-                  new Date(displayData.dateString).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  }) :
-                  `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
-                }
+              <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-emerald-500' :
+                dynamicPercentChange < 0 ? 'text-rose-500' :
+                  'text-[var(--color-muted)]'
+                }`}>
+                {dynamicPercentChange > 0 ? '+' : ''}
+                {formatCurrency(displayData.value - (displayChartData[0]?.value || 0))}
+                {' '}
+                ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
               </div>
-
-
             </div>
           </div>
-        </div>
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-xs text-[var(--color-muted)] font-medium">
+              {displayData?.dateString ?
+                new Date(displayData.dateString).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                }) :
+                `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
+              }
+            </div>
 
-        <div className="pt-4 pb-2">
-          <div
-            className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
-            tabIndex={-1}
-            style={{ outline: 'none', height: '200px' }}
+
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4 pb-2">
+        <div
+          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
+          tabIndex={-1}
+          style={{ outline: 'none', height: '200px' }}
+          onMouseLeave={handleMouseLeave}
+        >
+          <LineChart
+            data={displayChartData}
+            dataKey="value"
+            width="100%"
+            height={200}
+            margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
+            strokeWidth={2}
+            showArea={true}
+            areaOpacity={0.15}
+            showDots={false}
+            dotRadius={4}
+            onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
-          >
-            <LineChart
-              data={displayChartData}
-              dataKey="value"
-              width="100%"
-              height={200}
-              margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
-              strokeWidth={2}
-              showArea={true}
-              areaOpacity={0.15}
-              showDots={false}
-              dotRadius={4}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              showTooltip={false}
-              gradientId="netWorthGradient"
-              curveType="monotone"
-              animationDuration={800}
-              xAxisDataKey="dateString"
-            />
-          </div>
+            showTooltip={false}
+            gradientId="netWorthGradient"
+            curveType="monotone"
+            animationDuration={800}
+            xAxisDataKey="dateString"
+          />
         </div>
+      </div>
 
-        {/* Time Range Selector - moved to bottom and spread evenly */}
-        <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
-          <div className="flex justify-between items-center w-full">
-            {availableRanges.map((range) => {
-              const isActive = timeRange === range;
-              // Check if we're using the default accent color (neon blue)
-              const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
-              // In dark mode with default accent, use black text for contrast
-              const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
-              const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
+      {/* Time Range Selector - moved to bottom and spread evenly */}
+      <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
+        <div className="flex justify-between items-center w-full">
+          {availableRanges.map((range) => {
+            const isActive = timeRange === range;
+            // Check if we're using the default accent color (neon blue)
+            const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
+            // In dark mode with default accent, use black text for contrast
+            const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+            const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
 
-              return (
-                <div key={range} className="flex-1 flex justify-center">
-                  <button
-                    onClick={() => setTimeRange(range as TimeRange)}
-                    className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
-                    style={{
-                      color: isActive ? activeTextColor : 'var(--color-muted)'
-                    }}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeTimeRange"
-                        className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      />
-                    )}
-                    <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
-                      {range}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+            return (
+              <div key={range} className="flex-1 flex justify-center">
+                <button
+                  onClick={() => setTimeRange(range as TimeRange)}
+                  className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
+                  style={{
+                    color: isActive ? activeTextColor : 'var(--color-muted)'
+                  }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTimeRange"
+                      className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
+                    {range}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
         </div>
-      </Card>
-    </motion.div>
+      </div>
+    </Card>
   );
 }
