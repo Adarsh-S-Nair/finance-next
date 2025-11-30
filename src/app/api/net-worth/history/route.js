@@ -34,103 +34,103 @@ export async function GET(request) {
 
     const accountIds = accounts.map(account => account.id);
 
-    // Get account snapshots within the date range
-    const { data: snapshots, error: snapshotsError } = await supabaseAdmin
+    // Get ALL snapshots for these accounts to find the very first balance for each
+    // We need this for backfilling
+    const { data: allSnapshots, error: allSnapshotsError } = await supabaseAdmin
       .from('account_snapshots')
-      .select(`
-        account_id,
-        current_balance,
-        recorded_at
-      `)
+      .select('account_id, current_balance, recorded_at')
       .in('account_id', accountIds)
-      .gte('recorded_at', startDate.toISOString())
-      .lte('recorded_at', endDate.toISOString())
       .order('recorded_at', { ascending: true });
 
-    if (snapshotsError) {
-      console.error('Error fetching snapshots:', snapshotsError);
+    if (allSnapshotsError) {
+      console.error('Error fetching all snapshots:', allSnapshotsError);
       return NextResponse.json({ error: 'Failed to fetch snapshots' }, { status: 500 });
     }
 
-    // Group snapshots by date and calculate net worth for each date
-    const netWorthByDate = {};
-
-    snapshots.forEach(snapshot => {
-      const date = new Date(snapshot.recorded_at).toISOString().split('T')[0];
-      const account = accounts.find(acc => acc.id === snapshot.account_id);
-      
-      if (!netWorthByDate[date]) {
-        netWorthByDate[date] = {
-          date,
-          assets: 0,
-          liabilities: 0,
-          netWorth: 0,
-          accountBalances: {}
-        };
-      }
-
-      // Determine if this is a liability account
-      const isLiability = isLiabilityAccount(account);
-      const balance = snapshot.current_balance || 0;
-
-      if (isLiability) {
-        netWorthByDate[date].liabilities += Math.abs(balance);
-        netWorthByDate[date].accountBalances[snapshot.account_id] = -Math.abs(balance);
-      } else {
-        netWorthByDate[date].assets += balance;
-        netWorthByDate[date].accountBalances[snapshot.account_id] = balance;
-      }
-    });
-
-    // Calculate net worth for each date
-    Object.values(netWorthByDate).forEach(dayData => {
-      dayData.netWorth = dayData.assets - dayData.liabilities;
-    });
-
-    // Convert to array and sort by date
-    const netWorthHistory = Object.values(netWorthByDate)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (DEBUG) {
-      console.log(`🔍 API Debug: Found ${snapshots.length} snapshots`);
-      console.log(`🔍 API Debug: Generated ${netWorthHistory.length} net worth data points`);
-      console.log(`🔍 API Debug: Account IDs:`, accountIds);
-      console.log(`🔍 API Debug: Sample snapshots:`, snapshots.slice(0, 1));
-      console.log(`🔍 API Debug: Sample net worth data:`, netWorthHistory.slice(0, 1));
+    // DEBUG: Log first few snapshots to see what we're working with
+    console.log('🔍 DEBUG: Total snapshots found:', allSnapshots.length);
+    if (allSnapshots.length > 0) {
+      console.log('🔍 DEBUG: First 5 snapshots:', JSON.stringify(allSnapshots.slice(0, 5), null, 2));
     }
 
-    // If we have less than 2 data points, generate some historical data
-    if (netWorthHistory.length < 2) {
-      console.log('⚠️ API Debug: Insufficient historical data, generating fallback data');
-      const currentNetWorth = netWorthHistory.length > 0 
-        ? netWorthHistory[netWorthHistory.length - 1].netWorth 
-        : 0;
-      
-      // Generate monthly data points for the requested period
-      const generatedData = [];
-      for (let i = months - 1; i >= 0; i--) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Add some variation to make it look realistic
-        const variation = (Math.random() - 0.5) * (currentNetWorth * 0.1);
-        const netWorth = Math.max(0, currentNetWorth + variation);
-        
-        generatedData.push({
-          date: dateStr,
-          assets: netWorth * 0.8, // Assume 80% assets, 20% liabilities
-          liabilities: netWorth * 0.2,
-          netWorth: netWorth,
-          accountBalances: {}
+    // Determine the initial balance for each account (the first ever recorded balance)
+    const initialBalances = {};
+    const firstRecordedDate = {};
+
+    allSnapshots.forEach(snapshot => {
+      if (initialBalances[snapshot.account_id] === undefined) {
+        // Log when we find the first snapshot for an account
+        console.log(`🔍 DEBUG: Found first snapshot for account ${snapshot.account_id}: ${snapshot.current_balance} at ${snapshot.recorded_at}`);
+        initialBalances[snapshot.account_id] = snapshot.current_balance;
+        firstRecordedDate[snapshot.account_id] = new Date(snapshot.recorded_at);
+      }
+    });
+
+    console.log('🔍 DEBUG: Final Initial Balances:', JSON.stringify(initialBalances, null, 2));
+
+    // Create a map of snapshots by date and account
+    const snapshotsByDate = {};
+    allSnapshots.forEach(snapshot => {
+      const date = new Date(snapshot.recorded_at).toISOString().split('T')[0];
+      if (!snapshotsByDate[date]) {
+        snapshotsByDate[date] = {};
+      }
+      snapshotsByDate[date][snapshot.account_id] = snapshot.current_balance;
+    });
+
+    // Generate daily data points from start date to end date
+    const netWorthHistory = [];
+    const currentBalances = { ...initialBalances }; // Start with initial balances
+
+    // We iterate day by day
+    const currentDate = new Date(startDate);
+    const endDateTime = endDate.getTime();
+
+    while (currentDate.getTime() <= endDateTime) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+
+      // Update current balances with any snapshots from this day
+      if (snapshotsByDate[dateStr]) {
+        Object.entries(snapshotsByDate[dateStr]).forEach(([accountId, balance]) => {
+          currentBalances[accountId] = balance;
         });
       }
-      
-      if (DEBUG) console.log('🔍 API Debug: Returning generated fallback data:', generatedData.slice(0, 1));
-      return NextResponse.json({ data: generatedData });
+
+      // Calculate net worth for this day
+      let assets = 0;
+      let liabilities = 0;
+      const accountBalances = {};
+
+      accounts.forEach(account => {
+        const balance = currentBalances[account.id] || 0;
+        const isLiability = isLiabilityAccount(account);
+
+        if (isLiability) {
+          liabilities += Math.abs(balance);
+          accountBalances[account.id] = -Math.abs(balance);
+        } else {
+          assets += balance;
+          accountBalances[account.id] = balance;
+        }
+      });
+
+      netWorthHistory.push({
+        date: dateStr,
+        assets,
+        liabilities,
+        netWorth: assets - liabilities,
+        accountBalances
+      });
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    if (DEBUG) console.log('✅ API Debug: Returning real historical data:', netWorthHistory.slice(-1));
+    if (DEBUG) {
+      console.log(`🔍 API Debug: Generated ${netWorthHistory.length} daily net worth data points`);
+      console.log(`🔍 API Debug: Initial Balances:`, initialBalances);
+    }
+
     return NextResponse.json({ data: netWorthHistory });
 
   } catch (error) {
@@ -150,7 +150,7 @@ function isLiabilityAccount(account) {
     'overdraft',
     'other'
   ];
-  
+
   const accountType = (account.subtype || account.type || '').toLowerCase();
   return liabilityTypes.some(type => accountType.includes(type));
 }

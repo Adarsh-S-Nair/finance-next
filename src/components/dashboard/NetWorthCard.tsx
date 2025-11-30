@@ -261,6 +261,14 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   }, [filteredData, chartData, timeRange]);
 
 
+  // Calculate dynamic chart color based on performance
+  const chartColor = useMemo(() => {
+    if (displayChartData.length < 2) return 'var(--color-success)'; // Default to green
+    const startValue = displayChartData[0].value;
+    const endValue = displayChartData[displayChartData.length - 1].value;
+    return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
+  }, [displayChartData]);
+
   // Calculate Percentage Change
   const percentChange = useMemo(() => {
     if (displayChartData.length < 2) return 0;
@@ -438,14 +446,6 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
       </div>
     );
   };
-
-  // Calculate dynamic chart color based on performance
-  const chartColor = useMemo(() => {
-    if (displayChartData.length < 2) return 'var(--color-success)'; // Default to green
-    const startValue = displayChartData[0].value;
-    const endValue = displayChartData[displayChartData.length - 1].value;
-    return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
-  }, [displayChartData]);
 
   return (
     <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">

@@ -73,7 +73,7 @@ export async function GET(request) {
     if (DEBUG) console.log(`🔍 Net Worth by Date API: accounts=${accounts.length}`);
 
     if (!accounts || accounts.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         data: [],
         message: 'No accounts found for user'
       });
@@ -84,17 +84,33 @@ export async function GET(request) {
     const todayISODate = toISODateString(new Date());
     const endOfTodayISO = new Date(`${todayISODate}T23:59:59.999Z`).toISOString();
 
-    const { data: snapshotRows, error: snapshotsError } = await supabaseAdmin
+    // Get ALL snapshots to determine initial balances for backfilling
+    const { data: allSnapshots, error: allSnapshotsError } = await supabaseAdmin
       .from('account_snapshots')
       .select('account_id, current_balance, recorded_at')
       .in('account_id', accountIds)
-      .lte('recorded_at', endOfTodayISO)
       .order('recorded_at', { ascending: true });
 
-    if (snapshotsError) {
-      console.error('Error fetching account snapshots:', snapshotsError);
+    if (allSnapshotsError) {
+      console.error('Error fetching all snapshots:', allSnapshotsError);
       return NextResponse.json({ error: 'Failed to fetch snapshots' }, { status: 500 });
     }
+
+    // Determine initial balances
+    const initialBalances = {};
+    allSnapshots.forEach(snapshot => {
+      if (initialBalances[snapshot.account_id] === undefined) {
+        initialBalances[snapshot.account_id] = toNumber(snapshot.current_balance);
+      }
+    });
+
+    // We still use the LTE query for the main loop to respect the "history" aspect,
+    // but we can actually just use allSnapshots since we filter by date in the loop anyway.
+    // However, the existing logic uses a pointer approach which is efficient.
+    // Let's stick to the existing logic but initialize `latestBalance` correctly.
+
+    // Re-use allSnapshots for the main loop instead of fetching again
+    const snapshotRows = allSnapshots.filter(s => new Date(s.recorded_at) <= new Date(endOfTodayISO));
 
     const snapshotsByAccount = new Map();
     const snapshotDatesSet = new Set();
@@ -130,7 +146,7 @@ export async function GET(request) {
       isLiability: isLiabilityAccount(account),
       snapshots: snapshotsByAccount.get(account.id) || [],
       pointer: 0,
-      latestBalance: 0
+      latestBalance: initialBalances[account.id] || 0 // Initialize with backfilled value
     }));
 
     for (const dateString of datesToProcess) {
@@ -235,7 +251,7 @@ function isLiabilityAccount(account) {
     'overdraft',
     'other'
   ];
-  
+
   const accountType = (account.subtype || account.type || '').toLowerCase();
   return liabilityTypes.some(type => accountType.includes(type));
 }
