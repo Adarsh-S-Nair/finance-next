@@ -62,6 +62,7 @@ interface LineChartProps {
     showArea?: boolean;
     areaOpacity?: number;
   }[];
+  yAxisDomain?: [number | string, number | string];
 }
 
 export default function LineChart({
@@ -98,6 +99,7 @@ export default function LineChart({
   animationDuration = 800,
   curveType = 'monotone',
   lines,
+  yAxisDomain,
 }: LineChartProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
@@ -158,6 +160,29 @@ export default function LineChart({
     }
   };
 
+  // Global mouse move listener to handle fast exits
+  React.useEffect(() => {
+    if (activeIndex === null) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const isOutside =
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom;
+
+      if (isOutside) {
+        handleOverlayMouseLeave();
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
+  }, [activeIndex]);
+
   if (!data || data.length === 0) {
     return (
       <div
@@ -210,15 +235,16 @@ export default function LineChart({
             tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
           />
 
-          {showYAxis && (
-            <YAxis
-              tickFormatter={formatYAxis}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
-              width={40}
-            />
-          )}
+          {/* Always render YAxis to support domain scaling, hide if not needed */}
+          <YAxis
+            hide={!showYAxis}
+            domain={yAxisDomain}
+            tickFormatter={formatYAxis}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
+            width={40}
+          />
 
           {showTooltip && (
             <Tooltip

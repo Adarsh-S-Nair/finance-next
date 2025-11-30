@@ -439,6 +439,14 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     );
   };
 
+  // Calculate dynamic chart color based on performance
+  const chartColor = useMemo(() => {
+    if (displayChartData.length < 2) return 'var(--color-success)'; // Default to green
+    const startValue = displayChartData[0].value;
+    const endValue = displayChartData[displayChartData.length - 1].value;
+    return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
+  }, [displayChartData]);
+
   return (
     <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">
       <div className="mb-4 px-6 pt-6">
@@ -490,6 +498,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
             width="100%"
             height={200}
             margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
+            strokeColor={chartColor}
             strokeWidth={2}
             showArea={true}
             areaOpacity={0.15}
@@ -502,6 +511,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
             curveType="monotone"
             animationDuration={800}
             xAxisDataKey="dateString"
+            yAxisDomain={['dataMin', 'dataMax']}
           />
         </div>
       </div>
