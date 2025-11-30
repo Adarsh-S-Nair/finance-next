@@ -202,9 +202,7 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
             const spdY = zeroY
 
             const isActive = activeMonth === m
-            const activeFilter = isActive ? 'brightness(1.1) drop-shadow(0 0 4px rgba(255,255,255,0.1))' : ''
-            const baseFilter = 'url(#barShadow)'
-            const combinedFilter = activeFilter ? `${baseFilter} ${activeFilter}` : baseFilter
+            const activeFilter = isActive ? 'brightness(1.3) drop-shadow(0 4px 6px rgba(0,0,0,0.3))' : ''
 
             const incPath = roundedRectPath(x, incY, barWidth, incH, 12, 12, 0, 0)
             const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 12, 12)
@@ -214,28 +212,29 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
                 key={`bar-${m}-${i}`}
                 style={{
                   transition: 'transform 120ms ease, filter 120ms ease',
-                  transform: isActive ? 'scale(1.02)' : 'scale(1.0)',
+                  transform: isActive ? 'scale(1.1)' : 'scale(1.0)',
                   transformOrigin: `${cx}px ${zeroY}px`
                 }}
               >
                 {/* Income Bar */}
-                <path d={incPath} fill="var(--color-chart-income)" filter={combinedFilter} />
+                <path d={incPath} fill="var(--color-cashflow-income)" />
                 <path d={incPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
 
                 {/* Spending Bar */}
-                <path d={spdPath} fill="var(--color-chart-expense)" filter={combinedFilter} />
+                <path d={spdPath} fill="var(--color-cashflow-spending)" />
                 <path d={spdPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
 
 
                 <rect
                   x={x}
-                  y={margin.top}
+                  y={incY}
                   width={barWidth}
-                  height={innerHeight}
+                  height={incH + spdH}
                   fill="white"
                   opacity={0}
                   onMouseMove={(e) => onMove(e, m, inc, spd, data[i])}
                   onMouseEnter={(e) => onMove(e, m, inc, spd, data[i])}
+                  onMouseLeave={onLeave}
                   onClick={() => onSelectMonth && onSelectMonth(data[i])}
                   style={{ cursor: 'pointer' }}
                 />

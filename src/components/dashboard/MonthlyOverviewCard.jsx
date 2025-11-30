@@ -144,13 +144,13 @@ export default function MonthlyOverviewCard() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <svg width="12" height="2" className="overflow-visible">
-                  <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="0" y1="1" x2="12" y2="1" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
                 </svg>
                 <span className="text-xs text-[var(--color-muted)]">Income</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <svg width="12" height="2" className="overflow-visible">
-                  <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-chart-expense)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" />
+                  <line x1="0" y1="1" x2="12" y2="1" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
                 </svg>
                 <span className="text-xs text-[var(--color-muted)]">Spending</span>
               </div>
@@ -168,21 +168,20 @@ export default function MonthlyOverviewCard() {
             lines={[
               {
                 dataKey: "income",
-                strokeColor: "var(--color-accent)",
+                strokeColor: "#3b82f6",
                 strokeWidth: 2,
                 strokeOpacity: 0.8,
                 showArea: true,
-                areaOpacity: 0.1,
+                areaOpacity: 0.2,
                 gradientId: "monthlyOverviewIncome"
               },
               {
                 dataKey: "spending",
-                strokeColor: "var(--color-chart-expense)",
+                strokeColor: "#f97316",
                 strokeWidth: 2,
                 strokeOpacity: 0.8,
-                strokeDasharray: "4 4",
                 showArea: true,
-                areaOpacity: 0.1,
+                areaOpacity: 0.2,
                 gradientId: "monthlyOverviewSpending"
               }
             ]}
