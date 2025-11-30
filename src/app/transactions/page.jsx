@@ -8,7 +8,7 @@ import SelectCategoryView from "../../components/SelectCategoryView";
 import Card from "../../components/ui/Card";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../components/UserProvider";
 import Input from "../../components/ui/Input";
@@ -627,7 +627,7 @@ const FiltersContent = ({
   );
 };
 
-export default function TransactionsPage() {
+function TransactionsContent() {
   const { profile } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1376,5 +1376,13 @@ export default function TransactionsPage() {
         onBack={handleBackToTransaction}
       />
     </PageContainer>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<TransactionSkeleton />}>
+      <TransactionsContent />
+    </Suspense>
   );
 }
