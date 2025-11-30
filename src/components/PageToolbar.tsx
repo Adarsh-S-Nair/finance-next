@@ -26,8 +26,6 @@ export default function PageToolbar({ children }: { children: React.ReactNode })
         </div>,
         portalRoot
       )}
-      {/* Spacer to prevent content overlap */}
-      <div className="h-[60px]" aria-hidden="true" />
     </>
   );
 }
