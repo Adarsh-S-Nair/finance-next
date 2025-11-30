@@ -114,6 +114,37 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
               </span>
             )}
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={async () => {
+              console.log('Debugging recurring transactions...');
+              try {
+                // We need the userId here. Since SearchToolbar doesn't have it, we might need to pass a handler.
+                // But wait, SearchToolbar is inside TransactionsContent which has profile.
+                // Let's pass a onDebug prop.
+                if (window.confirm('Run recurring transaction detection debug?')) {
+                  const { supabase } = await import("../../lib/supabaseClient");
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    const res = await fetch('/api/debug/detect-recurring', {
+                      method: 'POST',
+                      body: JSON.stringify({ userId: user.id })
+                    });
+                    const json = await res.json();
+                    console.log('Debug Result:', json);
+                    alert('Detection run! Check console for details.');
+                  }
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="hover:bg-[var(--color-surface)] text-amber-500"
+            title="Debug Recurring"
+          >
+            <FiTrendingUp className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </PageToolbar>

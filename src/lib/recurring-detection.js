@@ -15,10 +15,10 @@ export async function detectRecurringTransactions(userId) {
 
   const { data: transactions, error } = await supabaseAdmin
     .from('transactions')
-    .select('id, amount, date, datetime, merchant_name, description, account_id')
+    .select('id, amount, datetime, merchant_name, description, account_id, category_id, icon_url')
     .eq('pending', false) // Only look at posted transactions
-    .gte('date', oneYearAgo.toISOString().split('T')[0])
-    .order('date', { ascending: false });
+    .gte('datetime', oneYearAgo.toISOString())
+    .order('datetime', { ascending: false });
 
   if (error) {
     console.error('❌ Failed to fetch transactions for detection:', error);
@@ -26,22 +26,46 @@ export async function detectRecurringTransactions(userId) {
   }
 
   // Filter transactions that belong to this user (via accounts)
-  // Since we're using supabaseAdmin, we need to ensure we only get this user's transactions
-  // The query above doesn't filter by user_id directly because transactions table doesn't have user_id
-  // We need to join with accounts or filter manually.
-  // Let's verify if we can filter by account_id which are owned by the user.
-
   const { data: userAccounts } = await supabaseAdmin
     .from('accounts')
     .select('id')
     .eq('user_id', userId);
 
   const userAccountIds = new Set(userAccounts?.map(a => a.id) || []);
-  const userTransactions = transactions.filter(t => userAccountIds.has(t.account_id));
+
+  // Fetch IDs of categories to exclude
+  const excludedCategories = [
+    'Credit Card Payment',
+    'Investment and Retirement Funds',
+    'Transfer',
+    'Account Transfer' // Covering both "Transfer In" and "Transfer Out" if they map to this, or just general safety
+  ];
+
+  // We need to find the IDs for these categories. 
+  // Since "Account Transfer" might be a group or specific label, let's be broad.
+  // The user specifically mentioned "Credit Card Payment" and "Investment and Retirement Funds".
+  // And "Account Transfer" (Transfer In/Out).
+
+  const { data: excludedCategoryRows } = await supabaseAdmin
+    .from('system_categories')
+    .select('id')
+    .in('label', excludedCategories);
+
+  const excludedCategoryIds = new Set(excludedCategoryRows?.map(c => c.id) || []);
+
+  const userTransactions = transactions.filter(t => {
+    // Must belong to user
+    if (!userAccountIds.has(t.account_id)) return false;
+
+    // Must not be in excluded categories
+    if (t.category_id && excludedCategoryIds.has(t.category_id)) return false;
+
+    return true;
+  });
 
   if (userTransactions.length === 0) {
-    console.log('ℹ️ No transactions found for user.');
-    return;
+    console.log('ℹ️ No transactions found for user (after filtering).');
+    return [];
   }
 
   // 2. Group by Merchant Name or Description
@@ -60,7 +84,7 @@ export async function detectRecurringTransactions(userId) {
     }
     groups[key].push({
       ...t,
-      dateObj: new Date(t.date || t.datetime)
+      dateObj: new Date(t.datetime)
     });
   }
 
@@ -124,6 +148,28 @@ export async function detectRecurringTransactions(userId) {
       if (frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
       if (frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
 
+      // Check for missed payments (Activity Check)
+      // If we are significantly past the next_date without a new transaction, it's likely inactive.
+      const now = new Date();
+      const daysPastDue = (now - nextDate) / (1000 * 60 * 60 * 24);
+
+      let allowedMissedCycles = 1; // Default tolerance
+      if (frequency === 'weekly') allowedMissedCycles = 2; // Allow 2 missed weeks
+      if (frequency === 'bi-weekly') allowedMissedCycles = 1;
+      if (frequency === 'monthly') allowedMissedCycles = 1;
+      if (frequency === 'yearly') allowedMissedCycles = 0.2; // ~2 months grace for yearly
+
+      let cycleDays = 30;
+      if (frequency === 'weekly') cycleDays = 7;
+      if (frequency === 'bi-weekly') cycleDays = 14;
+      if (frequency === 'yearly') cycleDays = 365;
+
+      // If we missed too many cycles, reduce confidence drastically or discard
+      if (daysPastDue > (cycleDays * allowedMissedCycles)) {
+        console.log(`⚠️ Discarding ${name} (${frequency}): Missed ${daysPastDue / cycleDays} cycles.`);
+        continue;
+      }
+
       recurringCandidates.push({
         user_id: userId,
         merchant_name: name,
@@ -133,7 +179,9 @@ export async function detectRecurringTransactions(userId) {
         status: 'active',
         last_date: lastTx.dateObj.toISOString().split('T')[0],
         next_date: nextDate.toISOString().split('T')[0],
-        confidence: Math.max(0.1, Math.min(1.0, confidence)) // Clamp between 0.1 and 1.0
+        confidence: Math.max(0.1, Math.min(1.0, confidence)), // Clamp between 0.1 and 1.0
+        icon_url: lastTx.icon_url,
+        category_id: lastTx.category_id
       });
     }
   }
@@ -178,7 +226,9 @@ export async function detectRecurringTransactions(userId) {
     } else {
       console.log('💾 Recurring transactions saved.');
     }
+    return upsertData;
   } else {
     console.log('ℹ️ No recurring patterns detected.');
+    return [];
   }
 }

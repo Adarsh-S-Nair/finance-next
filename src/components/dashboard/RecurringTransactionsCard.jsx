@@ -98,10 +98,7 @@ export default function RecurringTransactionsCard() {
   return (
     <Card width="full" variant="glass">
       <div className="mb-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <FiRefreshCw className="text-[var(--color-accent)]" />
-          <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Recurring Bills</div>
-        </div>
+        <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Recurring Bills</div>
         <div className="text-xs text-[var(--color-muted)] font-light">
           Next 30 Days
         </div>
@@ -114,9 +111,25 @@ export default function RecurringTransactionsCard() {
             className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
           >
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              {/* Icon Placeholder - could be merchant logo if we had it */}
-              <div className="w-8 h-8 rounded-full bg-[var(--color-surface)] flex items-center justify-center text-[var(--color-muted)] text-xs border border-[var(--color-border)]">
-                {item.merchant_name.charAt(0).toUpperCase()}
+              {/* Logo or Fallback */}
+              <div className="w-8 h-8 rounded-full bg-[var(--color-muted)]/10 flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--color-border)]/50">
+                {item.icon_url ? (
+                  <img
+                    src={item.icon_url}
+                    alt={item.merchant_name}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="w-full h-full flex items-center justify-center text-[var(--color-muted)] text-xs font-medium"
+                  style={{ display: item.icon_url ? 'none' : 'flex' }}
+                >
+                  {item.merchant_name.charAt(0).toUpperCase()}
+                </div>
               </div>
 
               <div className="min-w-0 flex-1">
