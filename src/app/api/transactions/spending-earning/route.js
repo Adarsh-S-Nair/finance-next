@@ -19,7 +19,22 @@ export async function GET(request) {
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
 
-    const { data: transactions, error } = await supabaseAdmin
+    // Fetch IDs of excluded categories
+    const excludedCategories = [
+      'Credit Card Payment',
+      'Investment and Retirement Funds',
+      'Transfer',
+      'Account Transfer'
+    ];
+
+    const { data: excludedCategoryRows } = await supabaseAdmin
+      .from('system_categories')
+      .select('id')
+      .in('label', excludedCategories);
+
+    const excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
+
+    let query = supabaseAdmin
       .from('transactions')
       .select(`
         amount,
@@ -33,6 +48,13 @@ export async function GET(request) {
       .gte('datetime', sinceDate.toISOString())
       .order('datetime', { ascending: true });
 
+    // Apply exclusion filter if we have IDs
+    if (excludedCategoryIds.length > 0) {
+      query = query.not('category_id', 'in', `(${excludedCategoryIds.join(',')})`);
+    }
+
+    const { data: transactions, error } = await query;
+
     if (error) {
       console.error('Error fetching transactions:', error);
       return Response.json(
@@ -43,11 +65,11 @@ export async function GET(request) {
 
     // Group transactions by month and calculate spending/earning
     const monthlyData = {};
-    
+
     transactions.forEach(transaction => {
       const date = new Date(transaction.datetime);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
+
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = {
           month: monthKey,
@@ -59,10 +81,10 @@ export async function GET(request) {
           transactionCount: 0
         };
       }
-      
+
       const amount = parseFloat(transaction.amount);
       monthlyData[monthKey].transactionCount++;
-      
+
       if (amount < 0) {
         // Negative amount = spending (debit)
         monthlyData[monthKey].spending += Math.abs(amount);
@@ -70,7 +92,7 @@ export async function GET(request) {
         // Positive amount = earning (credit)
         monthlyData[monthKey].earning += amount;
       }
-      
+
       monthlyData[monthKey].netAmount += amount;
     });
 
@@ -96,7 +118,7 @@ export async function GET(request) {
 
     if (DEBUG) console.log(`📊 Monthly Spending & Earning: months=${result.length} (cap=${MAX_MONTHS})`);
 
-    return Response.json({ 
+    return Response.json({
       data: result,
       summary: {
         totalMonths: result.length,

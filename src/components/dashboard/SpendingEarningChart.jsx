@@ -135,14 +135,14 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
         onMouseLeave={onLeave}
       >
         <defs>
-          <linearGradient id="bar3D" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="black" stopOpacity="0.3" />
-            <stop offset="15%" stopColor="black" stopOpacity="0.1" />
-            <stop offset="40%" stopColor="white" stopOpacity="0.1" />
-            <stop offset="85%" stopColor="black" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="black" stopOpacity="0.3" />
-          </linearGradient>
+          <filter id="barShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor="#000000" floodOpacity="0.4" />
+          </filter>
+          <pattern id="diagonalStripes" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="white" strokeWidth="2" opacity="0.1" />
+          </pattern>
         </defs>
+
 
         {/* Grid Lines & Y-Axis */}
         <g>
@@ -202,7 +202,9 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
             const spdY = zeroY
 
             const isActive = activeMonth === m
-            const filter = isActive ? 'brightness(1.1) drop-shadow(0 0 4px rgba(255,255,255,0.1))' : 'none'
+            const activeFilter = isActive ? 'brightness(1.1) drop-shadow(0 0 4px rgba(255,255,255,0.1))' : ''
+            const baseFilter = 'url(#barShadow)'
+            const combinedFilter = activeFilter ? `${baseFilter} ${activeFilter}` : baseFilter
 
             const incPath = roundedRectPath(x, incY, barWidth, incH, 12, 12, 0, 0)
             const spdPath = roundedRectPath(x, spdY, barWidth, spdH, 0, 0, 12, 12)
@@ -217,12 +219,13 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
                 }}
               >
                 {/* Income Bar */}
-                <path d={incPath} fill="var(--color-chart-income)" filter={filter} />
-                <path d={incPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
+                <path d={incPath} fill="var(--color-chart-income)" filter={combinedFilter} />
+                <path d={incPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
 
                 {/* Spending Bar */}
-                <path d={spdPath} fill="var(--color-chart-expense)" filter={filter} />
-                <path d={spdPath} fill="url(#bar3D)" filter={filter} style={{ pointerEvents: 'none' }} />
+                <path d={spdPath} fill="var(--color-chart-expense)" filter={combinedFilter} />
+                <path d={spdPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
+
 
                 <rect
                   x={x}

@@ -17,7 +17,16 @@ export async function GET(request) {
   try {
     const { data, error } = await supabase
       .from('recurring_transactions')
-      .select('*')
+      .select(`
+        *,
+        category:system_categories (
+          group:category_groups (
+            icon_name,
+            icon_lib,
+            hex_color
+          )
+        )
+      `)
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('next_date', { ascending: true });

@@ -22,14 +22,36 @@ export async function GET(request) {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
+    // Fetch IDs of excluded categories
+    const excludedCategories = [
+      'Credit Card Payment',
+      'Investment and Retirement Funds',
+      'Transfer',
+      'Account Transfer'
+    ];
+
+    const { data: excludedCategoryRows } = await supabaseAdmin
+      .from('system_categories')
+      .select('id')
+      .in('label', excludedCategories);
+
+    const excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
+
     // Fetch transactions for the month
-    const { data: transactions, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('transactions')
       .select('amount, datetime, accounts!inner(user_id)')
       .eq('accounts.user_id', userId)
       .gte('datetime', startDateStr)
       .lte('datetime', endDateStr)
       .order('datetime', { ascending: true });
+
+    // Apply exclusion filter if we have IDs
+    if (excludedCategoryIds.length > 0) {
+      query = query.not('category_id', 'in', `(${excludedCategoryIds.join(',')})`);
+    }
+
+    const { data: transactions, error } = await query;
 
     if (error) {
       console.error('Error fetching transactions:', error);

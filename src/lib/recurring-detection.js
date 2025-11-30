@@ -41,11 +41,6 @@ export async function detectRecurringTransactions(userId) {
     'Account Transfer' // Covering both "Transfer In" and "Transfer Out" if they map to this, or just general safety
   ];
 
-  // We need to find the IDs for these categories. 
-  // Since "Account Transfer" might be a group or specific label, let's be broad.
-  // The user specifically mentioned "Credit Card Payment" and "Investment and Retirement Funds".
-  // And "Account Transfer" (Transfer In/Out).
-
   const { data: excludedCategoryRows } = await supabaseAdmin
     .from('system_categories')
     .select('id')
@@ -59,6 +54,9 @@ export async function detectRecurringTransactions(userId) {
 
     // Must not be in excluded categories
     if (t.category_id && excludedCategoryIds.has(t.category_id)) return false;
+
+    // Exclude positive amounts (income, refunds)
+    if (t.amount > 0) return false;
 
     return true;
   });
@@ -92,109 +90,177 @@ export async function detectRecurringTransactions(userId) {
   const recurringCandidates = [];
 
   for (const [name, txs] of Object.entries(groups)) {
-    // Need at least 3 transactions to establish a pattern (unless it's yearly, but let's stick to 3 for now)
-    if (txs.length < 3) continue;
+    // Helper to analyze a set of transactions
+    const analyzeSet = (transactions, merchantName) => {
+      if (transactions.length < 3) return null;
 
-    // Sort by date ascending
-    txs.sort((a, b) => a.dateObj - b.dateObj);
+      // Sort by date ascending
+      transactions.sort((a, b) => a.dateObj - b.dateObj);
 
-    const intervals = [];
-    for (let i = 1; i < txs.length; i++) {
-      const diffTime = Math.abs(txs[i].dateObj - txs[i - 1].dateObj);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      intervals.push(diffDays);
-    }
+      // Filter out transactions that are too close (noise/double charges)
+      const uniqueTransactions = [transactions[0]];
+      for (let i = 1; i < transactions.length; i++) {
+        const last = uniqueTransactions[uniqueTransactions.length - 1];
+        const diffTime = Math.abs(transactions[i].dateObj - last.dateObj);
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-    // Calculate average interval and variance
-    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const variance = intervals.reduce((a, b) => a + Math.pow(b - avgInterval, 2), 0) / intervals.length;
-    const stdDev = Math.sqrt(variance);
-
-    let frequency = null;
-    let confidence = 0.0;
-
-    // Heuristics
-    if (Math.abs(avgInterval - 7) < 2 && stdDev < 2) {
-      frequency = 'weekly';
-      confidence = 0.9;
-    } else if (Math.abs(avgInterval - 14) < 3 && stdDev < 3) {
-      frequency = 'bi-weekly';
-      confidence = 0.85;
-    } else if (Math.abs(avgInterval - 30.5) < 5 && stdDev < 5) {
-      frequency = 'monthly';
-      confidence = 0.95;
-    } else if (Math.abs(avgInterval - 365) < 10) {
-      frequency = 'yearly';
-      confidence = 0.8;
-    }
-
-    if (frequency) {
-      // Check amount consistency
-      const amounts = txs.map(t => Math.abs(parseFloat(t.amount)));
-      const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-      const amountVariance = amounts.reduce((a, b) => a + Math.pow(b - avgAmount, 2), 0) / amounts.length;
-
-      // If amount varies wildly, reduce confidence slightly
-      if (amountVariance > 100) { // Arbitrary threshold
-        confidence -= 0.1;
+        if (diffDays >= 4) {
+          uniqueTransactions.push(transactions[i]);
+        }
       }
 
-      // Calculate next date
-      const lastTx = txs[txs.length - 1];
-      const nextDate = new Date(lastTx.dateObj);
+      if (uniqueTransactions.length < 3) return null;
 
-      if (frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-      if (frequency === 'bi-weekly') nextDate.setDate(nextDate.getDate() + 14);
-      if (frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-      if (frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
-
-      // Check for missed payments (Activity Check)
-      // If we are significantly past the next_date without a new transaction, it's likely inactive.
-      const now = new Date();
-      const daysPastDue = (now - nextDate) / (1000 * 60 * 60 * 24);
-
-      let allowedMissedCycles = 1; // Default tolerance
-      if (frequency === 'weekly') allowedMissedCycles = 2; // Allow 2 missed weeks
-      if (frequency === 'bi-weekly') allowedMissedCycles = 1;
-      if (frequency === 'monthly') allowedMissedCycles = 1;
-      if (frequency === 'yearly') allowedMissedCycles = 0.2; // ~2 months grace for yearly
-
-      let cycleDays = 30;
-      if (frequency === 'weekly') cycleDays = 7;
-      if (frequency === 'bi-weekly') cycleDays = 14;
-      if (frequency === 'yearly') cycleDays = 365;
-
-      // If we missed too many cycles, reduce confidence drastically or discard
-      if (daysPastDue > (cycleDays * allowedMissedCycles)) {
-        console.log(`⚠️ Discarding ${name} (${frequency}): Missed ${daysPastDue / cycleDays} cycles.`);
-        continue;
+      const intervals = [];
+      for (let i = 1; i < uniqueTransactions.length; i++) {
+        const diffTime = Math.abs(uniqueTransactions[i].dateObj - uniqueTransactions[i - 1].dateObj);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        intervals.push(diffDays);
       }
 
-      recurringCandidates.push({
-        user_id: userId,
-        merchant_name: name,
-        description: lastTx.description, // Use the most recent description
-        amount: avgAmount, // Use average amount
-        frequency,
-        status: 'active',
-        last_date: lastTx.dateObj.toISOString().split('T')[0],
-        next_date: nextDate.toISOString().split('T')[0],
-        confidence: Math.max(0.1, Math.min(1.0, confidence)), // Clamp between 0.1 and 1.0
-        icon_url: lastTx.icon_url,
-        category_id: lastTx.category_id
-      });
+      // Calculate average interval and variance
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance = intervals.reduce((a, b) => a + Math.pow(b - avgInterval, 2), 0) / intervals.length;
+      const stdDev = Math.sqrt(variance);
+
+      let frequency = null;
+      let confidence = 0.0;
+
+      // Heuristics
+      if (Math.abs(avgInterval - 7) < 2 && stdDev < 2) {
+        frequency = 'weekly';
+        confidence = 0.9;
+      } else if (Math.abs(avgInterval - 14) < 3 && stdDev < 3) {
+        frequency = 'bi-weekly';
+        confidence = 0.85;
+      } else if (Math.abs(avgInterval - 30.5) < 5 && stdDev < 5) {
+        frequency = 'monthly';
+        confidence = 0.95;
+      } else if (Math.abs(avgInterval - 365) < 10) {
+        frequency = 'yearly';
+        confidence = 0.8;
+      }
+
+      if (frequency) {
+        // Check amount consistency
+        const amounts = uniqueTransactions.map(t => Math.abs(parseFloat(t.amount)));
+        const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+        const amountVariance = amounts.reduce((a, b) => a + Math.pow(b - avgAmount, 2), 0) / amounts.length;
+
+        // If amount varies wildly, reduce confidence slightly
+        if (amountVariance > 100) { // Arbitrary threshold
+          confidence -= 0.1;
+        }
+
+        // Calculate next date
+        const lastTx = uniqueTransactions[uniqueTransactions.length - 1];
+        const nextDate = new Date(lastTx.dateObj);
+
+        if (frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+        if (frequency === 'bi-weekly') nextDate.setDate(nextDate.getDate() + 14);
+        if (frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+        if (frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+
+        // Check for missed payments (Activity Check)
+        const now = new Date();
+        const daysPastDue = (now - nextDate) / (1000 * 60 * 60 * 24);
+
+        let allowedMissedCycles = 1; // Default tolerance
+        if (frequency === 'weekly') allowedMissedCycles = 2;
+        if (frequency === 'bi-weekly') allowedMissedCycles = 1;
+        if (frequency === 'monthly') allowedMissedCycles = 1;
+        if (frequency === 'yearly') allowedMissedCycles = 0.2;
+
+        let cycleDays = 30;
+        if (frequency === 'weekly') cycleDays = 7;
+        if (frequency === 'bi-weekly') cycleDays = 14;
+        if (frequency === 'yearly') cycleDays = 365;
+
+        // If we missed too many cycles, reduce confidence drastically or discard
+        if (daysPastDue > (cycleDays * allowedMissedCycles)) {
+          console.log(`⚠️ Discarding ${merchantName} (${frequency}): Missed ${daysPastDue / cycleDays} cycles.`);
+          return null;
+        }
+
+        return {
+          user_id: userId,
+          merchant_name: merchantName,
+          description: lastTx.description,
+          amount: Math.abs(parseFloat(lastTx.amount)), // Use latest amount, not average
+          frequency,
+          status: 'active',
+          last_date: lastTx.dateObj.toISOString().split('T')[0],
+          next_date: nextDate.toISOString().split('T')[0],
+          confidence: Math.max(0.1, Math.min(1.0, confidence)),
+          icon_url: lastTx.icon_url,
+          category_id: lastTx.category_id
+        };
+      }
+      return null;
+    };
+
+    // 1. Try analyzing the whole group first
+    const mainResult = analyzeSet(txs, name);
+    if (mainResult && mainResult.confidence > 0.8) {
+      recurringCandidates.push(mainResult);
+      // continue; // REMOVED: Don't skip clustering, we might have multiple subscriptions!
+    }
+
+    // 2. If no strong pattern, try clustering by Day of Month (for monthly subscriptions)
+    // Map day of month (1-31) to transactions
+    const dayClusters = {};
+    for (const t of txs) {
+      const day = t.dateObj.getDate();
+      if (!dayClusters[day]) dayClusters[day] = [];
+      dayClusters[day].push(t);
+    }
+
+    // Merge nearby clusters (e.g. 5th and 6th might be the same bill)
+    const mergedClusters = [];
+    const processedDays = new Set();
+
+    for (let day = 1; day <= 31; day++) {
+      if (processedDays.has(day)) continue;
+      if (!dayClusters[day]) continue;
+
+      let cluster = [...dayClusters[day]];
+      processedDays.add(day);
+
+      // Check next 2 days for drift
+      for (let offset = 1; offset <= 2; offset++) {
+        const nextDay = day + offset;
+        if (dayClusters[nextDay]) {
+          cluster = cluster.concat(dayClusters[nextDay]);
+          processedDays.add(nextDay);
+        }
+      }
+
+      if (cluster.length >= 3) {
+        mergedClusters.push(cluster);
+      }
+    }
+
+    // Analyze each merged cluster
+    for (const cluster of mergedClusters) {
+      const clusterResult = analyzeSet(cluster, name);
+      if (clusterResult) {
+        // Check if we already added a very similar one from "mainResult"
+        const isDuplicate = recurringCandidates.some(c =>
+          c.merchant_name === name &&
+          c.frequency === clusterResult.frequency &&
+          Math.abs(new Date(c.next_date) - new Date(clusterResult.next_date)) < (1000 * 60 * 60 * 24 * 3) // Within 3 days
+        );
+
+        if (!isDuplicate) {
+          recurringCandidates.push(clusterResult);
+        }
+      }
     }
   }
 
   // 4. Upsert into Database
   if (recurringCandidates.length > 0) {
     console.log(`✅ Detected ${recurringCandidates.length} recurring patterns.`);
-
-    // We want to update existing ones if they exist, or insert new ones.
-    // We'll match on (user_id, merchant_name, frequency) roughly.
-    // Since we don't have a unique constraint on those, we might duplicate if we aren't careful.
-    // For now, let's delete existing auto-detected ones for this user and re-insert?
-    // No, that would lose user overrides (like if they set status to 'ignored').
 
     // Better approach: Try to find existing match by merchant_name
     const { data: existing } = await supabaseAdmin
