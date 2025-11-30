@@ -31,11 +31,10 @@ export const dashboardLayout = {
       component: 'DashboardNetWorthCard'
     },
 
-    // Widgets Placeholder
+    // Recurring Transactions
     {
-      id: 'widgets',
-      component: 'PlaceholderCard',
-      props: { title: 'Widgets', description: 'Additional widgets' }
+      id: 'recurring-transactions',
+      component: 'RecurringTransactionsCard'
     }
   ]
 };

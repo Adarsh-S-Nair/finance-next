@@ -7,6 +7,7 @@ import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningC
 import { dashboardLayout } from "../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../components/dashboard/MonthlyOverviewCard";
 import DashboardNetWorthCard from "../../components/dashboard/DashboardNetWorthCard";
+import RecurringTransactionsCard from "../../components/dashboard/RecurringTransactionsCard";
 import PlaceholderCard from "../../components/dashboard/PlaceholderCard";
 
 // Map string keys to actual components
@@ -15,6 +16,7 @@ const componentMap = {
   'MonthlyOverviewCard': MonthlyOverviewCard,
   'SpendingVsEarningCard': SpendingVsEarningCard,
   'PlaceholderCard': PlaceholderCard,
+  'RecurringTransactionsCard': RecurringTransactionsCard,
 };
 
 export default function DashboardPage() {

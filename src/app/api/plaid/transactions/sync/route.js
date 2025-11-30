@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 import { createLogger } from '../../../../../lib/logger';
+import { detectRecurringTransactions } from '../../../../../lib/recurring-detection';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('transaction-sync');
@@ -563,6 +564,12 @@ export async function POST(request) {
       snapshots_created: accountsToUpdate.length > 0 ? snapshotsCreatedCount : 0
     });
     await logger.flush();
+
+    // Run recurring transaction detection
+    if (transactionsToUpsert.length > 0) {
+      if (DEBUG) console.log('🔄 Running recurring transaction detection...');
+      await detectRecurringTransactions(userId);
+    }
 
     return Response.json({
       success: true,
