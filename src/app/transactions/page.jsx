@@ -15,6 +15,8 @@ import Input from "../../components/ui/Input";
 import { supabase } from "../../lib/supabaseClient";
 import PageToolbar from "../../components/PageToolbar";
 import TransactionDetails from "../../components/transactions/TransactionDetails";
+import SimilarTransactionsFound from "../../components/transactions/SimilarTransactionsFound";
+import TransactionRow from "../../components/transactions/TransactionRow";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
@@ -241,78 +243,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
 // Add display name for debugging
 TransactionList.displayName = 'TransactionList';
 
-// TransactionRow component for individual transactions
-const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, index, groupIndex }) {
-  return (
-    <div
-      data-transaction-item
-      data-transaction-id={transaction.id}
-      className="group flex items-center justify-between py-4 px-5 hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995]"
-      onClick={() => onTransactionClick(transaction)}
-    >
-      <div className="flex items-center gap-4 min-w-0 flex-1">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-[var(--color-border)]/20 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-md"
-          style={{
-            backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-              ? 'var(--color-surface)'
-              : (transaction.category_hex_color || 'var(--color-accent)')
-          }}
-        >
-          {(!DISABLE_LOGOS && transaction.icon_url) ? (
-            <img
-              src={transaction.icon_url}
-              alt={transaction.merchant_name || transaction.description || 'Transaction'}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                // Fallback to category icon if image fails to load
-                e.target.style.display = 'none';
-                const fallbackIcon = e.target.nextSibling;
-                if (fallbackIcon) {
-                  fallbackIcon.style.display = 'block';
-                }
-              }}
-            />
-          ) : null}
-          <DynamicIcon
-            iconLib={transaction.category_icon_lib}
-            iconName={transaction.category_icon_name}
-            className="h-5 w-5 text-white"
-            fallback={FiTag}
-            style={{
-              display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
-            }}
-          />
-        </div>
-        <div className="min-w-0 flex-1 mr-4">
-          <div className="font-medium text-[var(--color-fg)] truncate text-sm transition-colors">
-            {transaction.merchant_name || transaction.description || 'Transaction'}
-          </div>
-          {transaction.category_name && (
-            <div className="text-xs text-[var(--color-muted)] mt-0.5 flex items-center gap-1.5">
-              <span className="truncate">{transaction.category_name}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <div className={`font-semibold text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
-          {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
-        </div>
-        {transaction.pending && (
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
-            Pending
-          </div>
-        )}
-      </div>
-    </div>
-  );
-});
 
-// Add display name for debugging
-TransactionRow.displayName = 'TransactionRow';
 
 // Animated Selector Component
 const FilterSelector = ({ options, value, onChange, label }) => {
@@ -682,6 +613,8 @@ function TransactionsContent() {
   const [categoryGroups, setCategoryGroups] = useState([]);
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
+  const [similarTransactionsCount, setSimilarTransactionsCount] = useState(0);
+  const [similarTransactions, setSimilarTransactions] = useState([]);
 
   // Filter states initialized from URL
   const [selectedGroupIds, setSelectedGroupIds] = useState(() =>
@@ -1136,6 +1069,13 @@ function TransactionsContent() {
     setCurrentDrawerView('transaction-details');
   };
 
+  const handleSimilarTransactionsClose = () => {
+    setIsDrawerOpen(false);
+    setSelectedTransaction(null);
+    setCurrentDrawerView('transaction-details');
+    setSimilarTransactionsCount(0);
+  };
+
   const handleCategorySelect = async (category) => {
     if (!selectedTransaction) return;
 
@@ -1167,6 +1107,32 @@ function TransactionsContent() {
       console.error('Error updating category:', err);
       // Revert on error (optional, but good practice)
       // For now, we'll just log it.
+    }
+
+    // Check for similar transactions
+    try {
+      const response = await fetch('/api/transactions/detect-similar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: selectedTransaction.id,
+          categoryId: category.id,
+          userId: profile.id
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.count > 0) {
+          setSimilarTransactionsCount(data.count);
+          // Store the transactions to pass to the view
+          setSimilarTransactions(data.transactions);
+          setCurrentDrawerView('similar-transactions');
+          setIsDrawerOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error('Error detecting similar transactions:', err);
     }
   };
 
@@ -1402,6 +1368,15 @@ function TransactionsContent() {
               categoryGroups={categoryGroups}
               onSelectCategory={handleCategorySelect}
               currentCategoryId={selectedTransaction?.category_id}
+            />
+          },
+          {
+            id: 'similar-transactions',
+            title: 'Similar Transactions',
+            content: <SimilarTransactionsFound
+              count={similarTransactionsCount}
+              transactions={similarTransactions}
+              onClose={handleSimilarTransactionsClose}
             />
           }
         ]}
