@@ -19,8 +19,9 @@ export async function GET(request) {
     const endDate = new Date(year, month + 1, 0); // Last day of the month
 
     // Format dates for Supabase query (YYYY-MM-DD)
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    // Use local time components to construct the string to match the 'date' column format
+    const startDateStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const endDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
     // Fetch IDs of excluded categories
     const excludedCategories = [
@@ -40,11 +41,11 @@ export async function GET(request) {
     // Fetch transactions for the month
     let query = supabaseAdmin
       .from('transactions')
-      .select('amount, datetime, accounts!inner(user_id)')
+      .select('amount, date, accounts!inner(user_id)')
       .eq('accounts.user_id', userId)
-      .gte('datetime', startDateStr)
-      .lte('datetime', endDateStr)
-      .order('datetime', { ascending: true });
+      .gte('date', startDateStr)
+      .lte('date', endDateStr)
+      .order('date', { ascending: true });
 
     // Apply exclusion filter if we have IDs
     if (excludedCategoryIds.length > 0) {
@@ -72,11 +73,10 @@ export async function GET(request) {
 
     // Aggregate transactions by day
     transactions.forEach(tx => {
-      // Parse day from ISO datetime string (YYYY-MM-DDTHH:mm:ss)
-      // We use the date part directly to avoid timezone shifts if the server is in a different zone than the data
-      // Assuming the datetime is stored in UTC or consistent format
-      const datePart = tx.datetime.split('T')[0];
-      const dayPart = parseInt(datePart.split('-')[2]);
+      if (!tx.date) return;
+
+      // Parse day from date string (YYYY-MM-DD)
+      const dayPart = parseInt(tx.date.split('-')[2]);
 
       if (dailyTotals.has(dayPart)) {
         const current = dailyTotals.get(dayPart);

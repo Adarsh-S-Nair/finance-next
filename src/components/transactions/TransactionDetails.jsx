@@ -29,10 +29,28 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
-      timeZone: 'UTC', // Always use UTC for the date part
-      ...(transaction.datetime ? { hour: 'numeric', minute: 'numeric' } : {}) // Only show time if we have precise datetime
+      timeZone: 'UTC',
     }).format(new Date(dateToFormat))
     : 'Unknown Date';
+
+  // Format time if available (only if datetime is present)
+  const formattedTime = transaction.datetime
+    ? new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      timeZone: 'UTC' // Assuming stored datetime is UTC
+    }).format(new Date(transaction.datetime))
+    : null;
+
+  // Format authorized date (Posted Date)
+  const formattedPostedDate = transaction.authorized_date
+    ? new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC'
+    }).format(new Date(transaction.authorized_date))
+    : null;
 
   // Format location
   const locationString = typeof transaction.location === 'string'
@@ -40,6 +58,12 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
     : transaction.location?.address ||
     `${transaction.location?.city || ''}, ${transaction.location?.region || ''}`.replace(/^,\s*|,\s*$/g, '') ||
     'Location available';
+
+  // Check for institution logo
+  // The API returns transaction.accounts.institutions.logo
+  // But sometimes it might be nested differently depending on the join
+  // Let's check transaction.accounts?.institutions?.logo based on the API route
+  const institutionLogo = transaction.accounts?.institutions?.logo;
 
   return (
     <div className="flex flex-col h-full">
@@ -107,7 +131,7 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
                 </div>
                 <span className="text-sm font-medium text-[var(--color-muted)]">Status</span>
               </div>
-              <div className={clsx("flex items-center gap-1.5 text-sm font-medium bg-[var(--color-surface)] px-2.5 py-1 rounded-md border border-[var(--color-border)]/50", statusColor)}>
+              <div className={clsx("flex items-center gap-1.5 text-sm", statusColor)}>
                 <StatusIcon className="w-3.5 h-3.5" />
                 <span>{transaction.pending ? 'Pending' : 'Posted'}</span>
               </div>
@@ -144,10 +168,40 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
                 </div>
                 <span className="text-sm font-medium text-[var(--color-muted)]">Date</span>
               </div>
-              <span className="text-sm text-[var(--color-fg)] text-right max-w-[60%] whitespace-nowrap font-medium">
+              <span className="text-sm text-[var(--color-fg)] text-right max-w-[60%] whitespace-nowrap">
                 {formattedDate}
               </span>
             </div>
+
+            {/* Time (if available) */}
+            {formattedTime && (
+              <div className="flex items-center justify-between p-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] flex items-center justify-center text-[var(--color-muted)]">
+                    <FiClock className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-medium text-[var(--color-muted)]">Time</span>
+                </div>
+                <span className="text-sm text-[var(--color-fg)] text-right max-w-[60%] whitespace-nowrap">
+                  {formattedTime}
+                </span>
+              </div>
+            )}
+
+            {/* Posted Date (if available and different from Date) */}
+            {formattedPostedDate && formattedPostedDate !== formattedDate && (
+              <div className="flex items-center justify-between p-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] flex items-center justify-center text-[var(--color-muted)]">
+                    <FiCheckCircle className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-medium text-[var(--color-muted)]">Posted Date</span>
+                </div>
+                <span className="text-sm text-[var(--color-fg)] text-right max-w-[60%] whitespace-nowrap">
+                  {formattedPostedDate}
+                </span>
+              </div>
+            )}
 
             {/* Account */}
             {transaction.account_name && (
@@ -159,16 +213,18 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
                   <span className="text-sm font-medium text-[var(--color-muted)]">Account</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {transaction.accounts?.institutions?.logo && (
-                    <img
-                      src={transaction.accounts.institutions.logo}
-                      alt=""
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
+                  {institutionLogo && (
+                    <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 bg-white">
+                      <img
+                        src={`data:image/png;base64,${institutionLogo}`}
+                        alt=""
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   )}
-                  <span className="text-sm text-[var(--color-fg)] font-medium">
+                  <span className="text-sm text-[var(--color-fg)]">
                     {transaction.account_name}
-                    {transaction.accounts?.mask && <span className="text-[var(--color-muted)] ml-1 font-normal">••{transaction.accounts.mask}</span>}
+                    {transaction.accounts?.mask && <span className="text-[var(--color-muted)] ml-1">••{transaction.accounts.mask}</span>}
                   </span>
                 </div>
               </div>
@@ -183,7 +239,7 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
                   </div>
                   <span className="text-sm font-medium text-[var(--color-muted)]">Location</span>
                 </div>
-                <span className="text-sm text-[var(--color-fg)] text-right max-w-[50%] truncate font-medium">
+                <span className="text-sm text-[var(--color-fg)] text-right max-w-[50%] truncate">
                   {locationString}
                 </span>
               </div>

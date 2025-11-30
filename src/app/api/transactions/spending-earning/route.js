@@ -18,6 +18,7 @@ export async function GET(request) {
     // Get all transactions for the user, grouped by month
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
+    const sinceDateStr = sinceDate.toISOString().split('T')[0];
 
     // Fetch IDs of excluded categories
     const excludedCategories = [
@@ -38,15 +39,15 @@ export async function GET(request) {
       .from('transactions')
       .select(`
         amount,
-        datetime,
+        date,
         accounts!inner (
           user_id
         )
       `)
       .eq('accounts.user_id', userId)
-      .not('datetime', 'is', null)
-      .gte('datetime', sinceDate.toISOString())
-      .order('datetime', { ascending: true });
+      .not('date', 'is', null)
+      .gte('date', sinceDateStr)
+      .order('date', { ascending: true });
 
     // Apply exclusion filter if we have IDs
     if (excludedCategoryIds.length > 0) {
@@ -67,14 +68,19 @@ export async function GET(request) {
     const monthlyData = {};
 
     transactions.forEach(transaction => {
-      const date = new Date(transaction.datetime);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!transaction.date) return;
+
+      // Parse date (YYYY-MM-DD)
+      const [yearStr, monthStr] = transaction.date.split('-');
+      const year = parseInt(yearStr);
+      const month = parseInt(monthStr);
+      const monthKey = `${yearStr}-${monthStr}`;
 
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = {
           month: monthKey,
-          year: date.getFullYear(),
-          monthNumber: date.getMonth() + 1,
+          year: year,
+          monthNumber: month,
           spending: 0,
           earning: 0,
           netAmount: 0,

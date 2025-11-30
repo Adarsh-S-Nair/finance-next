@@ -923,7 +923,7 @@ function TransactionsContent() {
             const keptTransactions = newTransactions.slice(overflow);
             // Update prevCursor to the first item of the new list
             setPrevCursor({
-              date: keptTransactions[0].datetime,
+              date: keptTransactions[0].date,
               id: keptTransactions[0].id
             });
             return keptTransactions;
@@ -961,7 +961,7 @@ function TransactionsContent() {
             const keptTransactions = newTransactions.slice(0, MAX_ITEMS);
             // Update nextCursor to the last item of the new list
             setNextCursor({
-              date: keptTransactions[keptTransactions.length - 1].datetime,
+              date: keptTransactions[keptTransactions.length - 1].date,
               id: keptTransactions[keptTransactions.length - 1].id
             });
             return keptTransactions;

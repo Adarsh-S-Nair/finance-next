@@ -12,9 +12,10 @@ export async function GET(request) {
     // Get all transactions to extract unique months
     const { data: transactions, error } = await supabaseAdmin
       .from('transactions')
-      .select('datetime, accounts!inner(user_id)')
+      .select('date, accounts!inner(user_id)')
       .eq('accounts.user_id', userId)
-      .order('datetime', { ascending: true });
+      .not('date', 'is', null)
+      .order('date', { ascending: true });
 
     if (error) {
       console.error('Error fetching transactions for available months:', error);
@@ -28,8 +29,11 @@ export async function GET(request) {
     // Get unique months from transactions
     const monthsSet = new Set();
     transactions.forEach(transaction => {
-      const date = new Date(transaction.datetime);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!transaction.date) return;
+
+      // Parse date (YYYY-MM-DD)
+      const [yearStr, monthStr] = transaction.date.split('-');
+      const monthKey = `${yearStr}-${monthStr}`;
       monthsSet.add(monthKey);
     });
 
@@ -39,7 +43,7 @@ export async function GET(request) {
       .reverse()
       .map(monthKey => {
         const [year, month] = monthKey.split('-');
-        const date = new Date(year, parseInt(month) - 1);
+        const date = new Date(parseInt(year), parseInt(month) - 1);
         return {
           value: monthKey,
           label: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })

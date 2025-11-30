@@ -12,7 +12,7 @@ export async function GET(request) {
     const search = searchParams.get('search') || '';
 
     // Cursor-based pagination params
-    const cursorDate = searchParams.get('cursorDate'); // datetime
+    const cursorDate = searchParams.get('cursorDate'); // date (YYYY-MM-DD)
     const cursorId = searchParams.get('cursorId'); // transaction id
     const direction = searchParams.get('direction') || 'forward'; // 'forward' (older) or 'backward' (newer)
 
@@ -44,7 +44,9 @@ export async function GET(request) {
         icon_url,
         merchant_name,
         description,
+        date,
         datetime,
+        authorized_date,
         accounts!inner (id, name, mask),
         system_categories!inner (
           label,
@@ -179,52 +181,44 @@ export async function GET(request) {
       }
     }
 
+    // Use 'date' column for filtering
     if (startDate) {
-      query = query.gte('datetime', startDate);
+      // startDate is ISO string, extract YYYY-MM-DD
+      const dateStr = startDate.split('T')[0];
+      query = query.gte('date', dateStr);
     }
     if (endDate) {
-      query = query.lte('datetime', endDate);
+      // endDate is ISO string, extract YYYY-MM-DD
+      const dateStr = endDate.split('T')[0];
+      query = query.lte('date', dateStr);
     }
 
-    // Apply cursor-based pagination
+    // Apply cursor-based pagination using 'date' column
     if (cursorDate && cursorId) {
-      if (direction === 'forward') {
-        // Fetch older transactions (datetime < cursor OR (datetime = cursor AND id < cursorId))
-        // Since Supabase doesn't support tuple comparison easily in JS client, we use this logic:
-        // We want items that appear AFTER the cursor in the sort order (DESC).
-        // Sort order is datetime DESC, created_at DESC (using created_at as tie breaker if id is not sequential/reliable, but id is usually UUID. Let's use datetime and id for stability if id is sortable, or just datetime and created_at).
-        // The original code used `order('datetime', { ascending: false }).order('created_at', { ascending: false })`.
-        // Let's stick to that sort order.
-        // To get the "next" page (older items), we need items with datetime <= cursorDate.
-        // Ideally we use row-value comparison, but here we can filter:
-        // datetime < cursorDate OR (datetime = cursorDate AND created_at < cursorCreatedAt)
-        // To simplify, let's just use datetime for now, but that might miss items with same datetime.
-        // A robust way is using the `lt` filter on a composite index, but Supabase JS client is limited.
-        // Let's try to use the RPC or just simple filtering.
-        // But wait, we can chain `.or`.
-        // `and(datetime.eq.${cursorDate},id.lt.${cursorId}),datetime.lt.${cursorDate}`
+      // cursorDate should be YYYY-MM-DD
+      const dateStr = cursorDate.split('T')[0];
 
-        // Let's assume we pass the exact datetime string.
-        query = query.or(`datetime.lt.${cursorDate},and(datetime.eq.${cursorDate},id.lt.${cursorId})`);
+      if (direction === 'forward') {
+        // Fetch older transactions (date < cursor OR (date = cursor AND id < cursorId))
+        query = query.or(`date.lt.${dateStr},and(date.eq.${dateStr},id.lt.${cursorId})`);
       } else {
         // Fetch newer transactions (backward)
-        // We want items appearing BEFORE the cursor in the sort order.
-        // i.e. datetime > cursor OR (datetime = cursor AND id > cursorId)
-        query = query.or(`datetime.gt.${cursorDate},and(datetime.eq.${cursorDate},id.gt.${cursorId})`);
+        // date > cursor OR (date = cursor AND id > cursorId)
+        query = query.or(`date.gt.${dateStr},and(date.eq.${dateStr},id.gt.${cursorId})`);
       }
     }
 
-    // Apply sorting
+    // Apply sorting using 'date' column
     if (direction === 'forward') {
       // Standard sort: Newest first
       query = query
-        .order('datetime', { ascending: false })
+        .order('date', { ascending: false })
         .order('id', { ascending: false });
     } else {
       // Backward sort: Oldest first (so we get the ones immediately preceding the cursor)
       // We will reverse this list before returning
       query = query
-        .order('datetime', { ascending: true })
+        .order('date', { ascending: true })
         .order('id', { ascending: true });
     }
 
@@ -263,13 +257,13 @@ export async function GET(request) {
       minimal,
       nextCursor: transformedTransactions.length > 0
         ? {
-          date: transformedTransactions[transformedTransactions.length - 1].datetime,
+          date: transformedTransactions[transformedTransactions.length - 1].date,
           id: transformedTransactions[transformedTransactions.length - 1].id
         }
         : null,
       prevCursor: transformedTransactions.length > 0
         ? {
-          date: transformedTransactions[0].datetime,
+          date: transformedTransactions[0].date,
           id: transformedTransactions[0].id
         }
         : null,
