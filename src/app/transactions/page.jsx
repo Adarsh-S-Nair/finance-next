@@ -6,7 +6,7 @@ import DynamicIcon from "../../components/DynamicIcon";
 import Drawer from "../../components/ui/Drawer";
 import SelectCategoryView from "../../components/SelectCategoryView";
 import Card from "../../components/ui/Card";
-import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock } from "react-icons/fi";
+import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock, FiAlertCircle } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -615,6 +615,8 @@ function TransactionsContent() {
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
   const [similarTransactionsCount, setSimilarTransactionsCount] = useState(0);
   const [similarTransactions, setSimilarTransactions] = useState([]);
+  const [matchCriteria, setMatchCriteria] = useState(null);
+  const [pendingCategory, setPendingCategory] = useState(null);
 
   // Filter states initialized from URL
   const [selectedGroupIds, setSelectedGroupIds] = useState(() =>
@@ -1074,42 +1076,13 @@ function TransactionsContent() {
     setSelectedTransaction(null);
     setCurrentDrawerView('transaction-details');
     setSimilarTransactionsCount(0);
+    setPendingCategory(null); // Clear pending category on similar transactions close
   };
 
   const handleCategorySelect = async (category) => {
     if (!selectedTransaction) return;
 
-    // Find the group for this category to get the color/icon
-    const group = categoryGroups.find(g => g.system_categories.some(c => c.id === category.id));
-
-    // Optimistic update
-    const updatedTransaction = {
-      ...selectedTransaction,
-      category_id: category.id,
-      category_name: category.label,
-      category_hex_color: group?.hex_color,
-      category_icon_lib: group?.icon_lib,
-      category_icon_name: group?.icon_name
-    };
-
-    setSelectedTransaction(updatedTransaction);
-    setTransactions(prev => prev.map(t => t.id === selectedTransaction.id ? updatedTransaction : t));
-    setCurrentDrawerView('transaction-details');
-
-    try {
-      const { error } = await supabase
-        .from('transactions')
-        .update({ category_id: category.id })
-        .eq('id', selectedTransaction.id);
-
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error updating category:', err);
-      // Revert on error (optional, but good practice)
-      // For now, we'll just log it.
-    }
-
-    // Check for similar transactions
+    // 1. Check for similar transactions FIRST
     try {
       const response = await fetch('/api/transactions/detect-similar', {
         method: 'POST',
@@ -1124,16 +1097,90 @@ function TransactionsContent() {
       if (response.ok) {
         const data = await response.json();
         if (data.count > 0) {
+          // Found similar transactions!
+          // Store the category we WANT to apply, but don't apply it yet.
+          setPendingCategory(category);
           setSimilarTransactionsCount(data.count);
-          // Store the transactions to pass to the view
           setSimilarTransactions(data.transactions);
+          setMatchCriteria(data.criteria);
           setCurrentDrawerView('similar-transactions');
           setIsDrawerOpen(true);
+          return; // STOP HERE. Don't update DB yet.
         }
       }
     } catch (err) {
       console.error('Error detecting similar transactions:', err);
+      // Fall through to normal update if detection fails
     }
+
+    // 2. If no similar transactions (or error), proceed with immediate update
+    await updateTransactionCategory(category);
+  };
+
+  const updateTransactionCategory = async (category) => {
+    // Find the group for this category to get the color/icon
+    const group = categoryGroups.find(g => g.system_categories.some(c => c.id === category.id));
+
+    // Optimistic update
+    const updatedTransaction = {
+      ...selectedTransaction,
+      category_id: category.id,
+      category_name: category.label,
+      category_hex_color: group?.hex_color,
+      category_icon_lib: group?.icon_lib,
+      category_icon_name: group?.icon_icon_name
+    };
+
+    setSelectedTransaction(updatedTransaction);
+    setTransactions(prev => prev.map(t => t.id === selectedTransaction.id ? updatedTransaction : t));
+    setCurrentDrawerView('transaction-details');
+    setPendingCategory(null); // Clear pending
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: category.id })
+        .eq('id', selectedTransaction.id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating category:', err);
+      // Revert logic could go here
+    }
+  };
+
+  const handleConfirmRule = async (selectedIds) => {
+    if (pendingCategory) {
+      // 1. Update the original transaction (always)
+      await updateTransactionCategory(pendingCategory);
+
+      // 2. Update similar transactions if selected
+      if (selectedIds && selectedIds.length > 0) {
+        try {
+          // Optimistic update for similar transactions in the list
+          setTransactions(prev => prev.map(t =>
+            selectedIds.includes(t.id)
+              ? { ...t, category_id: pendingCategory.id, category_name: pendingCategory.label }
+              : t
+          ));
+
+          const { error } = await supabase
+            .from('transactions')
+            .update({ category_id: pendingCategory.id })
+            .in('id', selectedIds);
+
+          if (error) throw error;
+        } catch (err) {
+          console.error('Error updating similar transactions:', err);
+        }
+      }
+
+      setIsDrawerOpen(false); // Close drawer after confirming
+    }
+  };
+
+  const handleEditCategory = () => {
+    setCurrentDrawerView('select-category');
   };
 
   // Use transactions directly since they are now server-filtered
@@ -1367,15 +1414,25 @@ function TransactionsContent() {
             content: <SelectCategoryView
               categoryGroups={categoryGroups}
               onSelectCategory={handleCategorySelect}
-              currentCategoryId={selectedTransaction?.category_id}
+              currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
             />
           },
           {
             id: 'similar-transactions',
-            title: 'Similar Transactions',
+            noPadding: true,
+            title: (
+              <div className="flex items-center gap-2 text-[var(--color-fg)]">
+                <span>{similarTransactionsCount} Similar Transactions Found</span>
+              </div>
+            ),
             content: <SimilarTransactionsFound
               count={similarTransactionsCount}
               transactions={similarTransactions}
+              criteria={matchCriteria}
+              categoryName={pendingCategory?.label || selectedTransaction?.category_name}
+              categoryGroups={categoryGroups}
+              onEditCategory={handleEditCategory}
+              onConfirm={handleConfirmRule}
               onClose={handleSimilarTransactionsClose}
             />
           }

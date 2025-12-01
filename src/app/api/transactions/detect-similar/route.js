@@ -92,9 +92,15 @@ export async function POST(request) {
       category_hex_color: tx.system_categories?.category_groups?.hex_color,
     }));
 
+    // Determine match type for criteria
+    const criteria = transaction.merchant_name
+      ? { field: 'merchant_name', value: transaction.merchant_name, operator: 'is' }
+      : { field: 'description', value: transaction.description, operator: 'contains' };
+
     return Response.json({
       count: transformedTransactions.length,
-      transactions: transformedTransactions
+      transactions: transformedTransactions,
+      criteria
     });
 
   } catch (error) {

@@ -12,6 +12,7 @@ type DrawerView = {
   description?: string;
   content: ReactNode;
   showBackButton?: boolean;
+  noPadding?: boolean;
 };
 
 type DrawerProps = {
@@ -211,7 +212,7 @@ export default function Drawer({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -20, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="h-full px-4 pb-4"
+                className={clsx("h-full", currentView?.noPadding ? "" : "px-4 pb-4")}
               >
                 {displayContent}
               </motion.div>

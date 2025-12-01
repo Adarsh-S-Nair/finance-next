@@ -11,17 +11,28 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick }) {
+const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact }) {
   return (
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className="group flex items-center justify-between py-4 px-5 hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995]"
-      onClick={() => onTransactionClick(transaction)}
+      className={`group relative flex items-center justify-between ${compact ? 'py-3 px-4' : 'py-4 px-5'} hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995] ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
+      onClick={() => {
+        if (selectable && onSelect) {
+          onSelect(!selected);
+        } else {
+          onTransactionClick(transaction);
+        }
+      }}
     >
+      {selectable && (
+        <div
+          className={`absolute left-0 top-0 bottom-0 w-1 bg-[var(--color-accent)] transition-transform duration-200 origin-left ${selected ? 'scale-x-100' : 'scale-x-0'}`}
+        />
+      )}
       <div className="flex items-center gap-4 min-w-0 flex-1">
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-[var(--color-border)]/20 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-md"
+          className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-[var(--color-border)]/20 transition-transform duration-300`}
           style={{
             backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
               ? 'var(--color-surface)'
@@ -48,7 +59,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           <DynamicIcon
             iconLib={transaction.category_icon_lib}
             iconName={transaction.category_icon_name}
-            className="h-5 w-5 text-white"
+            className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
             fallback={FiTag}
             style={{
               display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
