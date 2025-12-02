@@ -1079,11 +1079,14 @@ function TransactionsContent() {
     setPendingCategory(null); // Clear pending category on similar transactions close
   };
 
+  const [detectingSimilar, setDetectingSimilar] = useState(false);
+
   const handleCategorySelect = async (category) => {
     if (!selectedTransaction) return;
 
     // 1. Check for similar transactions FIRST
     try {
+      setDetectingSimilar(true);
       const response = await fetch('/api/transactions/detect-similar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1111,6 +1114,8 @@ function TransactionsContent() {
     } catch (err) {
       console.error('Error detecting similar transactions:', err);
       // Fall through to normal update if detection fails
+    } finally {
+      setDetectingSimilar(false);
     }
 
     // 2. If no similar transactions (or error), proceed with immediate update
@@ -1445,11 +1450,34 @@ function TransactionsContent() {
             id: 'select-category',
             title: 'Select Category',
             showBackButton: true,
-            content: <SelectCategoryView
-              categoryGroups={categoryGroups}
-              onSelectCategory={handleCategorySelect}
-              currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
-            />
+            content: detectingSimilar ? (
+              <div className="p-4 space-y-6 animate-pulse">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-[var(--color-border)]/40 rounded" />
+                  <div className="rounded-xl border border-[var(--color-border)]/40 overflow-hidden">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex items-center justify-between p-4 border-b border-[var(--color-border)]/20 last:border-0">
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="w-10 h-10 rounded-full bg-[var(--color-border)]/40" />
+                          <div className="space-y-2 flex-1">
+                            <div className="h-4 w-3/4 bg-[var(--color-border)]/40 rounded" />
+                            <div className="h-3 w-1/2 bg-[var(--color-border)]/40 rounded" />
+                          </div>
+                        </div>
+                        <div className="h-4 w-16 bg-[var(--color-border)]/40 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="h-48 bg-[var(--color-border)]/40 rounded-xl" />
+              </div>
+            ) : (
+              <SelectCategoryView
+                categoryGroups={categoryGroups}
+                onSelectCategory={handleCategorySelect}
+                currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
+              />
+            )
           },
           {
             id: 'similar-transactions',

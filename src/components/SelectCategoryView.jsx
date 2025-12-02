@@ -72,12 +72,9 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
             <p className="text-[var(--color-muted)] font-medium">No categories found</p>
           </motion.div>
         ) : (
-          filteredGroups.map((group, groupIndex) => (
-            <motion.div
+          filteredGroups.map((group) => (
+            <div
               key={group.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: groupIndex * 0.05, duration: 0.3 }}
               className="bg-[var(--color-surface)]/30 border border-[var(--color-border)]/40 rounded-2xl p-3 space-y-3"
             >
               {/* Group Header */}
@@ -124,7 +121,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                   );
                 })}
               </div>
-            </motion.div>
+            </div>
           ))
         )}
       </div>

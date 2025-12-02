@@ -476,6 +476,24 @@ export async function POST(request) {
       }
 
       if (DEBUG) console.log(`🔗 Linked ${linkedCount} transactions to system categories`);
+
+      // --- APPLY USER RULES ---
+      if (DEBUG) console.log('📏 Applying user category rules...');
+      try {
+        const { fetchUserRules, applyRulesToTransactions } = await import('../../../../../lib/category-rules');
+        const userRules = await fetchUserRules(userId);
+
+        if (userRules.length > 0) {
+          const rulesAppliedCount = applyRulesToTransactions(transactionsToUpsert, userRules);
+          if (DEBUG) console.log(`✅ Applied rules to ${rulesAppliedCount} transactions`);
+          logger.info('Applied category rules', { count: rulesAppliedCount });
+        } else {
+          if (DEBUG) console.log('ℹ️ No user rules found');
+        }
+      } catch (ruleError) {
+        console.error('❌ Error applying category rules:', ruleError);
+        // Don't fail sync if rules fail
+      }
     }
 
     // Upsert all transactions

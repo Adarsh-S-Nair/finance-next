@@ -198,12 +198,12 @@ export default function SettingsPage() {
               <div className="divide-y divide-[var(--color-border)]">
                 {accounts.map((institution) => (
                   <div key={institution.id} className="flex items-center gap-3 py-3 first:pt-1 last:pb-1">
-                    <div className="w-9 h-9 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0 p-1.5">
+                    <div className="w-9 h-9 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0">
                       {institution.logo ? (
                         <img
                           src={institution.logo}
                           alt={`${institution.name} logo`}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-cover"
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'block';
