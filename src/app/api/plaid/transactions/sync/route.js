@@ -264,6 +264,13 @@ export async function POST(request) {
       }
 
       // Prepare transaction data for upsert (category_id will be set later)
+      if (DEBUG) {
+        console.log(`📅 Processing transaction: ${transaction.name} (${transaction.amount})`);
+        console.log(`   Raw dates from Plaid - date: ${transaction.date}, datetime: ${transaction.datetime}, authorized_date: ${transaction.authorized_date}`);
+      }
+
+      const effectiveDate = transaction.authorized_date || transaction.date;
+
       const transactionData = {
         account_id: accountUuid,
         plaid_transaction_id: transaction.transaction_id,
@@ -274,9 +281,10 @@ export async function POST(request) {
         merchant_name: transaction.merchant_name,
         icon_url: transaction.logo_url || (transaction.counterparties && transaction.counterparties.length > 0 ? transaction.counterparties[0].logo_url : null),
         personal_finance_category: transaction.personal_finance_category,
-        datetime: transaction.datetime ? new Date(transaction.datetime).toISOString() : (transaction.date ? new Date(transaction.date).toISOString() : null),
-        date: transaction.date || null,
+        datetime: transaction.datetime || (effectiveDate ? new Date(effectiveDate).toISOString() : null),
+        date: effectiveDate || null,
         authorized_date: transaction.authorized_date || null,
+        authorized_datetime: transaction.authorized_datetime || null,
         location: transaction.location,
         payment_channel: transaction.payment_channel,
         website: transaction.website,

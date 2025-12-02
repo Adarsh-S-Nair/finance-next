@@ -87,7 +87,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
               placeholder="Search transactions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none text-base"
             />
           </div>
         </div>

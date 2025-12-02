@@ -83,7 +83,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         </div>
         {transaction.date && (
           <div className="text-xs text-[var(--color-muted)] mt-0.5">
-            {new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
           </div>
         )}
         {transaction.pending && (

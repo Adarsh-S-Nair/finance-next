@@ -131,7 +131,7 @@ export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEd
                     <Input
                       value={condition.value}
                       onChange={(e) => handleConditionChange(condition.id, 'value', e.target.value)}
-                      className="w-full bg-[var(--color-bg)] border-[var(--color-border)] focus:border-[var(--color-accent)] h-9 text-sm"
+                      className="w-full bg-[var(--color-bg)] border-[var(--color-border)] focus:border-[var(--color-accent)] h-9 text-base"
                       placeholder="Value..."
                       type={currentFieldOption?.type === 'number' ? 'number' : 'text'}
                     />
