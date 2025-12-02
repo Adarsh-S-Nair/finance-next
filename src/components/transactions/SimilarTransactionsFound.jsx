@@ -6,7 +6,20 @@ import Card from '../ui/Card';
 import RuleBuilder from './RuleBuilder';
 
 export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose }) {
+  const [currentRules, setCurrentRules] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Initialize rules from criteria
+  useEffect(() => {
+    if (criteria) {
+      setCurrentRules([{
+        id: Date.now(),
+        field: criteria.field || 'merchant_name',
+        operator: criteria.operator || 'is',
+        value: criteria.value || '',
+      }]);
+    }
+  }, [criteria]);
 
   // Initialize selection with all transactions
   useEffect(() => {
@@ -26,7 +39,7 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
   };
 
   const handleConfirm = () => {
-    onConfirm(Array.from(selectedIds));
+    onConfirm(Array.from(selectedIds), currentRules);
   };
 
   return (
@@ -60,6 +73,7 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
           categoryName={categoryName}
           categoryGroups={categoryGroups}
           onEditCategory={onEditCategory}
+          onRuleChange={setCurrentRules}
         />
       </div>
 

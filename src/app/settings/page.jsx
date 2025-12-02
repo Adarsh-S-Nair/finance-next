@@ -13,7 +13,7 @@ import { useUser } from "../../components/UserProvider";
 import { useAccounts } from "../../components/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
 import { FaUnlink, FaPlus } from "react-icons/fa";
-import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock, FiAlertCircle, FiTool } from "react-icons/fi";
+import { FiTool } from "react-icons/fi";
 import PlaidLinkModal from "../../components/PlaidLinkModal";
 
 export default function SettingsPage() {
@@ -134,61 +134,71 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <section aria-labelledby="appearance-heading" className="mt-4 pl-6 relative z-20">
-        <h2 id="appearance-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Appearance</h2>
-        <Card className="mt-3" allowOverflow={true}>
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <div className="font-medium">Theme</div>
-              <div className="text-sm text-[var(--color-muted)] hidden sm:block">Switch between light and dark mode.</div>
+      <div className="max-w-3xl space-y-8">
+        <section aria-labelledby="appearance-heading">
+          <h2 id="appearance-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Appearance</h2>
+          <Card>
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium text-[var(--color-fg)]">Theme</div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">Switch between light and dark mode.</div>
+              </div>
+              <ThemeToggle />
             </div>
-            <ThemeToggle />
-          </div>
-          <div className="my-2 h-px w-full bg-[var(--color-border)]" />
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <div className="font-medium">Accent color</div>
-              <div className="text-sm text-[var(--color-muted)] hidden sm:block">Choose a highlight color for the UI.</div>
+            <div className="h-px w-full bg-[var(--color-border)]" />
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium text-[var(--color-fg)]">Accent color</div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">Choose a highlight color for the UI.</div>
+              </div>
+              <AccentPicker />
             </div>
-            <AccentPicker />
-          </div>
-        </Card>
-      </section>
+          </Card>
+        </section>
 
-      <section aria-labelledby="institutions-heading" className="mt-8 pl-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 id="institutions-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Connected Institutions</h2>
-          <Button
-            onClick={handleAddAccount}
-            variant="ghost"
-            size="icon"
-            aria-label="Add Account"
-            className="hover:bg-[var(--color-accent)]/10"
-          >
-            <FaPlus className="h-4 w-4" />
-          </Button>
-        </div>
-        <Card className="mt-3">
-          {accountsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--color-accent)] mx-auto mb-2"></div>
-                <p className="text-sm text-[var(--color-muted)]">Loading institutions...</p>
+        <section aria-labelledby="institutions-heading">
+          <div className="flex items-center justify-between mb-3">
+            <h2 id="institutions-heading" className="text-sm font-medium text-[var(--color-muted)] uppercase tracking-wider">Connected Institutions</h2>
+            <Button
+              onClick={handleAddAccount}
+              variant="ghost"
+              size="sm"
+              className="text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 text-xs h-8"
+            >
+              <FaPlus className="h-3 w-3 mr-1.5" />
+              Add Account
+            </Button>
+          </div>
+          <Card>
+            {accountsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[var(--color-accent)] mx-auto mb-2"></div>
+                  <p className="text-xs text-[var(--color-muted)]">Loading institutions...</p>
+                </div>
               </div>
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <PiBankFill className="h-8 w-8 text-[var(--color-muted)] mx-auto mb-2" />
-                <p className="text-sm text-[var(--color-muted)]">No institutions connected</p>
+            ) : accounts.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="w-10 h-10 rounded-full bg-[var(--color-surface)] flex items-center justify-center mx-auto mb-2 border border-[var(--color-border)]">
+                    <PiBankFill className="h-5 w-5 text-[var(--color-muted)]" />
+                  </div>
+                  <p className="text-xs text-[var(--color-muted)]">No institutions connected</p>
+                  <Button
+                    onClick={handleAddAccount}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 text-xs h-8"
+                  >
+                    Connect Bank
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {accounts.map((institution, index) => (
-                <div key={institution.id}>
-                  <div className="flex items-center gap-4 py-3">
-                    <div className="w-10 h-10 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+            ) : (
+              <div className="divide-y divide-[var(--color-border)]">
+                {accounts.map((institution) => (
+                  <div key={institution.id} className="flex items-center gap-3 py-3 first:pt-1 last:pb-1">
+                    <div className="w-9 h-9 rounded-full bg-white border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0 p-1.5">
                       {institution.logo ? (
                         <img
                           src={institution.logo}
@@ -201,55 +211,81 @@ export default function SettingsPage() {
                         />
                       ) : null}
                       <PiBankFill
-                        className={`h-5 w-5 text-[var(--color-accent)] ${institution.logo ? 'hidden' : 'block'}`}
+                        className={`h-4 w-4 text-[var(--color-accent)] ${institution.logo ? 'hidden' : 'block'}`}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-[var(--color-fg)] truncate">{institution.name}</div>
-                      <div className="text-sm text-[var(--color-muted)]">
+                      <div className="text-sm font-medium text-[var(--color-fg)] truncate">{institution.name}</div>
+                      <div className="text-xs text-[var(--color-muted)]">
                         {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''} connected
                       </div>
                     </div>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="iconSm"
                       onClick={() => handleDisconnectInstitution(institution)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10 dark:hover:text-red-400"
+                      className="text-[var(--color-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10"
+                      title="Disconnect"
                     >
-                      <FaUnlink className="h-4 w-4 mr-2" />
-                      Disconnect
+                      <FaUnlink className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {index < accounts.length - 1 && (
-                    <div className="h-px w-full bg-[var(--color-border)]" />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </section>
+                ))}
+              </div>
+            )}
+          </Card>
+        </section>
 
-      <section aria-labelledby="danger-heading" className="mt-8 pl-6">
-        <h2 id="danger-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Delete Account</h2>
-        <Card variant="danger" className="mt-3">
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <div className="font-medium">Delete account</div>
-              <div className="text-sm text-[var(--color-muted)] hidden sm:block">This will permanently delete your account and all associated data.</div>
+        <section aria-labelledby="danger-heading">
+          <h2 id="danger-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Danger Zone</h2>
+          <Card variant="danger">
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium text-red-600 dark:text-red-400">Delete account</div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">This will permanently delete your account and all associated data.</div>
+              </div>
+              <Button
+                aria-label="Delete account"
+                title="Delete account"
+                variant="danger"
+                size="sm"
+                className="text-xs h-8"
+                onClick={() => setConfirmOpen(true)}
+              >
+                Delete Account
+              </Button>
             </div>
-            <Button
-              aria-label="Delete account"
-              title="Delete account"
-              variant="danger"
-              size="sm"
-              onClick={() => setConfirmOpen(true)}
-            >
-              Delete Account
-            </Button>
-          </div>
-        </Card>
-      </section>
+          </Card>
+        </section>
+
+        {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
+          <section aria-labelledby="debug-heading">
+            <h2 id="debug-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Debug Tools</h2>
+            <Card variant="default" className="border-amber-500/20 bg-amber-500/5">
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <div className="text-sm font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
+                    <FiTool className="h-4 w-4" />
+                    Resync Transactions
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                    Force a full re-download of all transaction history from Plaid.
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResync}
+                  disabled={isResyncing}
+                  className="border-amber-500/20 hover:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-xs h-8"
+                >
+                  {isResyncing ? 'Syncing...' : 'Resync All'}
+                </Button>
+              </div>
+            </Card>
+          </section>
+        )}
+      </div>
 
       <ConfirmDialog
         isOpen={confirmOpen}
@@ -288,34 +324,6 @@ export default function SettingsPage() {
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
       />
-
-      {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
-        <section aria-labelledby="debug-heading" className="mt-8 pl-6">
-          <h2 id="debug-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Debug Tools</h2>
-          <Card variant="default" className="mt-3 border-amber-500/20 bg-amber-500/5">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <div className="font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
-                  <FiTool className="h-4 w-4" />
-                  Resync Transactions
-                </div>
-                <div className="text-sm text-[var(--color-muted)] hidden sm:block">
-                  Force a full re-download of all transaction history from Plaid.
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResync}
-                disabled={isResyncing}
-                className="border-amber-500/20 hover:bg-amber-500/10 text-amber-600 dark:text-amber-500"
-              >
-                {isResyncing ? 'Syncing...' : 'Resync All'}
-              </Button>
-            </div>
-          </Card>
-        </section>
-      )}
     </PageContainer>
   );
 }

@@ -1128,7 +1128,7 @@ function TransactionsContent() {
       category_name: category.label,
       category_hex_color: group?.hex_color,
       category_icon_lib: group?.icon_lib,
-      category_icon_name: group?.icon_icon_name
+      category_icon_name: group?.icon_name
     };
 
     setSelectedTransaction(updatedTransaction);
@@ -1149,7 +1149,7 @@ function TransactionsContent() {
     }
   };
 
-  const handleConfirmRule = async (selectedIds) => {
+  const handleConfirmRule = async (selectedIds, rules) => {
     if (pendingCategory) {
       // 1. Update the original transaction (always)
       await updateTransactionCategory(pendingCategory);
@@ -1157,10 +1157,20 @@ function TransactionsContent() {
       // 2. Update similar transactions if selected
       if (selectedIds && selectedIds.length > 0) {
         try {
+          // Find the group for this category to get the color/icon
+          const group = categoryGroups.find(g => g.system_categories.some(c => c.id === pendingCategory.id));
+
           // Optimistic update for similar transactions in the list
           setTransactions(prev => prev.map(t =>
             selectedIds.includes(t.id)
-              ? { ...t, category_id: pendingCategory.id, category_name: pendingCategory.label }
+              ? {
+                ...t,
+                category_id: pendingCategory.id,
+                category_name: pendingCategory.label,
+                category_hex_color: group?.hex_color,
+                category_icon_lib: group?.icon_lib,
+                category_icon_name: group?.icon_name
+              }
               : t
           ));
 
@@ -1172,6 +1182,30 @@ function TransactionsContent() {
           if (error) throw error;
         } catch (err) {
           console.error('Error updating similar transactions:', err);
+        }
+      }
+
+      // 3. Create the category rule
+      if (rules && rules.length > 0) {
+        try {
+          // Clean up rules to remove internal IDs before saving
+          const conditions = rules.map(({ field, operator, value }) => ({
+            field,
+            operator,
+            value
+          }));
+
+          const { error } = await supabase
+            .rpc('upsert_category_rule', {
+              p_user_id: profile.id,
+              p_category_id: pendingCategory.id,
+              p_conditions: conditions
+            });
+
+          if (error) throw error;
+          console.log('Category rule upserted successfully');
+        } catch (err) {
+          console.error('Error creating category rule:', err);
         }
       }
 

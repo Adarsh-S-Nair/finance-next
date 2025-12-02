@@ -25,46 +25,51 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         }
       }}
     >
-      {selectable && (
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-1 bg-[var(--color-accent)] transition-transform duration-200 origin-left ${selected ? 'scale-x-100' : 'scale-x-0'}`}
-        />
-      )}
+
       <div className="flex items-center gap-4 min-w-0 flex-1">
-        <div
-          className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-[var(--color-border)]/20 transition-transform duration-300`}
-          style={{
-            backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-              ? 'var(--color-surface)'
-              : (transaction.category_hex_color || 'var(--color-accent)')
-          }}
-        >
-          {(!DISABLE_LOGOS && transaction.icon_url) ? (
-            <img
-              src={transaction.icon_url}
-              alt={transaction.merchant_name || transaction.description || 'Transaction'}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              decoding="async"
-              onError={(e) => {
-                // Fallback to category icon if image fails to load
-                e.target.style.display = 'none';
-                const fallbackIcon = e.target.nextSibling;
-                if (fallbackIcon) {
-                  fallbackIcon.style.display = 'block';
-                }
+        <div className="relative">
+          <div
+            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border transition-all duration-300 ${selected ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/20' : 'border-[var(--color-border)]/20'}`}
+            style={{
+              backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+                ? 'var(--color-surface)'
+                : (transaction.category_hex_color || 'var(--color-accent)')
+            }}
+          >
+            {(!DISABLE_LOGOS && transaction.icon_url) ? (
+              <img
+                src={transaction.icon_url}
+                alt={transaction.merchant_name || transaction.description || 'Transaction'}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  // Fallback to category icon if image fails to load
+                  e.target.style.display = 'none';
+                  const fallbackIcon = e.target.nextSibling;
+                  if (fallbackIcon) {
+                    fallbackIcon.style.display = 'block';
+                  }
+                }}
+              />
+            ) : null}
+            <DynamicIcon
+              iconLib={transaction.category_icon_lib}
+              iconName={transaction.category_icon_name}
+              className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
+              fallback={FiTag}
+              style={{
+                display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
               }}
             />
-          ) : null}
-          <DynamicIcon
-            iconLib={transaction.category_icon_lib}
-            iconName={transaction.category_icon_name}
-            className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
-            fallback={FiTag}
-            style={{
-              display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
-            }}
-          />
+          </div>
+          {selected && (
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-accent)] rounded-full flex items-center justify-center border-2 border-[var(--color-bg)] animate-scale-in shadow-sm">
+              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          )}
         </div>
         <div className="min-w-0 flex-1 mr-4">
           <div className="font-medium text-[var(--color-fg)] truncate text-sm transition-colors">

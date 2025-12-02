@@ -43,7 +43,7 @@ export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEd
   }, [criteria]);
 
   const handleConditionChange = (id, key, value) => {
-    setConditions(prev => prev.map(condition => {
+    const newConditions = conditions.map(condition => {
       if (condition.id !== id) return condition;
 
       const newCondition = { ...condition, [key]: value };
@@ -59,21 +59,28 @@ export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEd
       }
 
       return newCondition;
-    }));
+    });
+
+    setConditions(newConditions);
+    onRuleChange?.(newConditions);
   };
 
   const addCondition = () => {
-    setConditions(prev => [...prev, {
+    const newConditions = [...conditions, {
       id: Date.now(),
       field: 'merchant_name',
       operator: 'is',
       value: ''
-    }]);
+    }];
+    setConditions(newConditions);
+    onRuleChange?.(newConditions);
   };
 
   const removeCondition = (id) => {
     if (conditions.length > 1) {
-      setConditions(prev => prev.filter(c => c.id !== id));
+      const newConditions = conditions.filter(c => c.id !== id);
+      setConditions(newConditions);
+      onRuleChange?.(newConditions);
     }
   };
 
