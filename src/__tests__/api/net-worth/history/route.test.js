@@ -1,4 +1,4 @@
-import { GET } from './route';
+import { GET } from '../../../../app/api/net-worth/history/route';
 
 // Mock NextResponse
 const NextResponse = {

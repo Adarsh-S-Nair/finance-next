@@ -1,4 +1,4 @@
-import { matchesRule, applyRulesToTransactions } from '../category-rules';
+import { matchesRule, applyRulesToTransactions } from '../../lib/category-rules';
 
 describe('Category Rules Logic', () => {
   describe('matchesRule', () => {
