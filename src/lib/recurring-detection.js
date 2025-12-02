@@ -48,6 +48,18 @@ export async function detectRecurringTransactions(userId) {
 
   const excludedCategoryIds = new Set(excludedCategoryRows?.map(c => c.id) || []);
 
+  // Fetch all system categories for lookup
+  const { data: allCategories } = await supabaseAdmin
+    .from('system_categories')
+    .select('id, label');
+
+  const categoryMap = new Map();
+  if (allCategories) {
+    for (const cat of allCategories) {
+      categoryMap.set(cat.id, cat.label);
+    }
+  }
+
   const userTransactions = transactions.filter(t => {
     // Must belong to user
     if (!userAccountIds.has(t.account_id)) return false;
@@ -92,7 +104,8 @@ export async function detectRecurringTransactions(userId) {
   for (const [name, txs] of Object.entries(groups)) {
     // Helper to analyze a set of transactions
     const analyzeSet = (transactions, merchantName) => {
-      if (transactions.length < 3) return null;
+      // Allow 2 transactions if they are RECENT and IDENTICAL (New Subscription)
+      if (transactions.length < 2) return null;
 
       // Sort by date ascending
       transactions.sort((a, b) => a.dateObj - b.dateObj);
@@ -109,7 +122,48 @@ export async function detectRecurringTransactions(userId) {
         }
       }
 
-      if (uniqueTransactions.length < 3) return null;
+      // If we filtered down to < 2, definitely return null
+      if (uniqueTransactions.length < 2) return null;
+
+      // STRICT CHECK FOR 2 TRANSACTIONS (New Subscription Detection)
+      if (uniqueTransactions.length === 2) {
+        const t1 = uniqueTransactions[0];
+        const t2 = uniqueTransactions[1];
+
+        const diffTime = Math.abs(t2.dateObj - t1.dateObj);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Must be monthly (28-31 days)
+        const isMonthly = diffDays >= 28 && diffDays <= 31;
+
+        // Must be EXACT same amount
+        const isSameAmount = Math.abs(parseFloat(t1.amount) - parseFloat(t2.amount)) < 0.01;
+
+        // Must be same day of month (or very close, e.g. 28th and 29th)
+        const isSameDay = Math.abs(t1.dateObj.getDate() - t2.dateObj.getDate()) <= 1;
+
+        if (isMonthly && isSameAmount && isSameDay) {
+          // It's a match!
+          const nextDate = new Date(t2.dateObj);
+          nextDate.setMonth(nextDate.getMonth() + 1);
+
+          return {
+            user_id: userId,
+            merchant_name: merchantName,
+            description: t2.description,
+            amount: Math.abs(parseFloat(t2.amount)),
+            frequency: 'monthly',
+            status: 'active',
+            last_date: t2.dateObj.toISOString().split('T')[0],
+            next_date: nextDate.toISOString().split('T')[0],
+            confidence: 0.85, // High confidence because it's exact
+            icon_url: t2.icon_url,
+            category_id: t2.category_id
+          };
+        }
+        // If not a perfect match, we need 3+ transactions
+        return null;
+      }
 
       const intervals = [];
       for (let i = 1; i < uniqueTransactions.length; i++) {
@@ -126,6 +180,40 @@ export async function detectRecurringTransactions(userId) {
       let frequency = null;
       let confidence = 0.0;
 
+      // Check Category
+      const lastTx = uniqueTransactions[uniqueTransactions.length - 1];
+      const categoryLabel = (categoryMap.get(lastTx.category_id) || '');
+
+      // Precise Utility Detection
+      const isUtility = [
+        'Gas and Electricity',
+        'Water',
+        'Internet',
+        'Insurance',
+        'Home Phone',
+        'Mobile Phone',
+        'Cable'
+      ].includes(categoryLabel);
+
+      // Precise Variable/Habitual Expense Detection
+      const isVariableCategory = [
+        'Coffee',
+        'Gas', // Exact match for gas stations
+        'Taxis and Ride Shares',
+        'Discount Stores',
+        'Food and Drink'
+      ].includes(categoryLabel);
+
+      // HARD EXCLUSION: These categories should almost NEVER be subscriptions
+      // The user explicitly requested "Fast Food" to be ignored.
+      const isExcludedCategory = [
+        'Fast Food',
+        'Convenience Stores',
+        'Restaurants'
+      ].includes(categoryLabel);
+
+      if (isExcludedCategory) return null;
+
       // Heuristics
       if (Math.abs(avgInterval - 7) < 2 && stdDev < 2) {
         frequency = 'weekly';
@@ -136,8 +224,23 @@ export async function detectRecurringTransactions(userId) {
       } else if (Math.abs(avgInterval - 30.5) < 5 && stdDev < 5) {
         frequency = 'monthly';
         confidence = 0.95;
+      } else if (Math.abs(avgInterval - 61) < 10 && stdDev < 10) {
+        // Bi-monthly or skipped month
+        frequency = 'monthly';
+        confidence = 0.85;
+      } else if (Math.abs(avgInterval - 91.5) < 10 && stdDev < 10) {
+        // Quarterly or skipped months
+        frequency = 'monthly';
+        confidence = 0.8;
       } else if (Math.abs(avgInterval - 365) < 10) {
         frequency = 'yearly';
+        confidence = 0.8;
+      } else if (isUtility && avgInterval >= 25 && avgInterval <= 100) {
+        // IRREGULAR UTILITY FIX (Pseg/National Grid):
+        // Utilities often have weird intervals (28 days, 35 days, 60 days, 80 days)
+        // If it's explicitly a utility, we allow a wide range of "monthly-ish" intervals
+        // and ignore standard deviation.
+        frequency = 'monthly';
         confidence = 0.8;
       }
 
@@ -147,13 +250,37 @@ export async function detectRecurringTransactions(userId) {
         const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
         const amountVariance = amounts.reduce((a, b) => a + Math.pow(b - avgAmount, 2), 0) / amounts.length;
 
+        // FALSE POSITIVE REDUCTION (Coffee/Gas/etc.):
+        // If it's a "variable" category AND amount is small (< $50),
+        // we require strict checks to distinguish subscriptions from habits.
+        if (isVariableCategory && avgAmount < 50) {
+          // 1. Amount Consistency: Must be EXTREMELY consistent (like Spotify)
+          // Variance of 1.0 means stdDev of $1.00.
+          if (amountVariance > 1.0) {
+            return null;
+          }
+
+          // 2. Day-of-Month Consistency: Subscriptions hit on the same day (e.g., 15th).
+          // Habits (7-Eleven) happen on random days.
+          const daysOfMonth = uniqueTransactions.map(t => t.dateObj.getDate());
+          const avgDay = daysOfMonth.reduce((a, b) => a + b, 0) / daysOfMonth.length;
+          const dayVariance = daysOfMonth.reduce((a, b) => a + Math.pow(b - avgDay, 2), 0) / daysOfMonth.length;
+          const dayStdDev = Math.sqrt(dayVariance);
+
+          // Allow small drift (weekend shifts), but not random days.
+          // stdDev < 3 means mostly within +/- 3 days.
+          if (dayStdDev > 3) {
+            return null;
+          }
+        }
+
         // If amount varies wildly, reduce confidence slightly
-        if (amountVariance > 100) { // Arbitrary threshold
+        // But for utilities, we expect variance, so we don't penalize as much or at all if it's a utility
+        if (amountVariance > 2000 && !isUtility) {
           confidence -= 0.1;
         }
 
         // Calculate next date
-        const lastTx = uniqueTransactions[uniqueTransactions.length - 1];
         const nextDate = new Date(lastTx.dateObj);
 
         if (frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
@@ -171,6 +298,9 @@ export async function detectRecurringTransactions(userId) {
         if (frequency === 'monthly') allowedMissedCycles = 1;
         if (frequency === 'yearly') allowedMissedCycles = 0.2;
 
+        // Allow more missed cycles for irregular utilities
+        if (isUtility) allowedMissedCycles = 2;
+
         let cycleDays = 30;
         if (frequency === 'weekly') cycleDays = 7;
         if (frequency === 'bi-weekly') cycleDays = 14;
@@ -178,7 +308,6 @@ export async function detectRecurringTransactions(userId) {
 
         // If we missed too many cycles, reduce confidence drastically or discard
         if (daysPastDue > (cycleDays * allowedMissedCycles)) {
-          console.log(`⚠️ Discarding ${merchantName} (${frequency}): Missed ${daysPastDue / cycleDays} cycles.`);
           return null;
         }
 
@@ -201,7 +330,7 @@ export async function detectRecurringTransactions(userId) {
 
     // 1. Try analyzing the whole group first
     const mainResult = analyzeSet(txs, name);
-    if (mainResult && mainResult.confidence > 0.8) {
+    if (mainResult && mainResult.confidence > 0.7) {
       recurringCandidates.push(mainResult);
       // continue; // REMOVED: Don't skip clustering, we might have multiple subscriptions!
     }

@@ -246,7 +246,7 @@ function RecurringTransactionItem({ item }) {
             {item.merchant_name}
           </div>
           <div className="text-xs text-[var(--color-muted)] capitalize">
-            {item.frequency}
+            {item.category?.label || item.frequency}
           </div>
         </div>
       </div>
@@ -259,6 +259,6 @@ function RecurringTransactionItem({ item }) {
           {formatDate(item.next_date)}
         </div>
       </div>
-    </div>
+    </div >
   );
 }

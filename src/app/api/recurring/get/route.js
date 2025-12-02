@@ -20,6 +20,8 @@ export async function GET(request) {
       .select(`
         *,
         category:system_categories (
+          id,
+          label,
           group:category_groups (
             icon_name,
             icon_lib,
