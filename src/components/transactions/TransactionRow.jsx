@@ -11,7 +11,7 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact }) {
+const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact, showDate = false }) {
   return (
     <div
       data-transaction-item
@@ -81,11 +81,12 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         <div className={`font-semibold text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
           {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
         </div>
-        {transaction.date && (
+        {showDate && transaction.date && (
           <div className="text-xs text-[var(--color-muted)] mt-0.5">
             {new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
           </div>
         )}
+
         {transaction.pending && (
           <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
             Pending

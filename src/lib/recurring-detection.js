@@ -15,10 +15,10 @@ export async function detectRecurringTransactions(userId) {
 
   const { data: transactions, error } = await supabaseAdmin
     .from('transactions')
-    .select('id, amount, datetime, merchant_name, description, account_id, category_id, icon_url')
+    .select('id, amount, date, datetime, merchant_name, description, account_id, category_id, icon_url')
     .eq('pending', false) // Only look at posted transactions
-    .gte('datetime', oneYearAgo.toISOString())
-    .order('datetime', { ascending: false });
+    .gte('date', oneYearAgo.toISOString().split('T')[0]) // Use date column for filtering
+    .order('date', { ascending: false });
 
   if (error) {
     console.error('❌ Failed to fetch transactions for detection:', error);
@@ -82,7 +82,7 @@ export async function detectRecurringTransactions(userId) {
     }
     groups[key].push({
       ...t,
-      dateObj: new Date(t.datetime)
+      dateObj: new Date(t.date) // Use the 'date' column which is already timezone adjusted
     });
   }
 
@@ -258,21 +258,51 @@ export async function detectRecurringTransactions(userId) {
     }
   }
 
-  // 4. Upsert into Database
-  if (recurringCandidates.length > 0) {
-    console.log(`✅ Detected ${recurringCandidates.length} recurring patterns.`);
+  // 4. Deduplicate candidates by merchant_name + amount/date
+  // Allow multiple subscriptions for the same merchant if they are distinct (different amount or date)
+  const finalCandidates = [];
 
-    // Better approach: Try to find existing match by merchant_name
+  for (const candidate of recurringCandidates) {
+    // Check if we already have a "similar" candidate
+    // We only merge if BOTH amount and date are similar (meaning it's the same subscription detected twice)
+    const similarIndex = finalCandidates.findIndex(c =>
+      c.merchant_name === candidate.merchant_name &&
+      Math.abs(c.amount - candidate.amount) < 1.0 && // Same amount (approx)
+      Math.abs(new Date(c.next_date) - new Date(candidate.next_date)) < (1000 * 60 * 60 * 24 * 3) // Same date (within 3 days)
+    );
+
+    if (similarIndex >= 0) {
+      // Conflict: keep higher confidence
+      if (candidate.confidence > finalCandidates[similarIndex].confidence) {
+        finalCandidates[similarIndex] = candidate;
+      }
+    } else {
+      finalCandidates.push(candidate);
+    }
+  }
+
+  // 5. Upsert into Database
+  if (finalCandidates.length > 0) {
+    console.log(`✅ Detected ${finalCandidates.length} recurring patterns (from ${recurringCandidates.length} candidates).`);
+
+    // Better approach: Try to find existing match by merchant_name AND amount
     const { data: existing } = await supabaseAdmin
       .from('recurring_transactions')
-      .select('id, merchant_name, status')
+      .select('id, merchant_name, amount, status')
       .eq('user_id', userId);
 
-    const existingMap = new Map(existing?.map(e => [e.merchant_name, e]) || []);
+    const matchedIds = new Set();
 
-    const upsertData = recurringCandidates.map(candidate => {
-      const match = existingMap.get(candidate.merchant_name);
+    const upsertData = finalCandidates.map(candidate => {
+      // Find best match in existing that hasn't been used yet
+      const match = existing?.find(e =>
+        !matchedIds.has(e.id) &&
+        e.merchant_name === candidate.merchant_name &&
+        Math.abs(parseFloat(e.amount) - candidate.amount) < 5.0 // Match if amount is within $5
+      );
+
       if (match) {
+        matchedIds.add(match.id);
         // Update existing
         return {
           ...candidate,

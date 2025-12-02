@@ -13,6 +13,7 @@ import { useUser } from "../../components/UserProvider";
 import { useAccounts } from "../../components/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
 import { FaUnlink, FaPlus } from "react-icons/fa";
+import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock, FiAlertCircle, FiTool } from "react-icons/fi";
 import PlaidLinkModal from "../../components/PlaidLinkModal";
 
 export default function SettingsPage() {
@@ -24,6 +25,25 @@ export default function SettingsPage() {
   const [disconnectModal, setDisconnectModal] = useState({ isOpen: false, institution: null });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResync = async () => {
+    if (!confirm("Are you sure? This will reset your transaction history and trigger a full resync.")) return;
+    setIsResyncing(true);
+    try {
+      const res = await fetch('/api/plaid/reset-cursor', {
+        method: 'POST',
+        body: JSON.stringify({ userId: profile.id })
+      });
+      if (!res.ok) throw new Error("Failed to reset");
+      alert("Resync started. Please wait a few moments for transactions to update.");
+      router.refresh();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setIsResyncing(false);
+    }
+  };
 
   async function handleDeleteAccount() {
     try {
@@ -268,6 +288,34 @@ export default function SettingsPage() {
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
       />
+
+      {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
+        <section aria-labelledby="debug-heading" className="mt-8 pl-6">
+          <h2 id="debug-heading" className="text-sm font-semibold tracking-wide text-[var(--color-muted)]">Debug Tools</h2>
+          <Card variant="default" className="mt-3 border-amber-500/20 bg-amber-500/5">
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <div className="font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
+                  <FiTool className="h-4 w-4" />
+                  Resync Transactions
+                </div>
+                <div className="text-sm text-[var(--color-muted)] hidden sm:block">
+                  Force a full re-download of all transaction history from Plaid.
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResync}
+                disabled={isResyncing}
+                className="border-amber-500/20 hover:bg-amber-500/10 text-amber-600 dark:text-amber-500"
+              >
+                {isResyncing ? 'Syncing...' : 'Resync All'}
+              </Button>
+            </div>
+          </Card>
+        </section>
+      )}
     </PageContainer>
   );
 }

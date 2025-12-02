@@ -4,6 +4,7 @@ import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 import { createLogger } from '../../../../../lib/logger';
 import { detectRecurringTransactions } from '../../../../../lib/recurring-detection';
+import { formatInTimeZone } from 'date-fns-tz';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('transaction-sync');
@@ -269,7 +270,19 @@ export async function POST(request) {
         console.log(`   Raw dates from Plaid - date: ${transaction.date}, datetime: ${transaction.datetime}, authorized_date: ${transaction.authorized_date}`);
       }
 
-      const effectiveDate = transaction.authorized_date || transaction.date;
+      // Calculate effective date in user's timezone (EST)
+      // This ensures that late-night transactions (e.g. 8 PM EST = 1 AM UTC next day)
+      // are recorded on the correct calendar day for the user.
+      const targetTimezone = 'America/New_York';
+      let effectiveDate = transaction.date; // Default fallback
+
+      if (transaction.authorized_datetime) {
+        effectiveDate = formatInTimeZone(transaction.authorized_datetime, targetTimezone, 'yyyy-MM-dd');
+      } else if (transaction.datetime) {
+        effectiveDate = formatInTimeZone(transaction.datetime, targetTimezone, 'yyyy-MM-dd');
+      } else if (transaction.authorized_date) {
+        effectiveDate = transaction.authorized_date;
+      }
 
       const transactionData = {
         account_id: accountUuid,

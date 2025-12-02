@@ -48,6 +48,7 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
                   onSelect={() => toggleSelection(transaction.id)}
                   onTransactionClick={() => { }} // No-op for now
                   compact={true}
+                  showDate={true}
                 />
               ))}
             </div>

@@ -16,6 +16,8 @@
     "@supabase/supabase-js": "^2.57.2",
     "chart.js": "^4.5.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "framer-motion": "^12.23.12",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.555.0",

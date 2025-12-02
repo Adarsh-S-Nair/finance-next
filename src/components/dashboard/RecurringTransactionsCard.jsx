@@ -18,7 +18,10 @@ function formatCurrency(amount) {
 }
 
 function formatDate(dateString) {
-  const date = new Date(dateString);
+  if (!dateString) return '';
+  // Parse YYYY-MM-DD as local time to avoid timezone shifts (e.g. UTC midnight -> previous day EST)
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
   const now = new Date();
   const diffTime = date - now;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
