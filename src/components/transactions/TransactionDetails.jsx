@@ -141,21 +141,23 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
             {transaction.category_name && (
               <div
                 onClick={onCategoryClick}
-                className="group flex items-center justify-between p-3.5 cursor-pointer hover:bg-[var(--color-surface)]/50 transition-colors"
+                className="group flex items-center justify-between p-3.5 cursor-pointer hover:bg-[var(--color-surface)]/50 transition-colors gap-4"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] flex items-center justify-center text-[var(--color-muted)] group-hover:text-[var(--color-accent)] transition-colors">
                     <FiTag className="w-4 h-4" />
                   </div>
                   <span className="text-sm font-medium text-[var(--color-muted)]">Category</span>
                 </div>
-                <div className="flex items-center gap-2 group-hover:translate-x-[-2px] transition-transform">
+                <div className="flex items-center group-hover:translate-x-[-2px] transition-transform min-w-0 text-right">
                   <div
-                    className="w-2 h-2 rounded-full"
+                    className="w-2 h-2 rounded-full flex-shrink-0 mr-2"
                     style={{ backgroundColor: transaction.category_hex_color || 'var(--color-accent)' }}
                   />
-                  <span className="text-sm text-[var(--color-fg)]">{transaction.category_name}</span>
-                  <FiArrowUpRight className="w-3.5 h-3.5 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="text-sm text-[var(--color-fg)] truncate">{transaction.category_name}</span>
+                  <div className="w-0 overflow-hidden group-hover:w-5 transition-[width] duration-200 ease-out flex-shrink-0 flex justify-end">
+                    <FiArrowUpRight className="w-3.5 h-3.5 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                  </div>
                 </div>
               </div>
             )}
