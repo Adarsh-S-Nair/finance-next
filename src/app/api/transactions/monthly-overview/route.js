@@ -23,31 +23,29 @@ export async function GET(request) {
     const startDateStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const endDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
-    // Fetch IDs of excluded categories
-    const excludedCategories = [
-      'Credit Card Payment',
-      'Investment and Retirement Funds',
-      'Transfer',
-      'Account Transfer'
+    // Fetch IDs of categories to ALWAYS exclude
+    const alwaysExcludedCategories = [
+      'Investment and Retirement Funds'
     ];
 
     const { data: excludedCategoryRows } = await supabaseAdmin
       .from('system_categories')
       .select('id')
-      .in('label', excludedCategories);
+      .in('label', alwaysExcludedCategories);
 
     const excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
 
     // Fetch transactions for the month
+    // We need system_categories to identify "Transfer", "Credit Card Payment", etc.
     let query = supabaseAdmin
       .from('transactions')
-      .select('amount, date, accounts!inner(user_id)')
+      .select('id, amount, date, accounts!inner(user_id), system_categories(label)')
       .eq('accounts.user_id', userId)
       .gte('date', startDateStr)
       .lte('date', endDateStr)
       .order('date', { ascending: true });
 
-    // Apply exclusion filter if we have IDs
+    // Apply exclusion filter for "Investment and Retirement Funds"
     if (excludedCategoryIds.length > 0) {
       query = query.not('category_id', 'in', `(${excludedCategoryIds.join(',')})`);
     }
@@ -57,6 +55,48 @@ export async function GET(request) {
     if (error) {
       console.error('Error fetching transactions:', error);
       return Response.json({ error: 'Failed to fetch transactions' }, { status: 500 });
+    }
+
+    // Identify transfer categories
+    const transferCategories = ['Credit Card Payment', 'Transfer', 'Account Transfer'];
+
+    // Helper to check if a transaction is a transfer type
+    const isTransfer = (tx) => {
+      const label = tx.system_categories?.label;
+      return label && transferCategories.includes(label);
+    };
+
+    // Set of matched transaction IDs to skip
+    const matchedIds = new Set();
+
+    // First pass: Identify matches for transfers
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i];
+      if (matchedIds.has(tx.id)) continue;
+
+      if (isTransfer(tx)) {
+        const txDate = new Date(tx.date);
+        const targetAmount = -parseFloat(tx.amount); // Look for opposite amount
+
+        // Scan forward
+        for (let j = i + 1; j < transactions.length; j++) {
+          const candidate = transactions[j];
+          if (matchedIds.has(candidate.id)) continue;
+
+          const candidateDate = new Date(candidate.date);
+          const diffDays = (candidateDate - txDate) / (1000 * 60 * 60 * 24);
+
+          if (diffDays > 3) break; // Too far in future, stop searching forward
+
+          // Check amount match
+          if (Math.abs(parseFloat(candidate.amount) - targetAmount) < 0.01) {
+            // Found a match!
+            matchedIds.add(tx.id);
+            matchedIds.add(candidate.id);
+            break;
+          }
+        }
+      }
     }
 
     // Process data to calculate daily and cumulative totals
@@ -73,6 +113,12 @@ export async function GET(request) {
 
     // Aggregate transactions by day
     transactions.forEach(tx => {
+      // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
+      // If it's a transfer and it was NOT matched, we include it (Unmatched Transfer/Payment).
+      // If it's NOT a transfer, we include it.
+
+      if (matchedIds.has(tx.id)) return;
+
       if (!tx.date) return;
 
       // Parse day from date string (YYYY-MM-DD)

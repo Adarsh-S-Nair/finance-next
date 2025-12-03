@@ -55,7 +55,7 @@ export async function GET(request) {
     // If afterId is provided, get transactions after that ID (older transactions)
     if (afterId) {
       // Older window fetch
-      
+
       // Get the datetime of the transaction with afterId to filter older transactions
       const { data: afterTransaction, error: afterError } = await supabase
         .from('transactions')
@@ -69,7 +69,7 @@ export async function GET(request) {
         // Get transactions that are older (earlier datetime) than the afterId transaction
         const filterQuery = `datetime.lt.${afterTransaction.datetime},and(datetime.eq.${afterTransaction.datetime},created_at.lt.${afterTransaction.created_at})`;
         // Reduced logging
-        
+
         query = query
           .or(filterQuery)
           .limit(limit);
@@ -80,7 +80,7 @@ export async function GET(request) {
       }
     } else if (beforeId) {
       // Newer window fetch
-      
+
       // Get the datetime of the transaction with beforeId to filter newer transactions (contiguous page above current)
       const { data: beforeTransaction, error: beforeError } = await supabase
         .from('transactions')
@@ -171,8 +171,8 @@ export async function GET(request) {
     const hasMore = transformedTransactions.length === limit;
     const hasMoreNewer = !!beforeId && hasMore;
     const hasMoreOlder = !!afterId && hasMore;
-    
-    return Response.json({ 
+
+    return Response.json({
       transactions: transformedTransactions,
       count: transformedTransactions.length,
       hasMore,

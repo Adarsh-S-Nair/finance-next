@@ -20,28 +20,30 @@ export async function GET(request) {
     sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
     const sinceDateStr = sinceDate.toISOString().split('T')[0];
 
-    // Fetch IDs of excluded categories
-    const excludedCategories = [
-      'Credit Card Payment',
-      'Investment and Retirement Funds',
-      'Transfer',
-      'Account Transfer'
+    // Fetch IDs of categories to ALWAYS exclude
+    const alwaysExcludedCategories = [
+      'Investment and Retirement Funds'
     ];
 
     const { data: excludedCategoryRows } = await supabaseAdmin
       .from('system_categories')
       .select('id')
-      .in('label', excludedCategories);
+      .in('label', alwaysExcludedCategories);
 
     const excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
 
+    // We need system_categories to identify "Transfer", "Credit Card Payment", etc.
     let query = supabaseAdmin
       .from('transactions')
       .select(`
+        id,
         amount,
         date,
         accounts!inner (
           user_id
+        ),
+        system_categories (
+          label
         )
       `)
       .eq('accounts.user_id', userId)
@@ -49,7 +51,7 @@ export async function GET(request) {
       .gte('date', sinceDateStr)
       .order('date', { ascending: true });
 
-    // Apply exclusion filter if we have IDs
+    // Apply exclusion filter for "Investment and Retirement Funds"
     if (excludedCategoryIds.length > 0) {
       query = query.not('category_id', 'in', `(${excludedCategoryIds.join(',')})`);
     }
@@ -64,10 +66,79 @@ export async function GET(request) {
       );
     }
 
+    // Identify transfer categories
+    const transferCategories = ['Credit Card Payment', 'Transfer', 'Account Transfer'];
+
+    // Helper to check if a transaction is a transfer type
+    const isTransfer = (tx) => {
+      const label = tx.system_categories?.label;
+      return label && transferCategories.includes(label);
+    };
+
+    // Set of matched transaction IDs to skip
+    const matchedIds = new Set();
+
     // Group transactions by month and calculate spending/earning
     const monthlyData = {};
 
+    // First pass: Identify matches for transfers
+    // We iterate through all transactions. If it's a transfer and not matched yet, try to find a match.
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i];
+      if (matchedIds.has(tx.id)) continue;
+
+      if (isTransfer(tx)) {
+        // Look for a match
+        // Match criteria:
+        // 1. Different ID
+        // 2. Not already matched
+        // 3. Amount is opposite (tx.amount + match.amount === 0)
+        // 4. Date within +/- 3 days
+
+        const txDate = new Date(tx.date);
+        const targetAmount = -parseFloat(tx.amount); // Look for opposite amount
+
+        // We search in the whole array. 
+        // Optimization: Since array is sorted by date, we can search locally around index i.
+        // But for simplicity and correctness with small-ish N (thousands), linear scan or bounded scan is fine.
+        // Let's do a bounded scan since it's sorted by date.
+
+        let matchFound = false;
+
+        // Scan forward
+        for (let j = i + 1; j < transactions.length; j++) {
+          const candidate = transactions[j];
+          if (matchedIds.has(candidate.id)) continue;
+
+          const candidateDate = new Date(candidate.date);
+          const diffDays = (candidateDate - txDate) / (1000 * 60 * 60 * 24);
+
+          if (diffDays > 3) break; // Too far in future, stop searching forward
+
+          // Check amount match (using small epsilon for float comparison if needed, but usually exact for currency)
+          if (Math.abs(parseFloat(candidate.amount) - targetAmount) < 0.01) {
+            // Found a match!
+            matchedIds.add(tx.id);
+            matchedIds.add(candidate.id);
+            matchFound = true;
+            break;
+          }
+        }
+
+        // If not found forward, we don't need to scan backward because if a match existed backward, 
+        // it would have found *this* transaction when *that* transaction was processed (since we iterate i from 0).
+        // So forward scan is sufficient.
+      }
+    }
+
+    // Second pass: Aggregate data
     transactions.forEach(transaction => {
+      // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
+      // If it's a transfer and it was NOT matched, we include it (Unmatched Transfer/Payment).
+      // If it's NOT a transfer, we include it.
+
+      if (matchedIds.has(transaction.id)) return;
+
       if (!transaction.date) return;
 
       // Parse date (YYYY-MM-DD)

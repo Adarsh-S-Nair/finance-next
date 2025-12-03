@@ -1218,6 +1218,13 @@ function TransactionsContent() {
     }
   };
 
+  const handleCategorizeOnly = async () => {
+    if (pendingCategory) {
+      await updateTransactionCategory(pendingCategory);
+      setIsDrawerOpen(false);
+    }
+  };
+
   const handleEditCategory = () => {
     setCurrentDrawerView('select-category');
   };
@@ -1496,6 +1503,7 @@ function TransactionsContent() {
               onEditCategory={handleEditCategory}
               onConfirm={handleConfirmRule}
               onClose={handleSimilarTransactionsClose}
+              onCategorizeOnly={handleCategorizeOnly}
             />
           }
         ]}
@@ -1503,7 +1511,7 @@ function TransactionsContent() {
         onViewChange={setCurrentDrawerView}
         onBack={handleBackToTransaction}
       />
-    </PageContainer>
+    </PageContainer >
   );
 }
 

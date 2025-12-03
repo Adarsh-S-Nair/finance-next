@@ -248,6 +248,69 @@ export async function GET(request) {
       // Preserve transaction.icon_url from DB; do not override with institution logo
     }));
 
+    // --- Unmatched Transfer/Payment Detection ---
+    // For "Credit Card Payment", "Transfer", "Account Transfer":
+    // 1. Negative Amount (Outflow): Check for matching positive inflow (Transfer In) -> If unmatched, it's Spending.
+    // 2. Positive Amount (Inflow): Check for matching negative outflow (Transfer Out) -> If unmatched, it's Income.
+
+    // We'll process this in parallel for performance
+    await Promise.all(transformedTransactions.map(async (tx) => {
+      const isPaymentOrTransfer = ['Credit Card Payment', 'Transfer', 'Account Transfer'].includes(tx.category_name);
+
+      if (isPaymentOrTransfer && tx.amount !== 0 && tx.date) {
+        const targetAmount = Math.abs(tx.amount);
+        const txDate = new Date(tx.date);
+
+        // Date window: +/- 3 days
+        const startDate = new Date(txDate);
+        startDate.setDate(startDate.getDate() - 3);
+        const startDateStr = startDate.toISOString().split('T')[0];
+
+        const endDate = new Date(txDate);
+        endDate.setDate(endDate.getDate() + 3);
+        const endDateStr = endDate.toISOString().split('T')[0];
+
+        // Query for a matching transaction
+        // If this is negative (outflow), look for positive (inflow)
+        // If this is positive (inflow), look for negative (outflow)
+        // In both cases, the absolute amount should match.
+        // But we need to be careful about the sign in the query.
+        // If tx.amount is -100, we look for +100.
+        // If tx.amount is +100, we look for -100.
+        const lookForAmount = -tx.amount;
+
+        const { data: matches, error: matchError } = await supabaseAdmin
+          .from('transactions')
+          .select('id, date, amount, accounts!inner(name)')
+          .eq('accounts.user_id', userId)
+          .eq('amount', lookForAmount)
+          .gte('date', startDateStr)
+          .lte('date', endDateStr)
+          .neq('id', tx.id)
+          .limit(1);
+
+        if (matchError) {
+          console.error('Error checking for transfer match:', matchError);
+        }
+
+        const matchFound = matches && matches.length > 0;
+
+        // Flag the transaction
+        // We use the same flag 'is_unmatched_payment' for simplicity in UI, 
+        // or we could add 'is_unmatched_transfer' for positive ones if we want different UI.
+        // For now, let's use 'is_unmatched_payment' as a generic "Unmatched Transfer" flag.
+        tx.is_unmatched_payment = !matchFound;
+
+        // LOGGING
+        // Force log for now as requested by user
+        const status = matchFound ? '✅ MATCHED' : '❌ UNMATCHED';
+        const type = tx.amount < 0 ? 'Payment/Outflow' : 'Transfer/Inflow';
+        const matchInfo = matchFound ? `(Matched with ${matches[0].accounts?.name} on ${matches[0].date})` : '(No matching transaction found)';
+        console.log(`🔄 Transfer Detection: ${status} | ${type} | ${tx.date} | ${tx.account_name} | $${tx.amount.toFixed(2)} | ${tx.merchant_name || tx.description} ${matchInfo}`);
+      }
+    }));
+    // -----------------------------------------------
+
     console.log(`Found ${transformedTransactions.length} transactions for user ${userId}`);
 
     return Response.json({

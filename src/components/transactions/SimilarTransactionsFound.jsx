@@ -5,7 +5,7 @@ import TransactionRow from './TransactionRow';
 import Card from '../ui/Card';
 import RuleBuilder from './RuleBuilder';
 
-export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose }) {
+export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose, onCategorizeOnly }) {
   const [currentRules, setCurrentRules] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -79,12 +79,12 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
 
       <div className="sticky bottom-0 p-4 border-t border-[var(--color-border)]/50 bg-[var(--color-bg)] grid grid-cols-2 gap-3 z-10">
         <Button
-          onClick={onClose}
+          onClick={onCategorizeOnly}
           variant="outline"
           className="w-full justify-center"
           size="lg"
         >
-          Cancel
+          Categorize Only This
         </Button>
         <Button
           onClick={handleConfirm}

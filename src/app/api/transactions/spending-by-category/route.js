@@ -55,14 +55,14 @@ export async function GET(request) {
 
     // Group transactions by category and calculate totals
     const categorySpending = {};
-    
+
     transactions.forEach(transaction => {
       const category = transaction.system_categories;
       if (!category) return;
-      
+
       const categoryKey = category.id;
       const amount = Math.abs(parseFloat(transaction.amount)); // Convert to positive spending amount
-      
+
       if (!categorySpending[categoryKey]) {
         categorySpending[categoryKey] = {
           id: category.id,
@@ -75,7 +75,7 @@ export async function GET(request) {
           transaction_count: 0
         };
       }
-      
+
       categorySpending[categoryKey].total_spent += amount;
       categorySpending[categoryKey].transaction_count += 1;
     });
@@ -97,7 +97,7 @@ export async function GET(request) {
 
     if (DEBUG) console.log(`📊 Spending by Category: categories=${filteredCategories.length} windowDays=${MAX_DAYS}`);
 
-    return Response.json({ 
+    return Response.json({
       categories: filteredCategories,
       totalSpending,
       totalCategories: categoriesArray.length,

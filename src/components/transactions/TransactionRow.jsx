@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { FiTag } from 'react-icons/fi';
+import { FiTag, FiAlertCircle } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
@@ -76,8 +76,13 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
             {transaction.merchant_name || transaction.description || 'Transaction'}
           </div>
           {transaction.category_name && (
-            <div className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
-              {transaction.category_name}
+            <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5 truncate">
+              <span className="truncate">{transaction.category_name}</span>
+              {transaction.is_unmatched_payment && (
+                <div className="text-yellow-500 flex-shrink-0" title="Unmatched Credit Card Payment">
+                  <FiAlertCircle className="w-3.5 h-3.5" />
+                </div>
+              )}
             </div>
           )}
         </div>
