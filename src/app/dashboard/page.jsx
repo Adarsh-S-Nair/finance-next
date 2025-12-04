@@ -12,6 +12,7 @@ import PlaceholderCard from "../../components/dashboard/PlaceholderCard";
 
 import IncomeCard from "../../components/dashboard/IncomeCard";
 import SpendingCard from "../../components/dashboard/SpendingCard";
+import BudgetsCard from "../../components/dashboard/BudgetsCard";
 
 // Map string keys to actual components
 const componentMap = {
@@ -22,6 +23,7 @@ const componentMap = {
   'RecurringTransactionsCard': RecurringTransactionsCard,
   'IncomeCard': IncomeCard,
   'SpendingCard': SpendingCard,
+  'BudgetsCard': BudgetsCard,
 };
 
 export default function DashboardPage() {

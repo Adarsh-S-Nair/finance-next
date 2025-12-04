@@ -36,6 +36,11 @@ export const dashboardLayout = {
 
   // Sidebar (right side, narrower)
   sidebar: [
+    // Budgets Widget (Mock)
+    {
+      id: 'budgets',
+      component: 'BudgetsCard'
+    },
     // Recurring Transactions
     {
       id: 'recurring-transactions',
