@@ -63,6 +63,7 @@ interface LineChartProps {
     areaOpacity?: number;
   }[];
   yAxisDomain?: [number | string, number | string];
+  xAxisInterval?: number | 'preserveStart' | 'preserveEnd' | 'preserveStartEnd';
 }
 
 export default function LineChart({
@@ -100,6 +101,7 @@ export default function LineChart({
   curveType = 'monotone',
   lines,
   yAxisDomain,
+  xAxisInterval,
 }: LineChartProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
@@ -233,6 +235,7 @@ export default function LineChart({
             axisLine={false}
             tickLine={false}
             tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
+            interval={xAxisInterval}
           />
 
           {/* Always render YAxis to support domain scaling, hide if not needed */}

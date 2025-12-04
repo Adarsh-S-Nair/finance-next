@@ -5,6 +5,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const type = searchParams.get('type') || 'spending'; // 'spending' or 'income'
     const daysParam = parseInt(searchParams.get('days') || '90', 10);
     const MAX_DAYS = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 90;
 
@@ -15,13 +16,13 @@ export async function GET(request) {
       );
     }
 
-    if (DEBUG) console.log('Fetching spending by category for user:', userId);
+    if (true) console.log(`Fetching ${type} by category for user:`, userId, 'days:', daysParam);
 
-    // Get spending transactions grouped by category
+    // Get transactions grouped by category
     const since = new Date();
     since.setDate(since.getDate() - MAX_DAYS);
 
-    const { data: transactions, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('transactions')
       .select(`
         amount,
@@ -41,9 +42,17 @@ export async function GET(request) {
         )
       `)
       .eq('accounts.user_id', userId)
-      .lt('amount', 0) // Only spending transactions (negative amounts)
       .not('system_categories', 'is', null)
       .gte('datetime', since.toISOString());
+
+    // Filter by type
+    if (type === 'income') {
+      query = query.gt('amount', 0);
+    } else {
+      query = query.lt('amount', 0);
+    }
+
+    const { data: transactions, error } = await query;
 
     if (error) {
       console.error('Error fetching spending by category:', error);
@@ -54,17 +63,17 @@ export async function GET(request) {
     }
 
     // Group transactions by category and calculate totals
-    const categorySpending = {};
+    const categoryData = {};
 
     transactions.forEach(transaction => {
       const category = transaction.system_categories;
       if (!category) return;
 
       const categoryKey = category.id;
-      const amount = Math.abs(parseFloat(transaction.amount)); // Convert to positive spending amount
+      const amount = Math.abs(parseFloat(transaction.amount)); // Convert to positive amount for display
 
-      if (!categorySpending[categoryKey]) {
-        categorySpending[categoryKey] = {
+      if (!categoryData[categoryKey]) {
+        categoryData[categoryKey] = {
           id: category.id,
           label: category.label,
           hex_color: category.category_groups?.hex_color || '#6B7280',
@@ -76,12 +85,12 @@ export async function GET(request) {
         };
       }
 
-      categorySpending[categoryKey].total_spent += amount;
-      categorySpending[categoryKey].transaction_count += 1;
+      categoryData[categoryKey].total_spent += amount;
+      categoryData[categoryKey].transaction_count += 1;
     });
 
-    // Convert to array and sort by spending amount (descending)
-    const categoriesArray = Object.values(categorySpending)
+    // Convert to array and sort by amount (descending)
+    const categoriesArray = Object.values(categoryData)
       .sort((a, b) => b.total_spent - a.total_spent);
 
     // Calculate total spending for percentage calculations
@@ -95,7 +104,7 @@ export async function GET(request) {
       }))
       .filter(category => category.percentage >= 1.0); // Only include categories >= 1%
 
-    if (DEBUG) console.log(`📊 Spending by Category: categories=${filteredCategories.length} windowDays=${MAX_DAYS}`);
+    if (true) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} windowDays=${MAX_DAYS}`, filteredCategories.slice(0, 3));
 
     return Response.json({
       categories: filteredCategories,

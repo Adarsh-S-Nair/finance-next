@@ -195,6 +195,56 @@ export async function GET(request) {
 
     if (DEBUG) console.log(`📊 Monthly Spending & Earning: months=${result.length} (cap=${MAX_MONTHS})`);
 
+    // Calculate Month-over-Month (MoM) change for the current month vs same period last month
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
+
+    // Handle edge case for January (previous month is December of previous year)
+    const lastMonthDate = new Date(now);
+    lastMonthDate.setMonth(now.getMonth() - 1);
+    const lastMonth = lastMonthDate.getMonth();
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    // Get number of days in last month to handle edge cases (e.g. March 30 vs Feb 28)
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+    const comparisonDay = Math.min(currentDay, daysInLastMonth);
+
+    let currentMonthIncome = 0;
+    let currentMonthSpending = 0;
+    let lastMonthIncome = 0;
+    let lastMonthSpending = 0;
+
+    transactions.forEach(tx => {
+      if (matchedIds.has(tx.id)) return;
+      if (!tx.date) return;
+
+      // We need to parse the date string "YYYY-MM-DD" manually to avoid timezone issues
+      const [yStr, mStr, dStr] = tx.date.split('-');
+      const year = parseInt(yStr);
+      const month = parseInt(mStr) - 1; // 0-11
+      const day = parseInt(dStr);
+      const amount = parseFloat(tx.amount);
+
+      // Current Month MTD
+      if (year === currentYear && month === currentMonth && day <= currentDay) {
+        if (amount > 0) currentMonthIncome += amount;
+        else currentMonthSpending += Math.abs(amount);
+      }
+
+      // Last Month MTD
+      if (year === lastMonthYear && month === lastMonth && day <= comparisonDay) {
+        if (amount > 0) lastMonthIncome += amount;
+        else lastMonthSpending += Math.abs(amount);
+      }
+    });
+
+    const incomeChange = lastMonthIncome === 0 ? 0 : ((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100;
+    const spendingChange = lastMonthSpending === 0 ? 0 : ((currentMonthSpending - lastMonthSpending) / lastMonthSpending) * 100;
+
+    if (DEBUG) console.log(`📊 MoM Comparison: Income ${incomeChange.toFixed(1)}%, Spending ${spendingChange.toFixed(1)}%`);
+
     return Response.json({
       data: result,
       summary: {
@@ -202,6 +252,14 @@ export async function GET(request) {
         totalSpending: result.reduce((sum, month) => sum + month.spending, 0),
         totalEarning: result.reduce((sum, month) => sum + month.earning, 0),
         totalTransactions: result.reduce((sum, month) => sum + month.transactionCount, 0)
+      },
+      momComparison: {
+        incomeChange,
+        spendingChange,
+        currentMonthIncome,
+        lastMonthIncome,
+        currentMonthSpending,
+        lastMonthSpending
       }
     });
   } catch (error) {

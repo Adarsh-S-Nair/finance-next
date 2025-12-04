@@ -197,9 +197,9 @@ export default function RecurringTransactionsCard() {
 function RecurringTransactionItem({ item }) {
   return (
     <div
-      className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
+      className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors gap-2"
     >
-      <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         {/* Logo or Fallback */}
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--color-border)]/50"

@@ -8,13 +8,24 @@
  */
 
 export const dashboardLayout = {
+  // Top row (3 columns)
+  top: [
+    {
+      id: 'net-worth',
+      component: 'DashboardNetWorthCard'
+    },
+    {
+      id: 'income',
+      component: 'IncomeCard'
+    },
+    {
+      id: 'spending',
+      component: 'SpendingCard'
+    }
+  ],
+
   // Main content area (left side, wider)
   main: [
-    // Monthly Overview Card
-    {
-      id: 'monthly-overview',
-      component: 'MonthlyOverviewCard'
-    },
     // Cashflow Chart
     {
       id: 'cashflow',
@@ -25,12 +36,6 @@ export const dashboardLayout = {
 
   // Sidebar (right side, narrower)
   sidebar: [
-    // Net Worth Card
-    {
-      id: 'net-worth',
-      component: 'DashboardNetWorthCard'
-    },
-
     // Recurring Transactions
     {
       id: 'recurring-transactions',

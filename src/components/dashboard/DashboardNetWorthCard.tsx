@@ -1,15 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
 import Card from "../ui/Card";
 import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
-import Link from "next/link";
-import { FiArrowUpRight } from "react-icons/fi";
-
-
-
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {
@@ -23,187 +17,154 @@ function AnimatedCounter({ value, duration = 1000 }) {
     const step = (timestamp) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-
-      // Ease out quart
       const ease = 1 - Math.pow(1 - progress, 4);
-
       setDisplayValue(startValue + (endValue - startValue) * ease);
-
       if (progress < 1) {
         window.requestAnimationFrame(step);
       }
     };
-
     window.requestAnimationFrame(step);
   }, [value]);
 
+  const formatted = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(displayValue);
+
+  const [main, cents] = formatted.split('.');
+
   return (
     <span>
-      {new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(displayValue)}
+      {main}
+      <span className="text-lg text-[var(--color-muted)] font-medium">.{cents}</span>
     </span>
   );
 }
 
+// Helper for smooth Bezier curves
+const getControlPoint = (current, previous, next, reverse, smoothing = 0.2) => {
+  const p = previous || current;
+  const n = next || current;
+  const lengthX = n[0] - p[0];
+  const lengthY = n[1] - p[1];
+  const length = Math.sqrt(Math.pow(lengthX, 2) + Math.pow(lengthY, 2));
+  const angle = Math.atan2(lengthY, lengthX) + (reverse ? Math.PI : 0);
+  const x = current[0] + Math.cos(angle) * length * smoothing;
+  const y = current[1] + Math.sin(angle) * length * smoothing;
+  return [x, y];
+};
+
+const generateSmoothPath = (points) => {
+  if (!points || points.length === 0) return "";
+
+  return points.reduce((acc, point, i, a) => {
+    if (i === 0) return `M ${point[0]},${point[1]}`;
+
+    const [cpsX, cpsY] = getControlPoint(a[i - 1], a[i - 2], point, false);
+    const [cpeX, cpeY] = getControlPoint(point, a[i - 1], a[i + 1], true);
+
+    return `${acc} C ${cpsX},${cpsY} ${cpeX},${cpeY} ${point[0]},${point[1]}`;
+  }, "");
+};
+
 export default function DashboardNetWorthCard() {
   const { profile } = useUser();
-  const {
-    netWorthHistory,
-    currentNetWorth,
-    loading
-  } = useNetWorth();
+  const { netWorthHistory, currentNetWorth, loading } = useNetWorth();
 
-  // Get accent color - default to system accent
-  const accentColor = profile?.accent_color && profile.accent_color.startsWith('#')
-    ? profile.accent_color
-    : 'var(--color-accent)';
-
-  // Process chart data for percentage change only
   const chartData = useMemo(() => {
     if (!netWorthHistory?.length) return [];
-
-    return netWorthHistory.map(item => ({
-      date: new Date(item.date),
-      value: item.netWorth,
-      dateString: item.date
-    }));
+    return netWorthHistory.map(item => item.netWorth);
   }, [netWorthHistory]);
 
-  // Calculate percentage change (last 30 days or available range)
   const percentChange = useMemo(() => {
     if (chartData.length < 2) return 0;
-
-    const current = chartData[chartData.length - 1].value;
-    // Look back ~30 days or start of data
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const startData = chartData.find(d => d.date >= thirtyDaysAgo) || chartData[0];
-    const start = startData.value;
-
+    const current = chartData[chartData.length - 1];
+    const start = chartData[0];
     if (start === 0) return 0;
     return ((current - start) / Math.abs(start)) * 100;
   }, [chartData]);
 
   const netWorthValue = currentNetWorth?.netWorth || 0;
-
-  // Determine styling based on accent color
-  const isCustomAccent = profile?.accent_color && profile.accent_color !== 'var(--color-accent)';
-
-  // Function to darken custom accent colors
-  const darkenColor = (hex: string, amount: number = 0.4): string => {
-    // Remove # if present
-    hex = hex.replace('#', '');
-
-    // Parse RGB
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-
-    // Darken by reducing each channel
-    const newR = Math.floor(r * (1 - amount));
-    const newG = Math.floor(g * (1 - amount));
-    const newB = Math.floor(b * (1 - amount));
-
-    // Convert back to hex
-    return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-  };
-
-  // Dynamic styles - follow same pattern as Button matte variant
-  let cardStyle = {};
-  let textColorClass = "";
-  let titleColorClass = "";
-  let borderClass = "";
-  let patternColorClass = "";
-
-  if (isCustomAccent && profile?.accent_color) {
-    // Custom accent: Use darkened color with white text
-    const darkenedAccent = darkenColor(profile.accent_color, 0.2);
-    const darkerAccent = darkenColor(darkenedAccent, 0.4);
-    cardStyle = {
-      background: `linear-gradient(to right, ${darkerAccent} 0%, ${darkenedAccent} 50%, ${darkerAccent} 100%)`,
-      boxShadow: `0 10px 25px -10px color-mix(in srgb, ${darkenedAccent} 40%, transparent)`
-    };
-    textColorClass = "text-white";
-    titleColorClass = "text-white";
-    borderClass = "border-transparent";
-    patternColorClass = "text-white";
-  } else {
-    // Default accent: Use CSS variables (like matte button)
-    // Light mode: --color-accent is dark (#18181b), so white text
-    // Dark mode: --color-accent is light (#fafafa), so dark text
-    // Using color-mix to create a subtle gradient from the base accent color
-    cardStyle = {
-      background: `linear-gradient(to right, color-mix(in srgb, var(--color-accent), black 20%) 0%, color-mix(in srgb, var(--color-accent), white 5%) 50%, color-mix(in srgb, var(--color-accent), black 20%) 100%)`,
-      boxShadow: `0 10px 25px -10px color-mix(in srgb, var(--color-accent) 40%, transparent)`
-    };
-    textColorClass = "text-[var(--color-on-accent)]";
-    titleColorClass = "text-[var(--color-on-accent)]";
-    borderClass = "border-[var(--color-accent)]/20";
-    patternColorClass = "text-[var(--color-on-accent)]";
-  }
-
-  const labelColorClass = isCustomAccent ? 'text-white/80' : 'text-[var(--color-on-accent)]/60';
-  const trendColorClass = isCustomAccent
-    ? 'text-white'
-    : (percentChange >= 0
-      ? 'text-emerald-500 dark:text-emerald-600'
-      : 'text-rose-500 dark:text-rose-600');
-  const vsTextColorClass = isCustomAccent ? 'text-white/70' : 'text-[var(--color-on-accent)]/50';
-
   const isLoadingState = loading;
+
+  const { areaPath, linePath } = useMemo(() => {
+    if (!chartData || chartData.length < 2) return { areaPath: "", linePath: "" };
+
+    const width = 100;
+    const height = 100;
+    const max = Math.max(...chartData);
+    const min = Math.min(...chartData);
+    const range = max - min || 1;
+    // Add padding to prevent flat lines at top/bottom
+    const padding = range * 0.2;
+    const adjustedMin = min - padding;
+    const adjustedRange = range + padding * 2;
+    const stepX = width / (chartData.length - 1);
+
+    const points = chartData.map((val, i) => {
+      const x = i * stepX;
+      // Invert Y because SVG 0 is top
+      const y = height - ((val - adjustedMin) / adjustedRange) * height;
+      return [x, y];
+    });
+
+    const smoothLine = generateSmoothPath(points);
+    const area = `${smoothLine} L ${width},${height} L 0,${height} Z`;
+
+    return { areaPath: area, linePath: smoothLine };
+  }, [chartData]);
 
   return (
     <Card
-      title={
-        <Link href="/accounts" className={`flex items-center gap-2 hover:opacity-80 transition-opacity ${isLoadingState ? "pointer-events-none" : ""}`}>
-          <span>Total Net Worth</span>
-          <FiArrowUpRight className="w-4 h-4" />
-        </Link>
-      }
-      titleColor={isLoadingState ? "text-transparent" : titleColorClass}
-      style={isLoadingState ? {} : cardStyle}
+      variant="glass"
       padding="none"
-      className={`relative overflow-hidden rounded-3xl border ${isLoadingState ? 'border-transparent bg-zinc-100 dark:bg-zinc-900/50' : borderClass} h-full ${isLoadingState ? 'text-transparent' : textColorClass}`}
-      background={
-        isLoadingState ? (
-          <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
-        ) : (
-          /* Modern Solid Circle Background Design */
-          <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-            {/* Large solid circle top right */}
-            <div className={`absolute -top-24 -right-24 w-96 h-96 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-
-            {/* Overlapping solid circle mid right */}
-            <div className={`absolute top-12 -right-12 w-48 h-48 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-
-            {/* Small solid circle bottom right */}
-            <div className={`absolute bottom-12 right-12 w-24 h-24 rounded-full ${isCustomAccent ? 'bg-white opacity-10' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-
-            {/* Solid circle bottom left */}
-            <div className={`absolute -bottom-8 -left-8 w-40 h-40 rounded-full ${isCustomAccent ? 'bg-white opacity-5' : 'bg-[var(--color-on-accent)] opacity-5'}`} />
-          </div>
-        )
-      }
+      className="relative overflow-hidden h-32 flex flex-col justify-between rounded-3xl group"
     >
-
-      <div className={`relative z-10 h-full flex flex-col gap-1 p-5 pt-0 ${isLoadingState ? 'opacity-0' : ''}`}>
-        <div>
-          <div className="text-2xl md:text-3xl font-medium tracking-tighter text-[var(--color-on-accent)]">
-            <AnimatedCounter value={netWorthValue} />
-          </div>
+      <div className="p-6 relative z-10">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-medium text-[var(--color-muted)]">Net Worth</h3>
+          <span className="text-xs font-medium text-[var(--color-muted)]">Total Assets</span>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1 font-bold text-sm ${trendColorClass}`}>
-            <span>{percentChange >= 0 ? '+' : '-'}{Math.abs(percentChange).toFixed(1)}%</span>
-          </div>
-          <span className={`text-xs font-medium ${labelColorClass}`}>vs last month</span>
+        <div className="text-2xl font-semibold text-[var(--color-fg)] tracking-tight">
+          <AnimatedCounter value={netWorthValue} />
         </div>
+        <div className="text-xs font-medium text-[var(--color-muted)] mt-1">
+          {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(1)}% from last month
+        </div>
+      </div>
+
+      {/* Chart Layer */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 w-full z-0 pointer-events-none">
+        {!isLoadingState && chartData.length > 1 && (
+          <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="netWorthGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.02" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path
+              d={areaPath}
+              fill="url(#netWorthGradient)"
+              className="transition-all duration-1000 ease-out"
+            />
+            <path
+              d={linePath}
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              className="transition-all duration-1000 ease-out opacity-10"
+            />
+          </svg>
+        )}
+        {isLoadingState && (
+          <div className="absolute inset-0 shimmer" />
+        )}
       </div>
     </Card>
   );

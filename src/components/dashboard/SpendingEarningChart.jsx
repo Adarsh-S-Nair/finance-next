@@ -127,6 +127,10 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
     }
   }
 
+  // Unique IDs for gradients to prevent conflicts
+  const incomeGradientId = useMemo(() => `incomeGradient-${Math.random().toString(36).substr(2, 9)}`, []);
+  const spendingGradientId = useMemo(() => `spendingGradient-${Math.random().toString(36).substr(2, 9)}`, []);
+
   return (
     <div ref={containerRef} className="w-full h-full relative">
       <svg
@@ -141,6 +145,14 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
           <pattern id="diagonalStripes" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke="white" strokeWidth="2" opacity="0.1" />
           </pattern>
+          <linearGradient id={incomeGradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-cashflow-income)" stopOpacity="1" />
+            <stop offset="100%" stopColor="var(--color-cashflow-income)" stopOpacity="0.8" />
+          </linearGradient>
+          <linearGradient id={spendingGradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-cashflow-spending)" stopOpacity="1" />
+            <stop offset="100%" stopColor="var(--color-cashflow-spending)" stopOpacity="0.8" />
+          </linearGradient>
         </defs>
 
 
@@ -217,11 +229,11 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
                 }}
               >
                 {/* Income Bar */}
-                <path d={incPath} fill="var(--color-cashflow-income)" />
+                <path d={incPath} fill={`url(#${incomeGradientId})`} />
                 <path d={incPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
 
                 {/* Spending Bar */}
-                <path d={spdPath} fill="var(--color-cashflow-spending)" />
+                <path d={spdPath} fill={`url(#${spendingGradientId})`} />
                 <path d={spdPath} fill="url(#diagonalStripes)" filter={activeFilter || undefined} style={{ pointerEvents: 'none' }} />
 
 

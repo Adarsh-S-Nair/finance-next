@@ -7,6 +7,9 @@ import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
 import { useRouter } from "next/navigation";
 
+import { AnimatePresence, motion } from "framer-motion";
+import MonthlyOverviewCard from "./MonthlyOverviewCard";
+
 export default function SpendingVsEarningCard() {
   const { user } = useUser();
   const router = useRouter();
@@ -14,6 +17,10 @@ export default function SpendingVsEarningCard() {
   const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredData, setHoveredData] = useState(null);
+
+  // Drill-down state
+  const [viewMode, setViewMode] = useState('chart'); // 'chart' | 'overview'
+  const [drillDownMonth, setDrillDownMonth] = useState(null); // "YYYY-MM"
 
   // Period options
   const periodOptions = [
@@ -78,23 +85,17 @@ export default function SpendingVsEarningCard() {
     if (!data) return;
     const { year, monthNumber } = data;
 
-    // Calculate start and end dates
-    // monthNumber is 1-indexed (1=Jan, 12=Dec)
-    const startDate = new Date(year, monthNumber - 1, 1);
-    const endDate = new Date(year, monthNumber, 0); // Last day of month
+    // Format as YYYY-MM for the drill-down
+    const monthStr = String(monthNumber).padStart(2, '0');
+    const monthKey = `${year}-${monthStr}`;
 
-    // Format dates as YYYY-MM-DD
-    const formatDate = (d) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
+    setDrillDownMonth(monthKey);
+    setViewMode('overview');
+  };
 
-    const startStr = formatDate(startDate);
-    const endStr = formatDate(endDate);
-
-    router.push(`/transactions?startDate=${startStr}&endDate=${endStr}`);
+  const handleBackToChart = () => {
+    setViewMode('chart');
+    setDrillDownMonth(null);
   };
 
   return (
@@ -103,68 +104,93 @@ export default function SpendingVsEarningCard() {
         <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
       )}
 
-      <div className={showLoading ? 'opacity-0' : ''}>
-        {/* Custom Header */}
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-start justify-between">
-            {/* Title and Values */}
-            <div>
-              <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                {hoveredData ? hoveredData.monthName : 'Cashflow'}
-              </div>
+      <AnimatePresence mode="wait" initial={false}>
+        {viewMode === 'overview' ? (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.2 }}
+            className="h-full"
+          >
+            <MonthlyOverviewCard
+              initialMonth={drillDownMonth}
+              onBack={handleBackToChart}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="chart"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className={showLoading ? 'opacity-0' : ''}
+          >
+            {/* Custom Header */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start justify-between">
+                {/* Title and Values */}
+                <div>
+                  <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    {hoveredData ? hoveredData.monthName : 'Cashflow'}
+                  </div>
 
-              <div className="flex items-baseline gap-4">
-                <div className={!isIncomeHigher ? "opacity-65" : ""}>
-                  <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(displayIncome)}
+                  <div className="flex items-baseline gap-4">
+                    <div className={!isIncomeHigher ? "opacity-65" : ""}>
+                      <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
+                        {formatCurrency(displayIncome)}
+                      </div>
+                      <div className="text-xs text-[var(--color-fg)]">Income</div>
+                    </div>
+                    <div className={isIncomeHigher ? "opacity-75" : ""}>
+                      <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
+                        {formatCurrency(displaySpending)}
+                      </div>
+                      <div className="text-xs text-[var(--color-fg)]">Spending</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-[var(--color-fg)]">Income</div>
                 </div>
-                <div className={isIncomeHigher ? "opacity-75" : ""}>
-                  <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(displaySpending)}
+
+                {/* Dropdown and Legend stacked */}
+                <div className="flex flex-col items-end gap-3">
+                  <Dropdown
+                    label={periodOptions.find(p => p.value === selectedPeriod)?.label || "6 Months"}
+                    size="sm"
+                    items={periodOptions.map(period => ({
+                      label: period.label,
+                      onClick: () => setSelectedPeriod(period.value)
+                    }))}
+                    align="right"
+                  />
+
+                  {/* Legend with circles */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-income)' }} />
+                      <span className="text-xs text-[var(--color-muted)]">Income</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-spending)' }} />
+                      <span className="text-xs text-[var(--color-muted)]">Spending</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-[var(--color-fg)]">Spending</div>
                 </div>
               </div>
             </div>
 
-            {/* Dropdown and Legend stacked */}
-            <div className="flex flex-col items-end gap-3">
-              <Dropdown
-                label={periodOptions.find(p => p.value === selectedPeriod)?.label || "6 Months"}
-                size="sm"
-                items={periodOptions.map(period => ({
-                  label: period.label,
-                  onClick: () => setSelectedPeriod(period.value)
-                }))}
-                align="right"
+            {/* Chart */}
+            <div className="h-64 w-full">
+              <SpendingEarningChart
+                data={chartData}
+                onHover={(data) => setHoveredData(data)}
+                onSelectMonth={handleSelectMonth}
               />
-
-              {/* Legend with circles */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-income)' }} />
-                  <span className="text-xs text-[var(--color-muted)]">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-spending)' }} />
-                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
-                </div>
-              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Chart */}
-        <div className="h-64 w-full">
-          <SpendingEarningChart
-            data={chartData}
-            onHover={(data) => setHoveredData(data)}
-            onSelectMonth={handleSelectMonth}
-          />
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Card>
   );
 }

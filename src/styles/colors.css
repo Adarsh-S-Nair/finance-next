@@ -64,9 +64,9 @@
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), white 30%);
   --color-chart-pattern: rgba(255, 255, 255, 0.15);
 
-  /* Cashflow Chart Colors - Light Mode (Lighter/Brighter) */
-  --color-cashflow-income: #60a5fa;
-  --color-cashflow-spending: #fb923c;
+  /* Cashflow Chart Colors - Light Mode (Green/Red) */
+  --color-cashflow-income: #34d399;
+  --color-cashflow-spending: #f87171;
 }
 
 .dark {
@@ -138,9 +138,9 @@
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), black 30%);
   --color-chart-pattern: rgba(0, 0, 0, 0.2);
 
-  /* Cashflow Chart Colors - Dark Mode (Muted/Desaturated) */
-  --color-cashflow-income: #5782bb;
-  --color-cashflow-spending: #cc7a43;
+  /* Cashflow Chart Colors - Dark Mode (Green/Red) */
+  --color-cashflow-income: #10b981;
+  --color-cashflow-spending: #f87171;
 }
 
 /* Base application colors */
