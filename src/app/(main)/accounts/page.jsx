@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import PageContainer from "../../components/PageContainer";
-import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
+import PageContainer from "../../../components/PageContainer";
+import Button from "../../../components/ui/Button";
+import Card from "../../../components/ui/Card";
 import { PiBankFill, PiPlus } from "react-icons/pi";
 import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
-import { useUser } from "../../components/UserProvider";
-import { useAccounts } from "../../components/AccountsProvider";
-import NetWorthCard from "../../components/dashboard/NetWorthCard";
-import AccountsSummaryCard from "../../components/dashboard/AccountsSummaryCard";
-import { NetWorthHoverProvider } from "../../components/dashboard/NetWorthHoverContext";
-import PlaidLinkModal from "../../components/PlaidLinkModal";
+import { useUser } from "../../../components/UserProvider";
+import { useAccounts } from "../../../components/AccountsProvider";
+import NetWorthCard from "../../../components/dashboard/NetWorthCard";
+import AccountsSummaryCard from "../../../components/dashboard/AccountsSummaryCard";
+import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
+import PlaidLinkModal from "../../../components/PlaidLinkModal";
 
 // Helper to format currency
 const formatCurrency = (amount) => {

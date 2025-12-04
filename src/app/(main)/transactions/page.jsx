@@ -1,22 +1,22 @@
 "use client";
 
-import PageContainer from "../../components/PageContainer";
-import Button from "../../components/ui/Button";
-import DynamicIcon from "../../components/DynamicIcon";
-import Drawer from "../../components/ui/Drawer";
-import SelectCategoryView from "../../components/SelectCategoryView";
-import Card from "../../components/ui/Card";
+import PageContainer from "../../../components/PageContainer";
+import Button from "../../../components/ui/Button";
+import DynamicIcon from "../../../components/DynamicIcon";
+import Drawer from "../../../components/ui/Drawer";
+import SelectCategoryView from "../../../components/SelectCategoryView";
+import Card from "../../../components/ui/Card";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock, FiAlertCircle } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser } from "../../components/UserProvider";
-import Input from "../../components/ui/Input";
-import { supabase } from "../../lib/supabaseClient";
-import PageToolbar from "../../components/PageToolbar";
-import TransactionDetails from "../../components/transactions/TransactionDetails";
-import SimilarTransactionsFound from "../../components/transactions/SimilarTransactionsFound";
-import TransactionRow from "../../components/transactions/TransactionRow";
+import { useUser } from "../../../components/UserProvider";
+import Input from "../../../components/ui/Input";
+import { supabase } from "../../../lib/supabaseClient";
+import PageToolbar from "../../../components/PageToolbar";
+import TransactionDetails from "../../../components/transactions/TransactionDetails";
+import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
+import TransactionRow from "../../../components/transactions/TransactionRow";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';

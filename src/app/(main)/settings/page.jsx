@@ -1,20 +1,20 @@
 "use client";
 
-import PageContainer from "../../components/PageContainer";
-import ThemeToggle from "../../components/ThemeToggle";
-import AccentPicker from "../../components/AccentPicker";
-import Card from "../../components/ui/Card";
+import PageContainer from "../../../components/PageContainer";
+import ThemeToggle from "../../../components/ThemeToggle";
+import AccentPicker from "../../../components/AccentPicker";
+import Card from "../../../components/ui/Card";
 import { useState } from "react";
-import ConfirmDialog from "../../components/ui/ConfirmDialog";
-import Button from "../../components/ui/Button";
-import { supabase } from "../../lib/supabaseClient";
+import ConfirmDialog from "../../../components/ui/ConfirmDialog";
+import Button from "../../../components/ui/Button";
+import { supabase } from "../../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { useUser } from "../../components/UserProvider";
-import { useAccounts } from "../../components/AccountsProvider";
+import { useUser } from "../../../components/UserProvider";
+import { useAccounts } from "../../../components/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
 import { FaUnlink, FaPlus } from "react-icons/fa";
 import { FiTool } from "react-icons/fi";
-import PlaidLinkModal from "../../components/PlaidLinkModal";
+import PlaidLinkModal from "../../../components/PlaidLinkModal";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -233,6 +233,26 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </Card>
+        </section>
+
+        <section aria-labelledby="account-heading">
+          <h2 id="account-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Account</h2>
+          <Card>
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <div className="text-sm font-medium text-[var(--color-fg)]">Sign out</div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8"
+                onClick={logout}
+              >
+                Sign Out
+              </Button>
+            </div>
           </Card>
         </section>
 

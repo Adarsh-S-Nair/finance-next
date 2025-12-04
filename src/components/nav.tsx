@@ -24,12 +24,6 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/investments", label: "Investments", icon: LuChartLine, disabled: true },
     ],
   },
-  {
-    title: "Settings",
-    items: [
-      { href: "/settings", label: "Settings", icon: LuSettings },
-    ],
-  },
 ];
 
 

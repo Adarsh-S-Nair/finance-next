@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
 import { useUser } from '../UserProvider';
 
 function formatCurrency(amount) {
@@ -127,9 +127,14 @@ export default function SpendingEarningChart({ onSelectMonth, onHover, data = []
     }
   }
 
-  // Unique IDs for gradients to prevent conflicts
-  const incomeGradientId = useMemo(() => `incomeGradient-${Math.random().toString(36).substr(2, 9)}`, []);
-  const spendingGradientId = useMemo(() => `spendingGradient-${Math.random().toString(36).substr(2, 9)}`, []);
+  const id = useId();
+  const incomeGradientId = `incomeGradient-${id}`;
+  const spendingGradientId = `spendingGradient-${id}`;
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
+  if (!isMounted) return <div className="w-full h-full animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl" />;
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

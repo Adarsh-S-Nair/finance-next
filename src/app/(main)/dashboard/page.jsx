@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "../../components/UserProvider";
-import PageContainer from "../../components/PageContainer";
-import SpendingVsEarningCard from "../../components/dashboard/SpendingVsEarningCard.jsx";
-import { dashboardLayout } from "../../config/dashboardLayout";
-import MonthlyOverviewCard from "../../components/dashboard/MonthlyOverviewCard";
-import DashboardNetWorthCard from "../../components/dashboard/DashboardNetWorthCard";
-import RecurringTransactionsCard from "../../components/dashboard/RecurringTransactionsCard";
-import PlaceholderCard from "../../components/dashboard/PlaceholderCard";
+import { useUser } from "../../../components/UserProvider";
+import PageContainer from "../../../components/PageContainer";
+import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
+import { dashboardLayout } from "../../../config/dashboardLayout";
+import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
+import DashboardNetWorthCard from "../../../components/dashboard/DashboardNetWorthCard";
+import RecurringTransactionsCard from "../../../components/dashboard/RecurringTransactionsCard";
+import PlaceholderCard from "../../../components/dashboard/PlaceholderCard";
 
-import IncomeCard from "../../components/dashboard/IncomeCard";
-import SpendingCard from "../../components/dashboard/SpendingCard";
-import BudgetsCard from "../../components/dashboard/BudgetsCard";
+import IncomeCard from "../../../components/dashboard/IncomeCard";
+import SpendingCard from "../../../components/dashboard/SpendingCard";
+import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 
 // Map string keys to actual components
 const componentMap = {
@@ -79,7 +79,7 @@ export default function DashboardPage() {
           {dashboardLayout.top && (
             <>
               <div
-                className="flex md:grid md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none gap-4 md:gap-6 pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide [&>*:first-child]:lg:col-span-2 [&>*:first-child]:xl:col-span-1"
+                className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none gap-4 md:gap-6 pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide"
                 onScroll={handleScroll}
               >
                 {dashboardLayout.top.map((item) => {
