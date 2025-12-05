@@ -234,8 +234,8 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
           style={{ left: tooltip.x, top: tooltip.y }}
           className="absolute z-50 pointer-events-none transform -translate-x-1/2 -translate-y-[120%] transition-all duration-75 ease-out"
         >
-          <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 text-xs min-w-[140px]">
-            <div className="font-medium mb-2 text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800 pb-1">
+          <div className="bg-[var(--color-surface)]/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-[var(--color-border)] text-xs min-w-[140px]">
+            <div className="font-medium mb-2 text-[var(--color-muted)] border-b border-[var(--color-border)] pb-1">
               {tooltip.data.month}
             </div>
             <div className="flex flex-col gap-1.5">
@@ -248,7 +248,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-chart-spending-bar)]" />
                   <span className="text-[var(--color-muted)]">Spending</span>
                 </div>
                 <span className="font-semibold text-[var(--color-fg)]">{formatCurrency(tooltip.data.spending)}</span>

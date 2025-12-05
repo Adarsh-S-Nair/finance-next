@@ -53,7 +53,7 @@ export default function MobileNavBar() {
                 className={clsx(
                   "relative flex items-center justify-center h-12 rounded-xl transition-all duration-300 ease-spring",
                   isActive
-                    ? "px-4 text-[var(--color-accent)] bg-[var(--color-accent)]/10"
+                    ? "px-4 text-[var(--color-fg)] bg-[var(--color-fg)]/5"
                     : "w-12 text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/5"
                 )}
               >
@@ -62,7 +62,7 @@ export default function MobileNavBar() {
                     <Icon
                       className={clsx(
                         "w-5 h-5 transition-transform duration-300",
-                        isActive && "scale-110 stroke-[2.5px]"
+                        isActive && "scale-100"
                       )}
                     />
                   )}
@@ -74,18 +74,13 @@ export default function MobileNavBar() {
                         animate={{ opacity: 1, width: "auto", scale: 1 }}
                         exit={{ opacity: 0, width: 0, scale: 0.9 }}
                         transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        className="text-sm font-semibold whitespace-nowrap overflow-hidden"
+                        className="text-xs font-medium whitespace-nowrap overflow-hidden"
                       >
                         {item.label}
                       </motion.span>
                     )}
                   </AnimatePresence>
                 </div>
-
-                {/* Active Indicator Dot (Only when NOT expanded? Or maybe remove it since we have the background?) 
-                    Let's keep the background highlight as the main indicator for the expanded state.
-                    It looks cleaner.
-                */}
               </Link>
             );
           })}

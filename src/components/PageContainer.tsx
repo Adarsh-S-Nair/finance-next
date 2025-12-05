@@ -30,7 +30,7 @@ export default function PageContainer({ title, children, action, padding = "py-6
   return (
     <div className={padding}>
       {(displayTitle || action) && (
-        <div className="hidden md:flex items-center justify-between mb-6 pb-3 border-b border-[var(--color-border)]">
+        <div className="hidden md:flex items-center justify-between mb-6 pb-3">
           {displayTitle && (
             <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
               {displayTitle}

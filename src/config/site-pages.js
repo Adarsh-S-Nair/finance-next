@@ -5,7 +5,7 @@ export const SITE_PAGES = {
   },
   '/transactions': {
     title: 'Transactions',
-    header: 'Transactions',
+    header: null,
   },
   '/accounts': {
     title: 'Accounts',

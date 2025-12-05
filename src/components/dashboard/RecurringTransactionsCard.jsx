@@ -110,32 +110,29 @@ export default function RecurringTransactionsCard() {
 
   return (
     <Card width="full" variant="glass" className="flex flex-col h-full">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="text-sm font-medium text-[var(--color-muted)] mb-1">Monthly Bills</div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-semibold text-[var(--color-fg)]">
-              {formatCurrency(totalMonthly)}
-            </span>
-            <span className="text-xs text-[var(--color-muted)]">/mo</span>
-          </div>
+      {/* Header with Total */}
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-sm font-medium text-[var(--color-muted)]">Upcoming Bills</h3>
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm font-semibold text-[var(--color-fg)]">
+            {formatCurrency(totalMonthly)}
+          </span>
+          <span className="text-xs text-[var(--color-muted)]">/mo</span>
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 min-h-0 overflow-hidden">
-        <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">Upcoming</div>
-        <div className="space-y-1">
-          {recurring.slice(0, 3).map((item) => (
-            <RecurringTransactionItem key={item.id} item={item} />
-          ))}
-        </div>
+      {/* Minimal List */}
+      <div className="flex-1 space-y-1 min-h-0 overflow-hidden">
+        {recurring.slice(0, 4).map((item) => (
+          <RecurringTransactionItem key={item.id} item={item} />
+        ))}
       </div>
 
-      {recurring.length > 3 && (
+      {recurring.length > 4 && (
         <div className="mt-4 pt-3 border-t border-[var(--color-border)]/50">
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="w-full text-center text-xs text-[var(--color-accent)] hover:text-[var(--color-fg)] transition-colors font-medium"
+            className="w-full text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors font-medium"
           >
             View all {recurring.length} bills
           </button>
@@ -197,23 +194,16 @@ export default function RecurringTransactionsCard() {
 function RecurringTransactionItem({ item }) {
   return (
     <div
-      className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors gap-2"
+      className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors gap-3 group cursor-pointer -mx-2"
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        {/* Logo or Fallback */}
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--color-border)]/50"
-          style={{
-            backgroundColor: item.icon_url
-              ? 'var(--color-muted)/10'
-              : (item.category?.group?.hex_color || 'var(--color-accent)')
-          }}
-        >
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Minimal Icon */}
+        <div className="w-8 h-8 flex items-center justify-center text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
           {item.icon_url ? (
             <img
               src={item.icon_url}
               alt={item.merchant_name}
-              className="w-full h-full object-contain"
+              className="w-6 h-6 object-contain opacity-70 group-hover:opacity-100 transition-opacity"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
@@ -221,7 +211,6 @@ function RecurringTransactionItem({ item }) {
             />
           ) : null}
 
-          {/* Fallback: Category Icon or Initial */}
           <div
             className="w-full h-full flex items-center justify-center"
             style={{ display: item.icon_url ? 'none' : 'flex' }}
@@ -230,11 +219,11 @@ function RecurringTransactionItem({ item }) {
               <DynamicIcon
                 iconLib={item.category.group.icon_lib}
                 iconName={item.category.group.icon_name}
-                className="h-4 w-4 text-white"
+                className="h-5 w-5"
                 fallback={FiTag}
               />
             ) : (
-              <span className="text-[var(--color-muted)] text-xs font-medium">
+              <span className="text-sm font-medium">
                 {item.merchant_name.charAt(0).toUpperCase()}
               </span>
             )}
@@ -245,18 +234,15 @@ function RecurringTransactionItem({ item }) {
           <div className="text-sm font-medium text-[var(--color-fg)] truncate">
             {item.merchant_name}
           </div>
-          <div className="text-xs text-[var(--color-muted)] capitalize">
-            {item.category?.label || item.frequency}
+          <div className="text-xs text-[var(--color-muted)]">
+            {formatDate(item.next_date)}
           </div>
         </div>
       </div>
 
       <div className="text-right">
-        <div className="text-sm font-medium text-[var(--color-fg)]">
+        <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
           {formatCurrency(item.amount)}
-        </div>
-        <div className="text-xs text-[var(--color-muted)]">
-          {formatDate(item.next_date)}
         </div>
       </div>
     </div >

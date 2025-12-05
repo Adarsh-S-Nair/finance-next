@@ -4,8 +4,6 @@ import LineChart from "../ui/LineChart";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
 
-
-
 export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [chartData, setChartData] = useState([]);
@@ -102,7 +100,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   // Skeleton Loader Component
   const SkeletonLoader = () => (
     <div className="flex flex-col h-full animate-pulse">
-      <div className="px-5 pt-5">
+      <div className="px-6 pt-6">
         <div className="flex justify-between items-start mb-6">
           <div className="h-5 w-32 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
           <div className="h-5 w-24 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
@@ -118,7 +116,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           </div>
         </div>
       </div>
-      <div className="flex-1 w-full bg-zinc-50 dark:bg-zinc-900/30 mt-4 mx-5 rounded-lg" />
+      <div className="flex-1 w-full bg-zinc-50 dark:bg-zinc-900/30 mt-4 mx-6 rounded-lg" />
     </div>
   );
 
@@ -129,29 +127,46 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
       ) : (
         <div className="flex flex-col h-full">
           {/* Custom Header */}
-          <div className="px-5 pt-5">
-            {/* Title Row - Date and Dropdown */}
+          <div className="px-6 pt-6 pb-2">
             <div className="flex items-start justify-between">
-              <div
-                className={`flex items-center gap-2 ${onBack ? 'cursor-pointer group' : ''}`}
-                onClick={onBack}
-              >
-                {onBack && (
-                  <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
+              {/* Left Side: Title and Values */}
+              <div>
+                {/* Title */}
+                <div
+                  className={`flex items-center gap-2 mb-1 ${onBack ? 'cursor-pointer group' : ''}`}
+                  onClick={onBack}
+                >
+                  {onBack && (
+                    <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className={`text-base font-normal text-[var(--color-fg)] ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
+                    Monthly Overview
                   </div>
-                )}
-                <div className={`text-sm font-medium text-zinc-500 dark:text-zinc-400 ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
-                  Monthly Overview
+                </div>
+
+                {/* Values Row */}
+                <div className="flex items-baseline gap-8">
+                  <div>
+                    <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
+                      {formatCurrency(currentData?.income || 0)}
+                    </div>
+                    <div className="text-xs font-medium text-[var(--color-muted)]">Income</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
+                      {formatCurrency(currentData?.spending || 0)}
+                    </div>
+                    <div className="text-xs font-medium text-[var(--color-muted)]">Spending</div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="text-xs text-[var(--color-muted)] font-medium">
-                  {currentData?.dateString || 'Nov 30'}
-                </div>
-                <div className="h-3 w-px bg-[var(--color-border)]" />
+
+              {/* Right Side: Dropdown and Legend */}
+              <div className="flex flex-col items-end gap-3">
                 <Dropdown
                   label={availableMonths.find(m => m.value === selectedMonth)?.label || "Select Month"}
                   size="sm"
@@ -161,69 +176,46 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   }))}
                   align="right"
                 />
-              </div>
-            </div>
 
-            {/* Income/Spending Values and Legend Row */}
-            <div className="flex items-baseline justify-between pb-2">
-              {/* Values */}
-              <div className="flex items-baseline gap-4">
-                <div className={!isIncomeHigher ? "opacity-65" : ""}>
-                  <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(currentData?.income || 0)}
+                {/* Legend */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                    <span className="text-xs text-[var(--color-muted)]">Income</span>
                   </div>
-                  <div className="text-xs text-[var(--color-fg)]">Income</div>
-                </div>
-                <div className={isIncomeHigher ? "opacity-75" : ""}>
-                  <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                    {formatCurrency(currentData?.spending || 0)}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-chart-spending-bar)]" />
+                    <span className="text-xs text-[var(--color-muted)]">Spending</span>
                   </div>
-                  <div className="text-xs text-[var(--color-fg)]">Spending</div>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <svg width="12" height="2" className="overflow-visible">
-                    <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-cashflow-income)" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  <span className="text-xs text-[var(--color-muted)]">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <svg width="12" height="2" className="overflow-visible">
-                    <line x1="0" y1="1" x2="12" y2="1" stroke="var(--color-cashflow-spending)" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Chart */}
-          <div className="h-64 w-full" onMouseLeave={handleMouseLeave}>
+          <div className="h-64 w-full mt-4" onMouseLeave={handleMouseLeave}>
             <LineChart
               data={chartData}
               width="100%"
               height="100%"
-              margin={{ top: 10, right: 10, bottom: 0, left: 10 }}
+              margin={{ top: 10, right: 0, bottom: 0, left: 0 }}
               lines={[
                 {
                   dataKey: "income",
-                  strokeColor: "var(--color-cashflow-income)",
+                  strokeColor: "var(--color-accent)",
                   strokeWidth: 2,
-                  strokeOpacity: 0.8,
+                  strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.2,
+                  areaOpacity: 0.1,
                   gradientId: "monthlyOverviewIncome"
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-cashflow-spending)",
+                  strokeColor: "var(--color-chart-spending-bar)",
                   strokeWidth: 2,
-                  strokeOpacity: 0.8,
+                  strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.2,
+                  areaOpacity: 0.1,
                   gradientId: "monthlyOverviewSpending"
                 }
               ]}
@@ -231,8 +223,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               curveType="monotone"
               xAxisDataKey="dateString"
               showXAxis={true}
-              showYAxis={true}
-              showGrid={true}
+              showYAxis={false}
+              showGrid={false}
               xAxisInterval={4}
               formatYAxis={(val) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(val)}
               formatXAxis={(val) => val.split(' ')[1] || val} // Show day number if possible
