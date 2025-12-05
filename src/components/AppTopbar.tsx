@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { LuMenu } from "react-icons/lu";
 import DebugMemoryStats from "./DebugMemoryStats";
+import AlertsIcon from "./AlertsIcon";
 import { motion } from "framer-motion";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import { useUser } from "./UserProvider";
@@ -61,6 +62,7 @@ export default function AppTopbar({ isSidebarCollapsed }: { isSidebarCollapsed?:
         </div>
         <div className="ml-auto flex items-center gap-2">
           {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' && <DebugMemoryStats />}
+          <AlertsIcon />
           <button
             onClick={() => setShowLogout(true)}
             className="ml-2 relative group cursor-pointer flex items-center gap-3"

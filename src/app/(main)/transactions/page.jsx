@@ -17,6 +17,8 @@ import PageToolbar from "../../../components/PageToolbar";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
 import TransactionRow from "../../../components/transactions/TransactionRow";
+import SplitTransactionView from "../../../components/transactions/SplitTransactionView";
+import RepaymentView from "../../../components/transactions/RepaymentView";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
@@ -1071,6 +1073,14 @@ function TransactionsContent() {
     setCurrentDrawerView('transaction-details');
   };
 
+  const handleSplitClick = () => {
+    setCurrentDrawerView('split-transaction');
+  };
+
+  const handleRepaymentClick = () => {
+    setCurrentDrawerView('allocate-repayment');
+  };
+
   const handleSimilarTransactionsClose = () => {
     setIsDrawerOpen(false);
     setSelectedTransaction(null);
@@ -1451,6 +1461,8 @@ function TransactionsContent() {
             content: <TransactionDetails
               transaction={selectedTransaction}
               onCategoryClick={handleCategoryClick}
+              onSplitClick={handleSplitClick}
+              onRepaymentClick={handleRepaymentClick}
             />
           },
           {
@@ -1504,6 +1516,32 @@ function TransactionsContent() {
               onConfirm={handleConfirmRule}
               onClose={handleSimilarTransactionsClose}
               onCategorizeOnly={handleCategorizeOnly}
+            />
+          },
+          {
+            id: 'split-transaction',
+            title: 'Split Transaction',
+            showBackButton: true,
+            content: <SplitTransactionView
+              transaction={selectedTransaction}
+              onSplitCreated={() => {
+                handleRefresh();
+                handleBackToTransaction();
+              }}
+              onClose={handleBackToTransaction}
+            />
+          },
+          {
+            id: 'allocate-repayment',
+            title: 'Allocate Repayment',
+            showBackButton: true,
+            content: <RepaymentView
+              transaction={selectedTransaction}
+              onRepaymentCreated={() => {
+                handleRefresh();
+                handleBackToTransaction();
+              }}
+              onClose={handleBackToTransaction}
             />
           }
         ]}

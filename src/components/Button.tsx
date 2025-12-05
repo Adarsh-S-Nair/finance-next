@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useUser } from "./UserProvider";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle" | "outline" | "glass" | "matte";
+  variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle" | "outline" | "glass" | "matte" | "minimal";
   size?: "sm" | "md" | "lg" | "iconSm" | "icon" | "iconLg";
   fullWidth?: boolean;
 };
@@ -32,6 +32,8 @@ const variants: Record<string, string> = {
     "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/20 hover:border-[var(--color-accent)]/30 backdrop-blur-sm shadow-sm shadow-[var(--color-accent)]/5 transition-all duration-200",
   matte:
     "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none",
+  minimal:
+    "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]/50 border-none shadow-none",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -39,19 +41,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const { profile } = useUser();
     const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
     const isDefaultAccent = !profile?.accent_color;
-    
+
     const sizeClasses =
       size === "sm"
         ? "h-8 px-3 py-2"
         : size === "lg"
-        ? "h-11 px-5 py-2"
-        : size === "iconSm"
-        ? "h-8 w-8 p-0"
-        : size === "iconLg"
-        ? "h-11 w-11 p-0"
-        : size === "icon"
-        ? "h-9 w-9 p-0"
-        : "h-10 px-4 py-2"; // md default
+          ? "h-11 px-5 py-2"
+          : size === "iconSm"
+            ? "h-8 w-8 p-0"
+            : size === "iconLg"
+              ? "h-11 w-11 p-0"
+              : size === "icon"
+                ? "h-9 w-9 p-0"
+                : "h-10 px-4 py-2"; // md default
 
     // Determine base variant classes
     let variantClasses = variants[variant];

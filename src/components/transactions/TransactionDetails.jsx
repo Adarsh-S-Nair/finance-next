@@ -1,7 +1,9 @@
-import { FiCalendar, FiTag, FiCreditCard, FiMapPin, FiCheckCircle, FiClock, FiActivity, FiArrowUpRight, FiArrowDownLeft } from "react-icons/fi";
+import { FiCalendar, FiTag, FiCreditCard, FiMapPin, FiCheckCircle, FiClock, FiActivity, FiArrowUpRight, FiArrowDownLeft, FiShare2 } from "react-icons/fi";
+import { useState } from "react";
 import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
 import Card from "../ui/Card";
+import Button from "../ui/Button";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -12,7 +14,8 @@ const formatCurrency = (amount) => {
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-export default function TransactionDetails({ transaction, onCategoryClick }) {
+export default function TransactionDetails({ transaction, onCategoryClick, onSplitClick, onRepaymentClick }) {
+
   if (!transaction) return null;
 
   const isIncome = transaction.amount > 0;
@@ -66,7 +69,7 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
   const institutionLogo = transaction.accounts?.institutions?.logo;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Header Section */}
       <div className="flex flex-col items-center justify-center pt-6 pb-6 px-4">
         {/* Logo / Icon */}
@@ -120,7 +123,7 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
       </div>
 
       {/* Details List */}
-      <div className="flex-1 px-4 pb-6 space-y-4">
+      <div className="px-4 pb-6 space-y-4">
         <Card variant="default" padding="none" className="overflow-hidden">
           <div className="divide-y divide-[var(--color-border)]/40">
             {/* Status */}
@@ -248,6 +251,31 @@ export default function TransactionDetails({ transaction, onCategoryClick }) {
             )}
           </div>
         </Card>
+
+        {/* Actions */}
+        {isIncome ? (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="minimal"
+              onClick={onRepaymentClick}
+              className="gap-2"
+            >
+              <FiCheckCircle className="w-4 h-4" />
+              Mark as Repayment
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="minimal"
+              onClick={onSplitClick}
+              className="gap-2"
+            >
+              <FiShare2 className="w-4 h-4" />
+              Split / Request
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
