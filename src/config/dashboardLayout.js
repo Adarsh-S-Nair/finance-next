@@ -9,20 +9,8 @@
 
 export const dashboardLayout = {
   // Top row (3 columns)
-  top: [
-    {
-      id: 'net-worth',
-      component: 'DashboardNetWorthCard'
-    },
-    {
-      id: 'income',
-      component: 'IncomeCard'
-    },
-    {
-      id: 'spending',
-      component: 'SpendingCard'
-    }
-  ],
+  // Top row (3 columns)
+  top: null,
 
   // Main content area (left side, wider)
   main: [

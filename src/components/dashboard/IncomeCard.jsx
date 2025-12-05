@@ -132,8 +132,8 @@ export default function IncomeCard() {
             <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
           ) : (
             <span className={`text-xs font-medium ${momChange >= 0
-                ? 'text-emerald-500'
-                : 'text-rose-500'
+              ? 'text-emerald-500'
+              : 'text-rose-500'
               }`}>
               {momChange >= 0 ? '+' : ''}{momChange.toFixed(1)}%
               <span className="text-[var(--color-muted)] ml-1">vs last month</span>

@@ -2,16 +2,56 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Card from "../ui/Card";
-import SpendingEarningChart from "./SpendingEarningChart";
+import SpendingEarningChart from "./SpendingEarningChartV2";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
+import { useNetWorth } from "../NetWorthProvider";
 import { useRouter } from "next/navigation";
 
 import { AnimatePresence, motion } from "framer-motion";
 import MonthlyOverviewCard from "./MonthlyOverviewCard";
 
+// Animated counter component for smooth number transitions
+function AnimatedCounter({ value, duration = 1000 }) {
+  const [displayValue, setDisplayValue] = useState(value);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    const startValue = displayValue;
+    const endValue = value;
+
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 4);
+      setDisplayValue(startValue + (endValue - startValue) * ease);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [value]);
+
+  const formatted = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(displayValue);
+
+  const [main, cents] = formatted.split('.');
+
+  return (
+    <span>
+      {main}
+      <span className="text-lg text-[var(--color-muted)] font-medium">.{cents}</span>
+    </span>
+  );
+}
+
 export default function SpendingVsEarningCard() {
   const { user } = useUser();
+  const { netWorthHistory, currentNetWorth } = useNetWorth();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
   const [chartData, setChartData] = useState([]);
@@ -98,6 +138,22 @@ export default function SpendingVsEarningCard() {
     setDrillDownMonth(null);
   };
 
+  // Net Worth Calculations
+  const netWorthChartData = useMemo(() => {
+    if (!netWorthHistory?.length) return [];
+    return netWorthHistory.map(item => item.netWorth);
+  }, [netWorthHistory]);
+
+  const percentChange = useMemo(() => {
+    if (netWorthChartData.length < 2) return 0;
+    const current = netWorthChartData[netWorthChartData.length - 1];
+    const start = netWorthChartData[0];
+    if (start === 0) return 0;
+    return ((current - start) / Math.abs(start)) * 100;
+  }, [netWorthChartData]);
+
+  const netWorthValue = currentNetWorth?.netWorth || 0;
+
   return (
     <Card padding="none" className={`h-full relative overflow-hidden ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
       {showLoading && (
@@ -129,50 +185,43 @@ export default function SpendingVsEarningCard() {
             className={showLoading ? 'opacity-0' : ''}
           >
             {/* Custom Header */}
-            <div className="px-5 pt-5 pb-4">
+            <div className="px-6 pt-6 pb-2">
               <div className="flex items-start justify-between">
                 {/* Title and Values */}
                 <div>
-                  <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                    {hoveredData ? hoveredData.monthName : 'Cashflow'}
+                  <div className="text-base font-normal text-[var(--color-fg)] mb-1">
+                    Net Worth
                   </div>
 
-                  <div className="flex items-baseline gap-4">
-                    <div className={!isIncomeHigher ? "opacity-65" : ""}>
-                      <div className={`${isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                        {formatCurrency(displayIncome)}
-                      </div>
-                      <div className="text-xs text-[var(--color-fg)]">Income</div>
-                    </div>
-                    <div className={isIncomeHigher ? "opacity-75" : ""}>
-                      <div className={`${!isIncomeHigher ? "text-2xl" : "text-lg"} font-medium tracking-tight text-[var(--color-fg)]`}>
-                        {formatCurrency(displaySpending)}
-                      </div>
-                      <div className="text-xs text-[var(--color-fg)]">Spending</div>
-                    </div>
+                  <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-2">
+                    <AnimatedCounter value={netWorthValue} />
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className={`font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {percentChange >= 0 ? '↑' : '↓'} {Math.abs(percentChange).toFixed(1)}%
+                    </span>
+                    <span className="text-[var(--color-muted)]">vs last month</span>
                   </div>
                 </div>
 
-                {/* Dropdown and Legend stacked */}
+                {/* Right Side Actions */}
                 <div className="flex flex-col items-end gap-3">
-                  <Dropdown
-                    label={periodOptions.find(p => p.value === selectedPeriod)?.label || "6 Months"}
-                    size="sm"
-                    items={periodOptions.map(period => ({
-                      label: period.label,
-                      onClick: () => setSelectedPeriod(period.value)
-                    }))}
-                    align="right"
-                  />
+                  <button
+                    onClick={() => router.push('/accounts')}
+                    className="px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] bg-transparent border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+                  >
+                    View Accounts
+                  </button>
 
-                  {/* Legend with circles */}
+                  {/* Legend */}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-income)' }} />
+                      <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
                       <span className="text-xs text-[var(--color-muted)]">Income</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-cashflow-spending)' }} />
+                      <div className="w-2 h-2 rounded-full bg-[var(--color-chart-spending-bar)]" />
                       <span className="text-xs text-[var(--color-muted)]">Spending</span>
                     </div>
                   </div>

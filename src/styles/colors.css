@@ -67,6 +67,10 @@
   /* Cashflow Chart Colors - Light Mode (Green/Red) */
   --color-cashflow-income: #34d399;
   --color-cashflow-spending: #f87171;
+
+  /* Spending Bar Color - Light Mode (Lighter Gray) */
+  --color-chart-spending-bar: #d4d4d8;
+  /* Zinc 300 */
 }
 
 .dark {
@@ -141,6 +145,10 @@
   /* Cashflow Chart Colors - Dark Mode (Green/Red) */
   --color-cashflow-income: #10b981;
   --color-cashflow-spending: #f87171;
+
+  /* Spending Bar Color - Dark Mode (Darker Gray) */
+  --color-chart-spending-bar: #52525b;
+  /* Zinc 600 */
 }
 
 /* Base application colors */

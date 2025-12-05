@@ -20,42 +20,10 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const pathname = usePathname();
   const router = useRouter();
   const { profile, logout } = useUser();
-  const [displayName, setDisplayName] = useState("You");
-  const [email, setEmail] = useState("");
-  const [profileUrl, setProfileUrl] = useState(null as string | null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user;
-      if (user) {
-        const first = (user.user_metadata?.first_name as string | undefined) || "";
-        const last = (user.user_metadata?.last_name as string | undefined) || "";
-        const composite = `${first} ${last}`.trim();
-        const rawName = (user.user_metadata?.name as string | undefined)
-          || (user.user_metadata?.full_name as string | undefined)
-          || composite
-          || "";
-        const nonEmailName = /@/.test(rawName) ? "" : rawName;
-        const fromEmail = (email?: string) => {
-          if (!email) return "";
-          const local = email.split("@")[0] || "";
-          if (!local) return "";
-          return local.charAt(0).toUpperCase() + local.slice(1);
-        };
-        const finalName = (nonEmailName && nonEmailName.trim()) || fromEmail(user.email) || "You";
-        setDisplayName(finalName);
-        setEmail(user.email || "");
-
-        const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(finalName)}&background=random&bold=true`;
-        setProfileUrl(avatar);
-      }
-    };
-    void load();
-  }, []);
 
   const groups = useMemo(() => NAV_GROUPS, []);
 
@@ -67,36 +35,28 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   return (
     <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
       {/* Profile Section - Moved to Top */}
-      <div className="p-3 border-b border-[var(--color-border)]">
-        <div
-          className={`flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--color-surface)] transition-colors duration-200 cursor-default ${isCollapsed ? 'justify-center' : ''}`}
-        >
-          <div className="relative">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            >
-              {profileUrl ? (
-                <img
-                  src={profileUrl}
-                  alt="Profile"
-                  className="h-10 w-10 rounded-full object-cover ring-2 ring-[var(--color-border)]"
-                />
-              ) : (
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-neon-purple)] opacity-20" />
-              )}
-            </motion.div>
-          </div>
-
+      {/* Logo Section */}
+      <div className="p-4 flex items-center justify-center h-16">
+        <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+          <motion.div
+            className="h-8 w-8 bg-[var(--color-fg)]"
+            style={{
+              maskImage: 'url(/logo.svg)',
+              maskSize: 'contain',
+              maskRepeat: 'no-repeat',
+              maskPosition: 'center',
+              WebkitMaskImage: 'url(/logo.svg)',
+              WebkitMaskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center'
+            }}
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+          />
           {!isCollapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
-                {displayName}
-              </div>
-              <div className="text-xs text-[var(--color-muted)] truncate">
-                {email}
-              </div>
-            </div>
+            <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+              ZENTARI
+            </h1>
           )}
         </div>
       </div>
