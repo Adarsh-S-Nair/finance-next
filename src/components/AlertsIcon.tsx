@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { FiBell } from "react-icons/fi"; // Outline icon
 import { useUser } from "./UserProvider";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { FiAlertCircle, FiChevronRight } from "react-icons/fi";
 import Link from "next/link";
 
@@ -51,7 +51,7 @@ export default function AlertsIcon() {
   if (loading) return null;
 
   // Jiggle animation variants
-  const jiggleVariants = {
+  const jiggleVariants: Variants = {
     hover: {
       rotate: [0, -10, 10, -10, 10, 0],
       transition: {
