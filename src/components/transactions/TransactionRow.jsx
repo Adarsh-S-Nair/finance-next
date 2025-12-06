@@ -79,7 +79,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5 truncate">
               <span className="truncate">{transaction.category_name}</span>
               {transaction.is_unmatched_payment && (
-                <div className="text-yellow-500 flex-shrink-0" title="Unmatched Credit Card Payment">
+                <div className="text-yellow-500 flex-shrink-0" title="Unmatched Transfer / Payment">
                   <FiAlertCircle className="w-3.5 h-3.5" />
                 </div>
               )}

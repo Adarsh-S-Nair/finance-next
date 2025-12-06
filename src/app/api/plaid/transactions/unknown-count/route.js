@@ -12,12 +12,12 @@ export async function GET(request) {
       );
     }
 
-    // Count transactions where account name is unknown/null
+    // Count transactions where account name is unknown/null OR is_unmatched_transfer is true
     const { count: unknownAccountCount, error: countError } = await supabaseAdmin
       .from('transactions')
       .select('accounts!inner(id)', { count: 'exact', head: true })
       .eq('accounts.user_id', userId)
-      .is('accounts.name', null);
+      .or('accounts.name.is.null,is_unmatched_transfer.eq.true');
 
     console.log('Unknown transactions count query result:', { unknownAccountCount, countError, userId });
 

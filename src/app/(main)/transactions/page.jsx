@@ -353,7 +353,8 @@ const FiltersContent = ({
         options={[
           { value: 'all', label: 'All' },
           { value: 'completed', label: 'Completed' },
-          { value: 'pending', label: 'Pending' }
+          { value: 'pending', label: 'Pending' },
+          { value: 'attention', label: 'Needs Attention' }
         ]}
       />
 

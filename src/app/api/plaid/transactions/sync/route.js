@@ -610,6 +610,35 @@ export async function POST(request) {
     if (transactionsToUpsert.length > 0) {
       if (DEBUG) console.log('🔄 Running recurring transaction detection...');
       await detectRecurringTransactions(userId);
+
+      // Run unmatched transfer detection
+      if (DEBUG) console.log('🔄 Running unmatched transfer detection...');
+      try {
+        const { detectUnmatchedTransfers } = await import('../../../../../lib/transfer-detection');
+
+        // Determine date range from upserted transactions
+        // We need to cover the range of all new/updated transactions
+        // plus a buffer to ensure we catch matches at the edges.
+        // The detection logic itself handles the +/- 3 day window for each transaction,
+        // but we need to pass a range that covers all the *dates* of the transactions we just inserted.
+
+        const dates = transactionsToUpsert
+          .map(t => t.date)
+          .filter(Boolean)
+          .sort();
+
+        if (dates.length > 0) {
+          const minDate = dates[0];
+          const maxDate = dates[dates.length - 1];
+
+          // Expand range by 3 days just in case? 
+          // Actually, detectUnmatchedTransfers takes a range of transactions to *check*.
+          // So passing minDate and maxDate is correct. It will check all transactions in that range.
+          await detectUnmatchedTransfers(userId, minDate, maxDate);
+        }
+      } catch (err) {
+        console.error('❌ Error running unmatched transfer detection:', err);
+      }
     }
 
     return Response.json({

@@ -127,15 +127,15 @@ export default function AlertsIcon() {
             <div className="max-h-[300px] overflow-y-auto mt-2">
               {count > 0 ? (
                 <div className="p-2">
-                  <Link href="/transactions?status=unknown" onClick={() => setIsOpen(false)}>
+                  <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
                     <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
                       <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
                         <FiAlertCircle className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-fg)]">Unknown Transactions</p>
+                        <p className="text-sm font-medium text-[var(--color-fg)]">Transactions Needing Attention</p>
                         <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                          You have {count} transaction{count !== 1 ? 's' : ''} that need attention.
+                          You have {count} transaction{count !== 1 ? 's' : ''} that need review (Unknown Account or Unmatched Transfer).
                         </p>
                       </div>
                       <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
