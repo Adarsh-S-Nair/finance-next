@@ -69,7 +69,7 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
       // Query for a matching transaction
       const { data: matches, error: matchError } = await supabaseAdmin
         .from('transactions')
-        .select('id')
+        .select('id, accounts!inner()')
         .eq('accounts.user_id', userId)
         .eq('amount', targetAmount)
         .gte('date', windowStartStr)
