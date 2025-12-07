@@ -15,6 +15,8 @@ export default function TopCategoriesCard() {
   const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
 
+  const containerRef = React.useRef(null);
+
   useEffect(() => {
     async function fetchData() {
       if (!user?.id) return;
@@ -40,6 +42,29 @@ export default function TopCategoriesCard() {
 
     fetchData();
   }, [user?.id]);
+
+  // Handle Mouse Leave Logic
+  useEffect(() => {
+    if (activeIndex === null) return;
+
+    const handleGlobalMouseMove = (e) => {
+      if (!containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const isOutside =
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom;
+
+      if (isOutside) {
+        setActiveIndex(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
+  }, [activeIndex]);
 
   const onPieEnter = (_, index) => {
     setActiveIndex(index);
@@ -92,7 +117,7 @@ export default function TopCategoriesCard() {
 
   return (
     <Card padding="none" className="h-[400px] relative">
-      <div className="flex flex-col h-full">
+      <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header - Minimalist */}
         <div className="px-6 pt-6 pb-2">
           <div className="text-base font-normal text-[var(--color-fg)] mb-1">
@@ -104,6 +129,7 @@ export default function TopCategoriesCard() {
         <div className="flex-1 min-h-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              {/* Visible Pie Layer */}
               <Pie
                 data={categories}
                 cx="50%"
@@ -113,12 +139,9 @@ export default function TopCategoriesCard() {
                 paddingAngle={4}
                 cornerRadius={3}
                 dataKey="total_spent"
-                onMouseEnter={onPieEnter}
-                onMouseLeave={onPieLeave}
-                onClick={onPieClick}
                 stroke="none"
                 isAnimationActive={false}
-                style={{ cursor: 'pointer' }}
+                style={{ pointerEvents: 'none' }} // Pass events through
               >
                 {categories.map((entry, index) => (
                   <Cell
@@ -128,7 +151,6 @@ export default function TopCategoriesCard() {
                     style={{
                       transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', // Bouncy effect
                       outline: 'none',
-                      cursor: 'pointer',
                       transform: activeIndex === index ? 'scale(1.03)' : 'scale(1)',
                       transformOrigin: 'center center',
                       transformBox: 'fill-box'
@@ -136,6 +158,24 @@ export default function TopCategoriesCard() {
                   />
                 ))}
               </Pie>
+
+              {/* Invisible Interaction Layer - Larger hit area */}
+              <Pie
+                data={categories}
+                cx="50%"
+                cy="50%"
+                innerRadius={90} // Start slightly inside
+                outerRadius={148} // Extend further out
+                paddingAngle={4}
+                dataKey="total_spent"
+                onMouseEnter={onPieEnter}
+                onMouseLeave={onPieLeave}
+                onClick={onPieClick}
+                stroke="none"
+                fill="transparent"
+                isAnimationActive={false}
+                style={{ cursor: 'pointer' }}
+              />
             </PieChart>
           </ResponsiveContainer>
 

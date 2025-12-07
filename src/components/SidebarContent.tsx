@@ -36,9 +36,10 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
       {/* Profile Section - Moved to Top */}
       {/* Logo Section */}
+      {/* Logo Section */}
       <div className="p-4 flex items-center justify-center h-16">
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-          <motion.div
+          <div
             className="h-8 w-8 bg-[var(--color-fg)]"
             style={{
               maskImage: 'url(/logo.svg)',
@@ -50,8 +51,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               WebkitMaskRepeat: 'no-repeat',
               WebkitMaskPosition: 'center'
             }}
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
           />
           {!isCollapsed && (
             <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
@@ -68,7 +67,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             key={g.title}
             className="mb-6 last:mb-0"
           >
-            <div className={`px-3 mb-2 text-[10px] uppercase tracking-widest font-semibold text-[var(--color-muted)] ${isCollapsed ? 'text-center' : ''}`}>
+            <div className={`px-3 mb-2 text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider ${isCollapsed ? 'text-center' : ''}`}>
               {isCollapsed ? (
                 <span className="block w-full border-b border-[var(--color-border)] my-2" />
               ) : (
@@ -95,7 +94,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                       onMouseLeave={() => setHoveredItem(null)}
                       aria-disabled={it.disabled || undefined}
                       className={clsx(
-                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200",
                         it.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "cursor-pointer",
@@ -106,27 +105,15 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                     >
                       {/* Enhanced active indicator - straight line */}
                       {active && (
-                        <motion.div
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[var(--color-accent)]"
-                          layoutId="activeIndicator"
-                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                        <div
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
                         />
                       )}
 
                       <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                        <motion.span
-                          className="flex items-center justify-center"
-                          animate={
-                            active
-                              ? { scale: 1.05 }
-                              : isHovered
-                                ? { scale: 1.1 }
-                                : { scale: 1 }
-                          }
-                          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                        >
+                        <span className="flex items-center justify-center">
                           {it.icon && <it.icon className="h-[18px] w-[18px]" />}
-                        </motion.span>
+                        </span>
                         {!isCollapsed && (
                           <span className="tracking-wide">
                             {it.label}
@@ -163,33 +150,21 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               onMouseEnter={() => setHoveredItem('/settings')}
               onMouseLeave={() => setHoveredItem(null)}
               className={clsx(
-                "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-pointer",
+                "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer",
                 pathname.startsWith('/settings')
                   ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
                   : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
               )}
             >
               {pathname.startsWith('/settings') && (
-                <motion.div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[var(--color-accent)]"
-                  layoutId="activeIndicator"
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                <div
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
                 />
               )}
               <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                <motion.span
-                  className="flex items-center justify-center"
-                  animate={
-                    pathname.startsWith('/settings')
-                      ? { scale: 1.05 }
-                      : hoveredItem === '/settings'
-                        ? { scale: 1.1 }
-                        : { scale: 1 }
-                  }
-                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                >
+                <span className="flex items-center justify-center">
                   <LuSettings className="h-[18px] w-[18px]" />
-                </motion.span>
+                </span>
                 {!isCollapsed && <span className="tracking-wide">Settings</span>}
               </span>
             </Link>
@@ -201,33 +176,21 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             onMouseEnter={() => setHoveredItem('/settings')}
             onMouseLeave={() => setHoveredItem(null)}
             className={clsx(
-              "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-pointer",
+              "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer",
               pathname.startsWith('/settings')
                 ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
                 : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
             )}
           >
             {pathname.startsWith('/settings') && (
-              <motion.div
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[var(--color-accent)]"
-                layoutId="activeIndicator"
-                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
               />
             )}
             <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-              <motion.span
-                className="flex items-center justify-center"
-                animate={
-                  pathname.startsWith('/settings')
-                    ? { scale: 1.05 }
-                    : hoveredItem === '/settings'
-                      ? { scale: 1.1 }
-                      : { scale: 1 }
-                }
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              >
+              <span className="flex items-center justify-center">
                 <LuSettings className="h-[18px] w-[18px]" />
-              </motion.span>
+              </span>
               {!isCollapsed && <span className="tracking-wide">Settings</span>}
             </span>
           </Link>
@@ -269,20 +232,12 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               onClick={onLogout}
               onMouseEnter={() => setHoveredItem('logout')}
               onMouseLeave={() => setHoveredItem(null)}
-              className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+              className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
             >
               <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                <motion.span
-                  className="flex items-center justify-center"
-                  animate={
-                    hoveredItem === 'logout'
-                      ? { scale: 1.1 }
-                      : { scale: 1 }
-                  }
-                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                >
+                <span className="flex items-center justify-center">
                   <TbLogout className="h-[18px] w-[18px]" />
-                </motion.span>
+                </span>
                 {!isCollapsed && <span className="tracking-wide">Log out</span>}
               </span>
             </button>
@@ -292,20 +247,12 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             onClick={onLogout}
             onMouseEnter={() => setHoveredItem('logout')}
             onMouseLeave={() => setHoveredItem(null)}
-            className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+            className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
           >
             <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-              <motion.span
-                className="flex items-center justify-center"
-                animate={
-                  hoveredItem === 'logout'
-                    ? { scale: 1.1 }
-                    : { scale: 1 }
-                }
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              >
+              <span className="flex items-center justify-center">
                 <TbLogout className="h-[18px] w-[18px]" />
-              </motion.span>
+              </span>
               {!isCollapsed && <span className="tracking-wide">Log out</span>}
             </span>
           </button>

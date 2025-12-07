@@ -222,11 +222,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 {/* Legend */}
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
                     <span className="text-xs text-[var(--color-muted)]">Income</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-chart-spending-bar)]" />
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
                     <span className="text-xs text-[var(--color-muted)]">Spending</span>
                   </div>
                 </div>
@@ -244,7 +244,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               lines={[
                 {
                   dataKey: "income",
-                  strokeColor: "var(--color-accent)",
+                  strokeColor: "var(--color-cashflow-income)",
                   strokeWidth: 2,
                   strokeOpacity: 1,
                   showArea: true,
@@ -253,7 +253,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-chart-spending-bar)",
+                  strokeColor: "var(--color-cashflow-spending)",
                   strokeWidth: 2,
                   strokeOpacity: 1,
                   showArea: true,

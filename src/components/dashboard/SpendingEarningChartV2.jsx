@@ -203,11 +203,11 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               >
                 <path
                   d={incBarPath}
-                  fill="var(--color-accent)"
+                  fill="var(--color-cashflow-income)"
                 />
                 <path
                   d={spdBarPath}
-                  fill="var(--color-chart-spending-bar)"
+                  fill="var(--color-cashflow-spending)"
                 />
 
                 {/* Invisible hover rect for the whole group */}
@@ -241,14 +241,14 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-cashflow-income)]" />
                   <span className="text-[var(--color-muted)]">Income</span>
                 </div>
                 <span className="font-semibold text-[var(--color-fg)]">{formatCurrency(tooltip.data.income)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-chart-spending-bar)]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-cashflow-spending)]" />
                   <span className="text-[var(--color-muted)]">Spending</span>
                 </div>
                 <span className="font-semibold text-[var(--color-fg)]">{formatCurrency(tooltip.data.spending)}</span>

@@ -104,7 +104,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
 
         {(transaction.is_repayment || transaction.transaction_splits?.some(s => s.is_settled)) && (
           <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
-            REIMBURSED
+            {transaction.amount > 0 ? 'REIMBURSEMENT' : 'REIMBURSED'}
           </div>
         )}
       </div>

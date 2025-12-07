@@ -51,7 +51,7 @@ export default function MobileNavBar() {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  "relative flex items-center justify-center h-12 rounded-xl transition-all duration-300 ease-spring",
+                  "relative flex items-center justify-center h-12 rounded-xl transition-all duration-200",
                   isActive
                     ? "px-4 text-[var(--color-fg)] bg-[var(--color-fg)]/5"
                     : "w-12 text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/5"
@@ -60,26 +60,17 @@ export default function MobileNavBar() {
                 <div className="relative z-10 flex items-center gap-2">
                   {Icon && (
                     <Icon
-                      className={clsx(
-                        "w-5 h-5 transition-transform duration-300",
-                        isActive && "scale-100"
-                      )}
+                      className="w-5 h-5"
                     />
                   )}
 
-                  <AnimatePresence mode="wait">
-                    {isActive && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, width: "auto", scale: 1 }}
-                        exit={{ opacity: 0, width: 0, scale: 0.9 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        className="text-xs font-medium whitespace-nowrap overflow-hidden"
-                      >
-                        {item.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
+                  {isActive && (
+                    <span
+                      className="text-xs font-normal whitespace-nowrap overflow-hidden animate-fade-in-item"
+                    >
+                      {item.label}
+                    </span>
+                  )}
                 </div>
               </Link>
             );
