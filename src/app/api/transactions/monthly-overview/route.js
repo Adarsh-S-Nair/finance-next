@@ -39,7 +39,7 @@ export async function GET(request) {
     // We need system_categories to identify "Transfer", "Credit Card Payment", etc.
     let query = supabaseAdmin
       .from('transactions')
-      .select('id, amount, date, accounts!inner(user_id), system_categories(label), transaction_splits(amount, is_settled)')
+      .select('id, amount, date, accounts!inner(user_id), system_categories(label), transaction_splits(amount, is_settled), transaction_repayments(id)')
       .eq('accounts.user_id', userId)
       .gte('date', startDateStr)
       .lte('date', endDateStr)
@@ -115,6 +115,9 @@ export async function GET(request) {
     transactions.forEach(tx => {
       // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
       if (matchedIds.has(tx.id)) return;
+
+      // Exclude repayment transactions from counting as income (or spending)
+      if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
 
       if (!tx.date) return;
 

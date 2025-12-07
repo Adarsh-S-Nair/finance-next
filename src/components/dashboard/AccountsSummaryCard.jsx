@@ -1,21 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Card from "../ui/Card";
-import Pill from "../ui/Pill";
 import { useAccounts } from "../AccountsProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }) {
   const [displayValue, setDisplayValue] = useState(value);
-  const [isAnimating, setIsAnimating] = useState(false);
   const animationRef = useRef(null);
 
   useEffect(() => {
     if (displayValue === value) return;
-
-    setIsAnimating(true);
 
     const startValue = displayValue;
     const endValue = value;
@@ -24,8 +20,6 @@ function AnimatedCounter({ value, duration = 120 }) {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
-      // Use easeOutCubic for smooth deceleration
       const easeProgress = 1 - Math.pow(1 - progress, 3);
 
       const currentValue = startValue + (endValue - startValue) * easeProgress;
@@ -35,14 +29,12 @@ function AnimatedCounter({ value, duration = 120 }) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
         setDisplayValue(endValue);
-        setIsAnimating(false);
       }
     };
 
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-
     animationRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -50,12 +42,10 @@ function AnimatedCounter({ value, duration = 120 }) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [value, duration, displayValue]);
+  }, [value, duration]);
 
   return (
-    <span className={isAnimating ? 'transition-all duration-150' : ''}>
-      {formatCurrency(displayValue)}
-    </span>
+    <span>{formatCurrency(displayValue)}</span>
   );
 }
 
@@ -74,7 +64,6 @@ function categorizeAccount(account) {
   const accountSubtype = (account.subtype || '').toLowerCase();
   const fullType = `${accountType} ${accountSubtype}`.trim();
 
-  // Check if it's a liability first
   const liabilityTypes = [
     'credit card', 'credit', 'loan', 'mortgage',
     'line of credit', 'overdraft', 'other'
@@ -83,23 +72,21 @@ function categorizeAccount(account) {
   const isLiability = liabilityTypes.some(type => fullType.includes(type));
 
   if (isLiability) {
-    // Categorize liabilities
     if (fullType.includes('credit card') || fullType.includes('credit')) {
       return 'credit';
     } else if (fullType.includes('loan') || fullType.includes('mortgage') || fullType.includes('line of credit')) {
       return 'loans';
     } else {
-      return 'credit'; // Default to credit for other liability types
+      return 'credit';
     }
   } else {
-    // Categorize assets
     if (fullType.includes('investment') || fullType.includes('brokerage') ||
       fullType.includes('401k') || fullType.includes('ira') ||
       fullType.includes('retirement') || fullType.includes('mutual fund') ||
       fullType.includes('stock') || fullType.includes('bond')) {
       return 'investments';
     } else {
-      return 'cash'; // Default to cash for checking, savings, etc.
+      return 'cash';
     }
   }
 }
@@ -110,76 +97,58 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
 
   if (total === 0) {
     return (
-      <div className={`space-y-3 ${className}`}>
-        <div className="flex justify-between items-center">
+      <div className={`space-y-4 ${className}`}>
+        <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
-          <span className="text-sm text-[var(--color-muted)]">
+          <span className="text-sm font-semibold text-[var(--color-fg)]">
             <AnimatedCounter value={0} duration={120} />
           </span>
         </div>
-        <div className="w-full h-3 bg-[var(--color-border)]/20 rounded-md">
-          <div className="h-full bg-[var(--color-muted)]/10 rounded-md flex items-center justify-center">
-            {/* Empty state */}
-          </div>
-        </div>
+        <div className="w-full h-2 bg-[var(--color-border)]/20 rounded-full overflow-hidden" />
       </div>
     );
   }
 
-  // Display value can be the specific hovered segment value or the total
-  const displayValue = hoveredSegment ? hoveredSegment.amount : total;
-  const displayLabel = hoveredSegment ? hoveredSegment.label : label;
+  const displayTotal = total;
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <div className="flex justify-between items-center h-6">
-        <span className="text-sm font-medium text-[var(--color-fg)] transition-all duration-200">
-          {displayLabel}
+      {/* Header */}
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-sm font-medium text-[var(--color-fg)]">
+          {label}
         </span>
-        <span className="text-sm font-medium text-[var(--color-fg)] transition-all duration-200">
-          <AnimatedCounter value={displayValue} duration={120} />
+        <span className="text-sm font-semibold text-[var(--color-fg)]">
+          <AnimatedCounter value={displayTotal} duration={120} />
         </span>
       </div>
 
-      {/* Modern segmented bar with gaps and interaction */}
+      {/* Bar */}
       <div
-        className={`w-full h-3 flex ${isAnimated ? 'transition-all duration-300 ease-out' : ''}`}
+        className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface)]"
         onMouseLeave={() => setHoveredSegment(null)}
       >
-        {segments.map((segment, index) => {
+        {segments.map((segment) => {
           const percentage = (segment.amount / total) * 100;
+          let color;
 
-          // Determine colors
-          let color = 'var(--color-neon-green)';
-          let border = 'none';
+          // Updated Colors
+          if (segment.label === 'Investments') color = 'var(--color-neon-green)';
+          else if (segment.label === 'Cash') color = '#059669'; // Emerald-600
+          else if (segment.label === 'Credit') color = '#ef4444'; // Red-500
+          else if (segment.label === 'Loans') color = '#b91c1c'; // Red-700
+          else color = 'var(--color-muted)';
 
-          if (segment.label === 'Investments') {
-            color = 'color-mix(in srgb, var(--color-neon-green), transparent 90%)'; // Very transparent
-            border = '1px solid color-mix(in srgb, var(--color-neon-green), transparent 50%)'; // Glassy border
-          }
-          else if (segment.label === 'Credit') color = '#ef4444';
-          else if (segment.label === 'Loans') {
-            color = 'color-mix(in srgb, #ef4444, transparent 90%)';
-            border = '1px solid color-mix(in srgb, #ef4444, transparent 50%)';
-          }
-
-          const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
 
           return (
             <div
               key={segment.label}
-              className={`h-full first:rounded-l-sm last:rounded-r-sm transition-all duration-200 cursor-pointer relative group`}
+              className="h-full transition-all duration-200 cursor-pointer"
               style={{
                 width: `${percentage}%`,
                 backgroundColor: color,
-                border: border,
-                backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.15), rgba(0,0,0,0.1))',
                 opacity: isDimmed ? 0.3 : 1,
-                boxShadow: isHovered
-                  ? `0 0 10px ${color}, inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)`
-                  : 'inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)',
-                zIndex: isHovered ? 10 : 1
               }}
               onMouseEnter={() => setHoveredSegment(segment)}
             />
@@ -187,49 +156,41 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
         })}
       </div>
 
-      {/* Modern legend with hover interactions */}
-      <div className="space-y-2 text-xs">
+      {/* Vertical Legend */}
+      <div className="space-y-2 pt-1">
         {segments.map((segment, index) => {
-          let dotColor = 'var(--color-neon-green)';
-          let dotBorder = 'none';
-
-          if (segment.label === 'Investments') {
-            dotColor = 'color-mix(in srgb, var(--color-neon-green), transparent 90%)';
-            dotBorder = '1px solid color-mix(in srgb, var(--color-neon-green), transparent 50%)';
-          }
-          else if (segment.label === 'Credit') dotColor = '#ef4444';
-          else if (segment.label === 'Loans') {
-            dotColor = 'color-mix(in srgb, #ef4444, transparent 90%)';
-            dotBorder = '1px solid color-mix(in srgb, #ef4444, transparent 50%)';
-          }
+          let color;
+          if (segment.label === 'Investments') color = 'var(--color-neon-green)';
+          else if (segment.label === 'Cash') color = '#059669';
+          else if (segment.label === 'Loans') color = '#b91c1c';
+          else if (segment.label === 'Credit') color = '#ef4444';
 
           const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+          const percentage = ((segment.amount / total) * 100).toFixed(1);
 
           return (
             <div
               key={index}
-              className={`flex items-center justify-between transition-opacity duration-200 cursor-pointer hover:opacity-100 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+              className={`flex items-center justify-between text-xs transition-opacity duration-200 cursor-pointer ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
               onMouseEnter={() => setHoveredSegment(segment)}
               onMouseLeave={() => setHoveredSegment(null)}
             >
               <div className="flex items-center gap-2">
                 <div
-                  className="w-2 h-2 rounded-full transition-all duration-200"
-                  style={{
-                    backgroundColor: dotColor,
-                    border: dotBorder,
-                    boxShadow: isHovered ? `0 0 8px ${dotColor}` : `0 0 5px ${dotColor}`,
-                    transform: isHovered ? 'scale(1.2)' : 'scale(1)'
-                  }}
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: color }}
                 />
-                <span className={`text-[var(--color-muted)] font-light transition-colors ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                <span className={`text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
                   {segment.label}
                 </span>
               </div>
-              <span className={`text-[var(--color-fg)] font-light transition-all ${isHovered ? 'font-medium' : ''}`}>
-                {formatCurrency(segment.amount)}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`text-[var(--color-fg)] font-medium tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                  {formatCurrency(segment.amount)}
+                </span>
+                <span className="text-[var(--color-muted)] font-mono text-[10px]">{percentage}%</span>
+              </div>
             </div>
           );
         })}
@@ -238,127 +199,122 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
   );
 }
 
-export default function AccountsSummaryCard({ width = "full" }) {
+const useAccountData = () => {
   const { allAccounts, loading } = useAccounts();
-  const { hoveredData, isHovering } = useNetWorthHover();
-  const [animatedData, setAnimatedData] = useState(null);
+  const { hoveredData } = useNetWorthHover();
 
-  // Animate data changes when hover data changes
-  useEffect(() => {
-    if (hoveredData) {
-      setAnimatedData(hoveredData);
+  return useMemo(() => {
+    if (loading) return { loading: true };
+
+    let assetsData, liabilitiesData, totalAssets, totalLiabilities;
+
+    if (hoveredData && hoveredData.categorizedBalances) {
+      assetsData = {
+        cash: hoveredData.categorizedBalances.cash || 0,
+        investments: hoveredData.categorizedBalances.investments || 0,
+      };
+      liabilitiesData = {
+        credit: hoveredData.categorizedBalances.credit || 0,
+        loans: hoveredData.categorizedBalances.loans || 0,
+      };
+      totalAssets = hoveredData.assets || 0;
+      totalLiabilities = hoveredData.liabilities || 0;
     } else {
-      // Reset to current data when not hovering
-      setAnimatedData(null);
+      const categorizedAccounts = allAccounts.reduce((acc, account) => {
+        const category = categorizeAccount(account);
+        const amount = Math.abs(account.balance);
+
+        if (!acc[category]) {
+          acc[category] = 0;
+        }
+        acc[category] += amount;
+
+        return acc;
+      }, {});
+
+      assetsData = {
+        cash: categorizedAccounts.cash || 0,
+        investments: categorizedAccounts.investments || 0,
+      };
+
+      liabilitiesData = {
+        credit: categorizedAccounts.credit || 0,
+        loans: categorizedAccounts.loans || 0,
+      };
+
+      totalAssets = assetsData.cash + assetsData.investments;
+      totalLiabilities = liabilitiesData.credit + liabilitiesData.loans;
     }
-  }, [hoveredData]);
 
-  if (loading) {
-    return (
-      <Card width={width} className="animate-pulse" variant="glass">
-        <div className="mb-6">
-          <div className="h-4 bg-[var(--color-border)] rounded w-32" />
-        </div>
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div className="h-4 bg-[var(--color-border)] rounded w-16" />
-            <div className="h-3 bg-[var(--color-border)] rounded w-full" />
-            <div className="flex gap-4">
-              <div className="h-3 bg-[var(--color-border)] rounded w-12" />
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="h-4 bg-[var(--color-border)] rounded w-20" />
-            <div className="h-3 bg-[var(--color-border)] rounded w-3/4" />
-            <div className="flex gap-4">
-              <div className="h-3 bg-[var(--color-border)] rounded w-16" />
-            </div>
-          </div>
-        </div>
-      </Card>
-    );
-  }
+    const assetSegments = [
+      { label: 'Cash', amount: assetsData.cash },
+      { label: 'Investments', amount: assetsData.investments },
+    ].filter(segment => segment.amount > 0);
 
-  // Use hovered data if available, otherwise use current account data
-  let assetsData, liabilitiesData, totalAssets, totalLiabilities;
+    const liabilitySegments = [
+      { label: 'Credit', amount: liabilitiesData.credit },
+      { label: 'Loans', amount: liabilitiesData.loans },
+    ].filter(segment => segment.amount > 0);
 
-  if (animatedData && animatedData.categorizedBalances) {
-    // Use historical hovered data
-    assetsData = {
-      cash: animatedData.categorizedBalances.cash || 0,
-      investments: animatedData.categorizedBalances.investments || 0,
-    };
-    liabilitiesData = {
-      credit: animatedData.categorizedBalances.credit || 0,
-      loans: animatedData.categorizedBalances.loans || 0,
-    };
-    totalAssets = animatedData.assets || 0;
-    totalLiabilities = animatedData.liabilities || 0;
-  } else {
-    // Use current account data
-    const categorizedAccounts = allAccounts.reduce((acc, account) => {
-      const category = categorizeAccount(account);
-      const amount = Math.abs(account.balance);
-
-      if (!acc[category]) {
-        acc[category] = 0;
-      }
-      acc[category] += amount;
-
-      return acc;
-    }, {});
-
-    assetsData = {
-      cash: categorizedAccounts.cash || 0,
-      investments: categorizedAccounts.investments || 0,
+    return {
+      loading: false,
+      assetSegments,
+      liabilitySegments,
+      totalAssets,
+      totalLiabilities
     };
 
-    liabilitiesData = {
-      credit: categorizedAccounts.credit || 0,
-      loans: categorizedAccounts.loans || 0,
-    };
+  }, [allAccounts, loading, hoveredData]);
+};
 
-    totalAssets = assetsData.cash + assetsData.investments;
-    totalLiabilities = liabilitiesData.credit + liabilitiesData.loans;
-  }
+export function AssetsCard({ width = "full" }) {
+  const { loading, assetSegments, totalAssets } = useAccountData();
+  const { isHovering } = useNetWorthHover();
 
-  // Create segments for assets
-  const assetSegments = [
-    { label: 'Cash', amount: assetsData.cash },
-    { label: 'Investments', amount: assetsData.investments },
-  ].filter(segment => segment.amount > 0);
-
-  // Create segments for liabilities
-  const liabilitySegments = [
-    { label: 'Credit', amount: liabilitiesData.credit },
-    { label: 'Loans', amount: liabilitiesData.loans },
-  ].filter(segment => segment.amount > 0);
+  if (loading) return <Card width={width} className="animate-pulse h-40" variant="glass" />;
 
   return (
-    <Card width={width} variant="glass" className="h-full flex flex-col">
-      <div className="mb-6">
-        <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Accounts Summary</div>
+    <Card width={width} variant="glass" className="flex flex-col">
+      <div className="mb-4">
+        <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Assets</div>
       </div>
-
-      <div className="flex-1 flex flex-col justify-center gap-8">
-        <SegmentedBar
-          segments={assetSegments}
-          total={totalAssets}
-          label="Assets"
-          isAnimated={isHovering}
-          className="flex-1 flex flex-col justify-center"
-        />
-
-        <div className="h-px bg-[var(--color-border)]/30 w-full" />
-
-        <SegmentedBar
-          segments={liabilitySegments}
-          total={totalLiabilities}
-          label="Liabilities"
-          isAnimated={isHovering}
-          className="flex-1 flex flex-col justify-center"
-        />
-      </div>
+      <SegmentedBar
+        segments={assetSegments}
+        total={totalAssets}
+        label="Total Assets"
+        isAnimated={isHovering}
+      />
     </Card>
+  );
+}
+
+export function LiabilitiesCard({ width = "full" }) {
+  const { loading, liabilitySegments, totalLiabilities } = useAccountData();
+  const { isHovering } = useNetWorthHover();
+
+  if (loading) return <Card width={width} className="animate-pulse h-40" variant="glass" />;
+
+  return (
+    <Card width={width} variant="glass" className="flex flex-col">
+      <div className="mb-4">
+        <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Liabilities</div>
+      </div>
+      <SegmentedBar
+        segments={liabilitySegments}
+        total={totalLiabilities}
+        label="Total Liabilities"
+        isAnimated={isHovering}
+      />
+    </Card>
+  );
+}
+
+// Keep default export for backwards compatibility until all usages are updated
+export default function AccountsSummaryCard(props) {
+  return (
+    <div className="space-y-6">
+      <AssetsCard {...props} />
+      <LiabilitiesCard {...props} />
+    </div>
   );
 }

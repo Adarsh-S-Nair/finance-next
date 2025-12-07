@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import PageContainer from "../../../components/PageContainer";
 import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
@@ -9,7 +9,7 @@ import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
 import { useUser } from "../../../components/UserProvider";
 import { useAccounts } from "../../../components/AccountsProvider";
 import NetWorthCard from "../../../components/dashboard/NetWorthCard";
-import AccountsSummaryCard from "../../../components/dashboard/AccountsSummaryCard";
+import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 
@@ -39,12 +39,12 @@ const AccountRow = ({ account, institutionMap, showDivider }) => {
       className={`
         group flex items-center justify-between px-5 py-3.5
         hover:bg-[var(--color-card-highlight)] transition-all duration-200
-        ${showDivider ? 'border-b border-[var(--color-border)]/40' : ''}
+        rounded-lg
       `}
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         {/* Institution Logo */}
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
           {institution.logo ? (
             <img
               src={institution.logo}
@@ -81,9 +81,6 @@ const AccountRow = ({ account, institutionMap, showDivider }) => {
         <div className="font-semibold text-[var(--color-fg)] tabular-nums text-sm">
           {formatCurrency(account.balance)}
         </div>
-        <div className="text-xs text-[var(--color-muted)] mt-0.5">
-          {capitalizeWords(account.subtype || account.type)}
-        </div>
       </div>
     </div>
   );
@@ -92,17 +89,11 @@ const AccountRow = ({ account, institutionMap, showDivider }) => {
 // Component for category section headers within the unified list
 const CategoryHeader = ({ title, count, total, isFirst }) => {
   return (
-    <div className={`
-      flex items-center justify-between px-5 py-3 bg-[var(--color-surface)]/30
-      ${!isFirst ? 'border-t border-[var(--color-border)]/50' : ''}
-    `}>
+    <div className="flex items-center justify-between px-5 py-3">
       <div className="flex items-center gap-2">
-        <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wide">
+        <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
           {title}
         </h3>
-        <span className="text-xs text-[var(--color-border)] font-medium">
-          {count}
-        </span>
       </div>
       <div className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
         {formatCurrency(total)}
@@ -122,6 +113,10 @@ export default function AccountsPage() {
   } = useAccounts();
 
   const [showLinkModal, setShowLinkModal] = useState(false);
+
+  // Mobile carousel state
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const scrollContainerRef = useRef(null);
 
   // Organize accounts by category
   const categorizeAccount = (account) => {
@@ -196,23 +191,49 @@ export default function AccountsPage() {
           {hasAccounts ? (
             <>
               {/* Summary Section */}
-              <div className="max-w-5xl mx-auto w-full">
+              <div className="w-full">
                 <div className="flex flex-col lg:flex-row gap-6">
                   <div className="lg:w-2/3">
                     <NetWorthCard width="full" />
                   </div>
-                  <div className="lg:w-1/3">
-                    <AccountsSummaryCard width="full" />
+                  <div className="lg:w-1/3 flex flex-col gap-4">
+                    {/* Mobile Carousel Container */}
+                    <div
+                      ref={scrollContainerRef}
+                      className="flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] lg:block lg:space-y-6 lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth"
+                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      onScroll={(e) => {
+                        const { scrollLeft, offsetWidth } = e.currentTarget;
+                        const index = Math.round(scrollLeft / offsetWidth);
+                        setActiveCardIndex(index);
+                      }}
+                    >
+                      <div className="min-w-full snap-center lg:min-w-0 pr-4 lg:pr-0 last:pr-0">
+                        <AssetsCard width="full" />
+                      </div>
+                      <div className="min-w-full snap-center lg:min-w-0">
+                        <LiabilitiesCard width="full" />
+                      </div>
+                    </div>
+
+                    {/* Pagination Dots (Mobile Only) */}
+                    <div className="flex justify-center gap-2 lg:hidden">
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${activeCardIndex === 0 ? 'bg-[var(--color-fg)] w-4' : 'bg-[var(--color-border)]'}`}
+                      />
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${activeCardIndex === 1 ? 'bg-[var(--color-fg)] w-4' : 'bg-[var(--color-border)]'}`}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Accounts List Section */}
-              <div className="max-w-5xl mx-auto pt-4">
+              <div className="pt-4">
                 <div className="mb-6 px-1 flex items-end justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-[var(--color-fg)]">All Accounts</h2>
-                    <p className="text-sm text-[var(--color-muted)] mt-1">Manage your connected bank accounts and cards</p>
+                    <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
                   </div>
                   <Button
                     size="sm"
@@ -226,7 +247,7 @@ export default function AccountsPage() {
                 </div>
 
                 {/* Unified Accounts Card */}
-                <Card padding="none" variant="glass" className="overflow-hidden">
+                <Card padding="none" variant="glass" className="overflow-hidden !bg-transparent border-0 shadow-none hover:shadow-none backdrop-blur-none">
                   {/* Cash & Checking Section */}
                   {categorizedAccounts.cash.length > 0 && (
                     <>

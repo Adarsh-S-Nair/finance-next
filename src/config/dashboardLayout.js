@@ -24,6 +24,11 @@ export const dashboardLayout = {
 
   // Sidebar (right side, narrower)
   sidebar: [
+    // Top Categories Chart
+    {
+      id: 'top-categories',
+      component: 'TopCategoriesCard'
+    },
     // Budgets Widget (Mock)
     {
       id: 'budgets',
