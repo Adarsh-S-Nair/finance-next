@@ -209,33 +209,28 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
   }, [transactions]);
 
   return (
-    <div className="space-y-8 pb-12 animate-fade-in">
+    <div className="space-y-6 pb-24 animate-fade-in pl-1">
       {sortedDates.map((dateKey, groupIndex) => (
-        <div
-          key={dateKey}
-          className="relative"
-        >
-          {/* Sticky Date Header */}
-          <div className="sticky top-[124px] z-20 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm mb-2">
-            <h3 className="text-xs font-bold text-[var(--color-muted)] uppercase tracking-wider px-1">
-              {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
-            </h3>
+        <div key={dateKey} className="relative">
+          <div className="sticky top-[124px] z-20 py-4 pointer-events-none">
+            <div className="px-4 md:px-5">
+              <span className="text-[10px] font-bold text-[var(--color-muted)] uppercase tracking-[0.2em] bg-[var(--color-bg)]/80 backdrop-blur-xl px-2 py-1 rounded-md border border-[var(--color-border)]/10 shadow-sm">
+                {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
+              </span>
+            </div>
           </div>
 
-          {/* Transactions Card */}
-          <Card variant="glass" padding="none" className="overflow-hidden border-[var(--color-border)]/40">
-            <div className="divide-y divide-[var(--color-border)]/40">
-              {grouped[dateKey].map((transaction, index) => (
-                <TransactionRow
-                  key={`${transaction.id}-${dateKey}-${index}`}
-                  transaction={transaction}
-                  onTransactionClick={onTransactionClick}
-                  index={index}
-                  groupIndex={groupIndex}
-                />
-              ))}
-            </div>
-          </Card>
+          <div className="flex flex-col gap-1">
+            {grouped[dateKey].map((transaction, index) => (
+              <TransactionRow
+                key={`${transaction.id}-${dateKey}-${index}`}
+                transaction={transaction}
+                onTransactionClick={onTransactionClick}
+                index={index}
+                groupIndex={groupIndex}
+              />
+            ))}
+          </div>
         </div>
       ))}
     </div>

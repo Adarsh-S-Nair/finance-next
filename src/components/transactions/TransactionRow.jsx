@@ -16,7 +16,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className={`group relative flex items-center justify-between ${compact ? 'py-3 px-4' : 'py-4 px-5'} hover:bg-[var(--color-surface)]/50 transition-all duration-300 ease-out cursor-pointer hover:scale-[1.005] active:scale-[0.995] ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
+      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 px-4 md:px-6'} hover:bg-[var(--color-surface)]/40 transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
       onClick={() => {
         if (selectable && onSelect) {
           onSelect(!selected);
@@ -29,10 +29,10 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
       <div className="flex items-center gap-4 min-w-0 flex-1">
         <div className="relative">
           <div
-            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border transition-all duration-300 ${selected ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/20' : 'border-[var(--color-border)]/20'}`}
+            className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300 ${selected ? 'ring-2 ring-[var(--color-accent)]/20' : ''}`}
             style={{
               backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-                ? 'var(--color-surface)'
+                ? 'transparent'
                 : (transaction.category_hex_color || 'var(--color-accent)')
             }}
           >
@@ -40,11 +40,10 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
               <img
                 src={transaction.icon_url}
                 alt={transaction.merchant_name || transaction.description || 'Transaction'}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover rounded-full"
                 loading="lazy"
                 decoding="async"
                 onError={(e) => {
-                  // Fallback to category icon if image fails to load
                   e.target.style.display = 'none';
                   const fallbackIcon = e.target.nextSibling;
                   if (fallbackIcon) {
@@ -64,7 +63,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
             />
           </div>
           {selected && (
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-accent)] rounded-full flex items-center justify-center border-2 border-[var(--color-bg)] animate-scale-in shadow-sm">
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-accent)] rounded-full flex items-center justify-center border-2 border-[var(--color-bg)] animate-scale-in">
               <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
@@ -88,7 +87,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <div className={`font-semibold text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+        <div className={`font-medium text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
           {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
         </div>
         {showDate && transaction.date && (
