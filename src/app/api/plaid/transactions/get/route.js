@@ -47,6 +47,7 @@ export async function GET(request) {
         date,
         datetime,
         authorized_date,
+        is_unmatched_transfer,
         accounts!inner (id, name, mask),
         system_categories!inner (
           label,
@@ -55,6 +56,25 @@ export async function GET(request) {
             icon_lib,
             icon_name,
             hex_color
+          )
+        ),
+        transaction_splits (
+          id,
+          amount,
+          is_settled,
+          contacts (
+            name
+          )
+        ),
+        transaction_repayments (
+          id,
+          amount,
+          transaction_splits (
+            transactions (
+              id,
+              description,
+              date
+            )
           )
         )
       `
@@ -83,6 +103,25 @@ export async function GET(request) {
             icon_name,
             hex_color
           )
+        ),
+        transaction_splits (
+          id,
+          amount,
+          is_settled,
+          contacts (
+            name
+          )
+        ),
+        transaction_repayments (
+          id,
+          amount,
+          transaction_splits (
+            transactions (
+              id,
+              description,
+              date
+            )
+          )
         )
       `;
 
@@ -92,7 +131,6 @@ export async function GET(request) {
     // we should use left join (default) unless filtering.
     // However, the select string above uses !inner which forces inner join.
     // If we want to allow uncategorized transactions when NOT filtering by category, we should remove !inner from select string if categories param is missing.
-    // But for now, let's assume most transactions have categories or we only care about categorized ones when filtering.
     // Actually, let's adjust the selectFragment dynamically.
 
     let finalSelectFragment = selectFragment;
@@ -126,7 +164,24 @@ export async function GET(request) {
       query = query.not('pending', 'is', true);
     } else if (status === 'attention') {
       // Filter for transactions needing attention: Unknown Account OR Unmatched Transfer
-      query = query.or('accounts.name.is.null,is_unmatched_transfer.eq.true');
+      // Cross-table OR is difficult in PostgREST, so we fetch unknown account IDs first.
+      const { data: unknownAccounts, error: uaError } = await supabaseAdmin
+        .from('accounts')
+        .select('id')
+        .eq('user_id', userId)
+        .is('name', null);
+
+      if (uaError) {
+        console.error('Error fetching unknown accounts for filter:', uaError);
+      }
+
+      const unknownAccountIds = unknownAccounts?.map(a => a.id) || [];
+
+      if (unknownAccountIds.length > 0) {
+        query = query.or(`is_unmatched_transfer.eq.true,account_id.in.(${unknownAccountIds.join(',')})`);
+      } else {
+        query = query.eq('is_unmatched_transfer', true);
+      }
     }
 
     if (minAmount) {
@@ -230,7 +285,7 @@ export async function GET(request) {
     if (error) {
       console.error('Error fetching transactions:', error);
       return Response.json(
-        { error: 'Failed to fetch transactions' },
+        { error: error.message || 'Failed to fetch transactions' },
         { status: 500 }
       );
     }
@@ -248,6 +303,7 @@ export async function GET(request) {
       category_icon_name: transaction.system_categories?.category_groups?.icon_name || null,
       category_hex_color: transaction.system_categories?.category_groups?.hex_color || null,
       category_name: transaction.system_categories?.label || null,
+      is_repayment: transaction.transaction_repayments && transaction.transaction_repayments.length > 0,
       // Preserve transaction.icon_url from DB; do not override with institution logo
     }));
 

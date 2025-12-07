@@ -39,7 +39,7 @@ export async function GET(request) {
     // We need system_categories to identify "Transfer", "Credit Card Payment", etc.
     let query = supabaseAdmin
       .from('transactions')
-      .select('id, amount, date, accounts!inner(user_id), system_categories(label)')
+      .select('id, amount, date, accounts!inner(user_id), system_categories(label), transaction_splits(amount, is_settled)')
       .eq('accounts.user_id', userId)
       .gte('date', startDateStr)
       .lte('date', endDateStr)
@@ -114,9 +114,6 @@ export async function GET(request) {
     // Aggregate transactions by day
     transactions.forEach(tx => {
       // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
-      // If it's a transfer and it was NOT matched, we include it (Unmatched Transfer/Payment).
-      // If it's NOT a transfer, we include it.
-
       if (matchedIds.has(tx.id)) return;
 
       if (!tx.date) return;
@@ -126,11 +123,20 @@ export async function GET(request) {
 
       if (dailyTotals.has(dayPart)) {
         const current = dailyTotals.get(dayPart);
+        const amount = parseFloat(tx.amount);
+
+        // Calculate settled reimbursement amount
+        const settledReimbursement = tx.transaction_splits?.reduce((sum, split) => {
+          return split.is_settled ? sum + (parseFloat(split.amount) || 0) : sum;
+        }, 0) || 0;
+
         // User feedback: Positive amount is Income, Negative amount is Spending
-        if (tx.amount > 0) {
-          current.income += tx.amount;
-        } else if (tx.amount < 0) {
-          current.spending += Math.abs(tx.amount);
+        if (amount > 0) {
+          current.income += amount;
+        } else if (amount < 0) {
+          // Adjust usage: spending is absolute value of transaction amount minus settled reimbursements
+          const adjustedSpending = Math.max(0, Math.abs(amount) - settledReimbursement);
+          current.spending += adjustedSpending;
         }
       }
     });

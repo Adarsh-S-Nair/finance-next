@@ -78,8 +78,8 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           {transaction.category_name && (
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5 truncate">
               <span className="truncate">{transaction.category_name}</span>
-              {transaction.is_unmatched_payment && (
-                <div className="text-yellow-500 flex-shrink-0" title="Unmatched Transfer / Payment">
+              {(!transaction.is_repayment && (transaction.is_unmatched_transfer || transaction.is_unmatched_payment || transaction.account_name === 'Unknown Account')) && (
+                <div className="text-yellow-500 flex-shrink-0" title={transaction.account_name === 'Unknown Account' ? 'Unknown Account' : 'Unmatched Transfer / Payment'}>
                   <FiAlertCircle className="w-3.5 h-3.5" />
                 </div>
               )}
@@ -100,6 +100,12 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         {transaction.pending && (
           <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
             Pending
+          </div>
+        )}
+
+        {transaction.is_repayment && (
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
+            Reimbursement
           </div>
         )}
       </div>

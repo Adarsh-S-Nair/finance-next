@@ -610,6 +610,7 @@ function TransactionsContent() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchParams.get('search') || "");
   const [isPending, startTransition] = useTransition();
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [transactionHistory, setTransactionHistory] = useState([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [currentDrawerView, setCurrentDrawerView] = useState('transaction-details');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -802,6 +803,7 @@ function TransactionsContent() {
       setTransactions(data.transactions || []);
       setNextCursor(data.nextCursor);
       setPrevCursor(data.prevCursor); // Usually null for initial fetch unless we started in middle
+      return data.transactions;
     } catch (err) {
       console.error('Error fetching transactions:', err);
       setError(err.message);
@@ -836,12 +838,16 @@ function TransactionsContent() {
     }
 
     // Then refetch transactions from database
+    await refreshLocalData();
+  };
+
+  // Skip the full sync and only fetch from DB
+  const refreshLocalData = async () => {
     setTransactions([]);
     setNextCursor(null);
     setPrevCursor(null);
-    setSearchQuery(""); // Clear search on refresh
-    setDebouncedSearchQuery(""); // Clear debounced search too
-    await fetchInitialTransactions();
+    // Don't clear search query to maintain context
+    return await fetchInitialTransactions();
   };
 
   // Load more (next page - older transactions)
@@ -1056,8 +1062,10 @@ function TransactionsContent() {
   };
 
   const handleTransactionClick = (transaction) => {
+    setTransactionHistory([]);
     setSelectedTransaction(transaction);
     setIsDrawerOpen(true);
+    setCurrentDrawerView('transaction-details');
   };
 
   const handleDrawerClose = () => {
@@ -1071,7 +1079,29 @@ function TransactionsContent() {
   };
 
   const handleBackToTransaction = () => {
-    setCurrentDrawerView('transaction-details');
+    if (currentDrawerView !== 'transaction-details') {
+      setCurrentDrawerView('transaction-details');
+      return;
+    }
+
+    if (transactionHistory.length > 0) {
+      const prev = transactionHistory[transactionHistory.length - 1];
+      setTransactionHistory(prev => prev.slice(0, -1));
+      setSelectedTransaction(prev);
+    }
+  };
+
+  const handleTransactionLinkClick = (transactionId) => {
+    // Find in currently loaded transactions
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (transaction) {
+      setTransactionHistory(prev => [...prev, selectedTransaction]);
+      setSelectedTransaction(transaction);
+      setCurrentDrawerView('transaction-details');
+    } else {
+      console.log('Transaction not found in local list:', transactionId);
+      // In a real app we might fetch it here, but for now we rely on local
+    }
   };
 
   const handleSplitClick = () => {
@@ -1331,6 +1361,56 @@ function TransactionsContent() {
     );
   }
 
+  const handleDeleteSplit = async (splitId) => {
+    // Optimistic update
+    if (selectedTransaction) {
+      const updatedTx = {
+        ...selectedTransaction,
+        transaction_splits: selectedTransaction.transaction_splits?.filter(s => s.id !== splitId) || []
+      };
+      setSelectedTransaction(updatedTx);
+    }
+
+    try {
+      const { error } = await supabase
+        .from('transaction_splits')
+        .delete()
+        .eq('id', splitId);
+
+      if (error) {
+        console.error('Error deleting split:', error);
+        return;
+      }
+
+      const newTransactions = await refreshLocalData();
+      // Ensure we have the latest server state, though optimistic update handled the UI
+      if (selectedTransaction && newTransactions) {
+        const updated = newTransactions.find(t => t.id === selectedTransaction.id);
+        if (updated) setSelectedTransaction(updated);
+      }
+    } catch (error) {
+      console.error('Error deleting split:', error);
+    }
+  };
+
+  const handleSplitCreated = async () => {
+    const newTransactions = await refreshLocalData();
+    if (selectedTransaction && newTransactions) {
+      const updated = newTransactions.find(t => t.id === selectedTransaction.id);
+      if (updated) setSelectedTransaction(updated);
+    }
+    handleBackToTransaction();
+  };
+
+  const handleRepaymentCreated = async () => {
+    const newTransactions = await refreshLocalData();
+    if (selectedTransaction && newTransactions) {
+      const updated = newTransactions.find(t => t.id === selectedTransaction.id);
+      if (updated) setSelectedTransaction(updated);
+    }
+    handleBackToTransaction();
+  };
+
   return (
     <PageContainer padding="pt-16 pb-6">
       <SearchToolbar
@@ -1459,11 +1539,14 @@ function TransactionsContent() {
           {
             id: 'transaction-details',
             title: '', // Empty title as requested
+            showBackButton: transactionHistory.length > 0,
             content: <TransactionDetails
               transaction={selectedTransaction}
               onCategoryClick={handleCategoryClick}
               onSplitClick={handleSplitClick}
               onRepaymentClick={handleRepaymentClick}
+              onDeleteSplit={handleDeleteSplit}
+              onTransactionLinkClick={handleTransactionLinkClick}
             />
           },
           {
@@ -1525,10 +1608,7 @@ function TransactionsContent() {
             showBackButton: true,
             content: <SplitTransactionView
               transaction={selectedTransaction}
-              onSplitCreated={() => {
-                handleRefresh();
-                handleBackToTransaction();
-              }}
+              onSplitCreated={handleSplitCreated}
               onClose={handleBackToTransaction}
             />
           },
@@ -1538,10 +1618,7 @@ function TransactionsContent() {
             showBackButton: true,
             content: <RepaymentView
               transaction={selectedTransaction}
-              onRepaymentCreated={() => {
-                handleRefresh();
-                handleBackToTransaction();
-              }}
+              onRepaymentCreated={handleRepaymentCreated}
               onClose={handleBackToTransaction}
             />
           }

@@ -44,6 +44,13 @@ export async function GET(request) {
         ),
         system_categories (
           label
+        ),
+        transaction_splits (
+          amount,
+          is_settled
+        ),
+        transaction_repayments (
+          id
         )
       `)
       .eq('accounts.user_id', userId)
@@ -134,10 +141,10 @@ export async function GET(request) {
     // Second pass: Aggregate data
     transactions.forEach(transaction => {
       // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
-      // If it's a transfer and it was NOT matched, we include it (Unmatched Transfer/Payment).
-      // If it's NOT a transfer, we include it.
-
       if (matchedIds.has(transaction.id)) return;
+
+      // Exclude repayment transactions from counting as income (or spending)
+      if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
 
       if (!transaction.date) return;
 
@@ -160,17 +167,29 @@ export async function GET(request) {
       }
 
       const amount = parseFloat(transaction.amount);
+
+      // Calculate settled reimbursement amount
+      const settledReimbursement = transaction.transaction_splits?.reduce((sum, split) => {
+        return split.is_settled ? sum + (parseFloat(split.amount) || 0) : sum;
+      }, 0) || 0;
+
       monthlyData[monthKey].transactionCount++;
+
+      let adjustedAmount = 0;
 
       if (amount < 0) {
         // Negative amount = spending (debit)
-        monthlyData[monthKey].spending += Math.abs(amount);
+        // Adjust spending: subtract settled reimbursements from absolute spending
+        const adjustedSpending = Math.max(0, Math.abs(amount) - settledReimbursement);
+        monthlyData[monthKey].spending += adjustedSpending;
+        adjustedAmount = -adjustedSpending;
       } else if (amount > 0) {
         // Positive amount = earning (credit)
         monthlyData[monthKey].earning += amount;
+        adjustedAmount = amount;
       }
 
-      monthlyData[monthKey].netAmount += amount;
+      monthlyData[monthKey].netAmount += adjustedAmount;
     });
 
     // Convert to array and sort by month
@@ -218,6 +237,8 @@ export async function GET(request) {
 
     transactions.forEach(tx => {
       if (matchedIds.has(tx.id)) return;
+      // Exclude repayment transactions from counting as income (or spending)
+      if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
       if (!tx.date) return;
 
       // We need to parse the date string "YYYY-MM-DD" manually to avoid timezone issues
@@ -227,16 +248,21 @@ export async function GET(request) {
       const day = parseInt(dStr);
       const amount = parseFloat(tx.amount);
 
+      // Calculate settled reimbursement amount
+      const settledReimbursement = tx.transaction_splits?.reduce((sum, split) => {
+        return split.is_settled ? sum + (parseFloat(split.amount) || 0) : sum;
+      }, 0) || 0;
+
       // Current Month MTD
       if (year === currentYear && month === currentMonth && day <= currentDay) {
         if (amount > 0) currentMonthIncome += amount;
-        else currentMonthSpending += Math.abs(amount);
+        else currentMonthSpending += Math.max(0, Math.abs(amount) - settledReimbursement);
       }
 
       // Last Month MTD
       if (year === lastMonthYear && month === lastMonth && day <= comparisonDay) {
         if (amount > 0) lastMonthIncome += amount;
-        else lastMonthSpending += Math.abs(amount);
+        else lastMonthSpending += Math.max(0, Math.abs(amount) - settledReimbursement);
       }
     });
 

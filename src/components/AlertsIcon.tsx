@@ -9,7 +9,7 @@ import Link from "next/link";
 
 export default function AlertsIcon() {
   const { profile } = useUser();
-  const [count, setCount] = useState(0);
+  const [counts, setCounts] = useState({ count: 0, unknownAccountCount: 0, unmatchedTransferCount: 0 });
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -22,7 +22,7 @@ export default function AlertsIcon() {
         const response = await fetch(`/api/plaid/transactions/unknown-count?userId=${profile.id}`);
         if (response.ok) {
           const data = await response.json();
-          setCount(data.count || 0);
+          setCounts(data);
         }
       } catch (error) {
         console.error("Failed to fetch unknown transaction count:", error);
@@ -87,17 +87,13 @@ export default function AlertsIcon() {
         <FiBell className="w-5 h-5" />
 
         <AnimatePresence>
-          {count > 0 && (
+          {counts.count > 0 && (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-[var(--color-bg)]"
-            >
-              <span className="text-[10px] font-bold text-white leading-none">
-                {count > 9 ? '9+' : count}
-              </span>
-            </motion.div>
+              className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-bg)]"
+            />
           )}
         </AnimatePresence>
       </motion.button>
@@ -125,22 +121,43 @@ export default function AlertsIcon() {
             </div>
 
             <div className="max-h-[300px] overflow-y-auto mt-2">
-              {count > 0 ? (
+              {counts.count > 0 ? (
                 <div className="p-2">
-                  <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
-                    <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
-                      <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
-                        <FiAlertCircle className="w-4 h-4" />
+                  {/* Unmatched Transfers Alert */}
+                  {counts.unmatchedTransferCount > 0 && (
+                    <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
+                      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
+                        <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
+                          <FiAlertCircle className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--color-fg)]">Unmatched Transfers</p>
+                          <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                            You have {counts.unmatchedTransferCount} transfer{counts.unmatchedTransferCount !== 1 ? 's' : ''} that need review.
+                          </p>
+                        </div>
+                        <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-fg)]">Transactions Needing Attention</p>
-                        <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                          You have {count} transaction{count !== 1 ? 's' : ''} that need review (Unknown Account or Unmatched Transfer).
-                        </p>
+                    </Link>
+                  )}
+
+                  {/* Unknown Accounts Alert */}
+                  {counts.unknownAccountCount > 0 && (
+                    <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
+                      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
+                        <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
+                          <FiAlertCircle className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--color-fg)]">Unknown Accounts</p>
+                          <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                            You have {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? 's' : ''} from unknown accounts.
+                          </p>
+                        </div>
+                        <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
                       </div>
-                      <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
-                    </div>
-                  </Link>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="p-8 text-center">

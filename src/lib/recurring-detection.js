@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabaseAdmin';
+import { randomUUID } from 'crypto';
 
 /**
  * Detects recurring transactions for a user and updates the recurring_transactions table.
@@ -439,7 +440,11 @@ export async function detectRecurringTransactions(userId) {
           status: match.status // Preserve status (e.g. if user ignored it)
         };
       }
-      return candidate;
+      // New candidate: generate ID client-side to avoid null issues in bulk upsert
+      return {
+        ...candidate,
+        id: randomUUID()
+      };
     });
 
     const { error: upsertError } = await supabaseAdmin

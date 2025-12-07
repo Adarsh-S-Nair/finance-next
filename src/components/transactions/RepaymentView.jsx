@@ -105,6 +105,13 @@ export default function RepaymentView({ transaction, onRepaymentCreated, onClose
 
       if (error) throw error;
 
+      // Update the repayment transaction itself to be "matched"
+      // This clears the "Needs Attention" flag and counts as verification
+      await supabase
+        .from('transactions')
+        .update({ is_unmatched_transfer: false })
+        .eq('id', transaction.id);
+
       // Update is_settled for fully paid debts
       for (const [splitId, amount] of Object.entries(allocations)) {
         const debt = debts.find(d => d.id === splitId);
