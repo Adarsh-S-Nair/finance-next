@@ -214,7 +214,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
         <div key={dateKey} className="relative">
           <div className="sticky top-[124px] z-20 py-4 pointer-events-none">
             <div className="px-4 md:px-5">
-              <span className="text-[10px] font-bold text-[var(--color-muted)] uppercase tracking-[0.2em] bg-[var(--color-bg)]/80 backdrop-blur-xl px-2 py-1 rounded-md border border-[var(--color-border)]/10 shadow-sm">
+              <span className="text-sm font-medium text-[var(--color-muted)]">
                 {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
               </span>
             </div>

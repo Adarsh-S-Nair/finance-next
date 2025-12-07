@@ -102,9 +102,9 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           </div>
         )}
 
-        {transaction.is_repayment && (
+        {(transaction.is_repayment || transaction.transaction_splits?.some(s => s.is_settled)) && (
           <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
-            Reimbursement
+            REIMBURSED
           </div>
         )}
       </div>
