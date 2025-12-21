@@ -33,7 +33,7 @@ create policy "Authenticated users can view active NASDAQ-100 constituents"
 -- RLS Policy: Service role can do everything (for API updates)
 -- Note: Service role bypasses RLS, so this is mainly for documentation
 
--- Function to update the constituents list
+-- Function to update the constituents list with audit trail
 -- This will be called by the sync API
 create or replace function public.sync_nasdaq100_constituents(
   tickers text[]
@@ -44,23 +44,54 @@ security definer
 as $$
 declare
   ticker text;
-  existing_ticker text;
+  was_removed boolean;
+  was_active boolean;
+  current_date date := current_date;
 begin
   -- Mark any tickers not in the new list as removed
-  update public.nasdaq100_constituents
-  set removed_at = now(),
-      updated_at = now()
-  where removed_at is null
-    and ticker != all(tickers);
+  -- And record in history
+  for ticker in 
+    select t.ticker 
+    from public.nasdaq100_constituents t
+    where t.removed_at is null
+      and t.ticker != all(tickers)
+  loop
+    -- Mark as removed
+    update public.nasdaq100_constituents
+    set removed_at = now(),
+        updated_at = now()
+    where nasdaq100_constituents.ticker = ticker;
+    
+    -- Record in history
+    insert into public.nasdaq100_constituent_history (ticker, action, effective_date)
+    values (ticker, 'removed', current_date);
+  end loop;
   
-  -- Insert new tickers or update existing ones
+  -- Insert new tickers or reactivate existing ones
   foreach ticker in array tickers
   loop
+    ticker := upper(ticker);
+    
+    -- Check current status
+    select 
+      removed_at is null,
+      removed_at is not null
+    into was_active, was_removed
+    from public.nasdaq100_constituents
+    where nasdaq100_constituents.ticker = ticker;
+    
+    -- Insert or update
     insert into public.nasdaq100_constituents (ticker, removed_at, updated_at)
-    values (upper(ticker), null, now())
+    values (ticker, null, now())
     on conflict (ticker) do update
     set removed_at = null, -- Reactivate if it was previously removed
         updated_at = now();
+    
+    -- Record in history if it's a new addition or re-addition
+    if was_removed or was_active is null then
+      insert into public.nasdaq100_constituent_history (ticker, action, effective_date)
+      values (ticker, 'added', current_date);
+    end if;
   end loop;
 end;
 $$;

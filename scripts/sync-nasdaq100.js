@@ -7,7 +7,7 @@
  * Or with npm:
  *   npm run sync:nasdaq100
  * 
- * Requires FMP_API_KEY environment variable
+ * Scrapes the official NASDAQ website - no API keys required!
  */
 
 // Note: This script uses dynamic import since marketData.js uses ES modules
@@ -33,8 +33,8 @@ async function main() {
   } catch (error) {
     console.error('\n❌ ERROR');
     console.error(error.message);
-    console.error('\n💡 Make sure you have FMP_API_KEY set in your environment');
-    console.error('   Get a free API key at: https://site.financialmodelingprep.com/developer/docs/');
+    console.error('\n💡 This script scrapes the official NASDAQ website');
+    console.error('   If it fails, the page structure may have changed');
     console.error('========================================\n');
     process.exit(1);
   }

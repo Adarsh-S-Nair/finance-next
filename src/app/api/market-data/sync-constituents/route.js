@@ -1,8 +1,8 @@
 /**
  * API Route to sync NASDAQ-100 constituents
  * 
- * Fetches the latest NASDAQ-100 list from market data API
- * and saves it to the local data file.
+ * Scrapes the latest NASDAQ-100 list from the official NASDAQ website
+ * and logs the results.
  * 
  * GET /api/market-data/sync-constituents
  * 
@@ -14,9 +14,6 @@ import { syncNasdaq100Constituents } from '../../../../lib/marketData';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const force = searchParams.get('force') === 'true';
-
     console.log('\n========================================');
     console.log('🔄 SYNCING NASDAQ-100 CONSTITUENTS');
     console.log('========================================');
@@ -40,9 +37,6 @@ export async function GET(request) {
       {
         success: false,
         error: error.message || 'Failed to sync constituents',
-        hint: error.message.includes('API key')
-          ? 'Make sure you have set one of: POLYGON_API_KEY, IEX_CLOUD_API_KEY, or FMP_API_KEY in your environment variables'
-          : undefined,
       },
       { status: 500 }
     );

@@ -5,73 +5,112 @@
 
 import fs from 'fs';
 import path from 'path';
-import { supabaseAdmin } from './supabaseAdmin';
+import * as cheerio from 'cheerio';
 
 const DATA_DIR = path.join(process.cwd(), 'src', 'data');
 
+// Lazy import supabaseAdmin to avoid build-time errors
+let supabaseAdmin = null;
+async function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    const { supabaseAdmin: admin } = await import('./supabaseAdmin.js');
+    supabaseAdmin = admin;
+  }
+  return supabaseAdmin;
+}
+
 /**
- * Get NASDAQ-100 constituents from Financial Modeling Prep
- * Free tier: 250 calls/day
+ * Scrape NASDAQ-100 constituents from official NASDAQ website
  * 
- * This is the primary method as FMP has a direct endpoint for NASDAQ-100.
- * 
- * Alternative APIs (if needed):
- * - Polygon.io: Has index data but requires more setup
- * - IEX Cloud: Doesn't have direct NDX endpoint
+ * @returns {Promise<Array<string>>} Array of ticker symbols
+ */
+export async function scrapeNasdaq100Constituents() {
+  const url = 'https://www.nasdaq.com/solutions/global-indexes/nasdaq-100/companies';
+  
+  console.log('📡 Scraping NASDAQ-100 constituents from official NASDAQ website...');
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch NASDAQ page: ${response.status} ${response.statusText}`);
+    }
+    
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    // Extract tickers from the table structure
+    // Structure: <table> -> <tbody> -> <tr> -> first <td> (ticker symbol)
+    const tickers = [];
+    
+    // Find the table (there should be only one)
+    const table = $('table').first();
+    
+    if (table.length === 0) {
+      throw new Error('No table found on the page');
+    }
+    
+    // Extract first <td> from each <tr> in <tbody>
+    table.find('tbody tr').each((i, row) => {
+      const firstTd = $(row).find('td').first();
+      const ticker = firstTd.text().trim().toUpperCase();
+      
+      // Validate it looks like a ticker (1-5 uppercase letters)
+      if (ticker && /^[A-Z]{1,5}$/.test(ticker)) {
+        tickers.push(ticker);
+      }
+    });
+    
+    // If tbody approach didn't work, try direct tr -> first td
+    if (tickers.length === 0) {
+      table.find('tr').each((i, row) => {
+        const firstTd = $(row).find('td').first();
+        const ticker = firstTd.text().trim().toUpperCase();
+        
+        if (ticker && /^[A-Z]{1,5}$/.test(ticker)) {
+          tickers.push(ticker);
+        }
+      });
+    }
+    
+    // Remove duplicates and sort
+    const uniqueTickers = [...new Set(tickers)].sort();
+    
+    if (uniqueTickers.length < 50) {
+      // If we didn't get enough tickers, log the HTML structure for debugging
+      console.warn('⚠️  Only found', uniqueTickers.length, 'tickers. The page structure may have changed.');
+      console.log('📋 Found tickers so far:', uniqueTickers.slice(0, 10).join(', '), '...');
+      
+      // Log table structure for debugging
+      const tableCount = $('table').length;
+      const tbodyCount = $('table tbody').length;
+      const trCount = $('table tbody tr').length;
+      console.log(`🔍 Debug: Found ${tableCount} table(s), ${tbodyCount} tbody(s), ${trCount} tr(s) in tbody`);
+    }
+    
+    console.log(`✅ Scraped ${uniqueTickers.length} NASDAQ-100 constituents from official website`);
+    return uniqueTickers;
+    
+  } catch (error) {
+    console.error('❌ Error scraping NASDAQ-100 constituents:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get NASDAQ-100 constituents (convenience wrapper)
+ * Uses web scraping from official NASDAQ website
  * 
  * @returns {Promise<Array<string>>} Array of ticker symbols
  */
 export async function fetchNasdaq100Constituents() {
-  const apiKey = process.env.FMP_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('FMP_API_KEY environment variable is not set. Get a free API key at https://site.financialmodelingprep.com/developer/docs/');
-  }
-
-  try {
-    // Financial Modeling Prep endpoint for NASDAQ-100 index constituents
-    const url = `https://financialmodelingprep.com/api/v3/nasdaq_constituent?apikey=${apiKey}`;
-    
-    console.log('📡 Fetching NASDAQ-100 constituents from Financial Modeling Prep...');
-    
-    const response = await fetch(url, {
-      // Add cache control to avoid hitting rate limits unnecessarily
-      next: { revalidate: 3600 }, // Revalidate every hour
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage = `Financial Modeling Prep API error: ${response.status}`;
-      
-      try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage += ` - ${errorJson['Error Message'] || errorJson.message || errorText}`;
-      } catch {
-        errorMessage += ` - ${errorText}`;
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    
-    // Extract ticker symbols
-    if (Array.isArray(data) && data.length > 0) {
-      const tickers = data
-        .map(item => item.symbol || item.ticker)
-        .filter(Boolean)
-        .sort(); // Sort for consistency
-      
-      console.log(`✅ Fetched ${tickers.length} NASDAQ-100 constituents`);
-      return tickers;
-    }
-    
-    throw new Error('Unexpected response format from Financial Modeling Prep - empty or invalid data');
-    
-  } catch (error) {
-    console.error('❌ Error fetching NASDAQ-100 constituents:', error);
-    throw error;
-  }
+  return scrapeNasdaq100Constituents();
 }
 
 /**
@@ -127,12 +166,14 @@ export function saveNasdaq100Constituents(tickers) {
  * @param {Array<string>} tickers - Array of ticker symbols
  */
 export async function saveNasdaq100ConstituentsToDB(tickers) {
-  if (!supabaseAdmin) {
+  const admin = await getSupabaseAdmin();
+  
+  if (!admin) {
     throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
   }
 
   // Call the database function to sync constituents
-  const { error } = await supabaseAdmin.rpc('sync_nasdaq100_constituents', {
+  const { error } = await admin.rpc('sync_nasdaq100_constituents', {
     tickers: tickers.map(t => t.toUpperCase()), // Ensure uppercase
   });
 
@@ -149,11 +190,13 @@ export async function saveNasdaq100ConstituentsToDB(tickers) {
  * @returns {Promise<Array<string>>} Array of active ticker symbols
  */
 export async function loadNasdaq100ConstituentsFromDB() {
-  if (!supabaseAdmin) {
+  const admin = await getSupabaseAdmin();
+  
+  if (!admin) {
     throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await admin
     .from('nasdaq100_constituents')
     .select('ticker')
     .is('removed_at', null) // Only active constituents
@@ -167,7 +210,7 @@ export async function loadNasdaq100ConstituentsFromDB() {
 }
 
 /**
- * Sync NASDAQ-100 constituents (fetch and save to both DB and file)
+ * Sync NASDAQ-100 constituents (fetch and log - no DB updates for now)
  * 
  * @returns {Promise<{tickers: Array<string>, count: number, lastUpdated: string}>}
  */
@@ -177,26 +220,26 @@ export async function syncNasdaq100Constituents() {
   const tickers = await fetchNasdaq100Constituents();
   
   if (!tickers || tickers.length === 0) {
-    throw new Error('No tickers returned from API');
+    throw new Error('No tickers returned from scraper');
   }
   
   if (tickers.length < 90) {
     console.warn(`⚠️  Warning: Expected ~100 tickers, got ${tickers.length}`);
   }
   
-  // Save to Supabase (primary storage)
-  try {
-    await saveNasdaq100ConstituentsToDB(tickers);
-  } catch (dbError) {
-    console.error('❌ Failed to save to database:', dbError.message);
-    console.log('💡 Falling back to local file storage...');
-    // Fallback to local file if DB fails
-    saveNasdaq100Constituents(tickers);
-    throw dbError; // Still throw so user knows DB sync failed
-  }
+  // For now, just log the tickers (no DB updates)
+  console.log('\n📊 SCRAPED NASDAQ-100 CONSTITUENTS:');
+  console.log('========================================');
+  console.log(`Total tickers found: ${tickers.length}`);
+  console.log('\nTicker symbols:');
+  tickers.forEach((ticker, index) => {
+    const line = `${(index + 1).toString().padStart(3, ' ')}. ${ticker}`;
+    console.log(line);
+  });
+  console.log('========================================\n');
   
-  // Also save to local file as backup
-  saveNasdaq100Constituents(tickers);
+  // Don't save to DB or file for now - just logging
+  // TODO: Re-enable DB/file saving once scraping is verified
   
   return {
     tickers,

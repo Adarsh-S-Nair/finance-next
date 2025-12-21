@@ -17,6 +17,7 @@
     "@nivo/treemap": "^0.99.0",
     "@supabase/supabase-js": "^2.57.2",
     "chart.js": "^4.5.0",
+    "cheerio": "^1.1.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
