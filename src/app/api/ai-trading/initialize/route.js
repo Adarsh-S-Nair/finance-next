@@ -13,14 +13,26 @@ import { createClient } from '@supabase/supabase-js';
 import { loadPrompt, fillTemplate } from '../../../../lib/promptLoader';
 import { callGemini } from '../../../../lib/geminiClient';
 
-// Create a Supabase client with the service role for server-side operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Mark route as dynamic to avoid build-time analysis
+export const dynamic = 'force-dynamic';
+
+// Lazy create Supabase client to avoid build-time errors
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export async function POST(request) {
   try {
+    // Create Supabase client (lazy, only when actually needed)
+    const supabase = getSupabaseClient();
+    
     const body = await request.json();
     const { userId, name, aiModel, startingCapital } = body;
 
