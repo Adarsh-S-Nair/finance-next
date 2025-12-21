@@ -12,6 +12,10 @@ const formatCurrency = (amount) => {
 };
 
 const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact, showDate = false }) {
+  const hasSplits = (transaction.transaction_splits?.length || 0) > 0;
+  const hasSettledSplit = hasSplits && transaction.transaction_splits.some(s => s.is_settled);
+  const hasUnsettledSplit = hasSplits && transaction.transaction_splits.some(s => !s.is_settled);
+
   return (
     <div
       data-transaction-item
@@ -102,9 +106,15 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           </div>
         )}
 
-        {(transaction.is_repayment || transaction.transaction_splits?.some(s => s.is_settled)) && (
+        {(transaction.is_repayment || hasSettledSplit) && (
           <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
             {transaction.amount > 0 ? 'REIMBURSEMENT' : 'REIMBURSED'}
+          </div>
+        )}
+
+        {!transaction.is_repayment && !hasSettledSplit && transaction.amount < 0 && hasUnsettledSplit && (
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mt-0.5">
+            REQUESTED
           </div>
         )}
       </div>

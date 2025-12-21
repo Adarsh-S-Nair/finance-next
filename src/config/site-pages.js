@@ -15,6 +15,10 @@ export const SITE_PAGES = {
     title: 'Settings',
     header: 'Settings',
   },
+  '/investments': {
+    title: 'Investments',
+    header: 'Investments',
+  },
   // Add other routes as needed
 };
 

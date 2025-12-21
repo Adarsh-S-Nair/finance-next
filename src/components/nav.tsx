@@ -22,7 +22,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Investing",
     items: [
-      { href: "/investments", label: "Investments", icon: LuChartLine, disabled: true },
+      { href: "/investments", label: "Investments", icon: LuChartLine },
     ],
   },
 ];
