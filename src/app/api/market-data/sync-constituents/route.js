@@ -14,6 +14,18 @@ import { syncNasdaq100Constituents } from '../../../../lib/marketData';
 
 export async function GET(request) {
   try {
+    // Verify this is a Vercel Cron request (optional but recommended for security)
+    const authHeader = request.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+    
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      // If CRON_SECRET is set, require it
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     console.log('\n========================================');
     console.log('🔄 SYNCING NASDAQ-100 CONSTITUENTS');
     console.log('========================================');
