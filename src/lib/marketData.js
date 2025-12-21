@@ -208,23 +208,24 @@ export async function saveNasdaq100ConstituentsToDB(constituents) {
     throw new Error(`Failed to sync constituents: ${syncError.message}`);
   }
 
-  // Update metadata (name, etc.) for each constituent
-  for (const constituent of constituents) {
-    const updates = {};
-    if (constituent.name) {
-      updates.name = constituent.name;
-    }
-    
-    if (Object.keys(updates).length > 0) {
+  // Update metadata (name) for each constituent
+  // Do this in parallel for efficiency
+  const updatesWithNames = constituents.filter(c => c.name);
+  
+  if (updatesWithNames.length > 0) {
+    const updatePromises = updatesWithNames.map(async (constituent) => {
       const { error: updateError } = await admin
         .from('nasdaq100_constituents')
-        .update(updates)
+        .update({ name: constituent.name })
         .eq('ticker', constituent.ticker.toUpperCase());
       
       if (updateError) {
-        console.warn(`⚠️  Failed to update metadata for ${constituent.ticker}:`, updateError.message);
+        console.warn(`⚠️  Failed to update name for ${constituent.ticker}:`, updateError.message);
       }
-    }
+    });
+    
+    await Promise.all(updatePromises);
+    console.log(`✅ Updated names for ${updatesWithNames.length} constituents`);
   }
 
   console.log(`✅ Synced ${constituents.length} NASDAQ-100 constituents to database`);
@@ -288,15 +289,18 @@ export async function syncNasdaq100Constituents() {
   });
   console.log('========================================\n');
   
-  // Don't save to DB yet - just logging for now
-  // TODO: Re-enable DB saving once we verify the scraper works correctly
-  // try {
-  //   await saveNasdaq100ConstituentsToDB(constituents);
-  // } catch (dbError) {
-  //   console.error('❌ Failed to save to database:', dbError.message);
-  // }
+  // Save to Supabase (primary storage with history)
+  try {
+    await saveNasdaq100ConstituentsToDB(constituents);
+  } catch (dbError) {
+    console.error('❌ Failed to save to database:', dbError.message);
+    console.log('💡 Falling back to local file storage...');
+    // Fallback to local file if DB fails
+    saveNasdaq100Constituents(tickers);
+    // Don't throw - allow it to continue with file backup
+  }
   
-  // Save to local file as backup
+  // Also save to local file as backup (always)
   saveNasdaq100Constituents(tickers);
   
   return {
