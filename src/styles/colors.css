@@ -34,8 +34,8 @@
   --color-success-hover: #10b981;
   --color-on-success: #ffffff;
 
-  --color-danger: #f87171;
-  /* Red 400 - softer */
+  --color-danger: #dc2626;
+  /* Red 600 - richer, more authoritative */
   --color-on-danger: #ffffff;
 
   --color-warn: #fbbf24;
@@ -66,7 +66,7 @@
 
   /* Cashflow Chart Colors - Light Mode (Green/Red) */
   --color-cashflow-income: #34d399;
-  --color-cashflow-spending: #f87171;
+  --color-cashflow-spending: #dc2626;
 
   /* Spending Bar Color - Light Mode (Lighter Gray) */
   --color-chart-spending-bar: #d4d4d8;
@@ -111,9 +111,9 @@
   --color-success-hover: #22c55e;
   --color-on-success: #09090b;
 
-  --color-danger: #f87171;
-  /* Red 400 - softer */
-  --color-on-danger: #09090b;
+  --color-danger: #ef4444;
+  /* Red 500 - balanced visibility on dark */
+  --color-on-danger: #ffffff;
 
   --color-warn: #fbbf24;
   /* Amber 400 */
@@ -144,7 +144,7 @@
 
   /* Cashflow Chart Colors - Dark Mode (Green/Red) */
   --color-cashflow-income: #10b981;
-  --color-cashflow-spending: #f87171;
+  --color-cashflow-spending: #ef4444;
 
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;

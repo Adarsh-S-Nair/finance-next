@@ -104,7 +104,7 @@ export default function ConfirmDialog({
         <div className="mt-5 flex items-center gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             onClick={onCancel}
             className="flex-1"
           >

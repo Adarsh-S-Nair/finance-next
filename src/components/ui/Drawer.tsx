@@ -153,10 +153,9 @@ export default function Drawer({
               size === "md" && "sm:max-w-md",
               size === "lg" && "sm:max-w-lg",
               size === "xl" && "sm:max-w-xl",
-              // Height constraints
+              // Height constraints - no overflow here, content area handles scrolling
               "h-[75vh] sm:h-full sm:max-h-[100vh]",
-              // Scroll behavior: scrollbar on parent, header sticky
-              "overflow-y-auto",
+              "overflow-hidden",
               className
             )}
             // Animate differently for mobile bottom sheet vs desktop right drawer
@@ -176,13 +175,13 @@ export default function Drawer({
               if (draggedFarEnough || fastEnough) onClose();
             }}
           >
-            {/* Mobile drag handle */}
-            <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none sticky top-0 bg-[var(--color-content-bg)] z-30">
+            {/* Mobile drag handle - fixed at top */}
+            <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none bg-[var(--color-content-bg)] z-30">
               <div className="h-1.5 w-12 rounded-full bg-[var(--color-border)]" />
             </div>
 
-            {/* Header with back button */}
-            <div className="px-4 py-3 border-b border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-20 sticky top-0 sm:top-0">
+            {/* Header with back button - fixed at top */}
+            <div className="px-4 py-3 border-b border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-20">
               <div className="flex items-center gap-3">
                 {showBackButton && (
                   <button
@@ -204,8 +203,8 @@ export default function Drawer({
               </div>
             </div>
 
-            {/* Content with slide animation */}
-            <div className="flex-1 min-h-0">
+            {/* Scrollable content area */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <motion.div
                 key={currentViewId || 'default'}
                 initial={{ x: 20, opacity: 0 }}
@@ -218,8 +217,9 @@ export default function Drawer({
               </motion.div>
             </div>
 
+            {/* Footer - fixed at bottom */}
             {footer && (
-              <div className="p-4 border-t border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] sticky bottom-0 z-20">
+              <div className="p-4 border-t border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-20">
                 <div className="flex items-center justify-end gap-2">{footer}</div>
               </div>
             )}

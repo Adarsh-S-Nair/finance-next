@@ -4,44 +4,50 @@ import { useState, useEffect } from "react";
 import PageContainer from "../../../components/PageContainer";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
-import { LuPlus, LuBot, LuTrendingUp, LuTrendingDown, LuDollarSign, LuCalendar } from "react-icons/lu";
-import { SiOpenai, SiGooglegemini, SiAnthropic } from "react-icons/si";
+import Drawer from "../../../components/ui/Drawer";
+import ConfirmDialog from "../../../components/ui/ConfirmDialog";
+import { LuPlus, LuBot, LuTrendingUp, LuTrendingDown, LuTrash2 } from "react-icons/lu";
+import { SiGooglegemini, SiX } from "react-icons/si";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 
-// AI Model configurations
-const AI_MODELS = {
-  'claude-3-opus': {
-    name: 'Claude 3 Opus',
-    icon: SiAnthropic,
-    color: '#D97757',
-    description: 'Anthropic\'s most capable model',
-  },
-  'claude-3-sonnet': {
-    name: 'Claude 3 Sonnet',
-    icon: SiAnthropic,
-    color: '#D97757',
-    description: 'Balanced performance and speed',
-  },
-  'gpt-4o': {
-    name: 'GPT-4o',
-    icon: SiOpenai,
-    color: '#10A37F',
-    description: 'OpenAI\'s flagship model',
-  },
-  'gpt-4o-mini': {
-    name: 'GPT-4o Mini',
-    icon: SiOpenai,
-    color: '#10A37F',
-    description: 'Fast and efficient',
-  },
-  'gemini-pro': {
-    name: 'Gemini Pro',
+// AI Provider and Model configurations
+const AI_PROVIDERS = [
+  {
+    id: 'google',
+    name: 'Google',
     icon: SiGooglegemini,
     color: '#4285F4',
-    description: 'Google\'s advanced model',
+    models: [
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Free tier - best for testing' },
+    ],
   },
-};
+  {
+    id: 'xai',
+    name: 'xAI (Grok)',
+    icon: SiX,
+    color: '#000000',
+    models: [
+      { id: 'grok-4-1-fast-reasoning', name: 'Grok 4.1 Fast', description: 'Reasoning - $0.20/$0.50 per M tokens', disabled: true },
+    ],
+  },
+];
+
+// Flat lookup for model info
+const AI_MODELS = {};
+AI_PROVIDERS.forEach(provider => {
+  provider.models.forEach(model => {
+    AI_MODELS[model.id] = {
+      ...model,
+      icon: provider.icon,
+      color: provider.color,
+      provider: provider.name,
+    };
+  });
+});
+
+// Starting capital presets
+const CAPITAL_PRESETS = [10000, 50000, 100000, 500000, 1000000];
 
 // Format currency
 const formatCurrency = (amount) => {
@@ -60,7 +66,7 @@ const formatPercent = (value) => {
 };
 
 // Portfolio Card Component
-function PortfolioCard({ portfolio }) {
+function PortfolioCard({ portfolio, onDeleteClick }) {
   const model = AI_MODELS[portfolio.ai_model] || {
     name: portfolio.ai_model,
     icon: LuBot,
@@ -81,69 +87,98 @@ function PortfolioCard({ portfolio }) {
   });
 
   return (
-    <Card className="group hover:border-[var(--color-accent)]/30 transition-all duration-200 cursor-pointer">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${model.color}15` }}
-          >
-            <ModelIcon className="w-5 h-5" style={{ color: model.color }} />
-          </div>
-          <div>
-            <h3 className="font-medium text-[var(--color-fg)]">{portfolio.name}</h3>
-            <p className="text-xs text-[var(--color-muted)]">{model.name}</p>
-          </div>
+    <Card className="group relative">
+      {/* Delete button - appears on hover */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDeleteClick(portfolio);
+        }}
+        className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-muted)] hover:text-rose-500 hover:bg-rose-500/10"
+        title="Delete portfolio"
+      >
+        <LuTrash2 className="w-4 h-4" />
+      </button>
+
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: `${model.color}20` }}
+        >
+          <ModelIcon 
+            className="w-5 h-5" 
+            style={{ color: model.color === '#000000' ? 'var(--color-fg)' : model.color }} 
+          />
         </div>
-        <div className={`px-2 py-1 rounded text-xs font-medium ${
-          portfolio.status === 'active' 
-            ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-            : portfolio.status === 'paused'
-            ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
-            : 'bg-[var(--color-surface)] text-[var(--color-muted)]'
-        }`}>
-          {portfolio.status.charAt(0).toUpperCase() + portfolio.status.slice(1)}
+        <div className="min-w-0">
+          <h3 className="font-medium text-[var(--color-fg)] truncate">{portfolio.name}</h3>
+          <p className="text-xs text-[var(--color-muted)]">{model.name}</p>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-xs text-[var(--color-muted)] mb-1">Total Value</p>
-            <p className="text-2xl font-semibold text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(totalValue)}
-            </p>
-          </div>
-          <div className={`flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-            {isPositive ? <LuTrendingUp className="w-4 h-4" /> : <LuTrendingDown className="w-4 h-4" />}
-            <span className="text-sm font-medium tabular-nums">{formatPercent(returnPercent)}</span>
-          </div>
+      {/* Value */}
+      <div className="mb-3">
+        <div className="text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight">
+          {formatCurrency(totalValue)}
         </div>
-
-        <div className="h-px bg-[var(--color-border)]" />
-
-        <div className="flex items-center justify-between text-xs text-[var(--color-muted)]">
-          <div className="flex items-center gap-1.5">
-            <LuDollarSign className="w-3.5 h-3.5" />
-            <span>Started with {formatCurrency(portfolio.starting_capital)}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <LuCalendar className="w-3.5 h-3.5" />
-            <span>{createdDate}</span>
-          </div>
+        <div className={`text-xs font-medium mt-0.5 ${
+          isPositive ? 'text-emerald-500' : returnPercent < 0 ? 'text-rose-500' : 'text-[var(--color-muted)]'
+        }`}>
+          {returnAmount >= 0 ? '+' : ''}{formatCurrency(returnAmount)}
+          {' '}
+          ({formatPercent(returnPercent)})
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between text-xs text-[var(--color-muted)] pt-3 border-t border-[var(--color-border)]">
+        <span>{formatCurrency(portfolio.starting_capital)} initial</span>
+        <span>{createdDate}</span>
       </div>
     </Card>
   );
 }
 
-// Create Portfolio Modal
-function CreatePortfolioModal({ isOpen, onClose, onCreated }) {
+// Create Portfolio Drawer
+function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const { profile } = useUser();
   const [name, setName] = useState('');
-  const [selectedModel, setSelectedModel] = useState('claude-3-opus');
+  const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
+  const [startingCapital, setStartingCapital] = useState(100000);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+
+  // Capital bounds
+  const MIN_CAPITAL = 1000;
+  const MAX_CAPITAL = 10000000;
+
+  // Auto-fill name when model changes (unless user manually edited)
+  const handleModelSelect = (modelId) => {
+    setSelectedModel(modelId);
+    if (!nameManuallyEdited) {
+      const model = AI_MODELS[modelId];
+      if (model) {
+        setName(`${model.name} Portfolio`);
+      }
+    }
+  };
+
+  const handleNameChange = (e) => {
+    setName(e.target.value);
+    setNameManuallyEdited(true);
+  };
+
+  const handleCapitalInputChange = (e) => {
+    const value = e.target.value.replace(/[^0-9,]/g, '').replace(/,/g, '');
+    if (value === '') {
+      setStartingCapital(MIN_CAPITAL);
+    } else {
+      const numValue = parseInt(value, 10);
+      setStartingCapital(Math.max(MIN_CAPITAL, Math.min(MAX_CAPITAL, numValue)));
+    }
+  };
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -151,29 +186,40 @@ function CreatePortfolioModal({ isOpen, onClose, onCreated }) {
       return;
     }
 
+    if (startingCapital < MIN_CAPITAL) {
+      setError(`Starting capital must be at least ${formatCurrency(MIN_CAPITAL)}`);
+      return;
+    }
+
     setIsCreating(true);
     setError(null);
 
     try {
-      const { data, error: insertError } = await supabase
-        .from('ai_portfolios')
-        .insert({
-          user_id: profile.id,
+      // Call the API to create portfolio and get AI's initial trading decisions
+      const response = await fetch('/api/ai-trading/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
           name: name.trim(),
-          ai_model: selectedModel,
-          starting_capital: 100000,
-          current_cash: 100000,
-          status: 'active',
-        })
-        .select()
-        .single();
+          aiModel: selectedModel,
+          startingCapital: startingCapital,
+        }),
+      });
 
-      if (insertError) throw insertError;
+      const result = await response.json();
 
-      onCreated(data);
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to initialize portfolio');
+      }
+
+      onCreated(result.portfolio);
       onClose();
+      // Reset form
       setName('');
-      setSelectedModel('claude-3-opus');
+      setNameManuallyEdited(false);
+      setSelectedModel('gemini-3-flash-preview');
+      setStartingCapital(100000);
     } catch (err) {
       console.error('Error creating portfolio:', err);
       setError(err.message || 'Failed to create portfolio');
@@ -182,98 +228,230 @@ function CreatePortfolioModal({ isOpen, onClose, onCreated }) {
     }
   };
 
-  if (!isOpen) return null;
+  // Set initial name on mount
+  useEffect(() => {
+    if (isOpen && !nameManuallyEdited && !name) {
+      const model = AI_MODELS[selectedModel];
+      if (model) {
+        setName(`${model.name} Portfolio`);
+      }
+    }
+  }, [isOpen]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[var(--color-content-bg)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-        <h2 className="text-lg font-semibold text-[var(--color-fg)] mb-4">Create AI Portfolio</h2>
+  // Reset form when drawer closes
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null);
+    }
+  }, [isOpen]);
 
-        <div className="space-y-4">
-          {/* Portfolio Name */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-fg)] mb-2">
-              Portfolio Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., My Claude Portfolio"
-              className="w-full px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+  const selectedModelInfo = AI_MODELS[selectedModel];
+
+  // AI Thinking Loading Component
+  const AIThinkingOverlay = () => (
+    <div className="absolute inset-0 bg-[var(--color-content-bg)]/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+      {/* Animated brain/thinking graphic */}
+      <div className="relative mb-6">
+        {/* Outer pulsing ring */}
+        <div className="absolute inset-0 w-24 h-24 rounded-full bg-[var(--color-accent)]/20 animate-ping" style={{ animationDuration: '2s' }} />
+        {/* Middle ring */}
+        <div className="absolute inset-2 w-20 h-20 rounded-full bg-[var(--color-accent)]/30 animate-pulse" />
+        {/* Inner circle with icon */}
+        <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 flex items-center justify-center">
+          {selectedModelInfo && (
+            <selectedModelInfo.icon 
+              className="w-10 h-10 animate-pulse" 
+              style={{ 
+                color: selectedModelInfo.color === '#000000' ? 'var(--color-fg)' : selectedModelInfo.color,
+                animationDuration: '1.5s'
+              }} 
             />
-          </div>
-
-          {/* AI Model Selection */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-fg)] mb-2">
-              AI Model
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              {Object.entries(AI_MODELS).map(([key, model]) => {
-                const ModelIcon = model.icon;
-                const isSelected = selectedModel === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setSelectedModel(key)}
-                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                      isSelected
-                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)]'
-                    }`}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-md flex items-center justify-center"
-                      style={{ backgroundColor: `${model.color}15` }}
-                    >
-                      <ModelIcon className="w-4 h-4" style={{ color: model.color }} />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
-                      <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
-                    </div>
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center">
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Starting Capital Info */}
-          <div className="flex items-center gap-3 p-3 bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)]">
-            <div className="w-10 h-10 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
-              <LuDollarSign className="w-5 h-5 text-[var(--color-accent)]" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[var(--color-fg)]">Starting Capital</p>
-              <p className="text-xs text-[var(--color-muted)]">$100,000 paper money</p>
-            </div>
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-500">{error}</p>
           )}
         </div>
+      </div>
+      
+      {/* Text */}
+      <div className="text-center px-6">
+        <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">
+          AI is thinking...
+        </h3>
+        <p className="text-sm text-[var(--color-muted)] max-w-xs">
+          {selectedModelInfo?.name || 'The AI'} is analyzing the market and making initial investment decisions
+        </p>
+      </div>
 
-        <div className="flex gap-3 mt-6">
-          <Button variant="outline" onClick={onClose} className="flex-1">
-            Cancel
-          </Button>
-          <Button onClick={handleCreate} disabled={isCreating} className="flex-1">
-            {isCreating ? 'Creating...' : 'Create Portfolio'}
-          </Button>
+      {/* Animated dots */}
+      <div className="flex gap-1.5 mt-6">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full bg-[var(--color-accent)]"
+            style={{
+              animation: 'bounce 1.4s ease-in-out infinite',
+              animationDelay: `${i * 0.16}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      <style jsx>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-8px); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={isCreating ? undefined : onClose}
+      title="Create AI Portfolio"
+      description="Set up a new paper trading simulation"
+      size="md"
+      footer={
+        !isCreating && (
+          <div className="flex gap-3 w-full">
+            <Button variant="outline" onClick={onClose} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={isCreating} className="flex-1">
+              Create Portfolio
+            </Button>
+          </div>
+        )
+      }
+    >
+      <div className="relative h-full">
+        {isCreating && <AIThinkingOverlay />}
+        <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
+        {/* Portfolio Name */}
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Portfolio Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={handleNameChange}
+            placeholder="e.g., My Claude Portfolio"
+            className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+          />
+        </div>
+
+        {/* Starting Capital */}
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Starting Capital
+          </label>
+          {/* Preset Options */}
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {[25000, 50000, 100000, 250000].map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                onClick={() => setStartingCapital(amount)}
+                className={`py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  startingCapital === amount
+                    ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                    : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
+                }`}
+              >
+                ${amount >= 1000000 ? `${amount / 1000000}M` : `${amount / 1000}K`}
+              </button>
+            ))}
+          </div>
+          {/* Custom Amount Input */}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
+            <input
+              type="text"
+              value={startingCapital.toLocaleString()}
+              onChange={handleCapitalInputChange}
+              className="w-full pl-7 pr-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] tabular-nums"
+            />
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mt-1.5">
+            Simulated paper money for trading
+          </p>
+        </div>
+
+        {/* AI Model Selection - Grouped by Provider */}
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            AI Model
+          </label>
+          <div className="space-y-4">
+            {AI_PROVIDERS.map((provider) => {
+              const ProviderIcon = provider.icon;
+              return (
+                <div key={provider.id}>
+                  {/* Provider Header */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <ProviderIcon 
+                      className="w-3.5 h-3.5" 
+                      style={{ color: provider.color === '#000000' ? 'var(--color-fg)' : provider.color }} 
+                    />
+                    <span className="text-xs font-medium text-[var(--color-muted)]">
+                      {provider.name}
+                    </span>
+                  </div>
+                  {/* Models List */}
+                  <div className="space-y-1.5">
+                    {provider.models.map((model) => {
+                      const isSelected = selectedModel === model.id;
+                      const isDisabled = model.disabled;
+                      return (
+                        <button
+                          key={model.id}
+                          type="button"
+                          onClick={() => !isDisabled && handleModelSelect(model.id)}
+                          disabled={isDisabled}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                            isDisabled
+                              ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
+                              : isSelected
+                              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)]'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
+                              {isDisabled && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-muted)]">
+                                  Coming soon
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
+                          </div>
+                          {isSelected && !isDisabled && (
+                            <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-sm text-red-500">{error}</p>
+          </div>
+        )}
         </div>
       </div>
-    </div>
+    </Drawer>
   );
 }
 
@@ -282,6 +460,8 @@ export default function InvestmentsPage() {
   const [portfolios, setPortfolios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -308,6 +488,30 @@ export default function InvestmentsPage() {
 
   const handlePortfolioCreated = (newPortfolio) => {
     setPortfolios(prev => [newPortfolio, ...prev]);
+  };
+
+  const handleDeleteClick = (portfolio) => {
+    setDeleteModal({ isOpen: true, portfolio });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.portfolio) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('ai_portfolios')
+        .delete()
+        .eq('id', deleteModal.portfolio.id);
+      
+      if (error) throw error;
+      setPortfolios(prev => prev.filter(p => p.id !== deleteModal.portfolio.id));
+      setDeleteModal({ isOpen: false, portfolio: null });
+    } catch (err) {
+      console.error('Error deleting portfolio:', err);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (loading) {
@@ -348,7 +552,11 @@ export default function InvestmentsPage() {
           /* Portfolio Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {portfolios.map(portfolio => (
-              <PortfolioCard key={portfolio.id} portfolio={portfolio} />
+              <PortfolioCard 
+                key={portfolio.id} 
+                portfolio={portfolio} 
+                onDeleteClick={handleDeleteClick}
+              />
             ))}
           </div>
         ) : (
@@ -371,10 +579,23 @@ export default function InvestmentsPage() {
         )}
       </div>
 
-      <CreatePortfolioModal
+      <CreatePortfolioDrawer
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreated={handlePortfolioCreated}
+      />
+
+      <ConfirmDialog
+        isOpen={deleteModal.isOpen}
+        onCancel={() => setDeleteModal({ isOpen: false, portfolio: null })}
+        onConfirm={handleConfirmDelete}
+        title={`Delete ${deleteModal.portfolio?.name || 'Portfolio'}`}
+        description="This will permanently delete this portfolio and all its trading history."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={isDeleting}
+        busyLabel="Deleting..."
       />
     </PageContainer>
   );
