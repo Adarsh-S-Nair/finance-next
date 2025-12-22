@@ -411,12 +411,112 @@ export async function fetchStockData(ticker) {
       avgDollarVolume = totalDollarVolume / recentData.length;
     }
     
-    // Extract sector from quote summary
+    // Extract sector and website from quote summary
+    const quoteResult = quoteData?.quoteSummary?.result?.[0];
     let sector = null;
-    if (quoteData?.quoteSummary?.result?.[0]?.assetProfile?.sector) {
-      sector = quoteData.quoteSummary.result[0].assetProfile.sector;
-    } else if (quoteData?.quoteSummary?.result?.[0]?.summaryProfile?.sector) {
-      sector = quoteData.quoteSummary.result[0].summaryProfile.sector;
+    let website = null;
+    
+    // Debug: Log what we're getting from Yahoo Finance
+    if (quoteResult) {
+      // Try assetProfile first
+      if (quoteResult.assetProfile) {
+        sector = quoteResult.assetProfile.sector || null;
+        website = quoteResult.assetProfile.website || null;
+        // Debug logging
+        if (!website && !sector) {
+          console.log(`  [YF Debug ${ticker}] assetProfile exists but no website/sector. Keys:`, Object.keys(quoteResult.assetProfile || {}));
+        }
+      }
+      
+      // Fallback to summaryProfile
+      if (!sector && quoteResult.summaryProfile) {
+        sector = quoteResult.summaryProfile.sector || null;
+      }
+      if (!website && quoteResult.summaryProfile) {
+        website = quoteResult.summaryProfile.website || null;
+        // Debug logging
+        if (!website && !sector) {
+          console.log(`  [YF Debug ${ticker}] summaryProfile exists but no website/sector. Keys:`, Object.keys(quoteResult.summaryProfile || {}));
+        }
+      }
+      
+      // If we still don't have data, log the full structure for debugging
+      if (!website && !sector && quoteResult) {
+        console.log(`  [YF Debug ${ticker}] quoteResult keys:`, Object.keys(quoteResult));
+      }
+    } else {
+      console.log(`  [YF Debug ${ticker}] No quoteResult from Yahoo Finance API`);
+    }
+    
+    // Try Finnhub API as fallback if Yahoo Finance didn't provide website/domain
+    let domain = null;
+    if (website) {
+      try {
+        const url = new URL(website.startsWith('http') ? website : `https://${website}`);
+        domain = url.hostname.replace('www.', ''); // Remove www. prefix
+      } catch (e) {
+        // If URL parsing fails, try to extract domain manually
+        const match = website.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
+        if (match) {
+          domain = match[1];
+        }
+      }
+    }
+    
+    // Fallback to Finnhub API if we don't have domain/sector from Yahoo Finance
+    if (!domain || !sector) {
+      try {
+        const finnhubApiKey = process.env.FINNHUB_API_KEY;
+        if (finnhubApiKey) {
+          console.log(`  [Finnhub ${ticker}] Using Finnhub API fallback (missing: ${!domain ? 'domain' : ''}${!domain && !sector ? ', ' : ''}${!sector ? 'sector' : ''})`);
+          const finnhubUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubApiKey}`;
+          const finnhubResponse = await fetch(finnhubUrl);
+          
+          if (finnhubResponse.ok) {
+            const finnhubData = await finnhubResponse.json();
+            
+            // Get website/domain from Finnhub if not from Yahoo Finance
+            if (!domain && finnhubData) {
+              const finnhubWeb = finnhubData.weburl || finnhubData.url || null;
+              if (finnhubWeb) {
+                try {
+                  const url = new URL(finnhubWeb.startsWith('http') ? finnhubWeb : `https://${finnhubWeb}`);
+                  domain = url.hostname.replace('www.', '');
+                  console.log(`  [Finnhub ${ticker}] ✓ Got domain from Finnhub: ${domain}`);
+                } catch (e) {
+                  const match = finnhubWeb.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
+                  if (match) {
+                    domain = match[1];
+                    console.log(`  [Finnhub ${ticker}] ✓ Got domain from Finnhub (parsed): ${domain}`);
+                  }
+                }
+              }
+            }
+            
+            // Get sector from Finnhub if not from Yahoo Finance
+            if (!sector && finnhubData) {
+              const oldSector = sector;
+              sector = finnhubData.finnhubIndustry || finnhubData.industry || null;
+              if (sector && sector !== oldSector) {
+                console.log(`  [Finnhub ${ticker}] ✓ Got sector from Finnhub: ${sector}`);
+              }
+            }
+          } else {
+            console.log(`  [Finnhub ${ticker}] API response not OK: ${finnhubResponse.status}`);
+          }
+        } else {
+          console.log(`  [Finnhub ${ticker}] FINNHUB_API_KEY not found in environment variables`);
+        }
+      } catch (finnhubError) {
+        console.log(`  [Finnhub ${ticker}] Fallback failed:`, finnhubError.message);
+      }
+    }
+    
+    // Log domain and sector information for debugging
+    if (domain) {
+      console.log(`  ✓ ${ticker}: Domain = ${domain}, Sector = ${sector || 'N/A'}`);
+    } else {
+      console.log(`  ✗ ${ticker}: No domain (website: ${website || 'N/A'}), Sector = ${sector || 'N/A'}`);
     }
     
     return {
@@ -429,6 +529,7 @@ export async function fetchStockData(ticker) {
       distanceFromSMA50: distanceFromSMA50 !== null ? Number(distanceFromSMA50.toFixed(2)) : null,
       avgDollarVolume: avgDollarVolume !== null ? Number(avgDollarVolume.toFixed(2)) : null,
       sector,
+      domain, // Domain name for logo URL
     };
     
   } catch (error) {
@@ -438,6 +539,210 @@ export async function fetchStockData(ticker) {
       error: error.message,
     };
   }
+}
+
+/**
+ * Fetch basic ticker details (name, sector, domain) from Finnhub
+ * This is optimized for populating the tickers table
+ * Includes retry logic for rate limiting
+ * 
+ * @param {string} ticker - Stock ticker symbol
+ * @param {number} retries - Number of retries for rate limit errors (default: 3)
+ * @returns {Promise<Object>} Object with ticker, name, sector, domain
+ */
+export async function fetchTickerDetails(ticker, retries = 3) {
+  const finnhubApiKey = process.env.FINNHUB_API_KEY;
+  if (!finnhubApiKey) {
+    return {
+      ticker,
+      name: null,
+      sector: null,
+      domain: null,
+      error: 'FINNHUB_API_KEY not found',
+    };
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const finnhubUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubApiKey}`;
+      const finnhubResponse = await fetch(finnhubUrl);
+      
+      // Handle rate limiting (429) with exponential backoff
+      if (finnhubResponse.status === 429) {
+        if (attempt < retries) {
+          const backoffDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, etc.
+          console.log(`  [${ticker}] Rate limited (429), retrying in ${backoffDelay}ms... (attempt ${attempt + 1}/${retries + 1})`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+          continue; // Retry
+        } else {
+          return {
+            ticker,
+            name: null,
+            sector: null,
+            domain: null,
+            error: `Rate limited (429) after ${retries + 1} attempts`,
+          };
+        }
+      }
+      
+      if (!finnhubResponse.ok) {
+        return {
+          ticker,
+          name: null,
+          sector: null,
+          domain: null,
+          error: `Finnhub API error: ${finnhubResponse.status}`,
+        };
+      }
+      
+      const finnhubData = await finnhubResponse.json();
+      
+      // Extract name
+      const name = finnhubData.name || null;
+      
+      // Extract sector
+      const sector = finnhubData.finnhubIndustry || finnhubData.industry || finnhubData.gicsSector || null;
+      
+      // Extract domain from website URL
+      let domain = null;
+      const website = finnhubData.weburl || finnhubData.url || null;
+      if (website) {
+        try {
+          const url = new URL(website.startsWith('http') ? website : `https://${website}`);
+          domain = url.hostname.replace('www.', '');
+        } catch (e) {
+          // If URL parsing fails, try to extract domain manually
+          const match = website.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
+          if (match) {
+            domain = match[1];
+          }
+        }
+      }
+      
+      return {
+        ticker,
+        name,
+        sector,
+        domain,
+      };
+      
+    } catch (error) {
+      if (attempt < retries) {
+        const backoffDelay = Math.pow(2, attempt) * 1000;
+        console.log(`  [${ticker}] Error, retrying in ${backoffDelay}ms... (attempt ${attempt + 1}/${retries + 1}):`, error.message);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        continue;
+      }
+      
+      console.error(`Error fetching ticker details for ${ticker}:`, error.message);
+      return {
+        ticker,
+        name: null,
+        sector: null,
+        domain: null,
+        error: error.message,
+      };
+    }
+  }
+}
+
+/**
+ * Fetch basic ticker details for multiple tickers using Finnhub
+ * Processes requests sequentially with delays to avoid rate limiting
+ * 
+ * @param {Array<string>} tickers - Array of ticker symbols
+ * @param {number} delayMs - Delay between requests in milliseconds (default: 250ms)
+ * @returns {Promise<Array<Object>>} Array of ticker detail objects
+ */
+export async function fetchBulkTickerDetails(tickers, delayMs = 250) {
+  const finnhubApiKey = process.env.FINNHUB_API_KEY;
+  if (!finnhubApiKey) {
+    console.warn('⚠️  FINNHUB_API_KEY not found - cannot fetch ticker details');
+    return tickers.map(ticker => ({
+      ticker,
+      name: null,
+      sector: null,
+      domain: null,
+      error: 'FINNHUB_API_KEY not found',
+    }));
+  }
+
+  console.log(`\n📊 Fetching ticker details for ${tickers.length} tickers from Finnhub...`);
+  console.log(`   Processing sequentially with ${delayMs}ms delay between requests`);
+  console.log(`   This will take approximately ${Math.ceil((tickers.length * delayMs) / 1000)} seconds\n`);
+  
+  const results = [];
+  let successCount = 0;
+  let errorCount = 0;
+  let rateLimitCount = 0;
+  
+  // Process sequentially to avoid rate limiting
+  for (let i = 0; i < tickers.length; i++) {
+    const ticker = tickers[i];
+    const progress = `[${i + 1}/${tickers.length}]`;
+    
+    try {
+      const result = await fetchTickerDetails(ticker);
+      results.push(result);
+      
+      if (result.error) {
+        errorCount++;
+        if (result.error.includes('429') || result.error.includes('Rate limited')) {
+          rateLimitCount++;
+        }
+        console.log(`  ${progress} ✗ ${ticker}: ${result.error}`);
+      } else {
+        successCount++;
+        const hasData = result.name || result.sector || result.domain;
+        if (hasData) {
+          console.log(`  ${progress} ✓ ${ticker}: ${result.name || ticker}${result.domain ? ` (${result.domain})` : ''}`);
+        } else {
+          console.log(`  ${progress} ⚠ ${ticker}: No data returned`);
+        }
+      }
+      
+      // Delay between requests (except for the last one)
+      if (i < tickers.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    } catch (error) {
+      errorCount++;
+      results.push({
+        ticker,
+        name: null,
+        sector: null,
+        domain: null,
+        error: error.message,
+      });
+      console.log(`  ${progress} ✗ ${ticker}: ${error.message}`);
+      
+      // Still delay even on error
+      if (i < tickers.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  
+  // Summary statistics
+  const successful = results.filter(r => !r.error);
+  const withName = successful.filter(r => r.name).length;
+  const withDomain = successful.filter(r => r.domain).length;
+  const withSector = successful.filter(r => r.sector).length;
+  
+  console.log(`\n📊 Fetch Summary:`);
+  console.log(`   Total: ${results.length} tickers`);
+  console.log(`   Successful: ${successCount} tickers`);
+  console.log(`   Errors: ${errorCount} tickers`);
+  if (rateLimitCount > 0) {
+    console.log(`   ⚠️  Rate limited: ${rateLimitCount} tickers`);
+  }
+  if (successful.length > 0) {
+    console.log(`   With name: ${withName} tickers (${((withName / successful.length) * 100).toFixed(1)}%)`);
+    console.log(`   With domain: ${withDomain} tickers (${((withDomain / successful.length) * 100).toFixed(1)}%)`);
+    console.log(`   With sector: ${withSector} tickers (${((withSector / successful.length) * 100).toFixed(1)}%)`);
+  }
+  
+  return results;
 }
 
 /**
@@ -451,6 +756,12 @@ export async function fetchStockData(ticker) {
 export async function fetchBulkStockData(tickers, batchSize = 100) {
   console.log(`\n📊 Fetching stock data for ${tickers.length} tickers...`);
   console.log(`   Using batch size of ${batchSize} (Yahoo Finance free API)`);
+  const finnhubApiKey = process.env.FINNHUB_API_KEY;
+  if (finnhubApiKey) {
+    console.log(`   ✓ Finnhub API key found - will use as fallback for domain/sector`);
+  } else {
+    console.log(`   ⚠ Finnhub API key not found - only using Yahoo Finance`);
+  }
   
   const results = [];
   
@@ -470,6 +781,19 @@ export async function fetchBulkStockData(tickers, batchSize = 100) {
     if (i + batchSize < tickers.length) {
       await new Promise(resolve => setTimeout(resolve, 200));
     }
+  }
+  
+  // Summary statistics
+  const successful = results.filter(r => !r.error);
+  const withDomain = successful.filter(r => r.domain).length;
+  const withSector = successful.filter(r => r.sector).length;
+  
+  console.log(`\n📊 Fetch Summary:`);
+  console.log(`   Total: ${results.length} tickers`);
+  console.log(`   Successful: ${successful.length} tickers`);
+  if (successful.length > 0) {
+    console.log(`   With domain: ${withDomain} tickers (${((withDomain / successful.length) * 100).toFixed(1)}%)`);
+    console.log(`   With sector: ${withSector} tickers (${((withSector / successful.length) * 100).toFixed(1)}%)`);
   }
   
   return results;

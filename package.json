@@ -10,7 +10,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "sync:nasdaq100": "node scripts/sync-nasdaq100.js",
-    "sync:nasdaq100:api": "node -e \"fetch('http://localhost:3000/api/market-data/sync-constituents').then(r=>r.json()).then(console.log).catch(console.error)\""
+    "sync:nasdaq100:api": "node -e \"fetch('http://localhost:3000/api/market-data/sync-constituents').then(r=>r.json()).then(console.log).catch(console.error)\"",
+    "populate:tickers": "node scripts/populate-tickers.js"
   },
   "dependencies": {
     "@nivo/bar": "^0.99.0",

@@ -18,6 +18,7 @@ type CardProps = {
   allowOverflow?: boolean;
   onMouseLeave?: () => void;
   onMouseEnter?: () => void;
+  onClick?: () => void;
 };
 
 export default function Card({
@@ -34,7 +35,8 @@ export default function Card({
   width = "full",
   allowOverflow = false,
   onMouseLeave,
-  onMouseEnter
+  onMouseEnter,
+  onClick
 }: CardProps) {
   const paddingClasses = {
     none: "p-0",
@@ -71,6 +73,7 @@ export default function Card({
       )}
       onMouseLeave={onMouseLeave}
       onMouseEnter={onMouseEnter}
+      onClick={onClick}
     >
       {background}
 

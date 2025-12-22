@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { loadPrompt, fillTemplate } from '../../../../lib/promptLoader';
 import { callGemini } from '../../../../lib/geminiClient';
-import { scrapeNasdaq100Constituents, fetchBulkStockData } from '../../../../lib/marketData';
+import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails } from '../../../../lib/marketData';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -62,12 +62,145 @@ export async function POST(request) {
     const constituents = await scrapeNasdaq100Constituents();
     console.log(`✅ Scraped ${constituents.length} Nasdaq 100 constituents from website`);
     
-    // Extract ticker symbols for stock data fetching
+    // Extract ticker symbols
     const activeTickers = constituents.map(c => c.ticker);
     console.log(`Extracted ${activeTickers.length} ticker symbols`);
     
-    // Step 2: Fetch stock data for all constituents
-    console.log('\n📊 STEP 2: FETCHING STOCK DATA');
+    // Step 2: Check existing tickers in database
+    console.log('\n💾 STEP 2: CHECKING EXISTING TICKERS IN DATABASE');
+    console.log('========================================');
+    const tickerSymbols = constituents.map(c => c.ticker);
+    const { data: existingTickers, error: fetchError } = await supabase
+      .from('tickers')
+      .select('symbol, logo, name, sector')
+      .in('symbol', tickerSymbols);
+    
+    if (fetchError) {
+      console.warn('⚠️  Could not fetch existing tickers:', fetchError.message);
+    }
+    
+    // Create a map of existing tickers by symbol for quick lookup
+    const existingTickersMap = new Map();
+    if (existingTickers) {
+      existingTickers.forEach(t => {
+        existingTickersMap.set(t.symbol, t);
+      });
+    }
+    
+    // Identify tickers that need to be fetched (don't have logo or missing data)
+    const tickersToFetch = constituents.filter(c => {
+      const existing = existingTickersMap.get(c.ticker);
+      // Fetch if: no existing record, or no logo, or missing name/sector
+      return !existing || !existing.logo || !existing.name || !existing.sector;
+    });
+    
+    const tickersToSkip = constituents.length - tickersToFetch.length;
+    
+    console.log(`   Found ${existingTickers?.length || 0} existing tickers in database`);
+    console.log(`   ${tickersToSkip} tickers already have complete data (skipping)`);
+    console.log(`   ${tickersToFetch.length} tickers need data from Finnhub\n`);
+    
+    // Step 3: Fetch ticker details from Finnhub (only for tickers that need it)
+    let tickerDetails = [];
+    if (tickersToFetch.length > 0) {
+      console.log('📊 STEP 3: FETCHING TICKER DETAILS FROM FINNHUB');
+      console.log('========================================');
+      const tickersToFetchList = tickersToFetch.map(c => c.ticker);
+      // Process all tickers sequentially with delays to avoid rate limiting
+      // Using 1000ms delay between requests (60 requests/minute = 1 per second)
+      const fetchedDetails = await fetchBulkTickerDetails(tickersToFetchList, 1000);
+      tickerDetails = fetchedDetails;
+      
+      // Separate successful fetches from errors
+      const successfulData = tickerDetails.filter(d => !d.error);
+      const failedTickers = tickerDetails.filter(d => d.error);
+      
+      if (failedTickers.length > 0) {
+        console.log(`\n⚠️  Failed to fetch data for ${failedTickers.length} tickers:`);
+        failedTickers.forEach(d => {
+          console.log(`  - ${d.ticker}: ${d.error}`);
+        });
+      }
+      
+      console.log(`\n✅ Successfully fetched data for ${successfulData.length} tickers\n`);
+    } else {
+      console.log('📊 STEP 3: SKIPPING FINNHUB FETCH');
+      console.log('========================================');
+      console.log('All tickers already have complete data in database!\n');
+    }
+    
+    // Step 4: Store tickers in database with sector and logo (BEFORE AI prompt)
+    console.log('\n💾 STEP 4: STORING TICKERS IN DATABASE');
+    console.log('========================================');
+    
+    // Create a map of fetched ticker details by ticker for quick lookup
+    const tickerDetailsMap = new Map();
+    tickerDetails.forEach(detail => {
+      if (!detail.error) {
+        tickerDetailsMap.set(detail.ticker, detail);
+      }
+    });
+    
+    // Prepare ticker upserts with data from scraping and Finnhub
+    const tickerInserts = constituents.map(c => {
+      const existingTicker = existingTickersMap.get(c.ticker);
+      const tickerDetail = tickerDetailsMap.get(c.ticker);
+      
+      // Use existing data if available, otherwise use fetched data, otherwise fall back to scraped name
+      const name = existingTicker?.name || tickerDetail?.name || c.name || null;
+      const sector = existingTicker?.sector || tickerDetail?.sector || null;
+      const domain = tickerDetail?.domain || null;
+      
+      // Preserve existing logo if it exists, otherwise generate from domain
+      let logo = null;
+      if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
+        // Preserve existing logo
+        logo = existingTicker.logo;
+      } else if (domain) {
+        // Generate logo URL from domain using logo.dev
+        const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
+        if (logoDevPublicKey) {
+          logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
+        }
+      }
+      
+      return {
+        symbol: c.ticker,
+        name: name,
+        sector: sector,
+        logo: logo,
+      };
+    });
+    
+    // Upsert tickers into the tickers table
+    const { data: insertedTickers, error: tickerError } = await supabase
+      .from('tickers')
+      .upsert(tickerInserts, {
+        onConflict: 'symbol',
+        ignoreDuplicates: false, // Update if exists
+      })
+      .select();
+    
+    if (tickerError) {
+      console.warn('⚠️  Could not store tickers in database:', tickerError.message);
+    } else {
+      const withName = tickerInserts.filter(t => t.name).length;
+      const withSector = tickerInserts.filter(t => t.sector).length;
+      const withLogo = tickerInserts.filter(t => t.logo).length;
+      const withDomain = tickerInserts.filter(t => {
+        const tickerDetail = tickerDetailsMap.get(t.symbol);
+        return tickerDetail?.domain;
+      }).length;
+      console.log(`✅ Stored/updated ${insertedTickers?.length || tickerInserts.length} tickers in database`);
+      console.log(`   - ${withName} with company names`);
+      console.log(`   - ${withSector} with sector information`);
+      console.log(`   - ${withDomain} with domain information`);
+      console.log(`   - ${withLogo} with logo URLs`);
+    }
+    console.log('========================================\n');
+    
+    // Step 5: Fetch stock price data for AI prompt (separate from ticker details)
+    console.log('\n📊 STEP 5: FETCHING STOCK PRICE DATA FOR AI PROMPT');
     console.log('========================================');
     
     const stockData = await fetchBulkStockData(activeTickers);
@@ -77,13 +210,13 @@ export async function POST(request) {
     const failedTickers = stockData.filter(d => d.error);
     
     if (failedTickers.length > 0) {
-      console.log(`\n⚠️  Failed to fetch data for ${failedTickers.length} tickers:`);
+      console.log(`\n⚠️  Failed to fetch price data for ${failedTickers.length} tickers:`);
       failedTickers.forEach(d => {
         console.log(`  - ${d.ticker}: ${d.error}`);
       });
     }
     
-    console.log(`✅ Successfully fetched data for ${successfulData.length} stocks`);
+    console.log(`✅ Successfully fetched price data for ${successfulData.length} stocks\n`);
     
     // Format stock data for LLM prompt
     const formatStockDataForPrompt = (stocks) => {
@@ -125,7 +258,7 @@ export async function POST(request) {
     console.log(`Failed tickers: ${failedTickers.length}`);
     console.log('========================================\n');
 
-    // 1. Create the portfolio in the database first
+    // Step 4: Create the portfolio in the database
     const { data: portfolio, error: insertError } = await supabase
       .from('ai_portfolios')
       .insert({
@@ -146,7 +279,7 @@ export async function POST(request) {
 
     console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
 
-    // 2. Fetch current portfolio holdings (if any)
+    // Step 5: Fetch current portfolio holdings (if any)
     const { data: holdings, error: holdingsError } = await supabase
       .from('ai_portfolio_holdings')
       .select('ticker, shares, avg_cost')
@@ -184,7 +317,7 @@ export async function POST(request) {
     
     const holdingsForPrompt = formatHoldingsForPrompt(holdings);
 
-    // 3. Load and fill the trading prompt
+    // Step 6: Load and fill the trading prompt
     const tradingPrompt = loadPrompt('trading');
     
     // Build the user prompt with stock data and holdings included
@@ -206,7 +339,7 @@ export async function POST(request) {
     console.log(userPrompt);
     console.log('========================================\n');
 
-    // 4. Call the AI model
+    // Step 7: Call the AI model
     let aiResponse;
     try {
       if (aiModel.startsWith('gemini')) {
@@ -264,7 +397,7 @@ export async function POST(request) {
       throw new Error(`AI model error: ${aiError.message}`);
     }
 
-    // 5. Parse the AI response (try to extract JSON)
+    // Step 8: Parse the AI response (try to extract JSON)
     let parsedResponse = null;
     try {
       // Try to extract JSON from the response
@@ -280,34 +413,7 @@ export async function POST(request) {
       console.warn('⚠️ Could not parse JSON from AI response:', parseError.message);
     }
 
-    // 6. Store scraped constituents in tickers table
-    console.log('\n💾 STEP 3: STORING TICKERS IN DATABASE');
-    console.log('========================================');
-    
-    // Upsert tickers into the tickers table
-    const tickerInserts = constituents.map(c => ({
-      symbol: c.ticker,
-      name: c.name || null,
-      sector: null, // Will be filled later
-      logo: null, // Will be filled later
-    }));
-    
-    // Use upsert to avoid duplicates (on conflict do nothing for now)
-    const { data: insertedTickers, error: tickerError } = await supabase
-      .from('tickers')
-      .upsert(tickerInserts, {
-        onConflict: 'symbol',
-        ignoreDuplicates: false, // Update if exists
-      })
-      .select();
-    
-    if (tickerError) {
-      console.warn('⚠️  Could not store tickers in database:', tickerError.message);
-    } else {
-      console.log(`✅ Stored/updated ${insertedTickers?.length || tickerInserts.length} tickers in database`);
-    }
-
-    // 7. Execute trades if we have valid parsed response
+    // Step 9: Execute trades if we have valid parsed response
     let executedTrades = [];
     let tradeErrors = [];
     
@@ -597,7 +703,7 @@ export async function POST(request) {
       console.log('⚠️  No valid trades to execute (parsedResponse.trades is missing or invalid)');
     }
 
-    // 8. Update portfolio status to active and refresh portfolio data
+    // Step 10: Update portfolio status to active and refresh portfolio data
     const { data: updatedPortfolio, error: updateError } = await supabase
       .from('ai_portfolios')
       .update({ status: 'active' })
