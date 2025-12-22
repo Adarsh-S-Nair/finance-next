@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { loadPrompt, fillTemplate } from '../../../../lib/promptLoader';
 import { callGemini } from '../../../../lib/geminiClient';
-import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails } from '../../../../lib/marketData';
+import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails, checkMarketStatus } from '../../../../lib/marketData';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -259,6 +259,16 @@ export async function POST(request) {
     console.log('========================================\n');
 
     // Step 4: Create the portfolio in the database
+    // Calculate next rebalance date (1 month from today for monthly cadence)
+    const today = new Date();
+    const nextRebalanceDate = new Date(today);
+    nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
+    // Format as YYYY-MM-DD using local date (not UTC) to avoid timezone issues
+    const year = nextRebalanceDate.getFullYear();
+    const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
+    const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
+    const nextRebalanceDateStr = `${year}-${month}-${day}`;
+    
     const { data: portfolio, error: insertError } = await supabase
       .from('ai_portfolios')
       .insert({
@@ -268,6 +278,9 @@ export async function POST(request) {
         starting_capital: startingCapital,
         current_cash: startingCapital,
         status: 'initializing', // Start in initializing state
+        rebalance_cadence: 'monthly', // Default to monthly for all new portfolios
+        next_rebalance_date: nextRebalanceDateStr,
+        previous_rebalance_date: null, // No previous rebalance for new portfolio
       })
       .select()
       .single();
@@ -415,11 +428,36 @@ export async function POST(request) {
 
     // Step 9: Execute trades if we have valid parsed response
     let executedTrades = [];
+    let pendingTrades = [];
     let tradeErrors = [];
     
+    // Variables for snapshot creation (need to be accessible after trade processing)
+    let finalCash = parseFloat(portfolio.current_cash);
+    let finalHoldingsMap = new Map();
+    const priceMap = new Map();
+    
+    // Create a map of stock prices for quick lookup (used for both trades and snapshot)
+    successfulData.forEach(stock => {
+      if (stock.currentPrice) {
+        priceMap.set(stock.ticker, stock.currentPrice);
+      }
+    });
+    
     if (parsedResponse && parsedResponse.trades && Array.isArray(parsedResponse.trades)) {
-      console.log('\n💰 EXECUTING TRADES:');
+      console.log('\n💰 PROCESSING TRADES:');
       console.log('========================================');
+      
+      // Check market status once before processing all trades
+      console.log('📊 Checking market status...');
+      const marketStatus = await checkMarketStatus();
+      const isMarketOpen = marketStatus.isOpen === true;
+      
+      if (marketStatus.error) {
+        console.warn(`⚠️  Market status check failed: ${marketStatus.error}`);
+        console.log('   Proceeding with trade execution (assuming market is open)');
+      } else {
+        console.log(`   Market is ${isMarketOpen ? 'OPEN' : 'CLOSED'}`);
+      }
       
       // Get current portfolio state
       let currentCash = parseFloat(portfolio.current_cash);
@@ -434,15 +472,109 @@ export async function POST(request) {
         });
       });
       
-      // Create a map of stock prices for quick lookup
-      const priceMap = new Map();
-      successfulData.forEach(stock => {
-        if (stock.currentPrice) {
-          priceMap.set(stock.ticker, stock.currentPrice);
+      // If market is closed, mark all valid trades as pending
+      if (!isMarketOpen) {
+        console.log('\n⏸️  Market is closed - marking trades as PENDING');
+        console.log('========================================');
+        
+        for (const trade of parsedResponse.trades) {
+          try {
+            const { action, ticker, shares, reason } = trade;
+            const tickerUpper = ticker?.toUpperCase();
+            
+            // Validate trade
+            if (!tickerUpper || !shares || !action) {
+              tradeErrors.push({ trade, error: 'Missing required fields (ticker, shares, action)' });
+              continue;
+            }
+            
+            if (shares <= 0) {
+              tradeErrors.push({ trade, error: 'Shares must be greater than 0' });
+              continue;
+            }
+            
+            // Get current price
+            const currentPrice = priceMap.get(tickerUpper);
+            if (!currentPrice) {
+              tradeErrors.push({ trade, error: `Price not available for ${tickerUpper}` });
+              continue;
+            }
+            
+            const tradeShares = parseFloat(shares);
+            const tradePrice = currentPrice;
+            const totalValue = tradeShares * tradePrice;
+            
+            // Normalize action to lowercase
+            const tradeAction = action.toUpperCase();
+            
+            if (tradeAction !== 'BUY' && tradeAction !== 'SELL') {
+              tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be BUY or SELL` });
+              continue;
+            }
+            
+            // Record the trade as pending (no executed_at, is_pending=true)
+            const { data: tradeRecord, error: tradeError } = await supabase
+              .from('ai_portfolio_trades')
+              .insert({
+                portfolio_id: portfolio.id,
+                ticker: tickerUpper,
+                action: tradeAction.toLowerCase(),
+                shares: tradeShares,
+                price: tradePrice,
+                total_value: totalValue,
+                reasoning: reason || null,
+                is_pending: true,
+                executed_at: null, // Explicitly set to null for pending orders
+              })
+              .select()
+              .single();
+            
+            if (tradeError) {
+              tradeErrors.push({ trade, error: `Failed to record pending trade: ${tradeError.message}` });
+              continue;
+            }
+            
+            pendingTrades.push({
+              ...tradeRecord,
+              action: tradeAction,
+              ticker: tickerUpper,
+              shares: tradeShares,
+              price: tradePrice,
+              total_value: totalValue,
+            });
+            
+            console.log(`⏸️  PENDING ${tradeAction}: ${tradeShares} shares of ${tickerUpper} @ $${tradePrice.toFixed(2)} = $${totalValue.toFixed(2)}`);
+            
+          } catch (tradeError) {
+            tradeErrors.push({ trade, error: `Trade processing error: ${tradeError.message}` });
+            console.error(`❌ Error processing trade:`, tradeError);
+          }
         }
-      });
-      
-      // Process each trade
+        
+        // Store final state for snapshot creation (market closed, no changes to cash/holdings)
+        finalCash = parseFloat(portfolio.current_cash);
+        const currentHoldingsForSnapshot = holdings || [];
+        currentHoldingsForSnapshot.forEach(h => {
+          finalHoldingsMap.set(h.ticker, {
+            shares: parseFloat(h.shares),
+            avg_cost: parseFloat(h.avg_cost),
+          });
+        });
+        
+        console.log(`\n✅ Marked ${pendingTrades.length} trades as PENDING`);
+        if (tradeErrors.length > 0) {
+          console.log(`⚠️  ${tradeErrors.length} trades failed:`);
+          tradeErrors.forEach(({ trade, error }) => {
+            console.log(`  - ${trade.action} ${trade.shares} ${trade.ticker}: ${error}`);
+          });
+        }
+        console.log('========================================\n');
+      } else {
+        // Market is open - execute trades normally
+        console.log('\n✅ Market is open - executing trades');
+        console.log('========================================');
+        
+        // Process each trade
       for (const trade of parsedResponse.trades) {
         try {
           const { action, ticker, shares, reason } = trade;
@@ -489,7 +621,7 @@ export async function POST(request) {
               continue;
             }
             
-            // Record the trade
+            // Record the trade (market is open, so execute immediately)
             const { data: tradeRecord, error: tradeError } = await supabase
               .from('ai_portfolio_trades')
               .insert({
@@ -500,6 +632,8 @@ export async function POST(request) {
                 price: tradePrice,
                 total_value: totalValue,
                 reasoning: reason || null,
+                is_pending: false,
+                executed_at: new Date().toISOString(),
               })
               .select()
               .single();
@@ -589,7 +723,7 @@ export async function POST(request) {
               continue;
             }
             
-            // Record the trade
+            // Record the trade (market is open, so execute immediately)
             const { data: tradeRecord, error: tradeError } = await supabase
               .from('ai_portfolio_trades')
               .insert({
@@ -600,6 +734,8 @@ export async function POST(request) {
                 price: tradePrice,
                 total_value: totalValue,
                 reasoning: reason || null,
+                is_pending: false,
+                executed_at: new Date().toISOString(),
               })
               .select()
               .single();
@@ -673,37 +809,96 @@ export async function POST(request) {
         }
       }
       
-      // Update portfolio cash and last_traded_at
-      if (executedTrades.length > 0) {
-        const { error: updateCashError } = await supabase
-          .from('ai_portfolios')
-          .update({
-            current_cash: currentCash,
-            last_traded_at: new Date().toISOString(),
-          })
-          .eq('id', portfolio.id);
-        
-        if (updateCashError) {
-          console.error('❌ Failed to update portfolio cash:', updateCashError);
-        } else {
-          portfolio.current_cash = currentCash;
-          console.log(`\n💰 Updated portfolio cash: $${currentCash.toFixed(2)}`);
+        // Update portfolio cash and last_traded_at (only if trades were executed)
+        if (executedTrades.length > 0) {
+          const { error: updateCashError } = await supabase
+            .from('ai_portfolios')
+            .update({
+              current_cash: currentCash,
+              last_traded_at: new Date().toISOString(),
+            })
+            .eq('id', portfolio.id);
+          
+          if (updateCashError) {
+            console.error('❌ Failed to update portfolio cash:', updateCashError);
+          } else {
+            portfolio.current_cash = currentCash;
+            console.log(`\n💰 Updated portfolio cash: $${currentCash.toFixed(2)}`);
+          }
         }
+        
+        // Store final state for snapshot creation
+        finalCash = executedTrades.length > 0 ? currentCash : parseFloat(portfolio.current_cash);
+        finalHoldingsMap = holdingsMap;
+        
+        console.log(`\n✅ Executed ${executedTrades.length} trades successfully`);
+        if (tradeErrors.length > 0) {
+          console.log(`⚠️  ${tradeErrors.length} trades failed:`);
+          tradeErrors.forEach(({ trade, error }) => {
+            console.log(`  - ${trade.action} ${trade.shares} ${trade.ticker}: ${error}`);
+          });
+        }
+        console.log('========================================\n');
       }
-      
-      console.log(`\n✅ Executed ${executedTrades.length} trades successfully`);
-      if (tradeErrors.length > 0) {
-        console.log(`⚠️  ${tradeErrors.length} trades failed:`);
-        tradeErrors.forEach(({ trade, error }) => {
-          console.log(`  - ${trade.action} ${trade.shares} ${trade.ticker}: ${error}`);
-        });
-      }
-      console.log('========================================\n');
     } else {
       console.log('⚠️  No valid trades to execute (parsedResponse.trades is missing or invalid)');
+      
+      // Initialize finalHoldingsMap from existing holdings for snapshot
+      const currentHoldings = holdings || [];
+      currentHoldings.forEach(h => {
+        finalHoldingsMap.set(h.ticker, {
+          shares: parseFloat(h.shares),
+          avg_cost: parseFloat(h.avg_cost),
+        });
+      });
     }
 
-    // Step 10: Update portfolio status to active and refresh portfolio data
+    // Step 10: Create initial portfolio snapshot
+    // Create a snapshot after trades are processed (executed or pending)
+    // This captures the portfolio state after the initial trades
+    console.log('\n📸 CREATING INITIAL PORTFOLIO SNAPSHOT');
+    console.log('========================================');
+    
+    // Calculate holdings value using current prices
+    let holdingsValue = 0;
+    for (const [ticker, holding] of finalHoldingsMap.entries()) {
+      const currentPrice = priceMap.get(ticker);
+      if (currentPrice) {
+        holdingsValue += holding.shares * currentPrice;
+      } else {
+        // Fall back to avg_cost if price not available
+        holdingsValue += holding.shares * holding.avg_cost;
+      }
+    }
+    
+    const totalValue = finalCash + holdingsValue;
+    const snapshotDate = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
+    
+    console.log(`   Cash: $${finalCash.toFixed(2)}`);
+    console.log(`   Holdings Value: $${holdingsValue.toFixed(2)}`);
+    console.log(`   Total Value: $${totalValue.toFixed(2)}`);
+    console.log(`   Snapshot Date: ${snapshotDate}`);
+    
+    const { data: snapshotData, error: snapshotError } = await supabase
+      .from('ai_portfolio_snapshots')
+      .insert({
+        portfolio_id: portfolio.id,
+        total_value: totalValue,
+        cash: finalCash,
+        holdings_value: holdingsValue,
+        snapshot_date: snapshotDate,
+      })
+      .select()
+      .single();
+    
+    if (snapshotError) {
+      console.error('❌ Failed to create portfolio snapshot:', snapshotError);
+    } else {
+      console.log(`✅ Created initial portfolio snapshot (ID: ${snapshotData.id})`);
+    }
+    console.log('========================================\n');
+
+    // Step 11: Update portfolio status to active and refresh portfolio data
     const { data: updatedPortfolio, error: updateError } = await supabase
       .from('ai_portfolios')
       .update({ status: 'active' })
@@ -730,8 +925,10 @@ export async function POST(request) {
       holdings: updatedHoldings || [],
       trades: {
         executed: executedTrades,
+        pending: pendingTrades,
         errors: tradeErrors,
         totalExecuted: executedTrades.length,
+        totalPending: pendingTrades.length,
         totalErrors: tradeErrors.length,
       },
       aiResponse: {

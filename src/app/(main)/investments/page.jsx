@@ -80,14 +80,28 @@ AI_PROVIDERS.forEach(provider => {
 // Starting capital presets
 const CAPITAL_PRESETS = [10000, 50000, 100000, 500000, 1000000];
 
-// Format currency
+// Format currency with 2 decimal places
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+};
+
+// Format currency with smaller decimal digits (for display)
+const formatCurrencyWithSmallCents = (amount) => {
+  const formatted = formatCurrency(amount);
+  const parts = formatted.split('.');
+  if (parts.length === 2) {
+    return (
+      <>
+        {parts[0]}<span className="text-[0.85em] text-[var(--color-muted)]">.{parts[1]}</span>
+      </>
+    );
+  }
+  return formatted;
 };
 
 // Format percentage
@@ -144,7 +158,7 @@ function AnimatedCounter({ value, duration = 120 }) {
 
   return (
     <span className={isAnimating ? 'transition-all duration-150' : ''}>
-      {formatCurrency(displayValue)}
+      {formatCurrencyWithSmallCents(displayValue)}
     </span>
   );
 }
@@ -160,26 +174,29 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
   const [isDeleting, setIsDeleting] = useState(false);
   const [stockQuotes, setStockQuotes] = useState({}); // { TICKER: { price, cached } }
 
-  // Calculate current total value: use latest snapshot if available, otherwise use current_cash
+  // Calculate current total value: use latest prices from stockQuotes when available
   const [holdings, setHoldings] = useState([]);
+  const [trades, setTrades] = useState([]);
   const currentTotalValue = useMemo(() => {
-    if (snapshots.length > 0) {
-      const latestSnapshot = snapshots[snapshots.length - 1];
-      return parseFloat(latestSnapshot.total_value) || portfolio.current_cash;
-    }
-
+    const cash = parseFloat(portfolio.current_cash) || 0;
+    
+    // Calculate holdings value using current market prices from stockQuotes
+    // Fall back to avg_cost if no quote is available
     let holdingsValue = 0;
     if (holdings.length > 0) {
       holdingsValue = holdings.reduce((sum, holding) => {
         const shares = parseFloat(holding.shares) || 0;
-        const avgCost = parseFloat(holding.avg_cost) || 0;
-        return sum + (shares * avgCost);
+        const ticker = holding.ticker.toUpperCase();
+        const quote = stockQuotes[ticker];
+        
+        // Use current market price if available, otherwise fall back to avg_cost
+        const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
+        return sum + (shares * currentPrice);
       }, 0);
     }
 
-    const cash = parseFloat(portfolio.current_cash) || 0;
     return cash + holdingsValue;
-  }, [snapshots, holdings, portfolio.current_cash]);
+  }, [holdings, portfolio.current_cash, stockQuotes]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -240,6 +257,44 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
         } else {
           setHoldings([]);
         }
+
+        // Fetch trades
+        const { data: tradesData, error: tradesError } = await supabase
+          .from('ai_portfolio_trades')
+          .select('*')
+          .eq('portfolio_id', portfolio.id)
+          .order('executed_at', { ascending: false });
+
+        if (tradesError) throw tradesError;
+
+        // Fetch ticker info for trades
+        if (tradesData && tradesData.length > 0) {
+          const tradeTickers = [...new Set(tradesData.map(t => t.ticker.toUpperCase()))];
+          const { data: tradeTickersData } = await supabase
+            .from('tickers')
+            .select('symbol, logo, name, sector')
+            .in('symbol', tradeTickers);
+
+          // Create a map of ticker to logo/name/sector
+          const tradeTickerMap = new Map();
+          if (tradeTickersData) {
+            tradeTickersData.forEach(t => {
+              tradeTickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
+            });
+          }
+
+          // Add logo/name/sector to each trade
+          const tradesWithLogos = tradesData.map(trade => ({
+            ...trade,
+            logo: tradeTickerMap.get(trade.ticker.toUpperCase())?.logo || null,
+            companyName: tradeTickerMap.get(trade.ticker.toUpperCase())?.name || null,
+            sector: tradeTickerMap.get(trade.ticker.toUpperCase())?.sector || null,
+          }));
+
+          setTrades(tradesWithLogos);
+        } else {
+          setTrades([]);
+        }
       } catch (err) {
         console.error('Error fetching portfolio data:', err);
       } finally {
@@ -249,6 +304,31 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
 
     fetchData();
   }, [portfolio.id]);
+
+  // Periodically refresh stock quotes to keep portfolio value current (every 10 minutes)
+  useEffect(() => {
+    if (holdings.length === 0) return;
+
+    const tickers = holdings.map(h => h.ticker.toUpperCase());
+    const tickerList = tickers.join(',');
+
+    const fetchQuotes = async () => {
+      try {
+        const quotesRes = await fetch(`/api/market-data/quotes?tickers=${tickerList}`);
+        if (quotesRes.ok) {
+          const quotesData = await quotesRes.json();
+          setStockQuotes(quotesData.quotes || {});
+        }
+      } catch (quotesErr) {
+        console.error('Error fetching stock quotes:', quotesErr);
+      }
+    };
+
+    // Set up interval to refresh every 10 minutes (matching cache TTL)
+    const interval = setInterval(fetchQuotes, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [holdings]);
 
   const chartData = useMemo(() => {
     const data = snapshots.map((snapshot) => {
@@ -263,16 +343,37 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
       };
     });
 
-    if (data.length === 0 && currentTotalValue) {
+    // Always add the current calculated value as the latest point
+    // This ensures the chart shows the latest portfolio value with current prices
+    if (currentTotalValue) {
       const now = new Date();
-      data.push({
+      const currentPoint = {
         month: now.toLocaleString('en-US', { month: 'short' }),
         monthFull: now.toLocaleString('en-US', { month: 'long' }),
         year: now.getFullYear(),
         date: now,
         dateString: now.toISOString().split('T')[0],
         value: currentTotalValue,
-      });
+      };
+
+      // If we have snapshots, check if the last one is today
+      // If not, or if the current value differs, add it as a new point
+      if (data.length === 0) {
+        data.push(currentPoint);
+      } else {
+        const lastPoint = data[data.length - 1];
+        const lastDate = new Date(lastPoint.dateString);
+        const isToday = now.toDateString() === lastDate.toDateString();
+        
+        // Always update the last point if it's today, or add a new point if it's a different day
+        if (isToday) {
+          // Update the last point with current value
+          data[data.length - 1] = currentPoint;
+        } else {
+          // Add a new point for today
+          data.push(currentPoint);
+        }
+      }
     }
     return data;
   }, [snapshots, currentTotalValue]);
@@ -382,11 +483,19 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
 
   const dynamicPercentChange = useMemo(() => {
     if (displayChartData.length < 1) return 0;
-    const startValue = displayChartData[0].value;
-    const currentValue = displayData.value;
+    
+    // For "ALL" time range, compare to initial starting capital
+    // For other ranges, compare to the first point in the filtered data
+    const startValue = timeRange === 'ALL' 
+      ? portfolio.starting_capital 
+      : displayChartData[0].value;
+    
+    // Use the display value (hovered point if hovering, otherwise current/last point)
+    const displayValue = displayData.value;
+    
     if (startValue === 0) return 0;
-    return ((currentValue - startValue) / Math.abs(startValue)) * 100;
-  }, [displayChartData, displayData]);
+    return ((displayValue - startValue) / Math.abs(startValue)) * 100;
+  }, [displayChartData, displayData, timeRange, portfolio.starting_capital]);
 
   const handleMouseMove = (data, index) => {
     setActiveIndex(index);
@@ -491,10 +600,11 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
 
   return (
     <>
-      {/* Main Layout: Chart + Summary Side by Side */}
+      {/* Main Layout: Main Section + Side Column */}
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Chart Card - 2/3 width */}
-        <div className="lg:w-2/3">
+        {/* Main Section - 2/3 width */}
+        <div className="lg:w-2/3 flex flex-col gap-6">
+          {/* Portfolio Value Chart Card */}
           <Card variant="glass" padding="none" onMouseLeave={handleCardMouseLeave}>
             <div className="mb-4 px-6 pt-6">
               <div className="flex justify-between items-start">
@@ -508,10 +618,24 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
                       dynamicPercentChange < 0 ? 'text-rose-500' :
                         'text-[var(--color-muted)]'
                       }`}>
-                      {dynamicPercentChange > 0 ? '+' : ''}
-                      {formatCurrency(displayData.value - (displayChartData[0]?.value || 0))}
-                      {' '}
-                      ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
+                      {(() => {
+                        // Calculate the absolute change based on the time range
+                        // Use the same start value as in dynamicPercentChange
+                        const startValue = timeRange === 'ALL' 
+                          ? portfolio.starting_capital 
+                          : (displayChartData[0]?.value || 0);
+                        // Use displayData.value (hovered point if hovering, otherwise current)
+                        const displayValue = displayData.value;
+                        const change = displayValue - startValue;
+                        return (
+                          <>
+                            {change > 0 ? '+' : ''}
+                            {formatCurrency(change)}
+                            {' '}
+                            ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -595,32 +719,144 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
               </div>
             </div>
           </Card>
+
+          {/* Trades Table */}
+          <Card variant="glass" padding="none">
+            <div className="px-6 pt-6 pb-4">
+              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Trades</div>
+            </div>
+
+            {trades.length > 0 ? (
+              <div className="divide-y divide-[var(--color-border)]/20">
+                {trades.map((trade) => {
+                  const isBuy = trade.action.toLowerCase() === 'buy';
+                  
+                  return (
+                    <div
+                      key={trade.id}
+                      className="px-6 py-3.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        {/* Left: Logo + Name/Ticker/Sector */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                            style={{
+                              background: trade.logo ? 'transparent' : 'var(--color-surface)',
+                              border: '1px solid var(--color-border)'
+                            }}
+                          >
+                            {trade.logo ? (
+                              <img src={trade.logo} alt={trade.ticker} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-xs text-[var(--color-muted)]">{trade.ticker.slice(0, 2)}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
+                                {trade.companyName || trade.ticker}
+                              </div>
+                              <div className="text-xs font-medium text-[var(--color-muted)]">
+                                {trade.ticker}
+                              </div>
+                            </div>
+                            <div className="text-xs font-medium text-[var(--color-muted)]/70 mt-0.5">
+                              {new Date(trade.executed_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })} {new Date(trade.executed_at).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Action, Shares, Price, Total, Reasoning */}
+                        <div className="flex items-center gap-3 text-right flex-shrink-0">
+                          {/* Action */}
+                          <div className="min-w-[55px] flex justify-center">
+                            <div className={`text-[10px] font-semibold px-2.5 py-1 rounded flex items-center justify-center ${
+                              isBuy 
+                                ? 'bg-emerald-500/20 text-emerald-500' 
+                                : 'bg-rose-500/20 text-rose-500'
+                            }`}>
+                              {isBuy ? 'BUY' : 'SELL'}
+                            </div>
+                          </div>
+
+                          {/* Shares */}
+                          <div className="min-w-[65px] hidden sm:block">
+                            <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                              {parseFloat(trade.shares).toFixed(2)}
+                            </div>
+                            <div className="text-[10px] font-medium text-[var(--color-muted)]/70 uppercase tracking-wider mt-0.5">
+                              shares
+                            </div>
+                          </div>
+
+                          {/* Price */}
+                          <div className="min-w-[75px] hidden md:block">
+                            <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                              {formatCurrency(parseFloat(trade.price))}
+                            </div>
+                            <div className="text-[10px] font-medium text-[var(--color-muted)]/70 uppercase tracking-wider mt-0.5">
+                              price
+                            </div>
+                          </div>
+
+                          {/* Total Amount */}
+                          <div className="min-w-[90px]">
+                            <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                              {formatCurrency(parseFloat(trade.total_value))}
+                            </div>
+                            <div className="text-[10px] font-medium text-[var(--color-muted)]/70 uppercase tracking-wider mt-0.5">
+                              total
+                            </div>
+                          </div>
+
+                          {/* Reasoning - Tooltip */}
+                          {trade.reasoning && (
+                            <div className="min-w-[24px] relative group">
+                              <button
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors"
+                                title="View AI reasoning"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                              {/* Tooltip */}
+                              <div className="absolute right-0 top-full mt-2 w-72 p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                                <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider mb-1.5 font-medium">AI Reasoning</div>
+                                <div className="text-xs text-[var(--color-fg)] leading-relaxed">
+                                  {trade.reasoning}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-6 py-12 text-center">
+                <div className="text-[var(--color-muted)] text-sm">
+                  No trades yet. The AI hasn't made any trades.
+                </div>
+              </div>
+            )}
+          </Card>
         </div>
 
-        {/* Summary Card - 1/3 width */}
+        {/* Side Column - 1/3 width */}
         <div className="lg:w-1/3 flex flex-col gap-4">
-          <Card variant="glass" padding="md" className="flex-1">
-            {/* Total Value - Hero */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Total Value</span>
-                {(() => {
-                  const returnPercent = ((portfolioMetrics.totalPortfolioValue - portfolio.starting_capital) / portfolio.starting_capital) * 100;
-                  const isPositive = returnPercent >= 0;
-                  return (
-                    <span className={`text-xs font-medium tabular-nums ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {isPositive ? '+' : ''}{returnPercent.toFixed(2)}%
-                    </span>
-                  );
-                })()}
-              </div>
-              <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
-                {formatCurrency(portfolioMetrics.totalPortfolioValue)}
-              </div>
-              <div className="text-xs text-[var(--color-muted)] mt-1">
-                {formatCurrency(portfolio.starting_capital)} initial
-              </div>
-            </div>
+          {/* Portfolio Summary Card */}
+          <Card variant="glass" padding="md">
 
             {/* Allocation Bar Visualization */}
             <div className="mb-5">
@@ -654,7 +890,7 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
               <div className="p-3 rounded-lg bg-[var(--color-surface)]/50">
                 <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wider mb-1">Cash</div>
                 <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(portfolioMetrics.cash)}
+                  {formatCurrencyWithSmallCents(portfolioMetrics.cash)}
                 </div>
                 <div className="text-[10px] text-[var(--color-muted)] tabular-nums mt-0.5">
                   {portfolioMetrics.cashPercentage.toFixed(1)}% available
@@ -664,8 +900,8 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
               {/* Holdings */}
               <div className="p-3 rounded-lg bg-[var(--color-surface)]/50">
                 <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wider mb-1">Holdings</div>
-                <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(portfolioMetrics.totalHoldingsValue)}
+                <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                  {formatCurrencyWithSmallCents(portfolioMetrics.totalHoldingsValue)}
                 </div>
                 <div className="text-[10px] text-[var(--color-muted)] mt-0.5">
                   {holdings.length} position{holdings.length !== 1 ? 's' : ''}
@@ -705,103 +941,99 @@ function PortfolioDetailView({ portfolio, onClose, onDeleteClick, showSettings, 
               </div>
             )}
           </Card>
+
+          {/* Holdings Table */}
+          <Card variant="glass" padding="none">
+            <div className="px-6 pt-6 pb-4">
+              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Holdings</div>
+            </div>
+
+            {portfolioMetrics.holdingsWithValues.length > 0 ? (
+              <div className="divide-y divide-[var(--color-border)]/20">
+                {portfolioMetrics.holdingsWithValues.map((holding) => {
+                  // Calculate real gain/loss from current market price vs avg cost
+                  const quote = stockQuotes[holding.ticker];
+                  const currentPrice = quote?.price || null;
+                  const avgCost = holding.avgCost;
+
+                  // Calculate gain/loss percentage: ((current - avg) / avg) * 100
+                  let gainPercent = null;
+                  let currentValue = holding.value; // Default to cost basis value
+
+                  if (currentPrice && avgCost > 0) {
+                    gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
+                    currentValue = holding.shares * currentPrice;
+                  }
+
+                  const hasQuote = gainPercent !== null;
+
+                  return (
+                    <div
+                      key={holding.id}
+                      className="flex items-center justify-between px-6 py-3.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+                    >
+                      {/* Left: Logo + Name/Ticker */}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                          style={{
+                            background: holding.logo ? 'transparent' : 'var(--color-surface)',
+                            border: '1px solid var(--color-border)'
+                          }}
+                        >
+                          {holding.logo ? (
+                            <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs text-[var(--color-muted)]">{holding.ticker.slice(0, 2)}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-semibold text-[var(--color-fg)] truncate">
+                              {holding.companyName || holding.ticker}
+                            </div>
+                            <div className="text-xs font-medium text-[var(--color-muted)]">
+                              {holding.ticker}
+                            </div>
+                          </div>
+                          {holding.sector && (
+                            <div className="text-xs font-medium text-[var(--color-muted)]/70 mt-0.5">
+                              {holding.sector}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Value + Performance */}
+                      <div className="text-right min-w-[100px]">
+                        <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                          {formatCurrency(currentValue)}
+                        </div>
+                        {hasQuote ? (
+                          <div className={`text-xs font-medium tabular-nums mt-0.5 ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' :
+                              gainPercent > 0 ? 'text-emerald-500/80' :
+                                'text-rose-500/80'
+                            }`}>
+                            {gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[var(--color-muted)]/50 mt-0.5">—</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-6 py-12 text-center">
+                <div className="text-[var(--color-muted)] text-sm">
+                  No holdings yet. The AI hasn't made any trades.
+                </div>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
-
-      {/* Holdings Section */}
-      <Card variant="glass" padding="none" className="mt-6">
-        <div className="px-6 pt-6 pb-4">
-          <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Holdings</div>
-        </div>
-
-        {portfolioMetrics.holdingsWithValues.length > 0 ? (
-          <div className="divide-y divide-[var(--color-border)]/20">
-            {portfolioMetrics.holdingsWithValues.map((holding) => {
-              // Calculate real gain/loss from current market price vs avg cost
-              const quote = stockQuotes[holding.ticker];
-              const currentPrice = quote?.price || null;
-              const avgCost = holding.avgCost;
-
-              // Calculate gain/loss percentage: ((current - avg) / avg) * 100
-              let gainPercent = null;
-              let currentValue = holding.value; // Default to cost basis value
-
-              if (currentPrice && avgCost > 0) {
-                gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
-                currentValue = holding.shares * currentPrice;
-              }
-
-              const isUp = gainPercent !== null && gainPercent >= 0;
-              const hasQuote = gainPercent !== null;
-
-              return (
-                <div
-                  key={holding.id}
-                  className="flex items-center justify-between px-6 py-3.5 hover:bg-[var(--color-surface)]/20 transition-colors"
-                >
-                  {/* Left: Logo + Name/Ticker */}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div
-                      className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-                      style={{
-                        background: holding.logo ? 'transparent' : 'var(--color-surface)',
-                        border: '1px solid var(--color-border)'
-                      }}
-                    >
-                      {holding.logo ? (
-                        <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xs text-[var(--color-muted)]">{holding.ticker.slice(0, 2)}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm text-[var(--color-fg)] truncate">
-                        {holding.companyName || holding.ticker}
-                      </div>
-                      <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                        {holding.ticker}{holding.sector && ` · ${holding.sector}`}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Center: Shares */}
-                  <div className="text-right px-4 hidden sm:block">
-                    <div className="text-sm text-[var(--color-muted)] tabular-nums">
-                      {holding.shares.toFixed(2)}
-                    </div>
-                    <div className="text-[10px] text-[var(--color-muted)]/60 uppercase tracking-wider mt-0.5">
-                      shares
-                    </div>
-                  </div>
-
-                  {/* Right: Value + Performance */}
-                  <div className="text-right min-w-[100px]">
-                    <div className="text-sm text-[var(--color-fg)] tabular-nums">
-                      {formatCurrency(currentValue)}
-                    </div>
-                    {hasQuote ? (
-                      <div className={`text-xs tabular-nums mt-0.5 ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' :
-                          gainPercent > 0 ? 'text-emerald-500/80' :
-                            'text-rose-500/80'
-                        }`}>
-                        {gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%
-                      </div>
-                    ) : (
-                      <div className="text-xs text-[var(--color-muted)]/50 mt-0.5">—</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="px-6 py-12 text-center">
-            <div className="text-[var(--color-muted)] text-sm">
-              No holdings yet. The AI hasn't made any trades.
-            </div>
-          </div>
-        )}
-      </Card>
 
       {/* Portfolio Settings Drawer */}
       <Drawer
@@ -1044,7 +1276,7 @@ function PortfolioCard({ portfolio, onDeleteClick, onCardClick }) {
             percentChange < 0 ? 'text-rose-500' :
               'text-[var(--color-muted)]'
             }`}>
-            {returnAmount >= 0 ? '+' : ''}{formatCurrency(returnAmount)}
+            {returnAmount >= 0 ? '+' : ''}{formatCurrencyWithSmallCents(returnAmount)}
             {' '}
             ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
           </div>
@@ -1052,7 +1284,7 @@ function PortfolioCard({ portfolio, onDeleteClick, onCardClick }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between text-xs text-[var(--color-muted)] mt-2">
-          <span>{formatCurrency(portfolio.starting_capital)} initial</span>
+          <span>{formatCurrencyWithSmallCents(portfolio.starting_capital)} initial</span>
           <span>{createdDate}</span>
         </div>
       </div>

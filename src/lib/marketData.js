@@ -799,3 +799,43 @@ export async function fetchBulkStockData(tickers, batchSize = 100) {
   return results;
 }
 
+/**
+ * Check if the US stock market is currently open using FinnHub API
+ * 
+ * @returns {Promise<{isOpen: boolean, exchange?: string, timezone?: string, session?: string, error?: string}>}
+ */
+export async function checkMarketStatus() {
+  const finnhubApiKey = process.env.FINNHUB_API_KEY;
+  if (!finnhubApiKey) {
+    return {
+      isOpen: false,
+      error: 'FINNHUB_API_KEY not found',
+    };
+  }
+
+  try {
+    const url = `https://finnhub.io/api/v1/stock/market-status?exchange=US&token=${finnhubApiKey}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      return {
+        isOpen: false,
+        error: `Finnhub API error: ${response.status}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      isOpen: data.isOpen || false,
+      exchange: data.exchange,
+      timezone: data.timezone,
+      session: data.session,
+    };
+  } catch (error) {
+    return {
+      isOpen: false,
+      error: error.message,
+    };
+  }
+}
+

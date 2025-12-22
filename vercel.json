@@ -11,6 +11,10 @@
     {
       "path": "/api/market-data/sync-constituents",
       "schedule": "0 2 * * 1"
+    },
+    {
+      "path": "/api/cron/portfolio-snapshots",
+      "schedule": "30 14 * * *"
     }
   ]
 }
