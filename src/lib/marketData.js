@@ -310,3 +310,168 @@ export async function syncNasdaq100Constituents() {
   };
 }
 
+/**
+ * Fetch stock data for a single ticker using Yahoo Finance's free public API
+ * 
+ * Uses:
+ * - Yahoo Finance v8 API (query1.finance.yahoo.com/v8/finance/chart/) for price and historical data
+ * - Yahoo Finance v10 API (query2.finance.yahoo.com/v10/finance/quoteSummary/) for sector/company info
+ * 
+ * Returns: current price, returns (1d, 5d, 20d), distance from 50-day MA, avg dollar volume, sector
+ * 
+ * @param {string} ticker - Stock ticker symbol
+ * @returns {Promise<Object>} Stock data object
+ */
+export async function fetchStockData(ticker) {
+  try {
+    // Yahoo Finance v8 API for price and historical data
+    // Get 60 days of data to calculate 50-day MA
+    const endDate = Math.floor(Date.now() / 1000);
+    const startDate = endDate - (60 * 24 * 60 * 60); // 60 days ago
+    
+    const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&period1=${startDate}&period2=${endDate}`;
+    
+    // Yahoo Finance v10 API for quote summary (sector, etc.)
+    const quoteUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=assetProfile,summaryProfile`;
+    
+    const [chartResponse, quoteResponse] = await Promise.all([
+      fetch(chartUrl),
+      fetch(quoteUrl),
+    ]);
+    
+    if (!chartResponse.ok) {
+      throw new Error(`Chart API error: ${chartResponse.status}`);
+    }
+    
+    const chartData = await chartResponse.json();
+    const quoteData = quoteResponse.ok ? await quoteResponse.json().catch(() => null) : null;
+    
+    const result = chartData.chart?.result?.[0];
+    if (!result) {
+      throw new Error('No data in chart response');
+    }
+    
+    const timestamps = result.timestamp || [];
+    const closes = result.indicators?.quote?.[0]?.close || [];
+    const volumes = result.indicators?.quote?.[0]?.volume || [];
+    const highs = result.indicators?.quote?.[0]?.high || [];
+    const lows = result.indicators?.quote?.[0]?.low || [];
+    
+    // Filter out null values and align arrays
+    const validData = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (closes[i] !== null && closes[i] !== undefined) {
+        validData.push({
+          timestamp: timestamps[i],
+          close: closes[i],
+          volume: volumes[i] || 0,
+          high: highs[i] || closes[i],
+          low: lows[i] || closes[i],
+        });
+      }
+    }
+    
+    if (validData.length === 0) {
+      throw new Error('No valid price data');
+    }
+    
+    // Current price (most recent close)
+    const currentPrice = validData[validData.length - 1].close;
+    
+    // Calculate returns
+    const return1d = validData.length >= 2 
+      ? ((currentPrice - validData[validData.length - 2].close) / validData[validData.length - 2].close) * 100 
+      : null;
+    
+    const return5d = validData.length >= 6
+      ? ((currentPrice - validData[validData.length - 6].close) / validData[validData.length - 6].close) * 100
+      : null;
+    
+    const return20d = validData.length >= 21
+      ? ((currentPrice - validData[validData.length - 21].close) / validData[validData.length - 21].close) * 100
+      : null;
+    
+    // Calculate 50-day MA (use available data, minimum 20 days)
+    const maPeriod = Math.min(50, validData.length);
+    let sma50 = null;
+    let distanceFromSMA50 = null;
+    
+    if (validData.length >= 20) {
+      const pricesForMA = validData.slice(-maPeriod).map(d => d.close);
+      sma50 = pricesForMA.reduce((sum, price) => sum + price, 0) / pricesForMA.length;
+      distanceFromSMA50 = ((currentPrice - sma50) / sma50) * 100;
+    }
+    
+    // Calculate average dollar volume over last 20 days
+    let avgDollarVolume = null;
+    if (validData.length >= 20) {
+      const recentData = validData.slice(-20);
+      const dollarVolumes = recentData.map(d => d.close * (d.volume || 0));
+      const totalDollarVolume = dollarVolumes.reduce((sum, dv) => sum + dv, 0);
+      avgDollarVolume = totalDollarVolume / recentData.length;
+    }
+    
+    // Extract sector from quote summary
+    let sector = null;
+    if (quoteData?.quoteSummary?.result?.[0]?.assetProfile?.sector) {
+      sector = quoteData.quoteSummary.result[0].assetProfile.sector;
+    } else if (quoteData?.quoteSummary?.result?.[0]?.summaryProfile?.sector) {
+      sector = quoteData.quoteSummary.result[0].summaryProfile.sector;
+    }
+    
+    return {
+      ticker,
+      currentPrice,
+      return1d: return1d !== null ? Number(return1d.toFixed(2)) : null,
+      return5d: return5d !== null ? Number(return5d.toFixed(2)) : null,
+      return20d: return20d !== null ? Number(return20d.toFixed(2)) : null,
+      sma50: sma50 !== null ? Number(sma50.toFixed(2)) : null,
+      distanceFromSMA50: distanceFromSMA50 !== null ? Number(distanceFromSMA50.toFixed(2)) : null,
+      avgDollarVolume: avgDollarVolume !== null ? Number(avgDollarVolume.toFixed(2)) : null,
+      sector,
+    };
+    
+  } catch (error) {
+    console.error(`Error fetching data for ${ticker}:`, error.message);
+    return {
+      ticker,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Fetch stock data for multiple tickers
+ * Uses Yahoo Finance's free public API (no API key required)
+ * 
+ * @param {Array<string>} tickers - Array of ticker symbols
+ * @param {number} batchSize - Number of tickers to fetch in parallel per batch (default: 100)
+ * @returns {Promise<Array<Object>>} Array of stock data objects
+ */
+export async function fetchBulkStockData(tickers, batchSize = 100) {
+  console.log(`\n📊 Fetching stock data for ${tickers.length} tickers...`);
+  console.log(`   Using batch size of ${batchSize} (Yahoo Finance free API)`);
+  
+  const results = [];
+  
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    const batchNum = Math.floor(i / batchSize) + 1;
+    const totalBatches = Math.ceil(tickers.length / batchSize);
+    console.log(`  Fetching batch ${batchNum}/${totalBatches} (${batch.length} tickers)...`);
+    
+    const batchResults = await Promise.all(
+      batch.map(ticker => fetchStockData(ticker))
+    );
+    
+    results.push(...batchResults);
+    
+    // Small delay between batches to avoid rate limiting (only if not last batch)
+    if (i + batchSize < tickers.length) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+  
+  return results;
+}
+

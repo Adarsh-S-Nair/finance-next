@@ -73,13 +73,16 @@ export async function callGemini(model, systemPrompt, userPrompt, options = {}) 
   const data = await response.json();
   
   // Extract the response text
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const candidate = data.candidates?.[0];
+  const content = candidate?.content?.parts?.[0]?.text || '';
+  const finishReason = candidate?.finishReason || 'UNKNOWN';
   
   // Extract usage metadata
   const usageMetadata = data.usageMetadata || {};
 
   return {
     content,
+    finishReason, // 'STOP' = complete, 'MAX_TOKENS' = truncated, 'SAFETY' = blocked, etc.
     usage: {
       inputTokens: usageMetadata.promptTokenCount || 0,
       outputTokens: usageMetadata.candidatesTokenCount || 0,
