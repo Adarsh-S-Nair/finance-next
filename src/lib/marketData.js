@@ -315,9 +315,12 @@ export async function syncNasdaq100Constituents() {
  * 
  * Uses:
  * - Yahoo Finance v8 API (query1.finance.yahoo.com/v8/finance/chart/) for price and historical data
- * - Yahoo Finance v10 API (query2.finance.yahoo.com/v10/finance/quoteSummary/) for sector/company info
+ * - Yahoo Finance v10 API (query2.finance.yahoo.com/v10/finance/quoteSummary/) for sector (optional)
  * 
- * Returns: current price, returns (1d, 5d, 20d), distance from 50-day MA, avg dollar volume, sector
+ * Note: Domain/logo are handled separately via tickers table, not in this function.
+ * Sector is optional here - can be enriched from tickers table if missing.
+ * 
+ * Returns: current price, returns (1d, 5d, 20d), distance from 50-day MA, avg dollar volume, sector (optional)
  * 
  * @param {string} ticker - Stock ticker symbol
  * @returns {Promise<Object>} Stock data object
@@ -411,112 +414,21 @@ export async function fetchStockData(ticker) {
       avgDollarVolume = totalDollarVolume / recentData.length;
     }
     
-    // Extract sector and website from quote summary
+    // Extract sector from quote summary (for AI prompt)
+    // Note: Domain/logo are handled separately via tickers table (Step 3), not here
     const quoteResult = quoteData?.quoteSummary?.result?.[0];
     let sector = null;
-    let website = null;
     
-    // Debug: Log what we're getting from Yahoo Finance
     if (quoteResult) {
       // Try assetProfile first
       if (quoteResult.assetProfile) {
         sector = quoteResult.assetProfile.sector || null;
-        website = quoteResult.assetProfile.website || null;
-        // Debug logging
-        if (!website && !sector) {
-          console.log(`  [YF Debug ${ticker}] assetProfile exists but no website/sector. Keys:`, Object.keys(quoteResult.assetProfile || {}));
-        }
       }
       
       // Fallback to summaryProfile
       if (!sector && quoteResult.summaryProfile) {
         sector = quoteResult.summaryProfile.sector || null;
       }
-      if (!website && quoteResult.summaryProfile) {
-        website = quoteResult.summaryProfile.website || null;
-        // Debug logging
-        if (!website && !sector) {
-          console.log(`  [YF Debug ${ticker}] summaryProfile exists but no website/sector. Keys:`, Object.keys(quoteResult.summaryProfile || {}));
-        }
-      }
-      
-      // If we still don't have data, log the full structure for debugging
-      if (!website && !sector && quoteResult) {
-        console.log(`  [YF Debug ${ticker}] quoteResult keys:`, Object.keys(quoteResult));
-      }
-    } else {
-      console.log(`  [YF Debug ${ticker}] No quoteResult from Yahoo Finance API`);
-    }
-    
-    // Try Finnhub API as fallback if Yahoo Finance didn't provide website/domain
-    let domain = null;
-    if (website) {
-      try {
-        const url = new URL(website.startsWith('http') ? website : `https://${website}`);
-        domain = url.hostname.replace('www.', ''); // Remove www. prefix
-      } catch (e) {
-        // If URL parsing fails, try to extract domain manually
-        const match = website.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
-        if (match) {
-          domain = match[1];
-        }
-      }
-    }
-    
-    // Fallback to Finnhub API if we don't have domain/sector from Yahoo Finance
-    if (!domain || !sector) {
-      try {
-        const finnhubApiKey = process.env.FINNHUB_API_KEY;
-        if (finnhubApiKey) {
-          console.log(`  [Finnhub ${ticker}] Using Finnhub API fallback (missing: ${!domain ? 'domain' : ''}${!domain && !sector ? ', ' : ''}${!sector ? 'sector' : ''})`);
-          const finnhubUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubApiKey}`;
-          const finnhubResponse = await fetch(finnhubUrl);
-          
-          if (finnhubResponse.ok) {
-            const finnhubData = await finnhubResponse.json();
-            
-            // Get website/domain from Finnhub if not from Yahoo Finance
-            if (!domain && finnhubData) {
-              const finnhubWeb = finnhubData.weburl || finnhubData.url || null;
-              if (finnhubWeb) {
-                try {
-                  const url = new URL(finnhubWeb.startsWith('http') ? finnhubWeb : `https://${finnhubWeb}`);
-                  domain = url.hostname.replace('www.', '');
-                  console.log(`  [Finnhub ${ticker}] ✓ Got domain from Finnhub: ${domain}`);
-                } catch (e) {
-                  const match = finnhubWeb.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
-                  if (match) {
-                    domain = match[1];
-                    console.log(`  [Finnhub ${ticker}] ✓ Got domain from Finnhub (parsed): ${domain}`);
-                  }
-                }
-              }
-            }
-            
-            // Get sector from Finnhub if not from Yahoo Finance
-            if (!sector && finnhubData) {
-              const oldSector = sector;
-              sector = finnhubData.finnhubIndustry || finnhubData.industry || null;
-              if (sector && sector !== oldSector) {
-                console.log(`  [Finnhub ${ticker}] ✓ Got sector from Finnhub: ${sector}`);
-              }
-            }
-          } else {
-            console.log(`  [Finnhub ${ticker}] API response not OK: ${finnhubResponse.status}`);
-          }
-        } else {
-          console.log(`  [Finnhub ${ticker}] FINNHUB_API_KEY not found in environment variables`);
-        }
-      } catch (finnhubError) {
-        console.log(`  [Finnhub ${ticker}] Fallback failed:`, finnhubError.message);
-      }
-    }
-    
-    // Log domain and sector information for debugging
-    if (domain) {
-      console.log(`  ✓ ${ticker}: Domain = ${domain}, Sector = ${sector || 'N/A'}`);
-    } else {
-      console.log(`  ✗ ${ticker}: No domain (website: ${website || 'N/A'}), Sector = ${sector || 'N/A'}`);
     }
     
     return {
@@ -528,8 +440,7 @@ export async function fetchStockData(ticker) {
       sma50: sma50 !== null ? Number(sma50.toFixed(2)) : null,
       distanceFromSMA50: distanceFromSMA50 !== null ? Number(distanceFromSMA50.toFixed(2)) : null,
       avgDollarVolume: avgDollarVolume !== null ? Number(avgDollarVolume.toFixed(2)) : null,
-      sector,
-      domain, // Domain name for logo URL
+      sector, // Sector for AI prompt (will be enriched from tickers table if missing)
     };
     
   } catch (error) {

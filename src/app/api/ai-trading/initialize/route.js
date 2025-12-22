@@ -67,6 +67,8 @@ export async function POST(request) {
     console.log(`Extracted ${activeTickers.length} ticker symbols`);
     
     // Step 2: Check existing tickers in database
+    // NOTE: We use the 'tickers' table exclusively (not nasdaq100_constituents)
+    // This ensures all ticker data (name, sector, logo) is centralized in one place
     console.log('\n💾 STEP 2: CHECKING EXISTING TICKERS IN DATABASE');
     console.log('========================================');
     const tickerSymbols = constituents.map(c => c.ticker);
@@ -87,11 +89,18 @@ export async function POST(request) {
       });
     }
     
-    // Identify tickers that need to be fetched (don't have logo or missing data)
+    // Identify tickers that need to be fetched from Finnhub
+    // We fetch if: no existing record, or missing logo, or missing name/sector
+    // This ensures all tickers have complete data including logos
     const tickersToFetch = constituents.filter(c => {
       const existing = existingTickersMap.get(c.ticker);
-      // Fetch if: no existing record, or no logo, or missing name/sector
-      return !existing || !existing.logo || !existing.name || !existing.sector;
+      // Fetch if: no existing record, or no logo (empty/null), or missing name/sector
+      const needsFetch = !existing || 
+                        !existing.logo || 
+                        existing.logo.trim() === '' || 
+                        !existing.name || 
+                        !existing.sector;
+      return needsFetch;
     });
     
     const tickersToSkip = constituents.length - tickersToFetch.length;
@@ -142,6 +151,7 @@ export async function POST(request) {
     });
     
     // Prepare ticker upserts with data from scraping and Finnhub
+    // Ensure ALL constituents are included in the tickers table with complete data
     const tickerInserts = constituents.map(c => {
       const existingTicker = existingTickersMap.get(c.ticker);
       const tickerDetail = tickerDetailsMap.get(c.ticker);
@@ -151,18 +161,18 @@ export async function POST(request) {
       const sector = existingTicker?.sector || tickerDetail?.sector || null;
       const domain = tickerDetail?.domain || null;
       
-      // Preserve existing logo if it exists, otherwise generate from domain
+      // Logo logic: preserve existing logo if valid, otherwise generate from domain
       let logo = null;
+      const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
+      
       if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
-        // Preserve existing logo
+        // Preserve existing logo (already has a valid logo)
         logo = existingTicker.logo;
-      } else if (domain) {
+      } else if (domain && logoDevPublicKey) {
         // Generate logo URL from domain using logo.dev
-        const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
-        if (logoDevPublicKey) {
-          logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
-        }
+        logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
       }
+      // If no domain available, logo remains null (will be fetched in future runs)
       
       return {
         symbol: c.ticker,
@@ -171,6 +181,17 @@ export async function POST(request) {
         logo: logo,
       };
     });
+    
+    // Verify all constituents are being inserted
+    const missingTickers = constituents.filter(c => {
+      const insert = tickerInserts.find(t => t.symbol === c.ticker);
+      return !insert;
+    });
+    
+    if (missingTickers.length > 0) {
+      console.warn(`⚠️  Warning: ${missingTickers.length} tickers are missing from inserts:`, 
+        missingTickers.map(t => t.ticker).join(', '));
+    }
     
     // Upsert tickers into the tickers table
     const { data: insertedTickers, error: tickerError } = await supabase
@@ -184,6 +205,14 @@ export async function POST(request) {
     if (tickerError) {
       console.warn('⚠️  Could not store tickers in database:', tickerError.message);
     } else {
+      // Update existingTickersMap with the latest data from database (after upsert)
+      // This ensures we have the most up-to-date sectors for enrichment
+      if (insertedTickers) {
+        insertedTickers.forEach(ticker => {
+          existingTickersMap.set(ticker.symbol, ticker);
+        });
+      }
+      
       const withName = tickerInserts.filter(t => t.name).length;
       const withSector = tickerInserts.filter(t => t.sector).length;
       const withLogo = tickerInserts.filter(t => t.logo).length;
@@ -191,11 +220,23 @@ export async function POST(request) {
         const tickerDetail = tickerDetailsMap.get(t.symbol);
         return tickerDetail?.domain;
       }).length;
-      console.log(`✅ Stored/updated ${insertedTickers?.length || tickerInserts.length} tickers in database`);
-      console.log(`   - ${withName} with company names`);
-      console.log(`   - ${withSector} with sector information`);
-      console.log(`   - ${withDomain} with domain information`);
-      console.log(`   - ${withLogo} with logo URLs`);
+      
+      // Verify all constituents are in the database
+      const totalConstituents = constituents.length;
+      const totalInserted = insertedTickers?.length || tickerInserts.length;
+      
+      console.log(`✅ Stored/updated ${totalInserted} tickers in database (${totalConstituents} total constituents)`);
+      console.log(`   - ${withName} with company names (${((withName/totalConstituents)*100).toFixed(1)}%)`);
+      console.log(`   - ${withSector} with sector information (${((withSector/totalConstituents)*100).toFixed(1)}%)`);
+      console.log(`   - ${withLogo} with logo URLs (${((withLogo/totalConstituents)*100).toFixed(1)}%)`);
+      console.log(`   - ${withDomain} with domain information (${((withDomain/totalConstituents)*100).toFixed(1)}%)`);
+      
+      // Warn if any tickers are missing logos
+      const missingLogos = tickerInserts.filter(t => !t.logo).map(t => t.symbol);
+      if (missingLogos.length > 0) {
+        console.log(`\n⚠️  ${missingLogos.length} tickers are missing logos (will be fetched in future runs):`);
+        console.log(`   ${missingLogos.slice(0, 10).join(', ')}${missingLogos.length > 10 ? ` ... and ${missingLogos.length - 10} more` : ''}`);
+      }
     }
     console.log('========================================\n');
     
@@ -209,6 +250,18 @@ export async function POST(request) {
     const successfulData = stockData.filter(d => !d.error);
     const failedTickers = stockData.filter(d => d.error);
     
+    // Enrich stock data with sector from tickers table (prioritize database over Yahoo Finance)
+    // This ensures we use the most accurate sector data from our database
+    const enrichedData = successfulData.map(stock => {
+      const tickerFromDb = existingTickersMap.get(stock.ticker);
+      // Always prefer sector from database if available (more reliable than Yahoo Finance)
+      if (tickerFromDb?.sector) {
+        stock.sector = tickerFromDb.sector;
+      }
+      // If no sector in DB and Yahoo Finance provided one, keep it
+      return stock;
+    });
+    
     if (failedTickers.length > 0) {
       console.log(`\n⚠️  Failed to fetch price data for ${failedTickers.length} tickers:`);
       failedTickers.forEach(d => {
@@ -216,7 +269,7 @@ export async function POST(request) {
       });
     }
     
-    console.log(`✅ Successfully fetched price data for ${successfulData.length} stocks\n`);
+    console.log(`✅ Successfully fetched price data for ${enrichedData.length} stocks\n`);
     
     // Format stock data for LLM prompt
     const formatStockDataForPrompt = (stocks) => {
@@ -249,12 +302,12 @@ export async function POST(request) {
       return formatted;
     };
     
-    const stockDataForPrompt = formatStockDataForPrompt(successfulData);
+    const stockDataForPrompt = formatStockDataForPrompt(enrichedData);
     
     // Print to logs for debugging
     console.log('\n📈 STOCK DATA SUMMARY:');
     console.log('========================================');
-    console.log(`Total stocks with data: ${successfulData.length}`);
+    console.log(`Total stocks with data: ${enrichedData.length}`);
     console.log(`Failed tickers: ${failedTickers.length}`);
     console.log('========================================\n');
 
@@ -292,7 +345,15 @@ export async function POST(request) {
 
     console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
 
-    // Step 5: Fetch current portfolio holdings (if any)
+    // Step 5: Create price map for quick lookups (needed for holdings formatting)
+    const priceMap = new Map();
+    enrichedData.forEach(stock => {
+      if (stock.currentPrice) {
+        priceMap.set(stock.ticker, stock.currentPrice);
+      }
+    });
+    
+    // Step 6: Fetch current portfolio holdings (if any)
     const { data: holdings, error: holdingsError } = await supabase
       .from('ai_portfolio_holdings')
       .select('ticker, shares, avg_cost')
@@ -302,46 +363,67 @@ export async function POST(request) {
       console.warn('⚠️  Could not fetch holdings:', holdingsError.message);
     }
     
-    // Format holdings for prompt
-    const formatHoldingsForPrompt = (holdings) => {
-      if (!holdings || holdings.length === 0) {
-        return '\nCurrent Portfolio Holdings: None (new portfolio)\n';
+    // Calculate total portfolio value for weight calculations
+    const totalPortfolioValue = parseFloat(portfolio.current_cash) + 
+      (holdings?.reduce((sum, h) => {
+        const price = priceMap.get(h.ticker) || parseFloat(h.avg_cost);
+        return sum + (parseFloat(h.shares) * price);
+      }, 0) || 0);
+    
+    // Format holdings for prompt (with weights, P&L, etc. for rebalance mode)
+    const formatHoldingsForPrompt = (holdings, mode, priceMap, totalValue) => {
+      if (!holdings || holdings.length === 0 || mode === 'NEW_PORTFOLIO') {
+        return 'Current Holdings: None (new portfolio)';
       }
       
+      // Rebalance mode - detailed holdings table
       let formatted = `\nCurrent Portfolio Holdings (${holdings.length} positions):\n\n`;
-      formatted += 'Ticker | Shares | Avg Cost | Total Value\n';
-      formatted += '-'.repeat(50) + '\n';
+      formatted += 'Ticker | Shares | Avg Cost | Current Price | Weight % | Unrealized P&L %\n';
+      formatted += '-'.repeat(80) + '\n';
       
-      let totalHoldingsValue = 0;
       holdings.forEach(holding => {
-        const currentPrice = successfulData.find(s => s.ticker === holding.ticker)?.currentPrice;
-        const totalValue = currentPrice ? (holding.shares * currentPrice) : (holding.shares * holding.avg_cost);
-        totalHoldingsValue += totalValue;
+        const ticker = holding.ticker;
+        const shares = parseFloat(holding.shares);
+        const avgCost = parseFloat(holding.avg_cost);
+        const currentPrice = priceMap.get(ticker) || avgCost;
+        const positionValue = shares * currentPrice;
+        const weight = totalValue > 0 ? (positionValue / totalValue) * 100 : 0;
+        const unrealizedPnL = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
         
-        const price = currentPrice ? currentPrice.toFixed(2) : holding.avg_cost.toFixed(2);
-        formatted += `${holding.ticker.padEnd(6)} | ${holding.shares.toFixed(4).padStart(8)} | $${holding.avg_cost.toFixed(2).padStart(8)} | $${totalValue.toFixed(2).padStart(12)}\n`;
+        formatted += `${ticker.padEnd(6)} | ${shares.toFixed(4).padStart(8)} | $${avgCost.toFixed(2).padStart(8)} | $${currentPrice.toFixed(2).padStart(11)} | ${weight.toFixed(2).padStart(7)}% | ${unrealizedPnL >= 0 ? '+' : ''}${unrealizedPnL.toFixed(2).padStart(7)}%\n`;
       });
       
-      formatted += '-'.repeat(50) + '\n';
-      formatted += `Total Holdings Value: $${totalHoldingsValue.toFixed(2)}\n`;
+      formatted += '-'.repeat(80) + '\n';
+      const totalHoldingsValue = holdings.reduce((sum, h) => {
+        const price = priceMap.get(h.ticker) || parseFloat(h.avg_cost);
+        return sum + (parseFloat(h.shares) * price);
+      }, 0);
+      formatted += `Total Holdings Value: $${totalHoldingsValue.toFixed(2)} (${totalValue > 0 ? ((totalHoldingsValue / totalValue) * 100).toFixed(2) : 0}% of portfolio)\n`;
       
       return formatted;
     };
     
-    const holdingsForPrompt = formatHoldingsForPrompt(holdings);
+    // Determine mode and build appropriate prompt
+    const mode = (holdings && holdings.length > 0) ? 'REBALANCE' : 'NEW_PORTFOLIO';
+    const modeInstructions = mode === 'NEW_PORTFOLIO' 
+      ? 'This is a new portfolio. Make your initial investment decisions.'
+      : 'This is an existing portfolio. Rebalance only if justified.\nYou are allowed to make NO trades if no action is warranted.\nPrefer incremental changes (trims/adds) over replacing the entire portfolio.\nUse sells/trims primarily to fix rule violations or to replace deteriorating setups.';
+    
+    const holdingsForPrompt = formatHoldingsForPrompt(holdings, mode, priceMap, totalPortfolioValue);
 
-    // Step 6: Load and fill the trading prompt
+    // Step 7: Load and fill the trading prompt
     const tradingPrompt = loadPrompt('trading');
     
-    // Build the user prompt with stock data and holdings included
-    const baseUserPrompt = fillTemplate(tradingPrompt.user, {
+    // Build the user prompt with mode-based template variables
+    const userPrompt = fillTemplate(tradingPrompt.user, {
       name: name,
       starting_capital: startingCapital.toLocaleString(),
       current_cash: portfolio.current_cash.toLocaleString(),
+      mode: mode,
+      mode_instructions: modeInstructions,
+      holdings_table: holdingsForPrompt,
+      universe_table: stockDataForPrompt,
     });
-    
-    // Append holdings and stock data to the prompt
-    const userPrompt = baseUserPrompt + '\n' + holdingsForPrompt + '\n' + stockDataForPrompt;
 
     // Log the complete prompt before sending
     console.log('\n📝 COMPLETE PROMPT TO BE SENT TO AI:');
@@ -352,7 +434,7 @@ export async function POST(request) {
     console.log(userPrompt);
     console.log('========================================\n');
 
-    // Step 7: Call the AI model
+    // Step 8: Call the AI model
     let aiResponse;
     try {
       if (aiModel.startsWith('gemini')) {
@@ -410,7 +492,7 @@ export async function POST(request) {
       throw new Error(`AI model error: ${aiError.message}`);
     }
 
-    // Step 8: Parse the AI response (try to extract JSON)
+    // Step 9: Parse the AI response (try to extract JSON)
     let parsedResponse = null;
     try {
       // Try to extract JSON from the response
@@ -426,7 +508,7 @@ export async function POST(request) {
       console.warn('⚠️ Could not parse JSON from AI response:', parseError.message);
     }
 
-    // Step 9: Execute trades if we have valid parsed response
+    // Step 10: Execute trades if we have valid parsed response
     let executedTrades = [];
     let pendingTrades = [];
     let tradeErrors = [];
@@ -434,16 +516,30 @@ export async function POST(request) {
     // Variables for snapshot creation (need to be accessible after trade processing)
     let finalCash = parseFloat(portfolio.current_cash);
     let finalHoldingsMap = new Map();
-    const priceMap = new Map();
     
-    // Create a map of stock prices for quick lookup (used for both trades and snapshot)
-    successfulData.forEach(stock => {
-      if (stock.currentPrice) {
-        priceMap.set(stock.ticker, stock.currentPrice);
-      }
-    });
-    
+    // Handle empty trades array (allowed in rebalance mode)
     if (parsedResponse && parsedResponse.trades && Array.isArray(parsedResponse.trades)) {
+      if (parsedResponse.trades.length === 0) {
+        console.log('\n✅ REBALANCE: No trades recommended');
+        console.log('========================================');
+        console.log('AI model determined no action is warranted at this time.');
+        console.log('Portfolio will remain unchanged.');
+        console.log('========================================\n');
+        
+        // Still create snapshot even with no trades
+        // Initialize finalHoldingsMap from current holdings
+        if (holdings && holdings.length > 0) {
+          holdings.forEach(h => {
+            finalHoldingsMap.set(h.ticker, {
+              shares: parseFloat(h.shares),
+              avg_cost: parseFloat(h.avg_cost),
+            });
+          });
+        }
+      }
+    }
+    
+    if (parsedResponse && parsedResponse.trades && Array.isArray(parsedResponse.trades) && parsedResponse.trades.length > 0) {
       console.log('\n💰 PROCESSING TRADES:');
       console.log('========================================');
       
@@ -504,13 +600,24 @@ export async function POST(request) {
             const tradePrice = currentPrice;
             const totalValue = tradeShares * tradePrice;
             
-            // Normalize action to lowercase
-            const tradeAction = action.toUpperCase();
-            
-            if (tradeAction !== 'BUY' && tradeAction !== 'SELL') {
-              tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be BUY or SELL` });
-              continue;
-            }
+          // Normalize action to uppercase
+          const tradeAction = action.toUpperCase();
+          
+          // Handle HOLD action (no trade needed)
+          if (tradeAction === 'HOLD') {
+            console.log(`⏸️  HOLD: ${tickerUpper} - No action taken`);
+            continue;
+          }
+          
+          // Validate action type
+          const validActions = ['BUY', 'SELL', 'TRIM', 'INCREASE'];
+          if (!validActions.includes(tradeAction)) {
+            tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be one of: ${validActions.join(', ')}, or HOLD` });
+            continue;
+          }
+          
+          // Map TRIM/INCREASE to SELL/BUY for database storage
+          const dbAction = (tradeAction === 'INCREASE' || tradeAction === 'BUY') ? 'buy' : 'sell';
             
             // Record the trade as pending (no executed_at, is_pending=true)
             const { data: tradeRecord, error: tradeError } = await supabase
@@ -518,7 +625,7 @@ export async function POST(request) {
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
-                action: tradeAction.toLowerCase(),
+                action: dbAction,
                 shares: tradeShares,
                 price: tradePrice,
                 total_value: totalValue,
@@ -602,10 +709,27 @@ export async function POST(request) {
           const tradePrice = currentPrice;
           const totalValue = tradeShares * tradePrice;
           
-          // Normalize action to lowercase
+          // Normalize action to uppercase
           const tradeAction = action.toUpperCase();
           
-          if (tradeAction === 'BUY') {
+          // Handle HOLD action (no trade needed)
+          if (tradeAction === 'HOLD') {
+            console.log(`✅ HOLD: ${tickerUpper} - No action taken`);
+            continue;
+          }
+          
+          // Validate action type
+          const validActions = ['BUY', 'SELL', 'TRIM', 'INCREASE'];
+          if (!validActions.includes(tradeAction)) {
+            tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be one of: ${validActions.join(', ')}, or HOLD` });
+            continue;
+          }
+          
+          // Map TRIM/INCREASE to SELL/BUY for processing
+          const isBuy = tradeAction === 'BUY' || tradeAction === 'INCREASE';
+          const isSell = tradeAction === 'SELL' || tradeAction === 'TRIM';
+          
+          if (isBuy) {
             // Check if we have enough cash
             if (totalValue > currentCash) {
               tradeErrors.push({ 
@@ -622,12 +746,14 @@ export async function POST(request) {
             }
             
             // Record the trade (market is open, so execute immediately)
+            // Map TRIM/INCREASE to buy/sell for database storage
+            const dbAction = 'buy';
             const { data: tradeRecord, error: tradeError } = await supabase
               .from('ai_portfolio_trades')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
-                action: 'buy',
+                action: dbAction,
                 shares: tradeShares,
                 price: tradePrice,
                 total_value: totalValue,
@@ -701,16 +827,17 @@ export async function POST(request) {
             
             executedTrades.push({
               ...tradeRecord,
-              action: 'BUY',
+              action: tradeAction, // Keep original action (BUY or INCREASE)
               ticker: tickerUpper,
               shares: tradeShares,
               price: tradePrice,
               total_value: totalValue,
             });
             
-            console.log(`✅ BUY: ${tradeShares} shares of ${tickerUpper} @ $${tradePrice.toFixed(2)} = $${totalValue.toFixed(2)}`);
+            const actionLabel = tradeAction === 'INCREASE' ? 'INCREASE' : 'BUY';
+            console.log(`✅ ${actionLabel}: ${tradeShares} shares of ${tickerUpper} @ $${tradePrice.toFixed(2)} = $${totalValue.toFixed(2)}`);
             
-          } else if (tradeAction === 'SELL') {
+          } else if (isSell) {
             // Check if we have enough shares
             const existingHolding = holdingsMap.get(tickerUpper);
             
@@ -724,12 +851,14 @@ export async function POST(request) {
             }
             
             // Record the trade (market is open, so execute immediately)
+            // Map TRIM/INCREASE to buy/sell for database storage
+            const dbAction = 'sell';
             const { data: tradeRecord, error: tradeError } = await supabase
               .from('ai_portfolio_trades')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
-                action: 'sell',
+                action: dbAction,
                 shares: tradeShares,
                 price: tradePrice,
                 total_value: totalValue,
@@ -789,17 +918,19 @@ export async function POST(request) {
             
             executedTrades.push({
               ...tradeRecord,
-              action: 'SELL',
+              action: tradeAction, // Keep original action (SELL or TRIM)
               ticker: tickerUpper,
               shares: tradeShares,
               price: tradePrice,
               total_value: totalValue,
             });
             
-            console.log(`✅ SELL: ${tradeShares} shares of ${tickerUpper} @ $${tradePrice.toFixed(2)} = $${totalValue.toFixed(2)}`);
+            const actionLabel = tradeAction === 'TRIM' ? 'TRIM' : 'SELL';
+            console.log(`✅ ${actionLabel}: ${tradeShares} shares of ${tickerUpper} @ $${tradePrice.toFixed(2)} = $${totalValue.toFixed(2)}`);
             
           } else {
-            tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be BUY or SELL` });
+            // This should not happen due to validation above, but keep as fallback
+            tradeErrors.push({ trade, error: `Invalid action: ${action}. Must be one of: BUY, SELL, TRIM, INCREASE, or HOLD` });
             continue;
           }
           
