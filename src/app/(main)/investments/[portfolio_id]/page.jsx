@@ -567,9 +567,6 @@ export default function PortfolioDetailPage() {
     let startDate = new Date(now);
 
     switch (timeRange) {
-      case '1D':
-        startDate.setDate(now.getDate() - 1);
-        break;
       case '1W':
         startDate.setDate(now.getDate() - 7);
         break;
@@ -590,8 +587,10 @@ export default function PortfolioDetailPage() {
     }
 
     const filtered = chartData.filter(item => item.date >= startDate);
+    // If there isn't enough data for the selected range, show all available data
+    // but keep the selected range highlighted
     if (filtered.length === 0 && chartData.length > 0) {
-      return [chartData[chartData.length - 1]];
+      return chartData;
     }
     return filtered;
   }, [chartData, timeRange]);
@@ -604,7 +603,6 @@ export default function PortfolioDetailPage() {
       const originalDate = new Date(singlePoint.date);
       const earlierDate = new Date(originalDate);
       let daysOffset = 30;
-      if (timeRange === '1D') daysOffset = 1;
       if (timeRange === '1W') daysOffset = 7;
 
       earlierDate.setDate(earlierDate.getDate() - daysOffset);
@@ -651,27 +649,9 @@ export default function PortfolioDetailPage() {
   }, [displayChartData]);
 
   const availableRanges = useMemo(() => {
-    if (chartData.length === 0) return ['ALL'];
-
-    const now = new Date();
-    const oldestDate = chartData[0].date;
-    const diffTime = Math.abs(now.getTime() - oldestDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    const ranges = [];
-    if (diffDays > 0) ranges.push('1D');
-    if (diffDays > 7) ranges.push('1W');
-    if (diffDays > 30) ranges.push('1M');
-    if (diffDays > 90) ranges.push('3M');
-
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    if (oldestDate < startOfYear) ranges.push('YTD');
-
-    if (diffDays > 365) ranges.push('1Y');
-    ranges.push('ALL');
-
-    return ranges;
-  }, [chartData]);
+    // Always show all ranges except 1D (since we only have daily data, not intraday)
+    return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+  }, []);
 
   const currentData = activeIndex !== null ? displayChartData[activeIndex] : displayChartData[displayChartData.length - 1];
   const fallbackData = {
@@ -883,8 +863,82 @@ export default function PortfolioDetailPage() {
         <div className="lg:w-2/3 flex flex-col gap-6">
           {/* Portfolio Value Chart Card */}
           <Card variant="glass" padding="none" onMouseLeave={handleCardMouseLeave}>
-            <div className="mb-4 px-6 pt-6">
-              <div className="flex justify-between items-start">
+            <div className="mb-4 px-4 sm:px-6 pt-4 sm:pt-6">
+              {/* Mobile Layout: Horizontal */}
+              <div className="flex sm:hidden justify-between items-start">
+                {/* Portfolio Value */}
+                <div>
+                  <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Portfolio Value</div>
+                  <div className="flex flex-col">
+                    <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)] tabular-nums">
+                      <AnimatedCounter value={displayData?.value || 0} duration={120} />
+                    </div>
+                    <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-emerald-500' :
+                        dynamicPercentChange < 0 ? 'text-rose-500' :
+                          'text-[var(--color-muted)]'
+                      }`}>
+                      {(() => {
+                        const startValue = timeRange === 'ALL'
+                          ? portfolio.starting_capital
+                          : (displayChartData[0]?.value || 0);
+                        const displayValue = displayData.value;
+                        const change = displayValue - startValue;
+                        return (
+                          <>
+                            {change > 0 ? '+' : ''}
+                            {formatCurrency(change)}
+                            {' '}
+                            ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Date and Legend - Mobile */}
+                <div className="flex flex-col items-end gap-1.5">
+                  <div className="text-xs text-[var(--color-muted)] font-medium">
+                    {displayData?.dateString ?
+                      parseLocalDate(displayData.dateString).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      }) :
+                      `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
+                    }
+                  </div>
+                  {/* Legend - Mobile */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-[3px] rounded-full" style={{ backgroundColor: chartColor }} />
+                      <span className={`text-[10px] font-medium tabular-nums ${dynamicPercentChange > 0 ? 'text-emerald-500' :
+                          dynamicPercentChange < 0 ? 'text-rose-500' :
+                            'text-[var(--color-muted)]'
+                        }`}>
+                        {dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%
+                      </span>
+                    </div>
+                    {currentBenchmarkValue !== null && (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-[3px] rounded-full bg-[var(--color-muted)] opacity-60" />
+                        <span className="text-[10px] text-[var(--color-muted)]">QQQ</span>
+                        <span className={`text-[10px] font-medium tabular-nums ${benchmarkPercentChange !== null && benchmarkPercentChange > 0 ? 'text-emerald-500' :
+                            benchmarkPercentChange !== null && benchmarkPercentChange < 0 ? 'text-rose-500' :
+                              'text-[var(--color-muted)]'
+                          }`}>
+                          {benchmarkPercentChange !== null ? (
+                            <>{benchmarkPercentChange > 0 ? '+' : ''}{benchmarkPercentChange.toFixed(2)}%</>
+                          ) : '—'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop Layout: Horizontal */}
+              <div className="hidden sm:flex justify-between items-start">
                 <div className="flex gap-8">
                   {/* Portfolio Value */}
                   <div className="min-w-[180px]">
@@ -915,32 +969,8 @@ export default function PortfolioDetailPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Benchmark Value (QQQ) */}
-                  {currentBenchmarkValue !== null && (
-                    <div className="min-w-[140px]">
-                      <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Benchmark (QQQ)</div>
-                      <div className="flex flex-col">
-                        <div className="text-xl font-medium text-[var(--color-muted)] tracking-tight tabular-nums">
-                          {formatCurrencyWithSmallCents(currentBenchmarkValue)}
-                        </div>
-                        <div className={`text-xs font-medium mt-0.5 ${benchmarkPercentChange !== null && benchmarkPercentChange > 0 ? 'text-emerald-500' :
-                          benchmarkPercentChange !== null && benchmarkPercentChange < 0 ? 'text-rose-500' :
-                            'text-[var(--color-muted)]'
-                          }`}>
-                          {benchmarkPercentChange !== null ? (
-                            <>
-                              ({benchmarkPercentChange > 0 ? '+' : ''}{benchmarkPercentChange.toFixed(2)}%)
-                            </>
-                          ) : (
-                            <span className="text-[var(--color-muted)]">—</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-1.5">
                   <div className="text-xs text-[var(--color-muted)] font-medium">
                     {displayData?.dateString ?
                       parseLocalDate(displayData.dateString).toLocaleDateString('en-US', {
@@ -951,36 +981,32 @@ export default function PortfolioDetailPage() {
                       `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
                     }
                   </div>
-                  {/* Time Range Selector */}
-                  <div className="flex gap-1">
-                    {availableRanges.map((range) => {
-                      const isActive = timeRange === range;
-                      const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
-                      const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
-                      const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
-
-                      return (
-                        <button
-                          key={range}
-                          onClick={() => setTimeRange(range)}
-                          className="relative px-2.5 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
-                          style={{
-                            color: isActive ? activeTextColor : 'var(--color-muted)'
-                          }}
-                        >
-                          {isActive && (
-                            <motion.div
-                              layoutId={`portfolioTimeRange-${portfolio.id}`}
-                              className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
-                              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            />
-                          )}
-                          <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
-                            {range}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  {/* Legend - Desktop */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-[3px] rounded-full" style={{ backgroundColor: chartColor }} />
+                      <span className="text-xs text-[var(--color-muted)]">Portfolio</span>
+                      <span className={`text-xs font-medium tabular-nums ${dynamicPercentChange > 0 ? 'text-emerald-500' :
+                          dynamicPercentChange < 0 ? 'text-rose-500' :
+                            'text-[var(--color-muted)]'
+                        }`}>
+                        {dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%
+                      </span>
+                    </div>
+                    {currentBenchmarkValue !== null && (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-[3px] rounded-full bg-[var(--color-muted)] opacity-60" />
+                        <span className="text-xs text-[var(--color-muted)]">QQQ</span>
+                        <span className={`text-xs font-medium tabular-nums ${benchmarkPercentChange !== null && benchmarkPercentChange > 0 ? 'text-emerald-500' :
+                            benchmarkPercentChange !== null && benchmarkPercentChange < 0 ? 'text-rose-500' :
+                              'text-[var(--color-muted)]'
+                          }`}>
+                          {benchmarkPercentChange !== null ? (
+                            <>{benchmarkPercentChange > 0 ? '+' : ''}{benchmarkPercentChange.toFixed(2)}%</>
+                          ) : '—'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1030,6 +1056,41 @@ export default function PortfolioDetailPage() {
                     },
                   ]}
                 />
+              </div>
+            </div>
+
+            {/* Time Range Selector - moved to bottom and spread evenly */}
+            <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
+              <div className="flex justify-between items-center w-full">
+                {availableRanges.map((range) => {
+                  const isActive = timeRange === range;
+                  const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
+                  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+                  const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
+
+                  return (
+                    <div key={range} className="flex-1 flex justify-center">
+                      <button
+                        onClick={() => setTimeRange(range)}
+                        className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
+                        style={{
+                          color: isActive ? activeTextColor : 'var(--color-muted)'
+                        }}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId={`portfolioTimeRange-${portfolio.id}`}
+                            className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                          />
+                        )}
+                        <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
+                          {range}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </Card>
