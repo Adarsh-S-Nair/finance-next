@@ -182,40 +182,40 @@ export default function SpendingVsEarningCard() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className={showLoading ? 'opacity-0' : ''}
+            className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}
           >
             {/* Custom Header */}
-            <div className="px-6 pt-6 pb-2">
-              <div className="flex items-start justify-between">
+            <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
+              <div className="flex items-start justify-between gap-2">
                 {/* Title and Values */}
-                <div>
-                  <div className="text-base font-normal text-[var(--color-fg)] mb-1">
+                <div className="min-w-0">
+                  <div className="text-sm sm:text-base font-normal text-[var(--color-fg)] mb-1">
                     Net Worth
                   </div>
 
-                  <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-2">
+                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
                     <AnimatedCounter value={netWorthValue} />
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm">
                     <span className={`font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {percentChange >= 0 ? '↑' : '↓'} {Math.abs(percentChange).toFixed(1)}%
                     </span>
-                    <span className="text-[var(--color-muted)]">vs last month</span>
+                    <span className="text-[var(--color-muted)] hidden sm:inline">vs last month</span>
                   </div>
                 </div>
 
                 {/* Right Side Actions */}
-                <div className="flex flex-col items-end gap-3">
+                <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
                   <button
                     onClick={() => router.push('/accounts')}
-                    className="px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] bg-transparent border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors"
+                    className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium text-[var(--color-fg)] bg-transparent border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
                   >
                     View Accounts
                   </button>
 
-                  {/* Legend */}
-                  <div className="flex items-center gap-4">
+                  {/* Legend - stacked on mobile, horizontal on desktop */}
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
                       <span className="text-xs text-[var(--color-muted)]">Income</span>
@@ -229,8 +229,8 @@ export default function SpendingVsEarningCard() {
               </div>
             </div>
 
-            {/* Chart */}
-            <div className="h-64 w-full">
+            {/* Chart - fills remaining space */}
+            <div className="flex-1 min-h-0 w-full">
               <SpendingEarningChart
                 data={chartData}
                 onHover={(data) => setHoveredData(data)}

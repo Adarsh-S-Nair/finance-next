@@ -76,7 +76,9 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
   // Dynamic dimensions
   const { width, height } = dimensions;
-  const margin = { top: 20, right: 20, bottom: 30, left: 10 }
+  // Reduce bottom margin on smaller screens
+  const isMobile = width < 400;
+  const margin = { top: 16, right: 16, bottom: isMobile ? 22 : 30, left: 8 }
   const innerWidth = width - margin.left - margin.right
   const innerHeight = height - margin.top - margin.bottom
 

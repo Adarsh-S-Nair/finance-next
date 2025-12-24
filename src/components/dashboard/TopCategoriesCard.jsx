@@ -1,19 +1,52 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Card from "../ui/Card";
 import { useUser } from "../UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 
+// Generate shades of accent color for donut slices
+function generateAccentShades(accentColor, count) {
+  // If no valid accent color, return grays
+  if (!accentColor) {
+    return Array(count).fill("var(--color-muted)");
+  }
+
+  // Parse the accent color (handle CSS variable or hex)
+  const shades = [];
+  for (let i = 0; i < count; i++) {
+    // Create progressively lighter shades using opacity
+    // First slice: 100%, then 75%, 55%, 40%
+    const opacities = [1, 0.75, 0.55, 0.40, 0.30];
+    const opacity = opacities[i] ?? 0.30;
+    shades.push({ color: accentColor, opacity });
+  }
+  return shades;
+}
+
 export default function TopCategoriesCard() {
-  const { user } = useUser();
+  const { user, profile } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
+
+  // Get accent color from profile or CSS variable
+  const accentColor = useMemo(() => {
+    if (profile?.accent_color) return profile.accent_color;
+    if (typeof window !== 'undefined') {
+      return getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#18181b';
+    }
+    return '#18181b';
+  }, [profile?.accent_color]);
+
+  // Generate shades for the categories
+  const accentShades = useMemo(() => {
+    return generateAccentShades(accentColor, categories.length);
+  }, [accentColor, categories.length]);
 
   const containerRef = React.useRef(null);
 
@@ -143,20 +176,25 @@ export default function TopCategoriesCard() {
                 isAnimationActive={false}
                 style={{ pointerEvents: 'none' }} // Pass events through
               >
-                {categories.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.hex_color || "var(--color-muted)"}
-                    opacity={activeIndex === index ? 1 : (activeIndex !== null ? 0.3 : 1)}
-                    style={{
-                      transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', // Bouncy effect
-                      outline: 'none',
-                      transform: activeIndex === index ? 'scale(1.03)' : 'scale(1)',
-                      transformOrigin: 'center center',
-                      transformBox: 'fill-box'
-                    }}
-                  />
-                ))}
+                {categories.map((entry, index) => {
+                  const shade = accentShades[index] || { color: accentColor, opacity: 0.3 };
+                  const baseOpacity = shade.opacity;
+                  const hoverOpacity = activeIndex === index ? baseOpacity : (activeIndex !== null ? baseOpacity * 0.3 : baseOpacity);
+                  return (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={shade.color}
+                      opacity={hoverOpacity}
+                      style={{
+                        transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', // Bouncy effect
+                        outline: 'none',
+                        transform: activeIndex === index ? 'scale(1.03)' : 'scale(1)',
+                        transformOrigin: 'center center',
+                        transformBox: 'fill-box'
+                      }}
+                    />
+                  );
+                })}
               </Pie>
 
               {/* Invisible Interaction Layer - Larger hit area */}

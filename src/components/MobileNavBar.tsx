@@ -41,7 +41,7 @@ export default function MobileNavBar() {
   return (
     <>
       <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none md:hidden">
-        <div className="pointer-events-auto bg-[var(--color-surface)]/70 border border-[var(--color-border)]/50 shadow-2xl shadow-black/20 rounded-2xl px-2 py-2 flex items-center gap-1 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--color-surface)]/60">
+        <div className="pointer-events-auto bg-[var(--color-surface)]/70 border border-[var(--color-border)]/50 shadow-2xl shadow-black/20 rounded-2xl px-1.5 py-1.5 flex items-center gap-0.5 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--color-surface)]/60">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -51,22 +51,22 @@ export default function MobileNavBar() {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  "relative flex items-center justify-center h-12 rounded-xl transition-all duration-200",
+                  "relative flex items-center justify-center h-10 rounded-xl transition-all duration-200",
                   isActive
-                    ? "px-4 text-[var(--color-fg)] bg-[var(--color-fg)]/5"
-                    : "w-12 text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/5"
+                    ? "px-3 text-[var(--color-fg)] bg-[var(--color-fg)]/5"
+                    : "w-10 text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/5"
                 )}
               >
-                <div className="relative z-10 flex items-center gap-2">
+                <div className="relative z-10 flex items-center gap-1.5">
                   {Icon && (
                     <Icon
-                      className="w-5 h-5"
+                      className="w-4 h-4"
                     />
                   )}
 
                   {isActive && (
                     <span
-                      className="text-xs font-normal whitespace-nowrap overflow-hidden animate-fade-in-item"
+                      className="text-[10px] font-normal whitespace-nowrap overflow-hidden animate-fade-in-item"
                     >
                       {item.label}
                     </span>

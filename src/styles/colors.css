@@ -64,9 +64,9 @@
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), white 30%);
   --color-chart-pattern: rgba(255, 255, 255, 0.15);
 
-  /* Cashflow Chart Colors - Light Mode (Green/Red) */
-  --color-cashflow-income: #34d399;
-  --color-cashflow-spending: #dc2626;
+  /* Cashflow Chart Colors - Light Mode */
+  --color-cashflow-income: var(--color-accent);
+  --color-cashflow-spending: #d4d4d8; /* Zinc 300 - neutral gray */
 
   /* Spending Bar Color - Light Mode (Lighter Gray) */
   --color-chart-spending-bar: #d4d4d8;
@@ -142,9 +142,9 @@
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), black 30%);
   --color-chart-pattern: rgba(0, 0, 0, 0.2);
 
-  /* Cashflow Chart Colors - Dark Mode (Green/Red) */
-  --color-cashflow-income: #10b981;
-  --color-cashflow-spending: #ef4444;
+  /* Cashflow Chart Colors - Dark Mode */
+  --color-cashflow-income: var(--color-accent);
+  --color-cashflow-spending: #52525b; /* Zinc 600 - neutral gray */
 
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;
