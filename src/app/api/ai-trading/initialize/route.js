@@ -74,8 +74,14 @@ export async function POST(request) {
     const tickerSymbols = constituents.map(c => c.ticker);
     const { data: existingTickers, error: fetchError } = await supabase
       .from('tickers')
-      .select('symbol, logo, name, sector')
+      .select('symbol, logo, name, sector') // Explicitly fetch sector from database
       .in('symbol', tickerSymbols);
+    
+    // Log how many tickers have sectors in database
+    if (existingTickers) {
+      const tickersWithSectors = existingTickers.filter(t => t.sector).length;
+      console.log(`   📊 Found ${tickersWithSectors} tickers with sectors in database`);
+    }
     
     if (fetchError) {
       console.warn('⚠️  Could not fetch existing tickers:', fetchError.message);
@@ -200,7 +206,7 @@ export async function POST(request) {
         onConflict: 'symbol',
         ignoreDuplicates: false, // Update if exists
       })
-      .select();
+      .select('symbol, name, sector, logo'); // Explicitly select all fields we need
     
     if (tickerError) {
       console.warn('⚠️  Could not store tickers in database:', tickerError.message);
@@ -211,6 +217,10 @@ export async function POST(request) {
         insertedTickers.forEach(ticker => {
           existingTickersMap.set(ticker.symbol, ticker);
         });
+        
+        // Verify sectors are in the map
+        const tickersWithSectors = Array.from(existingTickersMap.values()).filter(t => t.sector).length;
+        console.log(`   📊 Updated ticker map: ${tickersWithSectors} tickers have sectors in map`);
       }
       
       const withName = tickerInserts.filter(t => t.name).length;
@@ -252,15 +262,34 @@ export async function POST(request) {
     
     // Enrich stock data with sector from tickers table (prioritize database over Yahoo Finance)
     // This ensures we use the most accurate sector data from our database
+    let sectorsFromDb = 0;
+    let sectorsFromYahoo = 0;
+    let sectorsMissing = 0;
+    
     const enrichedData = successfulData.map(stock => {
       const tickerFromDb = existingTickersMap.get(stock.ticker);
+      const originalSector = stock.sector; // From Yahoo Finance (if any)
+      
       // Always prefer sector from database if available (more reliable than Yahoo Finance)
       if (tickerFromDb?.sector) {
         stock.sector = tickerFromDb.sector;
+        sectorsFromDb++;
+      } else if (originalSector) {
+        // Keep Yahoo Finance sector if database doesn't have one
+        sectorsFromYahoo++;
+      } else {
+        // No sector from either source
+        sectorsMissing++;
       }
-      // If no sector in DB and Yahoo Finance provided one, keep it
+      
       return stock;
     });
+    
+    // Log sector enrichment statistics
+    console.log(`\n📊 SECTOR ENRICHMENT STATISTICS:`);
+    console.log(`   - Sectors from database: ${sectorsFromDb} (${((sectorsFromDb/enrichedData.length)*100).toFixed(1)}%)`);
+    console.log(`   - Sectors from Yahoo Finance: ${sectorsFromYahoo} (${((sectorsFromYahoo/enrichedData.length)*100).toFixed(1)}%)`);
+    console.log(`   - Missing sectors: ${sectorsMissing} (${((sectorsMissing/enrichedData.length)*100).toFixed(1)}%)\n`);
     
     if (failedTickers.length > 0) {
       console.log(`\n⚠️  Failed to fetch price data for ${failedTickers.length} tickers:`);
@@ -439,11 +468,16 @@ export async function POST(request) {
     try {
       if (aiModel.startsWith('gemini')) {
         // Increase maxTokens to ensure we get the full response
+        // Using 8192 as a safe upper limit for JSON responses with multiple trades
         aiResponse = await callGemini(
           aiModel,
           tradingPrompt.system,
           userPrompt,
-          { temperature: 0.7, maxTokens: 4000 }
+          { 
+            temperature: 0.7, 
+            maxTokens: 8192,
+            responseMimeType: 'application/json'
+          }
         );
       } else {
         // For now, only Gemini is supported
@@ -472,7 +506,7 @@ export async function POST(request) {
       console.log(`Input: ${aiResponse.usage.inputTokens}, Output: ${aiResponse.usage.outputTokens}, Total: ${aiResponse.usage.totalTokens}`);
       
       // Check if response might be truncated
-      if (aiResponse.usage.outputTokens >= 3990) {
+      if (aiResponse.usage.outputTokens >= 8000) {
         console.warn('⚠️  WARNING: Response may be truncated (approaching maxTokens limit)');
       }
       
@@ -495,17 +529,27 @@ export async function POST(request) {
     // Step 9: Parse the AI response (try to extract JSON)
     let parsedResponse = null;
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = aiResponse.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
-        console.log('\n📊 PARSED TRADING DECISIONS:');
-        console.log('========================================');
-        console.log(JSON.stringify(parsedResponse, null, 2));
-        console.log('========================================\n');
+      // Since we're using responseMimeType: 'application/json', the response should be valid JSON
+      // Try parsing directly first, then fall back to regex extraction if needed
+      try {
+        parsedResponse = JSON.parse(aiResponse.content.trim());
+      } catch (directParseError) {
+        // Fallback: try to extract JSON from the response (in case of any formatting issues)
+        const jsonMatch = aiResponse.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedResponse = JSON.parse(jsonMatch[0]);
+        } else {
+          throw directParseError;
+        }
       }
+      
+      console.log('\n📊 PARSED TRADING DECISIONS:');
+      console.log('========================================');
+      console.log(JSON.stringify(parsedResponse, null, 2));
+      console.log('========================================\n');
     } catch (parseError) {
       console.warn('⚠️ Could not parse JSON from AI response:', parseError.message);
+      console.warn('Response content:', aiResponse.content.substring(0, 500));
     }
 
     // Step 10: Execute trades if we have valid parsed response

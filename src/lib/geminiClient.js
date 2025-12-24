@@ -60,7 +60,7 @@ export async function callGemini(model, systemPrompt, userPrompt, options = {}) 
       generationConfig: {
         temperature: options.temperature ?? 0.7,
         maxOutputTokens: options.maxTokens ?? 2000,
-        responseMimeType: 'text/plain',
+        responseMimeType: options.responseMimeType ?? 'application/json',
       },
     }),
   });
