@@ -204,6 +204,7 @@ export default function PortfolioDetailPage() {
   const [holdings, setHoldings] = useState([]);
   const [trades, setTrades] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [marketStatus, setMarketStatus] = useState(null);
 
   // Calculate current total value
   const currentTotalValue = useMemo(() => {
@@ -244,6 +245,19 @@ export default function PortfolioDetailPage() {
         }
 
         setPortfolio(portfolioData);
+
+        // Fetch market status for Alpaca portfolios
+        if (portfolioData.is_alpaca_connected) {
+          try {
+            const marketStatusRes = await fetch(`/api/portfolios/${portfolioId}/market-status`);
+            if (marketStatusRes.ok) {
+              const marketStatusData = await marketStatusRes.json();
+              setMarketStatus(marketStatusData);
+            }
+          } catch (marketStatusErr) {
+            console.error('Error fetching market status:', marketStatusErr);
+          }
+        }
 
         // Fetch snapshots
         const { data: snapshotsData, error: snapshotsError } = await supabase
@@ -1184,8 +1198,22 @@ export default function PortfolioDetailPage() {
         <div className="lg:w-1/3 flex flex-col gap-4">
           {/* Portfolio Summary Card */}
           <Card variant="glass" padding="md">
-            <div className="mb-4">
+            <div className="mb-4 flex items-center justify-between">
               <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Summary</div>
+              {/* Market Status Indicator - Only for Alpaca portfolios */}
+              {portfolio.is_alpaca_connected && marketStatus && (
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor: marketStatus.is_open ? '#10b981' : '#ef4444',
+                    }}
+                  />
+                  <span className="text-[10px] text-[var(--color-muted)]">
+                    {marketStatus.is_open ? 'Market Open' : 'Market Closed'}
+                  </span>
+                </div>
+              )}
             </div>
             {/* Allocation Bar */}
             <div className="mb-5">

@@ -68,9 +68,13 @@ export async function POST(request) {
     console.log('✅ Alpaca connection successful');
 
     // Get account balance from Alpaca
+    // According to Alpaca docs:
+    // - account.equity: total equity (cash + positions)
+    // - account.portfolio_value: total portfolio value (same as equity)
+    // - account.cash: available cash
     const account = connectionTest.account;
     const accountBalance = parseFloat(account.cash) || 0;
-    const portfolioValue = parseFloat(account.portfolio_value) || accountBalance;
+    const portfolioValue = parseFloat(account.equity) || parseFloat(account.portfolio_value) || accountBalance;
 
     // Create portfolio in database
     const { data: portfolio, error: insertError } = await supabase

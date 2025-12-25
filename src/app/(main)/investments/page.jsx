@@ -922,13 +922,30 @@ function PortfolioCard({ portfolio, onCardClick }) {
 
   const [snapshots, setSnapshots] = useState([]);
   const [holdings, setHoldings] = useState([]);
+  const [alpacaAccount, setAlpacaAccount] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch portfolio snapshots and holdings
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch snapshots
+        // For Alpaca portfolios, fetch live account data
+        if (isAlpaca) {
+          try {
+            const response = await fetch(`/api/portfolios/${portfolio.id}/alpaca-account`);
+            if (response.ok) {
+              const accountData = await response.json();
+              setAlpacaAccount(accountData);
+            } else {
+              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+              console.error('Failed to fetch Alpaca account data:', response.status, errorData);
+            }
+          } catch (err) {
+            console.error('Error fetching Alpaca account:', err);
+          }
+        }
+
+        // Fetch snapshots (for both AI and Alpaca portfolios)
         const { data: snapshotsData, error: snapshotsError } = await supabase
           .from('ai_portfolio_snapshots')
           .select('*')
@@ -938,7 +955,7 @@ function PortfolioCard({ portfolio, onCardClick }) {
         if (snapshotsError) throw snapshotsError;
         setSnapshots(snapshotsData || []);
 
-        // Fetch current holdings
+        // Fetch current holdings (for both AI and Alpaca portfolios)
         const { data: holdingsData, error: holdingsError } = await supabase
           .from('ai_portfolio_holdings')
           .select('*')
@@ -954,10 +971,17 @@ function PortfolioCard({ portfolio, onCardClick }) {
     };
 
     fetchData();
-  }, [portfolio.id]);
+  }, [portfolio.id, isAlpaca]);
 
-  // Calculate current total value: use latest snapshot if available, otherwise calculate from cash + holdings
+  // Calculate current total value
   const currentTotalValue = useMemo(() => {
+    // For Alpaca portfolios, use live account data from Alpaca API
+    if (isAlpaca && alpacaAccount) {
+      // Use equity or portfolio_value from Alpaca (they should be the same)
+      return alpacaAccount.equity || alpacaAccount.portfolio_value || 0;
+    }
+
+    // For AI portfolios, use snapshots or calculate from cash + holdings
     if (snapshots.length > 0) {
       const latestSnapshot = snapshots[snapshots.length - 1];
       return parseFloat(latestSnapshot.total_value) || portfolio.current_cash;
@@ -977,7 +1001,7 @@ function PortfolioCard({ portfolio, onCardClick }) {
 
     const cash = parseFloat(portfolio.current_cash) || 0;
     return cash + holdingsValue;
-  }, [snapshots, holdings, portfolio.current_cash]);
+  }, [snapshots, holdings, portfolio.current_cash, isAlpaca, alpacaAccount]);
 
   // Process snapshot data for the chart - simple array of values
   const chartData = useMemo(() => {
