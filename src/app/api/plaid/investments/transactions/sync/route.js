@@ -1,6 +1,6 @@
-import { getPlaidClient, PLAID_ENV, getInvestmentTransactions } from '../../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
-import { createLogger } from '../../../../../lib/logger';
+import { getPlaidClient, PLAID_ENV, getInvestmentTransactions } from '../../../../../../lib/plaidClient';
+import { supabaseAdmin } from '../../../../../../lib/supabaseAdmin';
+import { createLogger } from '../../../../../../lib/logger';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('investment-transactions-sync');
