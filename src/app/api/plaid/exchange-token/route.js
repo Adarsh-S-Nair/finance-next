@@ -4,7 +4,7 @@ import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 
 export async function POST(request) {
   try {
-    const { publicToken, userId } = await request.json();
+    const { publicToken, userId, accountType } = await request.json();
 
     if (!publicToken || !userId) {
       return Response.json(
@@ -12,6 +12,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Determine product type based on accountType
+    const isInvestmentProduct = accountType === 'investment';
 
     // Exchange public token for access token
     const tokenResponse = await exchangePublicToken(publicToken);
@@ -92,29 +95,136 @@ export async function POST(request) {
       );
     }
 
-    // Process and save accounts
-    const accountsToInsert = accounts.map(account => ({
-      user_id: userId,
-      item_id: item_id,
-      account_id: account.account_id,
-      name: account.name,
-      mask: account.mask,
-      type: account.type,
-      subtype: account.subtype,
-      balances: account.balances,
-      access_token: access_token,
-      account_key: `${item_id}_${account.account_id}`,
-      institution_id: institutionData?.id || null,
-      plaid_item_id: plaidItemData.id, // Link to plaid_items table
-    }));
+    // Process and save accounts with smart matching for investment accounts
+    const accountsToInsert = [];
+    const accountsToUpdate = [];
 
-    // Insert accounts (upsert to handle duplicates)
-    const { data: accountsData, error: accountsError } = await supabaseAdmin
-      .from('accounts')
-      .upsert(accountsToInsert, {
-        onConflict: 'plaid_item_id,account_id'
-      })
-      .select();
+    for (const account of accounts) {
+      const accountKey = `${item_id}_${account.account_id}`;
+      const isInvestmentAccount = account.type === 'investment';
+
+      // For investment accounts, try to match existing account first
+      if (isInvestmentAccount && isInvestmentProduct) {
+        // Try to find existing account by item_id + account_id (best match)
+        let { data: existingAccount } = await supabaseAdmin
+          .from('accounts')
+          .select('*')
+          .eq('item_id', item_id)
+          .eq('account_id', account.account_id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        // Fallback: try matching by item_id + name + type (for cases where account_id changed)
+        if (!existingAccount) {
+          const { data: matchedAccount } = await supabaseAdmin
+            .from('accounts')
+            .select('*')
+            .eq('item_id', item_id)
+            .eq('name', account.name)
+            .eq('type', 'investment')
+            .eq('user_id', userId)
+            .maybeSingle();
+          
+          existingAccount = matchedAccount;
+        }
+
+        if (existingAccount) {
+          // Update existing account in place (preserves account.id and snapshots)
+          accountsToUpdate.push({
+            id: existingAccount.id,
+            ...{
+              name: account.name,
+              mask: account.mask,
+              type: account.type,
+              subtype: account.subtype,
+              balances: account.balances,
+              product_type: 'investments', // Upgrade to investments product
+              access_token: access_token,
+              institution_id: institutionData?.id || existingAccount.institution_id,
+              plaid_item_id: plaidItemData.id,
+            }
+          });
+          console.log(`🔄 Matched existing investment account ${existingAccount.id}, will update in place`);
+        } else {
+          // New investment account
+          accountsToInsert.push({
+            user_id: userId,
+            item_id: item_id,
+            account_id: account.account_id,
+            name: account.name,
+            mask: account.mask,
+            type: account.type,
+            subtype: account.subtype,
+            balances: account.balances,
+            product_type: 'investments',
+            access_token: access_token,
+            account_key: accountKey,
+            institution_id: institutionData?.id || null,
+            plaid_item_id: plaidItemData.id,
+          });
+        }
+      } else {
+        // Non-investment account or not from investments product
+        accountsToInsert.push({
+          user_id: userId,
+          item_id: item_id,
+          account_id: account.account_id,
+          name: account.name,
+          mask: account.mask,
+          type: account.type,
+          subtype: account.subtype,
+          balances: account.balances,
+          product_type: isInvestmentProduct && isInvestmentAccount ? 'investments' : 'transactions',
+          access_token: access_token,
+          account_key: accountKey,
+          institution_id: institutionData?.id || null,
+          plaid_item_id: plaidItemData.id,
+        });
+      }
+    }
+
+    // Update existing accounts
+    let updatedAccounts = [];
+    if (accountsToUpdate.length > 0) {
+      for (const accountUpdate of accountsToUpdate) {
+        const { id, ...updateData } = accountUpdate;
+        const { data: updated, error: updateError } = await supabaseAdmin
+          .from('accounts')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error updating account:', updateError);
+        } else {
+          updatedAccounts.push(updated);
+        }
+      }
+    }
+
+    // Insert new accounts (upsert to handle duplicates)
+    let insertedAccounts = [];
+    if (accountsToInsert.length > 0) {
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from('accounts')
+        .upsert(accountsToInsert, {
+          onConflict: 'plaid_item_id,account_id'
+        })
+        .select();
+
+      if (insertError) {
+        console.error('Error upserting accounts:', insertError);
+        return Response.json(
+          { error: 'Failed to save accounts', details: insertError.message },
+          { status: 500 }
+        );
+      }
+      insertedAccounts = inserted || [];
+    }
+
+    // Combine updated and inserted accounts
+    const accountsData = [...updatedAccounts, ...insertedAccounts];
 
     if (accountsError) {
       console.error('Error upserting accounts:', accountsError);
@@ -149,29 +259,60 @@ export async function POST(request) {
       // Don't fail the whole process if snapshot creation fails
     }
 
-    // Trigger transaction sync for the new plaid item
-    try {
-      console.log('🔄 Starting transaction sync...');
-      const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          plaidItemId: plaidItemData.id,
-          userId: userId
-        })
-      });
+    // Trigger transaction sync for the new plaid item (if there are non-investment accounts)
+    const hasNonInvestmentAccounts = accountsData.some(acc => acc.type !== 'investment');
+    if (hasNonInvestmentAccounts) {
+      try {
+        console.log('🔄 Starting transaction sync...');
+        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            plaidItemId: plaidItemData.id,
+            userId: userId
+          })
+        });
 
-      if (!syncResponse.ok) {
-        console.warn('⚠️ Transaction sync failed, but account linking succeeded');
-      } else {
-        const syncResult = await syncResponse.json();
-        console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
+        if (!syncResponse.ok) {
+          console.warn('⚠️ Transaction sync failed, but account linking succeeded');
+        } else {
+          const syncResult = await syncResponse.json();
+          console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
+        }
+      } catch (syncError) {
+        console.warn('Error triggering transaction sync:', syncError);
+        // Don't fail the whole process if sync fails
       }
-    } catch (syncError) {
-      console.warn('Error triggering transaction sync:', syncError);
-      // Don't fail the whole process if sync fails
+    }
+
+    // Trigger holdings sync for investment accounts (if using investments product)
+    const hasInvestmentAccounts = accountsData.some(acc => acc.type === 'investment');
+    if (hasInvestmentAccounts && isInvestmentProduct) {
+      try {
+        console.log('🔄 Starting holdings sync...');
+        const holdingsSyncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/investments/holdings/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            plaidItemId: plaidItemData.id,
+            userId: userId
+          })
+        });
+
+        if (!holdingsSyncResponse.ok) {
+          console.warn('⚠️ Holdings sync failed, but account linking succeeded');
+        } else {
+          const holdingsSyncResult = await holdingsSyncResponse.json();
+          console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced, ${holdingsSyncResult.portfolios_created} portfolios created`);
+        }
+      } catch (holdingsSyncError) {
+        console.warn('Error triggering holdings sync:', holdingsSyncError);
+        // Don't fail the whole process if sync fails
+      }
     }
 
     return Response.json({

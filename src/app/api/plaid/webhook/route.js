@@ -120,6 +120,9 @@ export async function POST(request) {
       case 'ITEM':
         await handleItemWebhook(webhookData);
         break;
+      case 'HOLDINGS':
+        await handleHoldingsWebhook(webhookData);
+        break;
       default:
         if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
     }
@@ -335,5 +338,97 @@ async function handleItemWebhook(webhookData) {
 
     default:
       if (DEBUG) console.log('Unhandled item webhook code:', webhook_code);
+  }
+}
+
+async function handleHoldingsWebhook(webhookData) {
+  const { webhook_code, item_id, error, new_holdings, updated_holdings } = webhookData;
+
+  logger.info('Processing HOLDINGS webhook', {
+    webhook_code,
+    item_id,
+    has_error: !!error,
+    new_holdings: new_holdings || 0,
+    updated_holdings: updated_holdings || 0
+  });
+  if (DEBUG) {
+    console.log(`Processing HOLDINGS webhook: ${webhook_code} for item: ${item_id}`, {
+      new_holdings,
+      updated_holdings,
+      has_error: !!error
+    });
+  }
+
+  // Check for errors in webhook payload
+  if (error) {
+    logger.error('Holdings webhook contains error', null, {
+      item_id,
+      error_type: error.error_type,
+      error_code: error.error_code,
+      error_message: error.error_message
+    });
+    if (DEBUG) {
+      console.log('⚠️ Holdings webhook contains error, skipping sync:', error);
+    }
+    return;
+  }
+
+  // Get the plaid item from database
+  const { data: plaidItem, error: itemError } = await supabaseAdmin
+    .from('plaid_items')
+    .select('*')
+    .eq('item_id', item_id)
+    .single();
+
+  if (itemError || !plaidItem) {
+    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    return;
+  }
+
+  switch (webhook_code) {
+    case 'DEFAULT_UPDATE':
+      // Trigger holdings sync for this item
+      logger.info('Triggering holdings sync', { item_id, webhook_code });
+      if (DEBUG) console.log(`Triggering holdings sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+
+      try {
+        // Import and call the sync function directly instead of making HTTP request
+        const { POST: syncEndpoint } = await import('../investments/holdings/sync/route.js');
+
+        // Create a mock request object for the sync endpoint
+        const syncRequest = {
+          json: async () => ({
+            plaidItemId: plaidItem.id,
+            userId: plaidItem.user_id,
+            forceSync: false
+          })
+        };
+
+        const syncResponse = await syncEndpoint(syncRequest);
+
+        if (syncResponse.ok) {
+          const syncResult = await syncResponse.json();
+          logger.info('Holdings sync completed', {
+            item_id,
+            portfolios_created: syncResult.portfolios_created,
+            holdings_synced: syncResult.holdings_synced
+          });
+          if (DEBUG) {
+            console.log(`Webhook-triggered holdings sync completed for item ${item_id}:`, {
+              portfolios_created: syncResult.portfolios_created,
+              holdings_synced: syncResult.holdings_synced
+            });
+          }
+        } else {
+          const errorData = await syncResponse.json();
+          logger.error('Holdings sync failed', null, { item_id, error: errorData });
+        }
+      } catch (error) {
+        logger.error('Error in webhook-triggered holdings sync', error, { item_id });
+      }
+      break;
+
+    default:
+      if (DEBUG) console.log('Unhandled holdings webhook code:', webhook_code);
   }
 }

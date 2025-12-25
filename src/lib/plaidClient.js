@@ -190,6 +190,22 @@ export async function syncTransactions(accessToken, cursor = null) {
   }
 }
 
+// Helper function to get investment holdings
+export async function getInvestmentsHoldings(accessToken) {
+  try {
+    const client = getPlaidClient();
+    const request = {
+      access_token: accessToken,
+    };
+
+    const response = await client.investmentsHoldingsGet(request);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting investment holdings:', error);
+    throw error;
+  }
+}
+
 // Helper function to remove a Plaid item
 export async function removeItem(accessToken) {
   try {

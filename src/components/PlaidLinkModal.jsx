@@ -62,6 +62,7 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
         body: JSON.stringify({
           publicToken,
           userId: user.id,
+          accountType: selectedAccountType?.id || null,
         }),
       });
 
