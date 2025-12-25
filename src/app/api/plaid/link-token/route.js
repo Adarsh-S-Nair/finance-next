@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
-    const { userId } = await request.json();
+    const { userId, accountType } = await request.json();
 
     if (!userId) {
       return Response.json(
@@ -22,8 +22,22 @@ export async function POST(request) {
       );
     }
 
-    // Create link token with only transactions product for maximum institution compatibility
-    const linkTokenResponse = await createLinkToken(userId, ['transactions']);
+    // Determine Plaid products based on account type
+    // Default to transactions for backward compatibility
+    let products = ['transactions'];
+    
+    if (accountType) {
+      // Map account type to Plaid products
+      if (accountType === 'investment') {
+        products = ['investments'];
+      } else {
+        // checking_savings and credit_card both use transactions product
+        products = ['transactions'];
+      }
+    }
+
+    // Create link token with appropriate product
+    const linkTokenResponse = await createLinkToken(userId, products);
 
     return Response.json({
       link_token: linkTokenResponse.link_token,
