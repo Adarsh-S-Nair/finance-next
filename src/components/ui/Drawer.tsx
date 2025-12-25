@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { FiArrowLeft } from "react-icons/fi";
+import { LuChevronLeft } from "react-icons/lu";
 
 type DrawerView = {
   id: string;
@@ -189,7 +189,7 @@ export default function Drawer({
                     className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)] transition-colors cursor-pointer"
                     aria-label="Go back"
                   >
-                    <FiArrowLeft className="h-4 w-4 text-[var(--color-fg)]" />
+                    <LuChevronLeft className="h-4 w-4 text-[var(--color-fg)]" />
                   </button>
                 )}
                 {(displayTitle || displayDescription) && (

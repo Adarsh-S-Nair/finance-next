@@ -7,7 +7,7 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
-import { LuPlus, LuBot } from "react-icons/lu";
+import { LuPlus, LuBot, LuChevronLeft } from "react-icons/lu";
 import { SiGooglegemini, SiX } from "react-icons/si";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
@@ -263,10 +263,20 @@ function RebalanceCountdown({ nextRebalanceDate, rebalanceCadence }) {
 // Create Portfolio Drawer
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const { profile } = useUser();
+  const [step, setStep] = useState('select'); // 'select', 'alpaca', 'ai'
+  
+  // AI Portfolio state
   const [name, setName] = useState('');
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [startingCapital, setStartingCapital] = useState(100000);
+  
+  // Alpaca Portfolio state
+  const [alpacaName, setAlpacaName] = useState('');
+  const [alpacaApiKey, setAlpacaApiKey] = useState('');
+  const [alpacaSecretKey, setAlpacaSecretKey] = useState('');
+  const [showSecretKey, setShowSecretKey] = useState(false);
+  
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -300,7 +310,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreateAI = async () => {
     if (!name.trim()) {
       setError('Please enter a portfolio name');
       return;
@@ -333,11 +343,8 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
       }
 
       onCreated(result.portfolio);
+      handleReset();
       onClose();
-      setName('');
-      setNameManuallyEdited(false);
-      setSelectedModel('gemini-3-flash-preview');
-      setStartingCapital(100000);
     } catch (err) {
       console.error('Error creating portfolio:', err);
       setError(err.message || 'Failed to create portfolio');
@@ -346,18 +353,79 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
+  const handleConnectAlpaca = async () => {
+    if (!alpacaName.trim()) {
+      setError('Please enter a portfolio name');
+      return;
+    }
+
+    if (!alpacaApiKey.trim()) {
+      setError('Please enter your Alpaca API Key');
+      return;
+    }
+
+    if (!alpacaSecretKey.trim()) {
+      setError('Please enter your Alpaca Secret Key');
+      return;
+    }
+
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/portfolios/connect-alpaca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+          name: alpacaName.trim(),
+          apiKey: alpacaApiKey.trim(),
+          secretKey: alpacaSecretKey.trim(),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to connect Alpaca account');
+      }
+
+      onCreated(result.portfolio);
+      handleReset();
+      onClose();
+    } catch (err) {
+      console.error('Error connecting Alpaca account:', err);
+      setError(err.message || 'Failed to connect Alpaca account');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleReset = () => {
+    setStep('select');
+    setName('');
+    setNameManuallyEdited(false);
+    setSelectedModel('gemini-3-flash-preview');
+    setStartingCapital(100000);
+    setAlpacaName('');
+    setAlpacaApiKey('');
+    setAlpacaSecretKey('');
+    setShowSecretKey(false);
+    setError(null);
+  };
+
   useEffect(() => {
-    if (isOpen && !nameManuallyEdited && !name) {
+    if (isOpen && step === 'ai' && !nameManuallyEdited && !name) {
       const model = AI_MODELS[selectedModel];
       if (model) {
         setName(`${model.name} Portfolio`);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, step]);
 
   useEffect(() => {
     if (!isOpen) {
-      setError(null);
+      handleReset();
     }
   }, [isOpen]);
 
@@ -405,30 +473,110 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     </div>
   );
 
-  return (
-    <Drawer
-      isOpen={isOpen}
-      onClose={isCreating ? undefined : onClose}
-      title="Create AI Portfolio"
-      description="Set up a new paper trading simulation"
-      size="md"
-      footer={
-        !isCreating && (
-          <div className="flex gap-3 w-full">
-            <Button variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={isCreating} className="flex-1">
-              Create Portfolio
-            </Button>
-          </div>
-        )
-      }
-    >
-      <div className="relative h-full">
-        {isCreating && <AIThinkingOverlay />}
-        <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
-          <div>
+  const renderSelectionScreen = () => (
+    <div className="space-y-3 pt-2">
+      <div className="grid grid-cols-1 gap-3">
+        <button
+          type="button"
+          onClick={() => setStep('alpaca')}
+          className="p-4 rounded-lg border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)] transition-all text-left cursor-pointer"
+        >
+          <h3 className="text-sm font-semibold text-[var(--color-fg)] mb-1">Connect Alpaca Account</h3>
+          <p className="text-xs text-[var(--color-muted)]">
+            Connect your existing Alpaca paper trading account to track your real portfolio
+          </p>
+        </button>
+        
+        <button
+          type="button"
+          onClick={() => setStep('ai')}
+          className="p-4 rounded-lg border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)] transition-all text-left cursor-pointer"
+        >
+          <h3 className="text-sm font-semibold text-[var(--color-fg)] mb-1">AI Portfolio</h3>
+          <p className="text-xs text-[var(--color-muted)]">
+            Create a paper trading simulation powered by AI to make investment decisions
+          </p>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderAlpacaForm = () => (
+    <div className="space-y-6 pt-2">
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Portfolio Name
+        </label>
+        <input
+          type="text"
+          value={alpacaName}
+          onChange={(e) => setAlpacaName(e.target.value)}
+          placeholder="e.g., My Alpaca Portfolio"
+          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Alpaca API Key
+        </label>
+        <input
+          type="text"
+          value={alpacaApiKey}
+          onChange={(e) => setAlpacaApiKey(e.target.value)}
+          placeholder="Enter your Alpaca API Key"
+          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] font-mono text-sm"
+        />
+        <p className="text-xs text-[var(--color-muted)] mt-1.5">
+          Find this in your Alpaca dashboard under API Keys
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Alpaca Secret Key
+        </label>
+        <div className="relative">
+          <input
+            type={showSecretKey ? "text" : "password"}
+            value={alpacaSecretKey}
+            onChange={(e) => setAlpacaSecretKey(e.target.value)}
+            placeholder="Enter your Alpaca Secret Key"
+            className="w-full px-3 py-2.5 pr-10 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] font-mono text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setShowSecretKey(!showSecretKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
+          >
+            {showSecretKey ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-1.5">
+          Your secret key will be securely stored and encrypted
+        </p>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p className="text-sm text-red-500">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderAIForm = () => (
+    <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
+      <div>
             <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
               Portfolio Name
             </label>
@@ -450,7 +598,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
                   key={amount}
                   type="button"
                   onClick={() => setStartingCapital(amount)}
-                  className={`py-2.5 rounded-lg text-sm font-medium transition-all ${startingCapital === amount
+                  className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${startingCapital === amount
                     ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
                     : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
                     }`}
@@ -503,8 +651,8 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
                             className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isDisabled
                               ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
                               : isSelected
-                                ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
-                                : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)]'
+                                ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                                : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
                               }`}
                           >
                             <div>
@@ -539,9 +687,81 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
               <p className="text-sm text-red-500">{error}</p>
             </div>
           )}
+    </div>
+  );
+
+  const views = [
+    {
+      id: 'select',
+      title: 'Create Portfolio',
+      description: 'Choose how you want to create your portfolio',
+      content: renderSelectionScreen(),
+      showBackButton: false,
+    },
+    {
+      id: 'alpaca',
+      title: 'Connect Alpaca Account',
+      description: 'Connect your Alpaca paper trading account',
+      content: renderAlpacaForm(),
+      showBackButton: true,
+    },
+    {
+      id: 'ai',
+      title: 'Create AI Portfolio',
+      description: 'Set up a new paper trading simulation',
+      content: (
+        <div className="relative h-full">
+          {isCreating && <AIThinkingOverlay />}
+          {renderAIForm()}
         </div>
+      ),
+      showBackButton: true,
+    },
+  ];
+
+  const renderFooter = () => {
+    if (isCreating) return null;
+    
+    if (step === 'select') {
+      return (
+        <div className="flex gap-3 w-full">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            Cancel
+          </Button>
+        </div>
+      );
+    }
+    
+    if (step === 'alpaca') {
+      return (
+        <div className="flex gap-3 w-full">
+          <Button onClick={handleConnectAlpaca} disabled={isCreating} className="flex-1">
+            Connect Account
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex gap-3 w-full">
+        <Button onClick={handleCreateAI} disabled={isCreating} className="flex-1">
+          Create Portfolio
+        </Button>
       </div>
-    </Drawer>
+    );
+  };
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={isCreating ? undefined : onClose}
+      size="md"
+      footer={renderFooter()}
+      views={views}
+      currentViewId={step}
+      onViewChange={(viewId) => setStep(viewId)}
+      onBack={() => setStep('select')}
+    />
   );
 }
 
@@ -626,11 +846,11 @@ export default function InvestmentsPage() {
   return (
     <PageContainer>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--color-fg)]">AI Portfolios</h1>
+        <h1 className="text-2xl font-semibold text-[var(--color-fg)]">Portfolios</h1>
         <Button onClick={() => setShowCreateModal(true)}>
           <LuPlus className="w-4 h-4 mr-2" />
           Create Portfolio
-            </Button>
+        </Button>
       </div>
 
       {portfolios.length === 0 ? (
@@ -680,11 +900,24 @@ export default function InvestmentsPage() {
 // Portfolio Card Component
 function PortfolioCard({ portfolio, onCardClick }) {
   const { profile } = useUser();
-  const model = AI_MODELS[portfolio.ai_model] || {
+  const isAlpaca = portfolio.is_alpaca_connected === true;
+  
+  // Alpaca icon component
+  const AlpacaIcon = ({ className, style }) => (
+    <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  );
+  
+  const model = isAlpaca ? {
+    name: 'Alpaca Account',
+    icon: AlpacaIcon,
+    color: '#4285F4',
+  } : (AI_MODELS[portfolio.ai_model] || {
     name: portfolio.ai_model,
     icon: LuBot,
     color: 'var(--color-accent)',
-  };
+  });
   const ModelIcon = model.icon;
 
   const [snapshots, setSnapshots] = useState([]);
