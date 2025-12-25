@@ -287,9 +287,10 @@ export async function POST(request) {
       }
     }
 
-    // Trigger holdings sync for investment accounts (if using investments product)
+    // Trigger holdings and investment transactions sync for investment accounts (if using investments product)
     const hasInvestmentAccounts = accountsData.some(acc => acc.type === 'investment');
     if (hasInvestmentAccounts && isInvestmentProduct) {
+      // Sync holdings
       try {
         console.log('🔄 Starting holdings sync...');
         const holdingsSyncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/investments/holdings/sync`, {
@@ -311,6 +312,31 @@ export async function POST(request) {
         }
       } catch (holdingsSyncError) {
         console.warn('Error triggering holdings sync:', holdingsSyncError);
+        // Don't fail the whole process if sync fails
+      }
+
+      // Sync investment transactions
+      try {
+        console.log('🔄 Starting investment transactions sync...');
+        const investmentTransactionsSyncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/investments/transactions/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            plaidItemId: plaidItemData.id,
+            userId: userId
+          })
+        });
+
+        if (!investmentTransactionsSyncResponse.ok) {
+          console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
+        } else {
+          const investmentTransactionsSyncResult = await investmentTransactionsSyncResponse.json();
+          console.log(`✅ Investment transactions sync completed: ${investmentTransactionsSyncResult.transactions_synced} transactions synced`);
+        }
+      } catch (investmentTransactionsSyncError) {
+        console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
         // Don't fail the whole process if sync fails
       }
     }

@@ -206,6 +206,28 @@ export async function getInvestmentsHoldings(accessToken) {
   }
 }
 
+// Helper function to get investment transactions
+export async function getInvestmentTransactions(accessToken, startDate, endDate, accountIds = null, options = {}) {
+  try {
+    const client = getPlaidClient();
+    const request = {
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+      options: {
+        ...(accountIds && { account_ids: accountIds }),
+        ...options,
+      },
+    };
+
+    const response = await client.investmentsTransactionsGet(request);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting investment transactions:', error);
+    throw error;
+  }
+}
+
 // Helper function to remove a Plaid item
 export async function removeItem(accessToken) {
   try {

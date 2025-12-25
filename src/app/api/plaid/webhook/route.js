@@ -123,6 +123,9 @@ export async function POST(request) {
       case 'HOLDINGS':
         await handleHoldingsWebhook(webhookData);
         break;
+      case 'INVESTMENTS_TRANSACTIONS':
+        await handleInvestmentTransactionsWebhook(webhookData);
+        break;
       default:
         if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
     }
@@ -430,5 +433,96 @@ async function handleHoldingsWebhook(webhookData) {
 
     default:
       if (DEBUG) console.log('Unhandled holdings webhook code:', webhook_code);
+  }
+}
+
+async function handleInvestmentTransactionsWebhook(webhookData) {
+  const { webhook_code, item_id, error, new_investments_transactions, canceled_investments_transactions } = webhookData;
+
+  logger.info('Processing INVESTMENTS_TRANSACTIONS webhook', {
+    webhook_code,
+    item_id,
+    has_error: !!error,
+    new_investments_transactions: new_investments_transactions || 0,
+    canceled_investments_transactions: canceled_investments_transactions || 0
+  });
+  if (DEBUG) {
+    console.log(`Processing INVESTMENTS_TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`, {
+      new_investments_transactions,
+      canceled_investments_transactions,
+      has_error: !!error
+    });
+  }
+
+  // Check for errors in webhook payload
+  if (error) {
+    logger.error('Investment transactions webhook contains error', null, {
+      item_id,
+      error_type: error.error_type,
+      error_code: error.error_code,
+      error_message: error.error_message
+    });
+    if (DEBUG) {
+      console.log('⚠️ Investment transactions webhook contains error, skipping sync:', error);
+    }
+    return;
+  }
+
+  // Get the plaid item from database
+  const { data: plaidItem, error: itemError } = await supabaseAdmin
+    .from('plaid_items')
+    .select('*')
+    .eq('item_id', item_id)
+    .single();
+
+  if (itemError || !plaidItem) {
+    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    return;
+  }
+
+  switch (webhook_code) {
+    case 'DEFAULT_UPDATE':
+    case 'HISTORICAL_UPDATE':
+      // Trigger investment transactions sync for this item
+      logger.info('Triggering investment transactions sync', { item_id, webhook_code });
+      if (DEBUG) console.log(`Triggering investment transactions sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+
+      try {
+        // Import and call the sync function directly instead of making HTTP request
+        const { POST: syncEndpoint } = await import('../investments/transactions/sync/route.js');
+
+        // Create a mock request object for the sync endpoint
+        const syncRequest = {
+          json: async () => ({
+            plaidItemId: plaidItem.id,
+            userId: plaidItem.user_id,
+            forceSync: false
+          })
+        };
+
+        const syncResponse = await syncEndpoint(syncRequest);
+
+        if (syncResponse.ok) {
+          const syncResult = await syncResponse.json();
+          logger.info('Investment transactions sync completed', {
+            item_id,
+            transactions_synced: syncResult.transactions_synced
+          });
+          if (DEBUG) {
+            console.log(`Webhook-triggered investment transactions sync completed for item ${item_id}:`, {
+              transactions_synced: syncResult.transactions_synced
+            });
+          }
+        } else {
+          const errorData = await syncResponse.json();
+          logger.error('Investment transactions sync failed', null, { item_id, error: errorData });
+        }
+      } catch (error) {
+        logger.error('Error in webhook-triggered investment transactions sync', error, { item_id });
+      }
+      break;
+
+    default:
+      if (DEBUG) console.log('Unhandled investment transactions webhook code:', webhook_code);
   }
 }
