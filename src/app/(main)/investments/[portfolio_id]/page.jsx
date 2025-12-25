@@ -270,6 +270,9 @@ export default function PortfolioDetailPage() {
         setSnapshots(snapshotsData || []);
 
         // Fetch benchmark data
+        // Use SPY for Alpaca portfolios, QQQ for AI portfolios
+        const benchmarkTicker = portfolioData.is_alpaca_connected ? 'SPY' : 'QQQ';
+        
         if (snapshotsData && snapshotsData.length > 0) {
           try {
             const today = new Date().toISOString().split('T')[0];
@@ -277,19 +280,19 @@ export default function PortfolioDetailPage() {
             const benchmarkPrices = {};
 
             if (snapshotDates.length > 0) {
-              const historicalRes = await fetch(`/api/market-data/historical?ticker=QQQ&dates=${snapshotDates.join(',')}`);
+              const historicalRes = await fetch(`/api/market-data/historical?ticker=${benchmarkTicker}&dates=${snapshotDates.join(',')}`);
               if (historicalRes.ok) {
                 const historicalResult = await historicalRes.json();
                 Object.assign(benchmarkPrices, historicalResult.prices || {});
               }
             }
 
-            const quotesRes = await fetch(`/api/market-data/quotes?tickers=QQQ`);
+            const quotesRes = await fetch(`/api/market-data/quotes?tickers=${benchmarkTicker}`);
             if (quotesRes.ok) {
               const quotesResult = await quotesRes.json();
-              const qqqQuote = quotesResult.quotes?.QQQ;
-              if (qqqQuote?.price && !benchmarkPrices[today]) {
-                benchmarkPrices[today] = qqqQuote.price;
+              const benchmarkQuote = quotesResult.quotes?.[benchmarkTicker];
+              if (benchmarkQuote?.price && !benchmarkPrices[today]) {
+                benchmarkPrices[today] = benchmarkQuote.price;
               }
             }
 
@@ -576,6 +579,10 @@ export default function PortfolioDetailPage() {
   const filteredData = useMemo(() => {
     if (chartData.length === 0) return [];
     if (timeRange === 'ALL') return chartData;
+    
+    // For 1D view, we'll create synthetic intraday data points, so return empty
+    // and handle it in displayChartData
+    if (timeRange === '1D') return [];
 
     const now = new Date();
     let startDate = new Date(now);
@@ -600,6 +607,16 @@ export default function PortfolioDetailPage() {
         return chartData;
     }
 
+    // Don't go back further than the portfolio creation date
+    if (portfolio?.created_at) {
+      const portfolioCreatedAt = new Date(portfolio.created_at);
+      // Set to start of day for comparison
+      portfolioCreatedAt.setHours(0, 0, 0, 0);
+      if (startDate < portfolioCreatedAt) {
+        startDate = portfolioCreatedAt;
+      }
+    }
+
     const filtered = chartData.filter(item => item.date >= startDate);
     // If there isn't enough data for the selected range, show all available data
     // but keep the selected range highlighted
@@ -607,9 +624,78 @@ export default function PortfolioDetailPage() {
       return chartData;
     }
     return filtered;
-  }, [chartData, timeRange]);
+  }, [chartData, timeRange, portfolio?.created_at]);
 
   const displayChartData = useMemo(() => {
+    // Handle 1D view with synthetic intraday data points
+    if (timeRange === '1D') {
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      // Don't go back further than portfolio creation
+      let startTime = twentyFourHoursAgo;
+      if (portfolio?.created_at) {
+        const portfolioCreatedAt = new Date(portfolio.created_at);
+        if (startTime < portfolioCreatedAt) {
+          startTime = portfolioCreatedAt;
+        }
+      }
+      
+      // Get the most recent snapshot value (or starting capital if no snapshots)
+      const mostRecentSnapshot = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+      const baseValue = mostRecentSnapshot?.value || portfolio?.starting_capital || currentTotalValue || 0;
+      const currentValue = currentTotalValue || baseValue;
+      
+      // Create up to 40 evenly spaced data points
+      const maxPoints = 40;
+      const timeSpan = now.getTime() - startTime.getTime();
+      const interval = Math.max(timeSpan / maxPoints, 60 * 1000); // At least 1 minute intervals
+      const points = [];
+      
+      for (let time = startTime.getTime(); time <= now.getTime(); time += interval) {
+        const pointTime = new Date(time);
+        const progress = (time - startTime.getTime()) / timeSpan;
+        
+        // Interpolate value between base and current (simple linear interpolation)
+        const value = baseValue + (currentValue - baseValue) * progress;
+        
+        // Create a unique dateString that includes time for proper x-axis matching
+        const dateTimeString = pointTime.toISOString();
+        
+        points.push({
+          month: pointTime.toLocaleString('en-US', { month: 'short' }),
+          monthFull: pointTime.toLocaleString('en-US', { month: 'long' }),
+          year: pointTime.getFullYear(),
+          date: pointTime,
+          dateString: dateTimeString, // Use full ISO string for 1D to ensure unique matching
+          dateOnlyString: pointTime.toISOString().split('T')[0],
+          timeString: pointTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+          value: value,
+          benchmark: null, // No benchmark for intraday
+        });
+        
+        if (points.length >= maxPoints) break;
+      }
+      
+      // Always include current point
+      if (points.length === 0 || points[points.length - 1].date.getTime() < now.getTime() - 1000) {
+        const nowDateTimeString = now.toISOString();
+        points.push({
+          month: now.toLocaleString('en-US', { month: 'short' }),
+          monthFull: now.toLocaleString('en-US', { month: 'long' }),
+          year: now.getFullYear(),
+          date: now,
+          dateString: nowDateTimeString, // Use full ISO string for 1D
+          dateOnlyString: now.toISOString().split('T')[0],
+          timeString: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+          value: currentValue,
+          benchmark: null,
+        });
+      }
+      
+      return points;
+    }
+    
     if (filteredData.length <= 1) {
       const singlePoint = filteredData.length === 1 ? filteredData[0] : (chartData.length > 0 ? chartData[chartData.length - 1] : null);
       if (!singlePoint) return [];
@@ -620,6 +706,15 @@ export default function PortfolioDetailPage() {
       if (timeRange === '1W') daysOffset = 7;
 
       earlierDate.setDate(earlierDate.getDate() - daysOffset);
+
+      // Don't go back further than the portfolio creation date
+      if (portfolio?.created_at) {
+        const portfolioCreatedAt = new Date(portfolio.created_at);
+        portfolioCreatedAt.setHours(0, 0, 0, 0);
+        if (earlierDate < portfolioCreatedAt) {
+          earlierDate.setTime(portfolioCreatedAt.getTime());
+        }
+      }
 
       const flatLinePoint = {
         ...singlePoint,
@@ -633,7 +728,7 @@ export default function PortfolioDetailPage() {
       return [flatLinePoint, singlePoint];
     }
     return filteredData;
-  }, [filteredData, chartData, timeRange]);
+  }, [filteredData, chartData, timeRange, portfolio?.created_at, portfolio?.starting_capital, currentTotalValue]);
 
   const chartColor = useMemo(() => {
     if (displayChartData.length < 2) return 'var(--color-success)';
@@ -663,8 +758,8 @@ export default function PortfolioDetailPage() {
   }, [displayChartData]);
 
   const availableRanges = useMemo(() => {
-    // Always show all ranges except 1D (since we only have daily data, not intraday)
-    return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+    // Include 1D for intraday view
+    return ['1D', '1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
   }, []);
 
   const currentData = activeIndex !== null ? displayChartData[activeIndex] : displayChartData[displayChartData.length - 1];
@@ -913,14 +1008,25 @@ export default function PortfolioDetailPage() {
                 {/* Date and Legend - Mobile */}
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="text-xs text-[var(--color-muted)] font-medium">
-                    {displayData?.dateString ?
+                    {timeRange === '1D' && displayData?.date ? (
+                      <>
+                        {displayData.date.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                        {' '}
+                        {displayData.timeString}
+                      </>
+                    ) : displayData?.dateString ? (
                       parseLocalDate(displayData.dateString).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric'
-                      }) :
+                      })
+                    ) : (
                       `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
-                    }
+                    )}
                   </div>
                   {/* Legend - Mobile */}
                   <div className="flex items-center gap-3">
@@ -936,7 +1042,7 @@ export default function PortfolioDetailPage() {
                     {currentBenchmarkValue !== null && (
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-[3px] rounded-full bg-[var(--color-muted)] opacity-60" />
-                        <span className="text-[10px] text-[var(--color-muted)]">QQQ</span>
+                        <span className="text-[10px] text-[var(--color-muted)]">{portfolio?.is_alpaca_connected ? 'SPY' : 'QQQ'}</span>
                         <span className={`text-[10px] font-medium tabular-nums ${benchmarkPercentChange !== null && benchmarkPercentChange > 0 ? 'text-emerald-500' :
                             benchmarkPercentChange !== null && benchmarkPercentChange < 0 ? 'text-rose-500' :
                               'text-[var(--color-muted)]'
@@ -986,14 +1092,25 @@ export default function PortfolioDetailPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="text-xs text-[var(--color-muted)] font-medium">
-                    {displayData?.dateString ?
+                    {timeRange === '1D' && displayData?.date ? (
+                      <>
+                        {displayData.date.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                        {' '}
+                        {displayData.timeString}
+                      </>
+                    ) : displayData?.dateString ? (
                       parseLocalDate(displayData.dateString).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric'
-                      }) :
+                      })
+                    ) : (
                       `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
-                    }
+                    )}
                   </div>
                   {/* Legend - Desktop */}
                   <div className="flex items-center gap-4">
@@ -1010,7 +1127,7 @@ export default function PortfolioDetailPage() {
                     {currentBenchmarkValue !== null && (
                       <div className="flex items-center gap-1.5">
                         <div className="w-2.5 h-[3px] rounded-full bg-[var(--color-muted)] opacity-60" />
-                        <span className="text-xs text-[var(--color-muted)]">QQQ</span>
+                        <span className="text-xs text-[var(--color-muted)]">{portfolio?.is_alpaca_connected ? 'SPY' : 'QQQ'}</span>
                         <span className={`text-xs font-medium tabular-nums ${benchmarkPercentChange !== null && benchmarkPercentChange > 0 ? 'text-emerald-500' :
                             benchmarkPercentChange !== null && benchmarkPercentChange < 0 ? 'text-rose-500' :
                               'text-[var(--color-muted)]'
@@ -1051,7 +1168,7 @@ export default function PortfolioDetailPage() {
                   gradientId={`portfolioDetailGradient-${portfolio.id}`}
                   curveType="monotone"
                   animationDuration={800}
-                  xAxisDataKey="dateString"
+                  xAxisDataKey={timeRange === '1D' ? 'dateString' : 'dateString'}
                   yAxisDomain={yAxisDomain}
                   lines={[
                     {

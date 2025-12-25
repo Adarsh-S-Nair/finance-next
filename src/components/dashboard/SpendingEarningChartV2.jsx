@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../UserProvider';
 
 function formatCurrency(amount) {
@@ -17,12 +18,46 @@ function roundedRectPath(x, y, w, h, r) {
   return `M ${x} ${y + h} L ${x} ${y + r2} Q ${x} ${y} ${x + r2} ${y} L ${x + w - r2} ${y} Q ${x + w} ${y} ${x + w} ${y + r2} L ${x + w} ${y + h} Z`;
 }
 
+function TooltipContent({ month, income, spending, position, containerSize }) {
+  const { left, top } = position;
+  const { width, height } = containerSize;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 3 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 3 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      style={{
+        left: `${(left / width) * 100}%`,
+        top: `${(top / height) * 100}%`,
+      }}
+      className="absolute z-50 pointer-events-none transform -translate-x-1/2 -translate-y-full"
+    >
+      <div className="bg-[var(--color-surface)]/98 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--color-border)]/50 text-xs shadow-sm">
+        <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
+          {month}
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[var(--color-muted)]">Income</span>
+            <span className="font-medium text-[var(--color-fg)]">{formatCurrency(income)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[var(--color-muted)]">Spending</span>
+            <span className="font-medium text-[var(--color-fg)]">{formatCurrency(spending)}</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = [] }) {
   const { user } = useUser();
-  const [activeMonth, setActiveMonth] = useState(null)
+  const [activeMonthIndex, setActiveMonthIndex] = useState(null)
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 280 });
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, data: null });
 
   // Handle Resize
   useEffect(() => {
@@ -100,21 +135,8 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const yFromValue = (v) => height - margin.bottom - (v * scaleY)
   const hFromValue = (v) => v * scaleY
 
-  const onMove = (e, month, inc, spd, fullData) => {
-    setActiveMonth(month)
-
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      setTooltip({
-        visible: true,
-        x,
-        y,
-        data: { month, income: inc, spending: spd }
-      });
-    }
+  const onMove = (e, month, inc, spd, fullData, index) => {
+    setActiveMonthIndex(index)
 
     if (onHover) {
       onHover({
@@ -126,8 +148,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   }
 
   const onLeave = () => {
-    setActiveMonth(null)
-    setTooltip(prev => ({ ...prev, visible: false }));
+    setActiveMonthIndex(null)
     if (onHover) {
       onHover(null)
     }
@@ -187,7 +208,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
             const incY = yFromValue(inc)
             const spdY = yFromValue(spd)
 
-            const isActive = activeMonth === m
+            const isActive = activeMonthIndex === i
 
             // Income Bar (Left)
             const incBarPath = roundedRectPath(groupX, incY, finalBarWidth, incH, 4)
@@ -199,7 +220,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               <g
                 key={`bar-${m}-${i}`}
                 style={{
-                  opacity: activeMonth && !isActive ? 0.4 : 1,
+                  opacity: activeMonthIndex !== null && !isActive ? 0.4 : 1,
                   transition: 'opacity 0.2s ease'
                 }}
               >
@@ -219,8 +240,8 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   width={stepX}
                   height={innerHeight}
                   fill="transparent"
-                  onMouseMove={(e) => onMove(e, m, inc, spd, data[i])}
-                  onMouseEnter={(e) => onMove(e, m, inc, spd, data[i])}
+                  onMouseMove={(e) => onMove(e, m, inc, spd, data[i], i)}
+                  onMouseEnter={(e) => onMove(e, m, inc, spd, data[i], i)}
                   onClick={() => onSelectMonth && onSelectMonth(data[i])}
                   style={{ cursor: 'pointer' }}
                 />
@@ -231,34 +252,35 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
       </svg>
 
       {/* Tooltip */}
-      {tooltip.visible && tooltip.data && (
-        <div
-          style={{ left: tooltip.x, top: tooltip.y }}
-          className="absolute z-50 pointer-events-none transform -translate-x-1/2 -translate-y-[120%] transition-all duration-75 ease-out"
-        >
-          <div className="bg-[var(--color-surface)]/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-[var(--color-border)] text-xs min-w-[140px]">
-            <div className="font-medium mb-2 text-[var(--color-muted)] border-b border-[var(--color-border)] pb-1">
-              {tooltip.data.month}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-cashflow-income)]" />
-                  <span className="text-[var(--color-muted)]">Income</span>
-                </div>
-                <span className="font-semibold text-[var(--color-fg)]">{formatCurrency(tooltip.data.income)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-cashflow-spending)]" />
-                  <span className="text-[var(--color-muted)]">Spending</span>
-                </div>
-                <span className="font-semibold text-[var(--color-fg)]">{formatCurrency(tooltip.data.spending)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {activeMonthIndex !== null && months[activeMonthIndex] && (() => {
+          // Calculate the position of the tallest bar for this month
+          const inc = incomeVals[activeMonthIndex] || 0
+          const spd = spendingVals[activeMonthIndex] || 0
+          
+          const incY = yFromValue(inc)
+          const spdY = yFromValue(spd)
+          
+          // The tallest bar has the smallest Y value (top of bar)
+          const tallestBarTop = Math.min(incY, spdY)
+          
+          // Position tooltip just above the tallest bar (with 8px gap)
+          const tooltipY = tallestBarTop - 8
+          
+          return (
+            <TooltipContent
+              month={months[activeMonthIndex]}
+              income={inc}
+              spending={spd}
+              position={{
+                left: margin.left + stepX * activeMonthIndex + stepX / 2,
+                top: tooltipY
+              }}
+              containerSize={{ width, height }}
+            />
+          );
+        })()}
+      </AnimatePresence>
     </div>
   )
 }

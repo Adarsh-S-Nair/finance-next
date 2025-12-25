@@ -7,6 +7,7 @@ import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
 import { useNetWorth } from "../NetWorthProvider";
 import { useRouter } from "next/navigation";
+import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
 import { AnimatePresence, motion } from "framer-motion";
 import MonthlyOverviewCard from "./MonthlyOverviewCard";
@@ -198,8 +199,13 @@ export default function SpendingVsEarningCard() {
                   </div>
 
                   <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <span className={`font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {percentChange >= 0 ? '↑' : '↓'} {Math.abs(percentChange).toFixed(1)}%
+                    <span className={`flex items-center gap-0.5 font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {percentChange >= 0 ? (
+                        <FiChevronUp className="w-3 h-3" />
+                      ) : (
+                        <FiChevronDown className="w-3 h-3" />
+                      )}
+                      {Math.abs(percentChange).toFixed(1)}%
                     </span>
                     <span className="text-[var(--color-muted)] hidden sm:inline">vs last month</span>
                   </div>
