@@ -785,8 +785,6 @@ export default function InvestmentsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log('[FETCH DATA] Starting to fetch investment portfolios for user:', profile.id);
-        
         // Fetch all plaid investment portfolios for this user
         // Include account balance (source of truth for cash)
         const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
@@ -805,55 +803,41 @@ export default function InvestmentsPage() {
           .eq('type', 'plaid_investment')
           .order('created_at', { ascending: false });
 
-        console.log('[FETCH DATA] Query result:', {
-          portfoliosCount: plaidPortfoliosData?.length || 0,
-          error: plaidPortfoliosError,
-          portfolios: plaidPortfoliosData
-        });
-
         if (plaidPortfoliosError) {
-          console.error('[FETCH DATA] Error fetching portfolios:', plaidPortfoliosError);
+          console.error('Error fetching portfolios:', plaidPortfoliosError);
           throw plaidPortfoliosError;
         }
         
-        console.log('[FETCH DATA] Setting investment portfolios:', plaidPortfoliosData?.length || 0);
         setInvestmentPortfolios(plaidPortfoliosData || []);
 
-        // Fetch portfolio snapshots for all investment portfolios
-        const portfolioIds = (plaidPortfoliosData || []).map(p => p.id);
-        console.log('[FETCH DATA] Portfolio IDs to fetch snapshots for:', portfolioIds);
+        // Fetch account snapshots for investment accounts (use these as baseline)
+        const accountIds = (plaidPortfoliosData || [])
+          .map(p => p.source_account?.id)
+          .filter(id => id); // Remove nulls
         
-        if (portfolioIds.length > 0) {
-          const { data: snapshotsData, error: snapshotsError } = await supabase
-            .from('portfolio_snapshots')
+        if (accountIds.length > 0) {
+          const { data: accountSnapshotsData, error: accountSnapshotsError } = await supabase
+            .from('account_snapshots')
             .select('*')
-            .in('portfolio_id', portfolioIds)
-            .order('snapshot_date', { ascending: true });
+            .in('account_id', accountIds)
+            .order('recorded_at', { ascending: true });
 
-          console.log('[FETCH DATA] Snapshots query result:', {
-            snapshotsCount: snapshotsData?.length || 0,
-            error: snapshotsError,
-            snapshots: snapshotsData
-          });
-
-          if (snapshotsError) {
-            console.error('[FETCH DATA] Error fetching portfolio snapshots:', snapshotsError);
+          if (accountSnapshotsError) {
+            console.error('Error fetching account snapshots:', accountSnapshotsError);
+            setPortfolioSnapshots([]);
           } else {
-            console.log('[FETCH DATA] Setting portfolio snapshots:', snapshotsData?.length || 0);
-            setPortfolioSnapshots(snapshotsData || []);
+            // Store account snapshots in portfolioSnapshots state for now
+            // We'll transform them in the chart component
+            setPortfolioSnapshots(accountSnapshotsData || []);
           }
         } else {
-          console.log('[FETCH DATA] No portfolio IDs, setting empty snapshots');
           setPortfolioSnapshots([]);
         }
 
         // Aggregate all holdings from all portfolios
         const holdingsMap = new Map(); // To combine duplicate tickers across portfolios
-
-        console.log('[FETCH DATA] Aggregating holdings from', (plaidPortfoliosData || []).length, 'portfolios');
         
-        (plaidPortfoliosData || []).forEach((portfolio, pIndex) => {
-          console.log(`[FETCH DATA] Portfolio ${pIndex + 1} holdings count:`, portfolio.holdings?.length || 0);
+        (plaidPortfoliosData || []).forEach((portfolio) => {
           (portfolio.holdings || []).forEach(holding => {
             const ticker = holding.ticker.toUpperCase();
             const shares = parseFloat(holding.shares) || 0;
@@ -878,7 +862,6 @@ export default function InvestmentsPage() {
         });
 
         const holdingsArray = Array.from(holdingsMap.values());
-        console.log('[FETCH DATA] Aggregated holdings count:', holdingsArray.length);
         
         // Fetch ticker logos and info
         if (holdingsArray.length > 0) {
@@ -974,71 +957,42 @@ export default function InvestmentsPage() {
 
   // Calculate combined portfolio metrics (must be before conditional return)
   const portfolioMetrics = useMemo(() => {
-    // For investment accounts, the account balance from Plaid IS the total account value
-    // (it already includes cash + holdings value from the institution)
-    // We should use it directly as the total portfolio value
+    // Calculate portfolio value as: sum(holdings * shares * current_price) + cash
+    // Holdings come ONLY from investment portfolios (plaid_investment), not paper trading
+    // Cash = account balance - (holdings value at cost basis, approximate)
     
-    let totalPortfolioValue = 0;
-    let totalHoldingsValue = 0;
-
-    console.log('[PORTFOLIO METRICS] Calculating portfolio metrics...');
-    console.log('[PORTFOLIO METRICS] Investment portfolios:', investmentPortfolios.length);
+    let totalAccountBalance = 0; // Total from account balances
+    let totalHoldingsValue = 0; // Holdings value at current market prices
     
-    investmentPortfolios.forEach((portfolio, index) => {
-      // Account balance is the TOTAL account value (cash + holdings) from Plaid
-      // Parse it as a number (it comes from JSONB as a string or number)
+    // Get account balances (for investment accounts, this is the total: cash + holdings)
+    investmentPortfolios.forEach((portfolio) => {
       const balances = portfolio.source_account?.balances;
       const accountBalance = typeof balances?.current === 'string' 
         ? parseFloat(balances.current) 
         : (balances?.current || 0);
       
-      console.log(`[PORTFOLIO METRICS] Portfolio ${index + 1} (${portfolio.name || portfolio.id}):`, {
-        accountBalance,
-        balancesRaw: balances,
-        accountName: portfolio.source_account?.name,
-        portfolioId: portfolio.id
-      });
-      
-      totalPortfolioValue += accountBalance;
+      totalAccountBalance += accountBalance;
     });
 
-    console.log('[PORTFOLIO METRICS] Total portfolio value (from account balances):', totalPortfolioValue);
-    console.log('[PORTFOLIO METRICS] All holdings count:', allHoldings.length);
-
-    // Calculate holdings value for display purposes (using current market prices)
-    allHoldings.forEach((holding, index) => {
+    // Calculate holdings value using CURRENT market prices
+    // allHoldings already only includes holdings from investment portfolios (plaid_investment)
+    allHoldings.forEach((holding) => {
       const ticker = holding.ticker.toUpperCase();
       const quote = stockQuotes[ticker];
       const currentPrice = quote?.price || holding.avg_cost || 0;
-      const shares = holding.shares || 0;
+      const shares = parseFloat(holding.shares) || 0;
       const value = shares * currentPrice;
       totalHoldingsValue += value;
-      
-      if (index < 5) { // Log first 5 holdings
-        console.log(`[PORTFOLIO METRICS] Holding ${index + 1} (${ticker}):`, {
-          shares,
-          currentPrice,
-          value,
-          hasQuote: !!quote,
-          quotePrice: quote?.price,
-          avgCost: holding.avg_cost
-        });
-      }
     });
 
-    console.log('[PORTFOLIO METRICS] Total holdings value (calculated):', totalHoldingsValue);
-
-    // For cash calculation: Account balance already includes everything
-    // So cash = total - holdings value (approximate, since account balance 
-    // uses Plaid's valuation, not our current market prices)
-    const totalCash = totalPortfolioValue - totalHoldingsValue;
+    // Calculate cash: account balance - holdings value (approximate)
+    // For investment accounts, account balance = cash + holdings (at institution's valuation)
+    // We use current market prices for holdings, so cash = account balance - holdings at current prices
+    const cash = totalAccountBalance - totalHoldingsValue;
     
-    console.log('[PORTFOLIO METRICS] Final calculations:', {
-      totalPortfolioValue,
-      totalHoldingsValue,
-      totalCash,
-      stockQuotesCount: Object.keys(stockQuotes).length
-    });
+    // Total portfolio value = holdings at current prices + cash
+    // This ensures we use current market prices for holdings
+    const totalPortfolioValue = totalHoldingsValue + cash;
 
     // Calculate holdings with current values
     const holdingsWithValues = allHoldings.map(holding => {
@@ -1059,11 +1013,11 @@ export default function InvestmentsPage() {
     }).sort((a, b) => b.value - a.value);
 
     return {
-      cash: totalCash,
+      cash: cash,
       totalHoldingsValue,
       totalPortfolioValue,
       holdingsWithValues,
-      cashPercentage: totalPortfolioValue > 0 ? (totalCash / totalPortfolioValue) * 100 : 0,
+      cashPercentage: totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0,
     };
   }, [investmentPortfolios, allHoldings, stockQuotes]);
 
@@ -1172,68 +1126,86 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const { profile } = useUser();
   const totalValue = portfolioMetrics.totalPortfolioValue;
   const [timeRange, setTimeRange] = useState('ALL');
+  const [activeIndex, setActiveIndex] = useState(null);
   
-  // Aggregate snapshots by date (sum values across all portfolios)
+  // Get EST minute key for grouping snapshots
+  // EST is UTC-5, so we subtract 5 hours from UTC
+  const getESTMinuteKey = (utcDate) => {
+    // Convert UTC to EST (subtract 5 hours)
+    const estTime = utcDate.getTime() - (5 * 60 * 60 * 1000);
+    const estDate = new Date(estTime);
+    // Round to nearest minute
+    estDate.setSeconds(0, 0);
+    estDate.setMilliseconds(0);
+    // Return as ISO string for grouping
+    return estDate.toISOString();
+  };
+
+  // Use account snapshots - these are account_snapshots, not portfolio_snapshots
   const aggregatedChartData = useMemo(() => {
-    console.log('[CHART DATA] Aggregating snapshots...');
-    console.log('[CHART DATA] Snapshots count:', snapshots?.length || 0);
-    console.log('[CHART DATA] Current total value:', totalValue);
-    
     if (!snapshots || snapshots.length === 0) {
-      console.log('[CHART DATA] No snapshots available');
       return [];
     }
     
-    // Log first few snapshots
-    snapshots.slice(0, 5).forEach((snapshot, index) => {
-      console.log(`[CHART DATA] Snapshot ${index + 1}:`, {
-        date: snapshot.snapshot_date,
-        total_value: snapshot.total_value,
-        cash: snapshot.cash,
-        holdings_value: snapshot.holdings_value,
-        portfolio_id: snapshot.portfolio_id
-      });
-    });
+    // Group snapshots by minute (in EST) and aggregate balances
+    const snapshotsByMinute = new Map();
     
-    // Group snapshots by date
-    const snapshotsByDate = new Map();
     snapshots.forEach(snapshot => {
-      const date = snapshot.snapshot_date;
-      if (!snapshotsByDate.has(date)) {
-        snapshotsByDate.set(date, {
-          date,
-          dateString: date,
-          value: 0,
+      const utcDate = new Date(snapshot.recorded_at);
+      // Group by EST minute
+      const minuteKey = getESTMinuteKey(utcDate);
+      const balance = parseFloat(snapshot.current_balance) || 0;
+      
+      if (snapshotsByMinute.has(minuteKey)) {
+        // Sum balances for all accounts in the same minute
+        const existing = snapshotsByMinute.get(minuteKey);
+        existing.value += balance;
+        // Keep the earliest date in this minute group
+        if (utcDate < existing.date) {
+          existing.date = utcDate;
+        }
+      } else {
+        snapshotsByMinute.set(minuteKey, {
+          date: utcDate,
+          value: balance
         });
       }
-      const aggregated = snapshotsByDate.get(date);
-      aggregated.value += parseFloat(snapshot.total_value) || 0;
     });
     
     // Convert to array and sort by date
-    const sortedData = Array.from(snapshotsByDate.values())
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(item => ({
-        date: parseLocalDate(item.date),
-        dateString: item.dateString,
-        value: item.value,
-      }));
+    let chartData = Array.from(snapshotsByMinute.values())
+      .map((data) => ({
+        date: data.date,
+        dateString: data.date.toISOString(),
+        value: data.value
+      }))
+      .sort((a, b) => a.date - b.date);
     
-    console.log('[CHART DATA] Aggregated data by date:', sortedData);
-    
-    // If only one snapshot, add current value as second point
-    if (sortedData.length === 1) {
-      const today = formatDateString(new Date());
-      console.log('[CHART DATA] Only one snapshot, adding current value as second point');
-      sortedData.push({
-        date: parseLocalDate(today),
-        dateString: today,
-        value: totalValue || 0,
-      });
+    // Limit to max 40 data points, spread evenly
+    const maxPoints = 40;
+    if (chartData.length > maxPoints) {
+      const step = Math.floor(chartData.length / maxPoints);
+      chartData = chartData.filter((_, index) => index % step === 0 || index === chartData.length - 1);
     }
     
-    console.log('[CHART DATA] Final aggregated chart data:', sortedData);
-    return sortedData;
+    // Always include current value as the last point
+    const currentDateTime = new Date();
+    const lastPoint = chartData[chartData.length - 1];
+    const currentMinuteKey = getESTMinuteKey(currentDateTime);
+    
+    // Only add current point if it's in a different minute from the last snapshot
+    if (!lastPoint || getESTMinuteKey(lastPoint.date) !== currentMinuteKey) {
+      chartData.push({
+        date: currentDateTime,
+        dateString: currentDateTime.toISOString(),
+        value: totalValue || 0
+      });
+    } else {
+      // Update last point with current value
+      lastPoint.value = totalValue || 0;
+    }
+    
+    return chartData;
   }, [snapshots, totalValue]);
   
   // Filter chart data based on time range
@@ -1274,93 +1246,51 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   }, [aggregatedChartData, timeRange]);
   
   // Display chart data (always include current value as the last point)
+  // Note: filteredData is already sorted ascending (oldest first) from aggregatedChartData
   const displayChartData = useMemo(() => {
     if (filteredData.length === 0) {
       // If no filtered data, try to show at least a line from most recent snapshot to current value
-      if (aggregatedChartData.length === 0) return [];
+      if (aggregatedChartData.length === 0) {
+        return [];
+      }
       // Use the most recent snapshot as start, current value as end
       const latestSnapshot = aggregatedChartData[aggregatedChartData.length - 1];
-      const today = formatDateString(new Date());
+      const currentDateTime = new Date();
       return [
         latestSnapshot,
         {
-          date: parseLocalDate(today),
-          dateString: today,
+          date: currentDateTime,
+          dateString: currentDateTime.toISOString(),
           value: totalValue || 0,
         }
       ];
     }
     
-    // Always add current value as the last point (for "now")
-    const today = formatDateString(new Date());
-    const lastPoint = filteredData[filteredData.length - 1];
-    const todayDateString = today;
-    
-    // Only add current value if it's different from the last point or if the last point isn't today
-    if (lastPoint.dateString !== todayDateString) {
-      return [
-        ...filteredData,
-        {
-          date: parseLocalDate(today),
-          dateString: todayDateString,
-          value: totalValue || 0,
-        }
-      ];
-    } else {
-      // If the last point is today, update its value to the current value
-      return [
-        ...filteredData.slice(0, -1),
-        {
-          ...lastPoint,
-          value: totalValue || 0,
-        }
-      ];
-    }
+    // filteredData is already sorted by date (ascending - oldest first)
+    // The aggregatedChartData logic already handles adding/updating today's value
+    // So we can use filteredData directly
+    return filteredData;
   }, [filteredData, aggregatedChartData, totalValue]);
   
   // Calculate percentage change from first value in filtered/display data
   const percentChange = useMemo(() => {
-    console.log('[PERCENTAGE CHANGE] Calculating percentage change...');
-    console.log('[PERCENTAGE CHANGE] Display chart data length:', displayChartData.length);
-    console.log('[PERCENTAGE CHANGE] Display chart data:', displayChartData);
-    console.log('[PERCENTAGE CHANGE] Current total value:', totalValue);
-    
     if (displayChartData.length === 0) {
-      console.log('[PERCENTAGE CHANGE] No display chart data, returning 0');
       return 0;
     }
     const startValue = displayChartData[0].value;
     const currentValue = totalValue || 0;
     
-    console.log('[PERCENTAGE CHANGE] Start value (first point):', startValue);
-    console.log('[PERCENTAGE CHANGE] Current value:', currentValue);
-    
     if (startValue === 0) {
-      console.log('[PERCENTAGE CHANGE] Start value is 0, returning 0');
       return 0;
     }
     
-    const change = ((currentValue - startValue) / Math.abs(startValue)) * 100;
-    console.log('[PERCENTAGE CHANGE] Calculated change:', {
-      change,
-      dollarChange: currentValue - startValue,
-      startValue,
-      currentValue
-    });
-    
-    return change;
+    return ((currentValue - startValue) / Math.abs(startValue)) * 100;
   }, [displayChartData, totalValue]);
   
   const returnAmount = useMemo(() => {
     if (displayChartData.length === 0) return 0;
     const startValue = displayChartData[0].value;
-    const amount = (totalValue || 0) - startValue;
-    console.log('[RETURN AMOUNT]', {
-      startValue,
-      currentValue: totalValue,
-      returnAmount: amount
-    });
-    return amount;
+    return (totalValue || 0) - startValue;
   }, [displayChartData, totalValue]);
   
   // Calculate chart color based on performance
@@ -1374,6 +1304,14 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const availableRanges = useMemo(() => {
     return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
   }, []);
+
+  const handleMouseMove = (data, index) => {
+    setActiveIndex(index);
+  };
+
+  const handleMouseLeave = () => {
+    setActiveIndex(null);
+  };
   
   // For accent color styling
   const validAccentColor = '#00f3ff';
@@ -1381,11 +1319,51 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
   const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
   
+  // Get date/time in EST for display (shows hovered point or last point)
+  const displayDateTime = useMemo(() => {
+    if (displayChartData.length === 0) return null;
+    
+    // Use activeIndex if hovering, otherwise use last point
+    const point = activeIndex !== null && displayChartData[activeIndex] 
+      ? displayChartData[activeIndex]
+      : displayChartData[displayChartData.length - 1];
+    
+    if (!point) return null;
+    
+    const date = new Date(point.dateString);
+    return {
+      date: date.toLocaleDateString('en-US', { 
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+      time: date.toLocaleTimeString('en-US', { 
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+    };
+  }, [displayChartData, activeIndex]);
+
   return (
     <Card variant="glass" padding="none">
       <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">
-          Portfolio Value
+        <div className="flex items-start justify-between mb-1">
+          <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
+            Portfolio Value
+          </div>
+          {displayDateTime && (
+            <div className="text-right">
+              <div className="text-xs text-[var(--color-muted)] font-medium">
+                {displayDateTime.date}
+              </div>
+              <div className="text-xs text-[var(--color-muted)]/80">
+                {displayDateTime.time} EST
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-2">
           <AnimatedCounter value={totalValue || 0} duration={120} />
@@ -1401,9 +1379,14 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
       </div>
       
       {/* Chart */}
-      <div className="px-4 sm:px-6 pb-4 pt-4">
+      <div className="pt-4 pb-2">
         {displayChartData.length > 0 ? (
-          <div style={{ height: '240px' }}>
+          <div
+            className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
+            tabIndex={-1}
+            style={{ outline: 'none', height: '240px' }}
+            onMouseLeave={handleMouseLeave}
+          >
             <LineChart
               data={displayChartData}
               dataKey="value"
@@ -1416,6 +1399,8 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
               areaOpacity={0.15}
               showDots={false}
               dotRadius={4}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
               showTooltip={false}
               gradientId={`combinedPortfolioChartGradient`}
               curveType="monotone"

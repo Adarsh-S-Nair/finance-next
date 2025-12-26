@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabaseAdmin';
-import { calculatePortfolioValue } from './portfolioUtils';
+import { calculatePortfolioValue, formatDateString } from './portfolioUtils';
 
 /**
  * Gets the most recent portfolio snapshot for a given portfolio
@@ -38,7 +38,8 @@ export async function getMostRecentPortfolioSnapshot(portfolioId) {
  */
 export async function shouldCreatePortfolioSnapshot(portfolioId, currentTotalValue, accountBalance, holdingsValue) {
   try {
-    const currentDate = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
+    // Use formatDateString to get local date (not UTC) to avoid timezone issues
+    const currentDate = formatDateString(new Date()); // Get YYYY-MM-DD format (local time)
     
     // Get the most recent snapshot
     const mostRecentSnapshot = await getMostRecentPortfolioSnapshot(portfolioId);
@@ -109,7 +110,8 @@ export async function createPortfolioSnapshotConditional(portfolioId, accountBal
     }
     
     // Create the snapshot
-    const snapshotDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    // Use formatDateString to get local date (not UTC) to avoid timezone issues
+    const snapshotDate = formatDateString(new Date()); // YYYY-MM-DD (local time)
     
     const snapshotData = {
       portfolio_id: portfolioId,

@@ -280,6 +280,7 @@ export async function POST(request) {
       const uniqueTickers = Array.from(holdingsByTicker.keys());
       
       // Check which tickers exist in database and which are missing data
+      // Query ALL tickers (not just the ones in holdings) to catch any that might have been inserted elsewhere
       const { data: existingTickers, error: tickerCheckError } = await supabaseAdmin
         .from('tickers')
         .select('symbol, name, sector, logo')
@@ -293,8 +294,12 @@ export async function POST(request) {
       const newTickers = uniqueTickers.filter(t => !existingTickerSymbols.has(t));
       
       // Also find existing tickers that are missing data (name, sector, or logo)
+      // Check for null, undefined, or empty string values
       const existingTickersMissingData = (existingTickers || []).filter(t => {
-        return !t.name || !t.sector || !t.logo || t.logo.trim() === '';
+        const hasName = t.name && t.name.trim() !== '';
+        const hasSector = t.sector && t.sector.trim() !== '';
+        const hasLogo = t.logo && t.logo.trim() !== '';
+        return !hasName || !hasSector || !hasLogo;
       }).map(t => t.symbol);
       
       // Combine new tickers and existing tickers missing data
@@ -330,6 +335,7 @@ export async function POST(request) {
           const existingTicker = existingTickerMap.get(symbol);
           
           // Use existing data if available and valid, otherwise use fetched data
+          // This ensures we populate missing fields even if they were NULL before
           const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
             ? existingTicker.name 
             : (detail.name || null);
@@ -348,6 +354,21 @@ export async function POST(request) {
             logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
           }
           // If no domain available, logo remains null
+
+          // Log if we're updating a ticker that had NULL values
+          if (existingTicker && (!existingTicker.name || !existingTicker.sector || !existingTicker.logo)) {
+            const updatedFields = [];
+            if (!existingTicker.name && name) updatedFields.push('name');
+            if (!existingTicker.sector && sector) updatedFields.push('sector');
+            if (!existingTicker.logo && logo) updatedFields.push('logo');
+            if (updatedFields.length > 0) {
+              logger.info('Populating missing ticker data', { 
+                symbol, 
+                updatedFields 
+              });
+              if (DEBUG) console.log(`  📝 Populating missing data for ${symbol}: ${updatedFields.join(', ')}`);
+            }
+          }
 
           return {
             symbol: symbol,

@@ -140,12 +140,43 @@ export default function LineChart({
     const x = e.clientX - rect.left;
     const chartWidth = rect.width;
 
-    // Calculate index based on x position
-    // Assuming data points are evenly distributed
-    const index = Math.min(
-      Math.max(0, Math.round((x / chartWidth) * (data.length - 1))),
-      data.length - 1
-    );
+    // Account for margins in the calculation
+    // The actual chart area is smaller than the container due to margins
+    const effectiveLeft = typeof margin.left === 'number' ? margin.left : 0;
+    const effectiveRight = chartWidth - (typeof margin.right === 'number' ? margin.right : 0);
+    const effectiveWidth = Math.max(1, effectiveRight - effectiveLeft);
+    const relativeX = Math.max(0, Math.min(effectiveWidth, x - effectiveLeft));
+
+    // For better UX with few data points, create larger hover zones
+    // Each data point gets a "zone" - for 2 points, left half = first, right half = second
+    let index: number;
+    
+    if (data.length === 1) {
+      index = 0;
+    } else if (data.length === 2) {
+      // Split chart into two halves for easier hovering
+      // Left 50% = first point, right 50% = second point
+      const midpoint = effectiveWidth / 2;
+      index = relativeX < midpoint ? 0 : 1;
+    } else {
+      // For more points, use proportional calculation with better edge handling
+      const normalizedX = relativeX / effectiveWidth;
+      // Use floor for left side, ceil for right side to make edges easier to hit
+      const rawIndex = normalizedX * (data.length - 1);
+      if (normalizedX < 0.1) {
+        // Very left edge - always first point
+        index = 0;
+      } else if (normalizedX > 0.9) {
+        // Very right edge - always last point
+        index = data.length - 1;
+      } else {
+        // Middle area - round normally
+        index = Math.min(
+          Math.max(0, Math.round(rawIndex)),
+          data.length - 1
+        );
+      }
+    }
 
     setActiveIndex(index);
 
@@ -201,8 +232,6 @@ export default function LineChart({
       ref={containerRef}
       className={`relative ${className}`}
       style={{ width, height, ...style }}
-      onMouseMove={handleOverlayMouseMove}
-      onMouseLeave={handleOverlayMouseLeave}
     >
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
@@ -300,6 +329,14 @@ export default function LineChart({
           )}
         </AreaChart>
       </ResponsiveContainer>
+
+      {/* Invisible overlay to capture mouse events */}
+      <div
+        className="absolute inset-0"
+        style={{ pointerEvents: 'auto', cursor: 'default' }}
+        onMouseMove={handleOverlayMouseMove}
+        onMouseLeave={handleOverlayMouseLeave}
+      />
 
     </div>
   );
