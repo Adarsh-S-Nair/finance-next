@@ -8,6 +8,7 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
+import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import { LuPlus, LuBot, LuChevronLeft } from "react-icons/lu";
 import { SiGooglegemini, SiX } from "react-icons/si";
 import { useUser } from "../../../components/UserProvider";
@@ -267,19 +268,19 @@ function RebalanceCountdown({ nextRebalanceDate, rebalanceCadence }) {
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const { profile } = useUser();
   const [step, setStep] = useState('select'); // 'select', 'alpaca', 'ai'
-  
+
   // AI Portfolio state
   const [name, setName] = useState('');
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [startingCapital, setStartingCapital] = useState(100000);
-  
+
   // Alpaca Portfolio state
   const [alpacaName, setAlpacaName] = useState('');
   const [alpacaApiKey, setAlpacaApiKey] = useState('');
   const [alpacaSecretKey, setAlpacaSecretKey] = useState('');
   const [showSecretKey, setShowSecretKey] = useState(false);
-  
+
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -489,7 +490,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
             Connect your existing Alpaca paper trading account to track your real portfolio
           </p>
         </button>
-        
+
         <button
           type="button"
           onClick={() => setStep('ai')}
@@ -580,116 +581,116 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const renderAIForm = () => (
     <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
       <div>
-            <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-              Portfolio Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={handleNameChange}
-              placeholder="e.g., My Claude Portfolio"
-              className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-              Starting Capital
-            </label>
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              {[25000, 50000, 100000, 250000].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => setStartingCapital(amount)}
-                  className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${startingCapital === amount
-                    ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                    : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
-                    }`}
-                >
-                  ${amount >= 1000000 ? `${amount / 1000000}M` : `${amount / 1000}K`}
-                </button>
-              ))}
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
-              <input
-                type="text"
-                value={startingCapital.toLocaleString()}
-                onChange={handleCapitalInputChange}
-                className="w-full pl-7 pr-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] tabular-nums"
-              />
-            </div>
-            <p className="text-xs text-[var(--color-muted)] mt-1.5">
-              Simulated paper money for trading
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-              AI Model
-            </label>
-            <div className="space-y-4">
-              {AI_PROVIDERS.map((provider) => {
-                const ProviderIcon = provider.icon;
-                return (
-                  <div key={provider.id}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <ProviderIcon
-                        className="w-3.5 h-3.5"
-                        style={{ color: provider.color === '#000000' ? 'var(--color-fg)' : provider.color }}
-                      />
-                      <span className="text-xs font-medium text-[var(--color-muted)]">
-                        {provider.name}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {provider.models.map((model) => {
-                        const isSelected = selectedModel === model.id;
-                        const isDisabled = model.disabled;
-                        return (
-                          <button
-                            key={model.id}
-                            type="button"
-                            onClick={() => !isDisabled && handleModelSelect(model.id)}
-                            disabled={isDisabled}
-                            className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isDisabled
-                              ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
-                              : isSelected
-                                ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                                : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
-                              }`}
-                          >
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
-                                {isDisabled && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-muted)]">
-                                    Coming soon
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
-                            </div>
-                            {isSelected && !isDisabled && (
-                              <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
-                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Portfolio Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={handleNameChange}
+          placeholder="e.g., My Claude Portfolio"
+          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Starting Capital
+        </label>
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          {[25000, 50000, 100000, 250000].map((amount) => (
+            <button
+              key={amount}
+              type="button"
+              onClick={() => setStartingCapital(amount)}
+              className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${startingCapital === amount
+                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
+                }`}
+            >
+              ${amount >= 1000000 ? `${amount / 1000000}M` : `${amount / 1000}K`}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
+          <input
+            type="text"
+            value={startingCapital.toLocaleString()}
+            onChange={handleCapitalInputChange}
+            className="w-full pl-7 pr-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] tabular-nums"
+          />
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-1.5">
+          Simulated paper money for trading
+        </p>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          AI Model
+        </label>
+        <div className="space-y-4">
+          {AI_PROVIDERS.map((provider) => {
+            const ProviderIcon = provider.icon;
+            return (
+              <div key={provider.id}>
+                <div className="flex items-center gap-2 mb-2">
+                  <ProviderIcon
+                    className="w-3.5 h-3.5"
+                    style={{ color: provider.color === '#000000' ? 'var(--color-fg)' : provider.color }}
+                  />
+                  <span className="text-xs font-medium text-[var(--color-muted)]">
+                    {provider.name}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {provider.models.map((model) => {
+                    const isSelected = selectedModel === model.id;
+                    const isDisabled = model.disabled;
+                    return (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() => !isDisabled && handleModelSelect(model.id)}
+                        disabled={isDisabled}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isDisabled
+                          ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
+                          : isSelected
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                          }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
+                            {isDisabled && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-muted)]">
+                                Coming soon
+                              </span>
                             )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-sm text-red-500">{error}</p>
-            </div>
-          )}
+                          </div>
+                          <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
+                        </div>
+                        {isSelected && !isDisabled && (
+                          <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {error && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p className="text-sm text-red-500">{error}</p>
+        </div>
+      )}
     </div>
   );
 
@@ -724,7 +725,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
 
   const renderFooter = () => {
     if (isCreating) return null;
-    
+
     if (step === 'select') {
       return (
         <div className="flex gap-3 w-full">
@@ -734,7 +735,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         </div>
       );
     }
-    
+
     if (step === 'alpaca') {
       return (
         <div className="flex gap-3 w-full">
@@ -744,7 +745,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         </div>
       );
     }
-    
+
     return (
       <div className="flex gap-3 w-full">
         <Button onClick={handleCreateAI} disabled={isCreating} className="flex-1">
@@ -778,8 +779,11 @@ export default function InvestmentsPage() {
   const [portfolioSnapshots, setPortfolioSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [investmentTransactions, setInvestmentTransactions] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch investment portfolios and holdings
   useEffect(() => {
@@ -807,14 +811,14 @@ export default function InvestmentsPage() {
           console.error('Error fetching portfolios:', plaidPortfoliosError);
           throw plaidPortfoliosError;
         }
-        
+
         setInvestmentPortfolios(plaidPortfoliosData || []);
 
         // Fetch account snapshots for investment accounts (use these as baseline)
         const accountIds = (plaidPortfoliosData || [])
           .map(p => p.source_account?.id)
           .filter(id => id); // Remove nulls
-        
+
         if (accountIds.length > 0) {
           const { data: accountSnapshotsData, error: accountSnapshotsError } = await supabase
             .from('account_snapshots')
@@ -836,7 +840,7 @@ export default function InvestmentsPage() {
 
         // Aggregate all holdings from all portfolios
         const holdingsMap = new Map(); // To combine duplicate tickers across portfolios
-        
+
         (plaidPortfoliosData || []).forEach((portfolio) => {
           (portfolio.holdings || []).forEach(holding => {
             const ticker = holding.ticker.toUpperCase();
@@ -862,7 +866,7 @@ export default function InvestmentsPage() {
         });
 
         const holdingsArray = Array.from(holdingsMap.values());
-        
+
         // Fetch ticker logos and info
         if (holdingsArray.length > 0) {
           const tickers = holdingsArray.map(h => h.ticker);
@@ -911,6 +915,19 @@ export default function InvestmentsPage() {
 
         if (portfoliosError) throw portfoliosError;
         setPortfolios(portfoliosData || []);
+
+        // Fetch investment transactions
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from('transactions')
+          .select('*, account:accounts(name, institutions(name, logo))')
+          .eq('transaction_source', 'investments')
+          .in('account_id', accountIds.length > 0 ? accountIds : ['no-accounts'])
+          .order('date', { ascending: false })
+          .limit(50);
+
+        if (!transactionsError && transactionsData) {
+          setInvestmentTransactions(transactionsData);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -921,7 +938,7 @@ export default function InvestmentsPage() {
     if (profile?.id) {
       fetchData();
     }
-  }, [profile?.id]);
+  }, [profile?.id, refreshTrigger]);
 
   const handlePortfolioClick = (portfolio) => {
     router.push(`/investments/${portfolio.id}`);
@@ -960,17 +977,17 @@ export default function InvestmentsPage() {
     // Calculate portfolio value as: sum(holdings * shares * current_price) + cash
     // Holdings come ONLY from investment portfolios (plaid_investment), not paper trading
     // Cash = account balance - (holdings value at cost basis, approximate)
-    
+
     let totalAccountBalance = 0; // Total from account balances
     let totalHoldingsValue = 0; // Holdings value at current market prices
-    
+
     // Get account balances (for investment accounts, this is the total: cash + holdings)
     investmentPortfolios.forEach((portfolio) => {
       const balances = portfolio.source_account?.balances;
-      const accountBalance = typeof balances?.current === 'string' 
-        ? parseFloat(balances.current) 
+      const accountBalance = typeof balances?.current === 'string'
+        ? parseFloat(balances.current)
         : (balances?.current || 0);
-      
+
       totalAccountBalance += accountBalance;
     });
 
@@ -989,7 +1006,7 @@ export default function InvestmentsPage() {
     // For investment accounts, account balance = cash + holdings (at institution's valuation)
     // We use current market prices for holdings, so cash = account balance - holdings at current prices
     const cash = totalAccountBalance - totalHoldingsValue;
-    
+
     // Total portfolio value = holdings at current prices + cash
     // This ensures we use current market prices for holdings
     const totalPortfolioValue = totalHoldingsValue + cash;
@@ -1021,6 +1038,34 @@ export default function InvestmentsPage() {
     };
   }, [investmentPortfolios, allHoldings, stockQuotes]);
 
+  // Calculate sector data from holdings
+  const sectorData = useMemo(() => {
+    const sectorMap = new Map();
+
+    portfolioMetrics.holdingsWithValues.forEach((holding) => {
+      const sector = holding.sector || 'Other';
+      const value = holding.value || 0;
+
+      if (sectorMap.has(sector)) {
+        sectorMap.set(sector, sectorMap.get(sector) + value);
+      } else {
+        sectorMap.set(sector, value);
+      }
+    });
+
+    const totalValue = portfolioMetrics.totalHoldingsValue;
+
+    const sectors = Array.from(sectorMap.entries())
+      .map(([name, value]) => ({
+        name,
+        value,
+        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+
+    return sectors;
+  }, [portfolioMetrics.holdingsWithValues, portfolioMetrics.totalHoldingsValue]);
+
   if (loading) {
     return (
       <PageContainer>
@@ -1036,63 +1081,86 @@ export default function InvestmentsPage() {
 
   return (
     <PageContainer>
-      {/* Main Investment Portfolio View */}
-      {investmentPortfolios.length > 0 ? (
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Main Panel - 2/3 width */}
-            <div className="lg:w-2/3 flex flex-col gap-6">
-              {/* Portfolio Value Chart Card */}
-              <CombinedPortfolioChartCard 
-                portfolioMetrics={portfolioMetrics}
-                snapshots={portfolioSnapshots}
-              />
-            </div>
-
-            {/* Side Panel - 1/3 width */}
-            <div className="lg:w-1/3 flex flex-col gap-4">
-              {/* Holdings Card */}
-              <HoldingsCard 
-                holdings={portfolioMetrics.holdingsWithValues}
-                stockQuotes={stockQuotes}
-              />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-8 text-center py-16 bg-[var(--color-surface)]/30 rounded-2xl border border-[var(--color-border)]/50 border-dashed">
-          <p className="text-[var(--color-muted)] mb-4">No investment accounts connected yet</p>
-          <p className="text-sm text-[var(--color-muted)]/80">
-            Connect your investment accounts from the Accounts page to see your portfolio here
-          </p>
-        </div>
-      )}
-
-      {/* Paper Trading Portfolios Section */}
+      {/* Page Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-[var(--color-fg)]">Paper Trading Portfolios</h2>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <LuPlus className="w-4 h-4 mr-2" />
-          Create Portfolio
+        <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>Investments</h1>
+        <Button
+          size="sm"
+          variant="matte"
+          onClick={() => setShowLinkModal(true)}
+          className="gap-1.5 !rounded-full pl-3 pr-4"
+        >
+          <LuPlus className="w-3.5 h-3.5" />
+          Connect
         </Button>
       </div>
 
-      {portfolios.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-[var(--color-muted)] mb-4">No portfolios yet</p>
-          <Button onClick={() => setShowCreateModal(true)} variant="outline">
-            Create your first portfolio
-          </Button>
+      {/* Main Investment Portfolio View */}
+      {investmentPortfolios.length > 0 ? (
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Main Panel - 2/3 width */}
+          <div className="lg:w-2/3 flex flex-col gap-6">
+            {/* Portfolio Value Chart Card */}
+            <CombinedPortfolioChartCard
+              portfolioMetrics={portfolioMetrics}
+              snapshots={portfolioSnapshots}
+            />
+
+            {/* Investment Transactions Card */}
+            <InvestmentTransactionsCard
+              transactions={investmentTransactions}
+            />
+          </div>
+
+          {/* Side Panel - 1/3 width */}
+          <div className="lg:w-1/3 flex flex-col gap-4">
+            {/* Portfolio Summary Card */}
+            <PortfolioSummaryCard
+              portfolioMetrics={portfolioMetrics}
+              holdingsCount={allHoldings.length}
+              accounts={investmentPortfolios}
+            />
+
+            {/* Investment Accounts Carousel */}
+            {investmentPortfolios.length > 0 && (
+              <InvestmentAccountsCard accounts={investmentPortfolios} stockQuotes={stockQuotes} />
+            )}
+
+            {/* Holdings & Sectors Card */}
+            <HoldingsCard
+              holdings={portfolioMetrics.holdingsWithValues}
+              stockQuotes={stockQuotes}
+              sectors={sectorData}
+            />
+
+            {/* Paper Trading Card */}
+            <PaperTradingCard
+              portfolios={portfolios}
+              onPortfolioClick={handlePortfolioClick}
+              onCreateClick={() => setShowCreateModal(true)}
+            />
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {portfolios.map((portfolio) => (
-            <PortfolioCard
-              key={portfolio.id}
-              portfolio={portfolio}
-              onCardClick={() => handlePortfolioClick(portfolio)}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* No Investment Accounts Message - Full Width */}
+          <div className="lg:w-2/3">
+            <div className="text-center py-16 bg-[var(--color-surface)]/30 rounded-2xl border border-[var(--color-border)]/50 border-dashed">
+              <p className="text-[var(--color-muted)] mb-4">No investment accounts connected yet</p>
+              <p className="text-sm text-[var(--color-muted)]/80">
+                Connect your investment accounts from the Accounts page to see your portfolio here
+              </p>
+            </div>
+          </div>
+
+          {/* Side Panel - Paper Trading Only */}
+          <div className="lg:w-1/3 flex flex-col gap-4">
+            <PaperTradingCard
+              portfolios={portfolios}
+              onPortfolioClick={handlePortfolioClick}
+              onCreateClick={() => setShowCreateModal(true)}
             />
-          ))}
+          </div>
         </div>
       )}
 
@@ -1102,6 +1170,16 @@ export default function InvestmentsPage() {
         onCreated={(newPortfolio) => {
           setPortfolios([newPortfolio, ...portfolios]);
           setShowCreateModal(false);
+        }}
+      />
+
+      <PlaidLinkModal
+        isOpen={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        defaultAccountType="investment"
+        onSuccess={() => {
+          // Trigger refresh of investments data
+          setRefreshTrigger(prev => prev + 1);
         }}
       />
 
@@ -1127,7 +1205,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const totalValue = portfolioMetrics.totalPortfolioValue;
   const [timeRange, setTimeRange] = useState('ALL');
   const [activeIndex, setActiveIndex] = useState(null);
-  
+
   // Get EST minute key for grouping snapshots
   // EST is UTC-5, so we subtract 5 hours from UTC
   const getESTMinuteKey = (utcDate) => {
@@ -1146,16 +1224,16 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
     if (!snapshots || snapshots.length === 0) {
       return [];
     }
-    
+
     // Group snapshots by minute (in EST) and aggregate balances
     const snapshotsByMinute = new Map();
-    
+
     snapshots.forEach(snapshot => {
       const utcDate = new Date(snapshot.recorded_at);
       // Group by EST minute
       const minuteKey = getESTMinuteKey(utcDate);
       const balance = parseFloat(snapshot.current_balance) || 0;
-      
+
       if (snapshotsByMinute.has(minuteKey)) {
         // Sum balances for all accounts in the same minute
         const existing = snapshotsByMinute.get(minuteKey);
@@ -1171,7 +1249,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
         });
       }
     });
-    
+
     // Convert to array and sort by date
     let chartData = Array.from(snapshotsByMinute.values())
       .map((data) => ({
@@ -1180,19 +1258,19 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
         value: data.value
       }))
       .sort((a, b) => a.date - b.date);
-    
+
     // Limit to max 40 data points, spread evenly
     const maxPoints = 40;
     if (chartData.length > maxPoints) {
       const step = Math.floor(chartData.length / maxPoints);
       chartData = chartData.filter((_, index) => index % step === 0 || index === chartData.length - 1);
     }
-    
+
     // Always include current value as the last point
     const currentDateTime = new Date();
     const lastPoint = chartData[chartData.length - 1];
     const currentMinuteKey = getESTMinuteKey(currentDateTime);
-    
+
     // Only add current point if it's in a different minute from the last snapshot
     if (!lastPoint || getESTMinuteKey(lastPoint.date) !== currentMinuteKey) {
       chartData.push({
@@ -1204,18 +1282,18 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
       // Update last point with current value
       lastPoint.value = totalValue || 0;
     }
-    
+
     return chartData;
   }, [snapshots, totalValue]);
-  
+
   // Filter chart data based on time range
   const filteredData = useMemo(() => {
     if (aggregatedChartData.length === 0) return [];
     if (timeRange === 'ALL') return aggregatedChartData;
-    
+
     const now = new Date();
     let startDate = new Date(now);
-    
+
     switch (timeRange) {
       case '1W':
         startDate.setDate(now.getDate() - 7);
@@ -1235,7 +1313,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
       default:
         return aggregatedChartData;
     }
-    
+
     // Filter data based on start date
     const filtered = aggregatedChartData.filter(item => item.date >= startDate);
     // If there isn't enough data for the selected range, show all available data
@@ -1244,7 +1322,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
     }
     return filtered;
   }, [aggregatedChartData, timeRange]);
-  
+
   // Display chart data (always include current value as the last point)
   // Note: filteredData is already sorted ascending (oldest first) from aggregatedChartData
   const displayChartData = useMemo(() => {
@@ -1265,13 +1343,13 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
         }
       ];
     }
-    
+
     // filteredData is already sorted by date (ascending - oldest first)
     // The aggregatedChartData logic already handles adding/updating today's value
     // So we can use filteredData directly
     return filteredData;
   }, [filteredData, aggregatedChartData, totalValue]);
-  
+
   // Calculate percentage change from first value in filtered/display data
   const percentChange = useMemo(() => {
     if (displayChartData.length === 0) {
@@ -1279,20 +1357,20 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
     }
     const startValue = displayChartData[0].value;
     const currentValue = totalValue || 0;
-    
+
     if (startValue === 0) {
       return 0;
     }
-    
+
     return ((currentValue - startValue) / Math.abs(startValue)) * 100;
   }, [displayChartData, totalValue]);
-  
+
   const returnAmount = useMemo(() => {
     if (displayChartData.length === 0) return 0;
     const startValue = displayChartData[0].value;
     return (totalValue || 0) - startValue;
   }, [displayChartData, totalValue]);
-  
+
   // Calculate chart color based on performance
   const chartColor = useMemo(() => {
     if (displayChartData.length < 2) return 'var(--color-accent)';
@@ -1300,7 +1378,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
     const endValue = displayChartData[displayChartData.length - 1].value;
     return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
   }, [displayChartData]);
-  
+
   const availableRanges = useMemo(() => {
     return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
   }, []);
@@ -1312,33 +1390,33 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const handleMouseLeave = () => {
     setActiveIndex(null);
   };
-  
+
   // For accent color styling
   const validAccentColor = '#00f3ff';
   const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
   const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
   const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
-  
+
   // Get date/time in EST for display (shows hovered point or last point)
   const displayDateTime = useMemo(() => {
     if (displayChartData.length === 0) return null;
-    
+
     // Use activeIndex if hovering, otherwise use last point
-    const point = activeIndex !== null && displayChartData[activeIndex] 
+    const point = activeIndex !== null && displayChartData[activeIndex]
       ? displayChartData[activeIndex]
       : displayChartData[displayChartData.length - 1];
-    
+
     if (!point) return null;
-    
+
     const date = new Date(point.dateString);
     return {
-      date: date.toLocaleDateString('en-US', { 
+      date: date.toLocaleDateString('en-US', {
         timeZone: 'America/New_York',
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       }),
-      time: date.toLocaleTimeString('en-US', { 
+      time: date.toLocaleTimeString('en-US', {
         timeZone: 'America/New_York',
         hour: 'numeric',
         minute: '2-digit',
@@ -1377,7 +1455,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
           ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
         </div>
       </div>
-      
+
       {/* Chart */}
       <div className="pt-4 pb-2">
         {displayChartData.length > 0 ? (
@@ -1414,13 +1492,13 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
           </div>
         )}
       </div>
-      
+
       {/* Time Range Selector */}
       <div className="mt-2 pt-2 px-4 sm:px-6 pb-4 border-t border-[var(--color-border)]/50">
         <div className="flex justify-between items-center w-full">
           {availableRanges.map((range) => {
             const isActive = timeRange === range;
-            
+
             return (
               <div key={range} className="flex-1 flex justify-center">
                 <button
@@ -1451,7 +1529,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
 }
 
 // Holdings Card Component (similar to portfolio detail page)
-function HoldingsCard({ holdings, stockQuotes }) {
+function HoldingsCard({ holdings, stockQuotes, sectors = [] }) {
   return (
     <Card variant="glass" padding="none">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
@@ -1529,7 +1607,807 @@ function HoldingsCard({ holdings, stockQuotes }) {
           </div>
         </div>
       )}
+
+      {/* Sectors Section */}
+      {sectors && sectors.length > 0 && (
+        <div className="px-4 pb-4 pt-2 border-t border-[var(--color-border)]/30">
+          <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wide mb-2">Sectors</div>
+          <div className="flex flex-wrap gap-1.5">
+            {sectors.map((sector) => (
+              <div
+                key={sector.name}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30"
+              >
+                <span className="text-[10px] text-[var(--color-muted)]">{sector.name}</span>
+                <span className="text-[10px] font-medium text-[var(--color-fg)] tabular-nums">
+                  {sector.percentage.toFixed(0)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
+  );
+}
+
+// Portfolio Summary Card Component
+function PortfolioSummaryCard({ portfolioMetrics, holdingsCount, accounts = [] }) {
+  const investedPercentage = 100 - portfolioMetrics.cashPercentage;
+  const circumference = 2 * Math.PI * 36;
+  const strokeDashoffset = circumference - (investedPercentage / 100) * circumference;
+
+  return (
+    <Card variant="glass" padding="none">
+      <div className="px-4 pt-4 pb-3">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Summary</div>
+      </div>
+
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-5">
+          {/* Donut Chart */}
+          <div className="relative w-[80px] h-[80px] flex-shrink-0">
+            <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+              <circle
+                cx="40"
+                cy="40"
+                r="36"
+                fill="none"
+                stroke="var(--color-border)"
+                strokeWidth="6"
+              />
+              <circle
+                cx="40"
+                cy="40"
+                r="36"
+                fill="none"
+                stroke="url(#summaryGradient)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
+              />
+              <defs>
+                <linearGradient id="summaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#6366f1" />
+                  <stop offset="100%" stopColor="#8b5cf6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                {investedPercentage.toFixed(0)}%
+              </div>
+            </div>
+          </div>
+
+          {/* Stats - Right aligned values */}
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--color-muted)]">Cash</span>
+              <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                {formatCurrencyWithSmallCents(portfolioMetrics.cash)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--color-muted)]">Invested</span>
+              <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                {formatCurrencyWithSmallCents(portfolioMetrics.totalHoldingsValue)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Investment Accounts Card Component - Clean Carousel
+function InvestmentAccountsCard({ accounts, stockQuotes = {} }) {
+  const scrollContainerRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Sort accounts by balance (highest first)
+  const sortedAccounts = useMemo(() => {
+    return [...accounts].sort((a, b) => {
+      const balanceA = a.source_account?.balances?.current || 0;
+      const balanceB = b.source_account?.balances?.current || 0;
+      return balanceB - balanceA;
+    });
+  }, [accounts]);
+
+  // Handle scroll to update active index
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const cardWidth = container.offsetWidth;
+    const newIndex = Math.round(scrollLeft / cardWidth);
+    setActiveIndex(Math.min(newIndex, sortedAccounts.length - 1));
+  };
+
+  // Navigate to specific index
+  const scrollToIndex = (index) => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const cardWidth = container.offsetWidth;
+    container.scrollTo({ left: index * cardWidth, behavior: 'smooth' });
+    setActiveIndex(index);
+  };
+
+  if (sortedAccounts.length === 0) return null;
+
+  return (
+    <Card variant="glass" padding="none">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
+          Accounts
+        </div>
+        {sortedAccounts.length > 1 && (
+          <div className="text-[10px] text-[var(--color-muted)]">
+            {activeIndex + 1} / {sortedAccounts.length}
+          </div>
+        )}
+      </div>
+
+      <div className="pb-4">
+        {/* Carousel Container */}
+        <div className="overflow-hidden">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex gap-0 overflow-x-auto snap-x snap-mandatory"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            {sortedAccounts.map((portfolio) => {
+              const account = portfolio.source_account;
+              if (!account) return null;
+              const institution = account.institutions;
+
+              // Get balances from account
+              const balances = account.balances || {};
+              const currentBalance = balances.current || 0;
+
+              // Calculate holdings value at CURRENT MARKET PRICE
+              const holdingsValue = (portfolio.holdings || []).reduce((sum, h) => {
+                const ticker = (h.ticker || '').toUpperCase();
+                const quote = stockQuotes[ticker];
+                // Use current price if available, otherwise fall back to avg_cost
+                const price = quote?.price || h.avg_cost || 0;
+                return sum + ((h.shares || 0) * price);
+              }, 0);
+
+              // Cash is remainder (account balance minus current holdings value)
+              const cashValue = Math.max(0, currentBalance - holdingsValue);
+              const holdingsPercent = currentBalance > 0 ? (holdingsValue / currentBalance) * 100 : 0;
+
+              return (
+                <div
+                  key={portfolio.id}
+                  className="flex-shrink-0 w-full px-4 snap-center"
+                >
+                  {/* Clean Card Design */}
+                  <div
+                    className="rounded-xl p-4 border"
+                    style={{
+                      background: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)'
+                    }}
+                  >
+                    {/* Institution Header */}
+                    <div className="flex items-center gap-2.5 mb-4">
+                      {institution?.logo ? (
+                        <img
+                          src={institution.logo}
+                          alt=""
+                          className="w-8 h-8 rounded-lg object-contain"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-[var(--color-accent)]">
+                            {(institution?.name || 'B')[0]}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                          {account.name}
+                        </div>
+                        <div className="text-[10px] text-[var(--color-muted)]">
+                          {institution?.name || 'Brokerage'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Balance */}
+                    <div className="mb-4">
+                      <div className="text-xl font-semibold text-[var(--color-fg)] tabular-nums">
+                        {formatCurrency(currentBalance)}
+                      </div>
+                    </div>
+
+                    {/* Allocation Bar */}
+                    <div className="mb-3">
+                      <div className="w-full h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${holdingsPercent}%`,
+                            background: 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Holdings vs Cash */}
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
+                        <span className="text-[var(--color-muted)]">Holdings</span>
+                        <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(holdingsValue)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-[var(--color-muted)]/30" />
+                        <span className="text-[var(--color-muted)]">Cash</span>
+                        <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(cashValue)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dots */}
+        {sortedAccounts.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-3">
+            {sortedAccounts.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => scrollToIndex(index)}
+                className={`h-1 rounded-full transition-all cursor-pointer ${index === activeIndex
+                  ? 'bg-[var(--color-accent)] w-3'
+                  : 'bg-[var(--color-muted)]/25 w-1 hover:bg-[var(--color-muted)]/40'
+                  }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// Sectors Card Component
+function SectorsCard({ sectors }) {
+  return (
+    <Card variant="glass" padding="md">
+      <div className="mb-3">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Sectors</div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {sectors.map((sector) => (
+          <div
+            key={sector.name}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30"
+          >
+            <span className="text-[10px] text-[var(--color-muted)]">{sector.name}</span>
+            <span className="text-[10px] font-medium text-[var(--color-fg)] tabular-nums">
+              {sector.percentage.toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// Investment Transactions Card Component
+function InvestmentTransactionsCard({ transactions }) {
+  const [tickerLogos, setTickerLogos] = useState({});
+
+  // Fetch ticker logos on mount
+  useEffect(() => {
+    const fetchLogos = async () => {
+      if (!transactions || transactions.length === 0) return;
+
+      // Get unique tickers from transactions
+      const tickers = [...new Set(
+        transactions
+          .map(t => t.investment_details?.ticker)
+          .filter(Boolean)
+      )];
+
+      if (tickers.length === 0) return;
+
+      try {
+        const { data } = await supabase
+          .from('tickers')
+          .select('symbol, logo')
+          .in('symbol', tickers);
+
+        if (data) {
+          const logoMap = {};
+          data.forEach(t => {
+            logoMap[t.symbol] = t.logo;
+          });
+          setTickerLogos(logoMap);
+        }
+      } catch (err) {
+        console.error('Error fetching ticker logos:', err);
+      }
+    };
+
+    fetchLogos();
+  }, [transactions]);
+
+  if (!transactions || transactions.length === 0) {
+    return (
+      <Card variant="glass" padding="none">
+        <div className="px-5 pt-5 pb-3">
+          <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
+        </div>
+        <div className="px-5 py-10 text-center">
+          <div className="text-[var(--color-muted)]/60 text-sm">
+            No investment transactions yet
+          </div>
+          <p className="text-xs text-[var(--color-muted)]/40 mt-2">
+            Transactions will appear here when you buy or sell securities
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Helper to get accent color for transaction type
+  const getAccentColor = (type, subtype) => {
+    const normalizedType = (type || '').toLowerCase();
+    const normalizedSubtype = (subtype || '').toLowerCase();
+
+    if (normalizedType === 'buy' || normalizedSubtype === 'buy') {
+      return { color: '#10b981', isBuy: true, isSell: false, isTransfer: false };
+    } else if (normalizedType === 'sell' || normalizedSubtype === 'sell') {
+      return { color: '#ef4444', isBuy: false, isSell: true, isTransfer: false };
+    } else if (normalizedType === 'dividend' || normalizedSubtype === 'dividend') {
+      return { color: '#8b5cf6', isBuy: false, isSell: false, isDividend: true, isTransfer: false };
+    } else if (normalizedType === 'fee') {
+      return { color: '#f59e0b', isBuy: false, isSell: false, isTransfer: false };
+    } else if (normalizedType === 'transfer' || normalizedSubtype === 'contribution' || normalizedSubtype === 'transfer') {
+      return { color: '#3b82f6', isBuy: false, isSell: false, isTransfer: true };
+    }
+    // Other types - blue as default
+    return { color: '#3b82f6', isBuy: false, isSell: false, isTransfer: true };
+  };
+
+  return (
+    <Card variant="glass" padding="none">
+      <div className="px-5 pt-5 pb-3">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
+      </div>
+      <div className="pb-2">
+        {transactions.slice(0, 5).map((transaction) => {
+          const details = transaction.investment_details || {};
+          const accent = getAccentColor(details.type, details.subtype);
+          const ticker = details.ticker || null;
+          const logo = ticker ? tickerLogos[ticker] : null;
+          const quantity = details.quantity ? parseFloat(details.quantity) : null;
+          const price = details.price ? parseFloat(details.price) : null;
+          const amount = Math.abs(parseFloat(transaction.amount) || 0);
+          const date = transaction.date
+            ? new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            : '-';
+
+          // Format shares with direction indicator
+          const sharesText = quantity !== null
+            ? `${accent.isBuy ? '+' : accent.isSell ? '-' : ''}${quantity.toFixed(quantity % 1 === 0 ? 0 : 2)} shares`
+            : null;
+
+          // Better title for non-ticker transactions
+          const title = ticker
+            ? ticker
+            : accent.isTransfer
+              ? 'Cash Transfer'
+              : 'Transaction';
+
+          return (
+            <div
+              key={transaction.id}
+              className="px-5 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {/* Ticker Logo */}
+                {logo ? (
+                  <img
+                    src={logo}
+                    alt={ticker}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    style={{ border: '1px solid var(--color-border)' }}
+                  />
+                ) : (
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-muted)'
+                    }}
+                  >
+                    {ticker ? ticker.slice(0, 2) : '$'}
+                  </div>
+                )}
+
+                {/* Transaction Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--color-fg)]">
+                    {title}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                    {sharesText && (
+                      <span style={{ color: accent.isBuy ? '#10b981' : accent.isSell ? '#ef4444' : undefined }}>
+                        {sharesText}
+                      </span>
+                    )}
+                    {sharesText && price !== null && (
+                      <span className="mx-1.5 text-[var(--color-border)]">•</span>
+                    )}
+                    {price !== null && (
+                      <span>@ {formatCurrency(price)}</span>
+                    )}
+                    {!sharesText && price === null && accent.isTransfer && (
+                      <span>Account contribution</span>
+                    )}
+                    {!sharesText && price === null && !accent.isTransfer && (
+                      <span>{details.security_name || 'Investment activity'}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount & Date */}
+                <div className="text-right flex-shrink-0">
+                  <div className={`text-sm font-medium tabular-nums ${accent.isSell || accent.isDividend ? 'text-emerald-500' : 'text-[var(--color-fg)]'
+                    }`}>
+                    {accent.isSell || accent.isDividend ? '+' : ''}{formatCurrency(amount)}
+                  </div>
+                  <div className="text-[11px] text-[var(--color-muted)]/60">
+                    {date}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// Paper Trading Card Component with Carousel
+function PaperTradingCard({ portfolios, onPortfolioClick, onCreateClick }) {
+  const scrollContainerRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Handle scroll to update active index
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const cardWidth = container.offsetWidth;
+    const newIndex = Math.round(scrollLeft / cardWidth);
+    setActiveIndex(Math.min(newIndex, portfolios.length - 1));
+  };
+
+  // Navigate to specific index
+  const scrollToIndex = (index) => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const cardWidth = container.offsetWidth;
+    container.scrollTo({ left: index * cardWidth, behavior: 'smooth' });
+    setActiveIndex(index);
+  };
+
+  // Navigate prev/next
+  const goToPrev = () => {
+    if (activeIndex > 0) scrollToIndex(activeIndex - 1);
+  };
+
+  const goToNext = () => {
+    if (activeIndex < portfolios.length - 1) scrollToIndex(activeIndex + 1);
+  };
+
+  return (
+    <Card variant="glass" padding="none">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
+          Paper Trading
+        </div>
+        <button
+          onClick={onCreateClick}
+          className="flex items-center gap-1 text-[11px] text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 font-medium transition-colors cursor-pointer"
+        >
+          <LuPlus className="w-3 h-3" />
+          New
+        </button>
+      </div>
+
+      {portfolios.length > 0 ? (
+        <div className="pb-3">
+          {/* Carousel with Side Arrows */}
+          <div className="flex items-center gap-1">
+            {/* Prev Arrow */}
+            {portfolios.length > 1 && (
+              <button
+                onClick={goToPrev}
+                disabled={activeIndex === 0}
+                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${activeIndex === 0
+                  ? 'text-[var(--color-muted)]/20 cursor-not-allowed'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
+                  }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+
+            {/* Carousel Container */}
+            <div className="flex-1 overflow-hidden">
+              <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex gap-0 overflow-x-auto snap-x snap-mandatory"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {portfolios.map((portfolio) => (
+                  <MiniPortfolioCard
+                    key={portfolio.id}
+                    portfolio={portfolio}
+                    onClick={() => onPortfolioClick(portfolio)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Next Arrow */}
+            {portfolios.length > 1 && (
+              <button
+                onClick={goToNext}
+                disabled={activeIndex === portfolios.length - 1}
+                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${activeIndex === portfolios.length - 1
+                  ? 'text-[var(--color-muted)]/20 cursor-not-allowed'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
+                  }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Dots */}
+          {portfolios.length > 1 && (
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              {portfolios.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => scrollToIndex(index)}
+                  className={`h-1 rounded-full transition-all cursor-pointer ${index === activeIndex
+                    ? 'bg-[var(--color-accent)] w-3'
+                    : 'bg-[var(--color-muted)]/25 w-1 hover:bg-[var(--color-muted)]/40'
+                    }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="px-4 py-6 text-center">
+          <div className="text-[var(--color-muted)]/60 text-[13px] mb-2">
+            No paper trading portfolios yet
+          </div>
+          <button
+            onClick={onCreateClick}
+            className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer"
+          >
+            Create your first
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Mini Portfolio Card Component (for carousel)
+function MiniPortfolioCard({ portfolio, onClick }) {
+  const isAlpaca = portfolio.is_alpaca_connected === true;
+  const [totalValue, setTotalValue] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sparklineData, setSparklineData] = useState([]);
+
+  const AlpacaIcon = ({ className, style }) => (
+    <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  );
+
+  const model = isAlpaca ? {
+    name: 'Alpaca',
+    icon: AlpacaIcon,
+    color: '#4285F4',
+  } : (AI_MODELS[portfolio.ai_model] || {
+    name: portfolio.ai_model,
+    icon: LuBot,
+    color: '#8b5cf6',
+  });
+  const ModelIcon = model.icon;
+
+  // Fetch total value and sparkline data from snapshots
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get recent snapshots for sparkline (last 14 days)
+        const { data: snapshotData } = await supabase
+          .from('ai_portfolio_snapshots')
+          .select('total_value, snapshot_date')
+          .eq('portfolio_id', portfolio.id)
+          .order('snapshot_date', { ascending: true })
+          .limit(14);
+
+        if (snapshotData && snapshotData.length > 0) {
+          setTotalValue(parseFloat(snapshotData[snapshotData.length - 1].total_value));
+          setSparklineData(snapshotData.map(s => parseFloat(s.total_value)));
+        } else {
+          // Fallback to cash if no snapshots
+          setTotalValue(parseFloat(portfolio.current_cash) || parseFloat(portfolio.starting_capital));
+          setSparklineData([]);
+        }
+      } catch (err) {
+        console.error('Error fetching portfolio value:', err);
+        setTotalValue(parseFloat(portfolio.current_cash) || parseFloat(portfolio.starting_capital));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [portfolio.id, portfolio.current_cash, portfolio.starting_capital]);
+
+  // Calculate returns
+  const startingCapital = parseFloat(portfolio.starting_capital) || 0;
+  const currentValue = totalValue ?? startingCapital;
+  const percentChange = startingCapital > 0
+    ? ((currentValue - startingCapital) / startingCapital) * 100
+    : 0;
+
+  // Generate sparkline path
+  const generateSparklinePath = () => {
+    if (sparklineData.length < 2) return null;
+    const min = Math.min(...sparklineData);
+    const max = Math.max(...sparklineData);
+    const range = max - min || 1;
+    const width = 60;
+    const height = 24;
+    const padding = 2;
+
+    const points = sparklineData.map((value, index) => {
+      const x = (index / (sparklineData.length - 1)) * width;
+      const y = height - padding - ((value - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    });
+
+    return `M${points.join(' L')}`;
+  };
+
+  const sparklinePath = generateSparklinePath();
+
+  return (
+    <div
+      className="flex-shrink-0 w-full px-2 py-1 snap-center cursor-pointer group"
+      onClick={onClick}
+    >
+      <div
+        className="relative rounded-xl p-4 transition-all duration-300 group-hover:scale-[1.02] overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 50%, rgba(236, 72, 153, 0.02) 100%)',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        }}
+      >
+        {/* Animated floating orbs */}
+        <div
+          className="absolute w-20 h-20 rounded-full blur-2xl pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%)',
+            top: '-20%',
+            right: '-10%',
+            animation: 'miniFloat1 6s ease-in-out infinite'
+          }}
+        />
+        <div
+          className="absolute w-16 h-16 rounded-full blur-xl pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)',
+            bottom: '-15%',
+            left: '-5%',
+            animation: 'miniFloat2 8s ease-in-out infinite'
+          }}
+        />
+
+        {/* Header with Icon and Name */}
+        <div className="relative flex items-center gap-3 mb-3">
+          <ModelIcon
+            className="w-5 h-5 flex-shrink-0"
+            style={{ color: '#8b5cf6' }}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</div>
+            <div className="text-[11px] text-[var(--color-muted)]">{model.name}</div>
+          </div>
+
+          {/* Mini Sparkline */}
+          {sparklinePath && (
+            <div className="flex-shrink-0">
+              <svg width="60" height="24" className="overflow-visible">
+                <path
+                  d={sparklinePath}
+                  fill="none"
+                  stroke={percentChange >= 0 ? '#10b981' : '#ef4444'}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ opacity: 0.8 }}
+                />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Value and Returns */}
+        <div className="relative flex items-end justify-between">
+          <div>
+            <div className="text-lg font-normal text-[var(--color-fg)] tabular-nums">
+              {loading ? (
+                <span className="text-[var(--color-muted)]">...</span>
+              ) : (
+                formatCurrency(currentValue)
+              )}
+            </div>
+            <div className={`text-xs font-medium tabular-nums ${percentChange > 0 ? 'text-emerald-500' :
+              percentChange < 0 ? 'text-rose-500' :
+                'text-[var(--color-muted)]'
+              }`}>
+              {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
+            </div>
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)]">
+            {formatCurrency(startingCapital)} initial
+          </div>
+        </div>
+
+        {/* CSS for floating animations */}
+        <style jsx>{`
+          @keyframes miniFloat1 {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+            50% { transform: translate(-8px, 10px) scale(1.1); opacity: 0.7; }
+          }
+          @keyframes miniFloat2 {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+            50% { transform: translate(10px, -8px) scale(1.15); opacity: 0.6; }
+          }
+        `}</style>
+      </div>
+    </div>
   );
 }
 
@@ -1537,14 +2415,14 @@ function HoldingsCard({ holdings, stockQuotes }) {
 function PortfolioCard({ portfolio, onCardClick }) {
   const { profile } = useUser();
   const isAlpaca = portfolio.is_alpaca_connected === true;
-  
+
   // Alpaca icon component
   const AlpacaIcon = ({ className, style }) => (
     <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
     </svg>
   );
-  
+
   const model = isAlpaca ? {
     name: 'Alpaca Account',
     icon: AlpacaIcon,
@@ -1719,93 +2597,67 @@ function PortfolioCard({ portfolio, onCardClick }) {
 
   if (loading) {
     return (
-      <Card className="group relative animate-pulse" variant="glass">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <div className="h-4 bg-[var(--color-border)] rounded w-20 mb-2" />
-            <div className="h-6 bg-[var(--color-border)] rounded w-32" />
-          </div>
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-surface)]/30 animate-pulse">
+        <div className="w-6 h-6 rounded bg-[var(--color-border)]" />
+        <div className="flex-1">
+          <div className="h-3 bg-[var(--color-border)] rounded w-24 mb-1" />
+          <div className="h-3 bg-[var(--color-border)] rounded w-16" />
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card
-      className="group relative overflow-hidden h-40 cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
-      variant="glass"
-      padding="none"
+    <div
+      className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-surface)]/40 hover:bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30 cursor-pointer transition-all group"
       onClick={onCardClick}
     >
-      <div className="p-4 relative z-10">
-        <div className="flex items-center justify-between mb-3">
-          {/* Header */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: `${model.color}20` }}
-            >
-              <ModelIcon
-                className="w-4 h-4"
-                style={{ color: model.color === '#000000' ? 'var(--color-fg)' : model.color }}
-              />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</h3>
-              <p className="text-xs text-[var(--color-muted)]">{model.name}</p>
-            </div>
-          </div>
-        </div>
+      {/* AI Model Icon */}
+      <div
+        className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: `${model.color}15` }}
+      >
+        <ModelIcon
+          className="w-3.5 h-3.5"
+          style={{ color: model.color === '#000000' ? 'var(--color-fg)' : model.color }}
+        />
+      </div>
 
-        <div className="mb-2">
-          <div className="text-lg font-semibold text-[var(--color-fg)] tracking-tight">
-            <AnimatedCounter value={currentTotalValue || 0} duration={120} />
-          </div>
-          <div className={`text-xs font-medium mt-0.5 ${percentChange > 0 ? 'text-emerald-500' :
-            percentChange < 0 ? 'text-rose-500' :
-              'text-[var(--color-muted)]'
-            }`}>
-            {returnAmount >= 0 ? '+' : ''}{formatCurrencyWithSmallCents(returnAmount)}
-            {' '}
-            ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
-          </div>
+      {/* Portfolio Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</h3>
+          <span className="text-[10px] text-[var(--color-muted)]/60 hidden sm:inline">{model.name}</span>
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between text-xs text-[var(--color-muted)] mt-2">
-          <span>{formatCurrencyWithSmallCents(portfolio.starting_capital)} initial</span>
+        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+          <span>{formatCurrency(portfolio.starting_capital)} initial</span>
+          <span className="text-[var(--color-border)]">•</span>
           <span>{createdDate}</span>
         </div>
       </div>
 
-      {/* Chart Layer - Background */}
-      <div className="absolute bottom-0 left-0 right-0 h-20 w-full z-0 pointer-events-none opacity-30">
-        {chartData.length > 1 && (
-          <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-            <defs>
-              <linearGradient id={`portfolioGradient-${portfolio.id}`} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={chartColor === 'var(--color-success)' ? '#10b981' : '#ef4444'} stopOpacity="0.15" />
-                <stop offset="100%" stopColor={chartColor === 'var(--color-success)' ? '#10b981' : '#ef4444'} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path
-              d={areaPath}
-              fill={`url(#portfolioGradient-${portfolio.id})`}
-              className="transition-all duration-1000 ease-out"
-            />
-            <path
-              d={linePath}
-              fill="none"
-              stroke={chartColor === 'var(--color-success)' ? '#10b981' : '#ef4444'}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-              className="transition-all duration-1000 ease-out opacity-40"
-            />
-          </svg>
-        )}
+      {/* Value & Returns */}
+      <div className="text-right flex-shrink-0">
+        <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+          {formatCurrency(currentTotalValue || 0)}
+        </div>
+        <div className={`text-xs tabular-nums ${percentChange > 0 ? 'text-emerald-500' :
+          percentChange < 0 ? 'text-rose-500' :
+            'text-[var(--color-muted)]'
+          }`}>
+          {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
+        </div>
       </div>
-    </Card>
+
+      {/* Chevron */}
+      <svg
+        className="w-4 h-4 text-[var(--color-muted)]/50 group-hover:text-[var(--color-muted)] transition-colors flex-shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+    </div>
   );
 }

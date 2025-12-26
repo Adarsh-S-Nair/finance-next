@@ -29,7 +29,7 @@ const ACCOUNT_TYPES = [
   },
 ];
 
-export default function PlaidLinkModal({ isOpen, onClose }) {
+export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = null, onSuccess: onSuccessCallback = null }) {
   const { user } = useUser();
   const { addAccount, refreshAccounts } = useAccounts();
   const [selectedAccountType, setSelectedAccountType] = useState(null);
@@ -82,14 +82,26 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
       // Refresh accounts to get the latest data including any synced transactions
       await refreshAccounts();
 
+      // Call optional success callback
+      if (onSuccessCallback) {
+        onSuccessCallback(data);
+      }
+
       setSuccess(true);
       
-      // Close modal after a short delay
-      setTimeout(() => {
+      // If using defaultAccountType (no modal), close immediately
+      if (defaultAccountType) {
         onClose();
         setSuccess(false);
         setLinkToken(null);
-      }, 2000);
+      } else {
+        // Close modal after a short delay when showing modal
+        setTimeout(() => {
+          onClose();
+          setSuccess(false);
+          setLinkToken(null);
+        }, 2000);
+      }
     } catch (err) {
       console.error('Error exchanging token:', err);
       setError(err.message);
@@ -102,9 +114,18 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
     if (err) {
       console.error('Plaid Link error:', err);
       setError(err.message || 'An error occurred during account linking');
+      // If using defaultAccountType (no modal), call onClose to clean up
+      if (defaultAccountType) {
+        onClose();
+      }
     }
-    // Don't close modal on exit, let user retry or close manually
-    setLoading(false);
+    // Don't close modal on exit when showing selection screen, let user retry or close manually
+    if (!defaultAccountType) {
+      setLoading(false);
+    } else {
+      setLoading(false);
+      // Already called onClose above if there was an error
+    }
   };
 
   const config = {
@@ -153,6 +174,18 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
     }
   };
 
+  // Auto-select default account type and fetch link token when modal opens with defaultAccountType
+  useEffect(() => {
+    if (isOpen && defaultAccountType && !selectedAccountType && !linkToken && !loading && !error) {
+      const accountType = ACCOUNT_TYPES.find(type => type.id === defaultAccountType);
+      if (accountType) {
+        setSelectedAccountType(accountType);
+        fetchLinkTokenAndOpen(accountType.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultAccountType]);
+
   const handleAccountTypeSelect = (accountType) => {
     setSelectedAccountType(accountType);
     setError(null);
@@ -182,6 +215,47 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
 
   // Render account type selection screen
   const renderAccountTypeSelection = () => {
+    // If defaultAccountType is set, skip selection screen and show loading/success/error states
+    if (defaultAccountType) {
+      return (
+        <div className="space-y-3 pt-2">
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <FiLoader className="h-8 w-8 animate-spin text-[var(--color-accent)] mx-auto mb-2" />
+                <p className="text-[var(--color-muted)]">Preparing secure connection...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <FiXCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-red-500 mb-1">Connection Failed</h3>
+                  <p className="text-xs text-[var(--color-muted)]">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <FiCheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-green-500 mb-1">Success!</h3>
+                  <p className="text-xs text-[var(--color-muted)]">Your account has been connected successfully.</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Regular selection screen when no defaultAccountType
     return (
       <div className="space-y-3 pt-2">
         {loading && (
@@ -299,12 +373,29 @@ export default function PlaidLinkModal({ isOpen, onClose }) {
     );
   };
 
+  // When defaultAccountType is provided, don't render the Drawer - just handle Plaid Link directly
+  // Errors will be handled via onExit callback and can be shown via toast or console
+  if (defaultAccountType) {
+    // This component still needs to be rendered to use usePlaidLink hook
+    // But we won't show any UI - Plaid Link will open directly
+    return null;
+  }
+
+  // Determine title and description based on defaultAccountType
+  const getTitle = () => {
+    return 'Connect Account';
+  };
+
+  const getDescription = () => {
+    return 'What type of account do you want to connect?';
+  };
+
   return (
     <Drawer
       isOpen={isOpen}
       onClose={handleClose}
-      title="Connect Account"
-      description="What type of account do you want to connect?"
+      title={getTitle()}
+      description={getDescription()}
       size="md"
       footer={renderFooter()}
     >

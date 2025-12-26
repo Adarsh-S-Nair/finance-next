@@ -281,12 +281,47 @@ async function handleItemWebhook(webhookData) {
       if (DEBUG) console.log('New accounts available for item:', item_id);
       try {
         // Get fresh account data from Plaid
-        const { getAccounts } = await import('../../../../lib/plaidClient');
+        const { getAccounts, getInstitution } = await import('../../../../lib/plaidClient');
         const accountsResponse = await getAccounts(plaidItem.access_token);
-        const { accounts } = accountsResponse;
+        const { accounts, institution_id } = accountsResponse;
 
         if (DEBUG) {
           console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
+        }
+
+        // Get institution info (with fallback)
+        let institutionData = null;
+        const actualInstitutionId = institution_id || accountsResponse.item?.institution_id;
+        
+        if (actualInstitutionId) {
+          try {
+            const institution = await getInstitution(actualInstitutionId);
+
+            // Upsert institution in database
+            const { data: instData, error: institutionError } = await supabaseAdmin
+              .from('institutions')
+              .upsert({
+                institution_id: institution.institution_id,
+                name: institution.name,
+                logo: institution.logo,
+                primary_color: institution.primary_color,
+                url: institution.url,
+              }, {
+                onConflict: 'institution_id'
+              })
+              .select()
+              .single();
+
+            if (institutionError) {
+              console.error('Error upserting institution:', institutionError);
+              // Don't fail the whole process, just log the error
+            } else {
+              institutionData = instData;
+            }
+          } catch (instError) {
+            console.error('Error getting institution info, continuing without it:', instError);
+            // Continue without institution info - not critical for account creation
+          }
         }
 
         // Process and save new accounts
@@ -301,7 +336,7 @@ async function handleItemWebhook(webhookData) {
           balances: account.balances,
           access_token: plaidItem.access_token,
           account_key: `${item_id}_${account.account_id}`,
-          institution_id: plaidItem.institution_id,
+          institution_id: institutionData?.id || null,
           plaid_item_id: plaidItem.id,
         }));
 
