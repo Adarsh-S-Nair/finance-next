@@ -119,18 +119,36 @@ export default function AccountsPage() {
   const scrollContainerRef = useRef(null);
 
   // Organize accounts by category
+  // Note: account.type in the transformed data is actually account.subtype || account.type
+  // So we need to check for investment-related subtypes in the type field
   const categorizeAccount = (account) => {
-    const fullType = `${account.type || ''} ${account.subtype || ''}`.toLowerCase();
-    const liabilityTypes = ['credit card', 'credit', 'loan', 'mortgage', 'line of credit', 'overdraft'];
-    const isLiability = liabilityTypes.some(t => fullType.includes(t));
+    // In AccountsProvider, type is set to: account.subtype || account.type
+    // So we need to check for both the original type values and subtype values
+    const type = (account.type || '').toLowerCase();
 
-    if (isLiability) {
-      if (fullType.includes('credit') && !fullType.includes('line of credit')) return 'credit';
-      return 'loans';
-    } else {
-      if (fullType.includes('investment') || fullType.includes('brokerage') || fullType.includes('ira') || fullType.includes('401k')) return 'investments';
-      return 'cash';
+    // Check for investment accounts (brokerage, stock plan, IRA, 401k, etc.)
+    const investmentSubtypes = [
+      'brokerage', 'stock plan', 'ira', '401k', '403b', '529', 
+      'roth', 'sep', 'simple', 'keogh', 'pension', 'retirement',
+      'investment' // Also check for the original type value
+    ];
+    if (investmentSubtypes.some(subtype => type.includes(subtype))) {
+      return 'investments';
     }
+    
+    // Check for credit accounts
+    if (type.includes('credit') || type === 'credit card') {
+      return 'credit';
+    }
+    
+    // Check for loan accounts
+    const loanTypes = ['loan', 'mortgage', 'student', 'auto', 'home equity'];
+    if (loanTypes.some(loanType => type.includes(loanType))) {
+      return 'loans';
+    }
+    
+    // Default to cash for depository accounts (checking, savings, etc.) and others
+    return 'cash';
   };
 
   const categorizedAccounts = {

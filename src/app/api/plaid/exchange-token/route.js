@@ -226,14 +226,6 @@ export async function POST(request) {
     // Combine updated and inserted accounts
     const accountsData = [...updatedAccounts, ...insertedAccounts];
 
-    if (accountsError) {
-      console.error('Error upserting accounts:', accountsError);
-      return Response.json(
-        { error: 'Failed to save accounts', details: accountsError.message },
-        { status: 500 }
-      );
-    }
-
     console.log(`✅ Saved ${accountsData.length} accounts successfully`);
     console.log('🔍 DEBUG: Saved accounts:', accountsData.map(acc => ({
       id: acc.id,

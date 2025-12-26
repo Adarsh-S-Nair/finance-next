@@ -57,12 +57,43 @@ export async function POST(request) {
     if (DEBUG) {
       console.log(`📊 Received ${holdings?.length || 0} holdings for ${accounts?.length || 0} investment accounts`);
       console.log(`📈 Received ${securities?.length || 0} securities`);
+      
+      // Log account IDs from Plaid response
+      if (accounts && accounts.length > 0) {
+        console.log('📋 Plaid account IDs:', accounts.map(acc => ({
+          account_id: acc.account_id,
+          name: acc.name,
+          type: acc.type,
+          subtype: acc.subtype
+        })));
+      }
+      
+      // Log holdings by account
+      if (holdings && holdings.length > 0) {
+        const holdingsByAcct = {};
+        holdings.forEach(h => {
+          if (!holdingsByAcct[h.account_id]) {
+            holdingsByAcct[h.account_id] = [];
+          }
+          holdingsByAcct[h.account_id].push({
+            security_id: h.security_id,
+            quantity: h.quantity,
+            institution_value: h.institution_value
+          });
+        });
+        console.log('📦 Holdings by account:', Object.keys(holdingsByAcct).map(accId => ({
+          account_id: accId,
+          holdings_count: holdingsByAcct[accId].length,
+          holdings: holdingsByAcct[accId]
+        })));
+      }
     }
 
     logger.info('Holdings data received', {
       accounts_count: accounts?.length || 0,
       holdings_count: holdings?.length || 0,
-      securities_count: securities?.length || 0
+      securities_count: securities?.length || 0,
+      account_ids: accounts?.map(a => a.account_id) || []
     });
 
     // Create a map of security_id -> ticker for quick lookup
@@ -92,13 +123,40 @@ export async function POST(request) {
         }
         holdingsByAccount.get(holding.account_id).push(holding);
       });
+      
+      if (DEBUG) {
+        console.log(`📦 Grouped holdings: ${holdingsByAccount.size} accounts have holdings`);
+        holdingsByAccount.forEach((accountHoldings, accountId) => {
+          console.log(`  Account ${accountId}: ${accountHoldings.length} holdings`);
+        });
+      }
     }
 
     let portfoliosCreated = 0;
     let holdingsSynced = 0;
+    
+    // Create a set of account_ids that have holdings data from Plaid
+    const accountIdsWithHoldings = new Set(holdingsByAccount.keys());
+    
+    // Also get account_ids from Plaid's accounts response (these are all accounts Plaid knows about)
+    const plaidAccountIds = new Set();
+    if (accounts) {
+      accounts.forEach(acc => {
+        plaidAccountIds.add(acc.account_id);
+      });
+    }
+    
+    if (DEBUG) {
+      console.log(`📋 Plaid returned ${accounts?.length || 0} accounts`);
+      console.log(`📦 Accounts with holdings from Plaid: ${accountIdsWithHoldings.size}`);
+      console.log(`📦 Account IDs from Plaid:`, Array.from(plaidAccountIds));
+      console.log(`📦 Account IDs with holdings:`, Array.from(accountIdsWithHoldings));
+    }
 
-    // Process each account's holdings
+    // Process accounts that have holdings
     for (const [accountId, accountHoldings] of holdingsByAccount) {
+      if (DEBUG) console.log(`🔄 Processing holdings for account: ${accountId} (${accountHoldings.length} holdings)`);
+      
       // Find the account in our database
       const { data: account, error: accountError } = await supabaseAdmin
         .from('accounts')
@@ -112,6 +170,8 @@ export async function POST(request) {
         if (DEBUG) console.log(`⚠️ Account not found: ${accountId}, skipping holdings`);
         continue;
       }
+      
+      if (DEBUG) console.log(`✅ Found account in DB: ${account.name} (${account.id})`);
 
       // Skip if this is not an investment account
       if (account.type !== 'investment') {
@@ -173,6 +233,10 @@ export async function POST(request) {
 
         totalHoldingsValue += institutionValue;
 
+        if (DEBUG) {
+          console.log(`  📊 Holding: ${ticker.toUpperCase()} - ${quantity} shares @ $${avgCost.toFixed(2)} = $${institutionValue.toFixed(2)}`);
+        }
+
         holdingsToUpsert.push({
           portfolio_id: portfolio.id,
           ticker: ticker.toUpperCase(),
@@ -180,6 +244,11 @@ export async function POST(request) {
           avg_cost: avgCost,
         });
       });
+      
+      if (DEBUG) {
+        console.log(`  💰 Total holdings value: $${totalHoldingsValue.toFixed(2)}`);
+        console.log(`  📝 Holdings to upsert: ${holdingsToUpsert.length}`);
+      }
 
       // Update portfolio cash (available balance or current - holdings value)
       const accountData = accountMap.get(accountId);
@@ -196,8 +265,8 @@ export async function POST(request) {
         })
         .eq('id', portfolio.id);
 
-      // Upsert holdings (delete all existing and insert new ones for simplicity)
-      // This ensures holdings match exactly what Plaid has
+      // Delete all existing holdings for this portfolio, then insert new ones
+      // This ensures we have exactly what Plaid has (handles removals too)
       const { error: deleteError } = await supabaseAdmin
         .from('holdings')
         .delete()
@@ -205,23 +274,112 @@ export async function POST(request) {
 
       if (deleteError) {
         logger.error('Error deleting old holdings', null, { portfolio_id: portfolio.id, error: deleteError });
+        if (DEBUG) console.log(`  ⚠️ Error deleting old holdings:`, deleteError);
       }
 
       if (holdingsToUpsert.length > 0) {
         // Only insert non-zero holdings
         const nonZeroHoldings = holdingsToUpsert.filter(h => h.shares > 0);
+        
+        if (DEBUG) {
+          console.log(`  🔍 Filtered holdings: ${holdingsToUpsert.length} total -> ${nonZeroHoldings.length} non-zero`);
+          if (holdingsToUpsert.length > nonZeroHoldings.length) {
+            const zeroHoldings = holdingsToUpsert.filter(h => h.shares === 0);
+            console.log(`  ⚠️ Skipped ${zeroHoldings.length} zero-share holdings:`, zeroHoldings.map(h => h.ticker));
+          }
+        }
 
         if (nonZeroHoldings.length > 0) {
+          // Insert the new holdings (we already deleted all existing ones above)
           const { error: insertError } = await supabaseAdmin
             .from('holdings')
             .insert(nonZeroHoldings);
 
           if (insertError) {
             logger.error('Error inserting holdings', null, { portfolio_id: portfolio.id, error: insertError });
+            if (DEBUG) console.log(`  ❌ Error inserting holdings:`, insertError);
           } else {
             holdingsSynced += nonZeroHoldings.length;
             if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for portfolio ${portfolio.id}`);
           }
+        } else {
+          if (DEBUG) console.log(`  ⚠️ No non-zero holdings to insert for account ${accountId}`);
+        }
+      } else {
+        if (DEBUG) console.log(`  ⚠️ No holdings data from Plaid for account ${accountId} (already deleted old holdings)`);
+      }
+    }
+    
+    // Process accounts returned by Plaid that have no holdings
+    // (Still create portfolios for them, they just won't have holdings)
+    if (accounts && accounts.length > 0) {
+      for (const plaidAccount of accounts) {
+        // Skip if we already processed this account (it had holdings)
+        if (accountIdsWithHoldings.has(plaidAccount.account_id)) {
+          continue;
+        }
+        
+        if (DEBUG) console.log(`📋 Processing Plaid account with no holdings: ${plaidAccount.account_id} (${plaidAccount.name})`);
+        
+        // Find the account in our database
+        const { data: account, error: accountError } = await supabaseAdmin
+          .from('accounts')
+          .select('*')
+          .eq('account_id', plaidAccount.account_id)
+          .eq('user_id', userId)
+          .single();
+
+        if (accountError || !account) {
+          if (DEBUG) console.log(`  ⚠️ Account not found in DB: ${plaidAccount.account_id}`);
+          continue;
+        }
+        
+        // Skip if this is not an investment account
+        if (account.type !== 'investment') {
+          if (DEBUG) console.log(`  ⚠️ Account ${plaidAccount.account_id} is not an investment account, skipping`);
+          continue;
+        }
+        
+        // Find or create portfolio for this account
+        let { data: portfolio, error: portfolioError } = await supabaseAdmin
+          .from('portfolios')
+          .select('*')
+          .eq('source_account_id', account.id)
+          .eq('type', 'plaid_investment')
+          .maybeSingle();
+
+        if (portfolioError) {
+          logger.error('Error finding portfolio', null, { account_id: account.id, error: portfolioError });
+          continue;
+        }
+
+        if (!portfolio) {
+          // Portfolio doesn't exist, create it
+          const portfolioName = account.name || 'Investment Account';
+
+          const { data: newPortfolio, error: createError } = await supabaseAdmin
+            .from('portfolios')
+            .insert({
+              user_id: userId,
+              name: portfolioName,
+              type: 'plaid_investment',
+              source_account_id: account.id,
+              starting_capital: plaidAccount.balances?.current || 0,
+              current_cash: plaidAccount.balances?.available || plaidAccount.balances?.current || 0,
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            logger.error('Error creating portfolio', null, { account_id: account.id, error: createError });
+            if (DEBUG) console.log(`  ❌ Error creating portfolio:`, createError);
+          } else {
+            portfolio = newPortfolio;
+            portfoliosCreated++;
+            if (DEBUG) console.log(`✅ Created portfolio ${portfolio.id} for account ${account.id} (${account.name}) - no holdings from Plaid`);
+          }
+        } else {
+          if (DEBUG) console.log(`✅ Portfolio already exists for account ${account.id} (${account.name})`);
         }
       }
     }

@@ -51,7 +51,14 @@ export async function POST(request) {
     // Step 2: Only if Plaid API succeeds, delete from our database
     console.log('Plaid API succeeded, now deleting from database...');
     
-    // Delete the plaid_item (this will cascade to accounts and transactions due to foreign key constraints)
+    // Delete the plaid_item (this will cascade to:
+    //   - accounts (via accounts.plaid_item_id on delete cascade)
+    //   - transactions (via transactions.account_id on delete cascade)
+    //   - account_snapshots (via account_snapshots.account_id on delete cascade)
+    //   - portfolios (via portfolios.source_account_id on delete cascade)
+    //   - holdings (via holdings.portfolio_id on delete cascade)
+    //   - trades (via trades.portfolio_id on delete cascade)
+    //   - portfolio_snapshots (via portfolio_snapshots.portfolio_id on delete cascade)
     const { error: deleteError } = await supabaseAdmin
       .from('plaid_items')
       .delete()

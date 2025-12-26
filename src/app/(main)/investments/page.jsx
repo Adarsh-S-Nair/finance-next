@@ -769,32 +769,82 @@ export default function InvestmentsPage() {
   const router = useRouter();
   const { profile } = useUser();
   const [portfolios, setPortfolios] = useState([]);
+  const [investmentAccounts, setInvestmentAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch portfolios
+  // Fetch investment accounts and portfolios
   useEffect(() => {
-  const fetchPortfolios = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('ai_portfolios')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
+    const fetchData = async () => {
+      try {
+        // Fetch investment accounts (type='investment' and product_type='investments')
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('accounts')
+          .select(`
+            *,
+            institutions(name, logo)
+          `)
+          .eq('user_id', profile.id)
+          .eq('type', 'investment')
+          .eq('product_type', 'investments')
+          .order('name', { ascending: true });
 
-      if (error) throw error;
-      setPortfolios(data || []);
-    } catch (err) {
-      console.error('Error fetching portfolios:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (accountsError) throw accountsError;
+
+        // Fetch portfolios for these accounts
+        const accountIds = (accountsData || []).map(acc => acc.id);
+        let portfoliosMap = {};
+        
+        if (accountIds.length > 0) {
+          const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
+            .from('portfolios')
+            .select(`
+              *,
+              holdings(id, ticker, shares, avg_cost)
+            `)
+            .eq('type', 'plaid_investment')
+            .in('source_account_id', accountIds);
+
+          if (plaidPortfoliosError) throw plaidPortfoliosError;
+
+          // Create a map of account_id -> portfolio
+          (plaidPortfoliosData || []).forEach(portfolio => {
+            portfoliosMap[portfolio.source_account_id] = portfolio;
+          });
+        }
+
+        // Transform accounts data
+        const transformedAccounts = (accountsData || []).map(account => ({
+          id: account.id,
+          name: account.name,
+          balance: account.balances?.current || 0,
+          institution: account.institutions?.name || 'Unknown',
+          logo: account.institutions?.logo,
+          portfolio: portfoliosMap[account.id] || null,
+        }));
+
+        setInvestmentAccounts(transformedAccounts);
+
+        // Fetch paper trading portfolios (AI and Alpaca)
+        const { data: portfoliosData, error: portfoliosError } = await supabase
+          .from('ai_portfolios')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false });
+
+        if (portfoliosError) throw portfoliosError;
+        setPortfolios(portfoliosData || []);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     if (profile?.id) {
-      fetchPortfolios();
+      fetchData();
     }
   }, [profile?.id]);
 
@@ -845,8 +895,21 @@ export default function InvestmentsPage() {
 
   return (
     <PageContainer>
+      {/* Investment Accounts Section */}
+      {investmentAccounts.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-[var(--color-fg)] mb-4">Investment Accounts</h2>
+          <div className="space-y-4">
+            {investmentAccounts.map((account) => (
+              <InvestmentAccountCard key={account.id} account={account} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Paper Trading Portfolios Section */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--color-fg)]">Portfolios</h1>
+        <h2 className="text-xl font-semibold text-[var(--color-fg)]">Paper Trading Portfolios</h2>
         <Button onClick={() => setShowCreateModal(true)}>
           <LuPlus className="w-4 h-4 mr-2" />
           Create Portfolio
@@ -859,17 +922,17 @@ export default function InvestmentsPage() {
           <Button onClick={() => setShowCreateModal(true)} variant="outline">
             Create your first portfolio
           </Button>
-              </div>
+        </div>
       ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {portfolios.map((portfolio) => (
-                  <PortfolioCard
-                    key={portfolio.id}
-                    portfolio={portfolio}
+            <PortfolioCard
+              key={portfolio.id}
+              portfolio={portfolio}
               onCardClick={() => handlePortfolioClick(portfolio)}
-                  />
-                ))}
-              </div>
+            />
+          ))}
+        </div>
       )}
 
       <CreatePortfolioDrawer
@@ -894,6 +957,114 @@ export default function InvestmentsPage() {
         busyLabel="Deleting..."
       />
     </PageContainer>
+  );
+}
+
+// Investment Account Card Component
+function InvestmentAccountCard({ account }) {
+  const [stockQuotes, setStockQuotes] = useState({});
+  const portfolio = account.portfolio;
+  const holdings = portfolio?.holdings || [];
+
+  // Fetch stock quotes for holdings
+  useEffect(() => {
+    if (holdings.length > 0) {
+      const tickers = holdings.map(h => h.ticker.toUpperCase());
+      const tickerList = tickers.join(',');
+      
+      fetch(`/api/market-data/quotes?tickers=${tickerList}`)
+        .then(res => res.json())
+        .then(data => {
+          setStockQuotes(data.quotes || {});
+        })
+        .catch(err => console.error('Error fetching stock quotes:', err));
+    }
+  }, [holdings]);
+
+  // Calculate total portfolio value
+  const totalValue = useMemo(() => {
+    if (!portfolio) return account.balance;
+    
+    const cash = parseFloat(portfolio.current_cash) || 0;
+    let holdingsValue = 0;
+    
+    holdings.forEach(holding => {
+      const ticker = holding.ticker.toUpperCase();
+      const quote = stockQuotes[ticker];
+      const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
+      const shares = parseFloat(holding.shares) || 0;
+      holdingsValue += shares * currentPrice;
+    });
+    
+    return cash + holdingsValue;
+  }, [portfolio, holdings, stockQuotes, account.balance]);
+
+  return (
+    <Card className="p-4" variant="glass">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {account.logo && (
+            <img src={account.logo} alt={account.institution} className="w-8 h-8 rounded-full object-cover" />
+          )}
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--color-fg)]">{account.name}</h3>
+            <p className="text-xs text-[var(--color-muted)]">{account.institution}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-lg font-semibold text-[var(--color-fg)]">
+            {formatCurrency(totalValue)}
+          </div>
+        </div>
+      </div>
+
+      {holdings.length > 0 ? (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Holdings
+          </div>
+          <div className="space-y-2">
+            {holdings.slice(0, 5).map((holding) => {
+              const ticker = holding.ticker.toUpperCase();
+              const quote = stockQuotes[ticker];
+              const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
+              const shares = parseFloat(holding.shares) || 0;
+              const value = shares * currentPrice;
+              const avgCost = parseFloat(holding.avg_cost) || 0;
+              const gainPercent = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
+
+              return (
+                <div key={holding.id} className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-[var(--color-fg)]">{ticker}</div>
+                    <div className="text-xs text-[var(--color-muted)]">{shares.toFixed(2)} shares</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-[var(--color-fg)]">
+                      {formatCurrency(value)}
+                    </div>
+                    {quote?.price && (
+                      <div className={`text-xs ${gainPercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {gainPercent >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {holdings.length > 5 && (
+            <div className="text-xs text-[var(--color-muted)] text-center pt-2">
+              +{holdings.length - 5} more holding{holdings.length - 5 !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-[var(--color-muted)] text-center py-4">
+          No holdings yet
+        </div>
+      )}
+    </Card>
   );
 }
 
