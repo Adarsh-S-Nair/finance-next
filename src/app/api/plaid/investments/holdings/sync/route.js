@@ -224,26 +224,46 @@ export async function POST(request) {
       let totalHoldingsValue = 0;
       const holdingsToUpsert = [];
 
+      // Use a Map to aggregate holdings by ticker (in case Plaid returns duplicates)
+      const holdingsByTicker = new Map();
+
       accountHoldings.forEach(holding => {
         const ticker = securityMap.get(holding.security_id) || holding.security_id;
+        const tickerUpper = ticker.toUpperCase();
         const quantity = parseFloat(holding.quantity) || 0;
         const costBasis = parseFloat(holding.cost_basis) || 0;
-        const avgCost = quantity > 0 ? costBasis / quantity : 0;
         const institutionValue = parseFloat(holding.institution_value) || 0;
 
         totalHoldingsValue += institutionValue;
 
         if (DEBUG) {
-          console.log(`  📊 Holding: ${ticker.toUpperCase()} - ${quantity} shares @ $${avgCost.toFixed(2)} = $${institutionValue.toFixed(2)}`);
+          console.log(`  📊 Holding: ${tickerUpper} - ${quantity} shares @ $${costBasis > 0 && quantity > 0 ? (costBasis / quantity).toFixed(2) : '0.00'} = $${institutionValue.toFixed(2)}`);
         }
 
-        holdingsToUpsert.push({
-          portfolio_id: portfolio.id,
-          ticker: ticker.toUpperCase(),
-          shares: quantity,
-          avg_cost: avgCost,
-        });
+        // Aggregate holdings by ticker (sum shares, weighted average for cost)
+        if (holdingsByTicker.has(tickerUpper)) {
+          const existing = holdingsByTicker.get(tickerUpper);
+          const totalShares = existing.shares + quantity;
+          const totalCostBasis = (existing.avg_cost * existing.shares) + costBasis;
+          holdingsByTicker.set(tickerUpper, {
+            portfolio_id: portfolio.id,
+            ticker: tickerUpper,
+            shares: totalShares,
+            avg_cost: totalShares > 0 ? totalCostBasis / totalShares : 0,
+          });
+        } else {
+          const avgCost = quantity > 0 ? costBasis / quantity : 0;
+          holdingsByTicker.set(tickerUpper, {
+            portfolio_id: portfolio.id,
+            ticker: tickerUpper,
+            shares: quantity,
+            avg_cost: avgCost,
+          });
+        }
       });
+
+      // Convert map to array
+      holdingsToUpsert.push(...Array.from(holdingsByTicker.values()));
       
       if (DEBUG) {
         console.log(`  💰 Total holdings value: $${totalHoldingsValue.toFixed(2)}`);
@@ -267,14 +287,49 @@ export async function POST(request) {
 
       // Delete all existing holdings for this portfolio, then insert new ones
       // This ensures we have exactly what Plaid has (handles removals too)
-      const { error: deleteError } = await supabaseAdmin
+      // First, check what exists (for debugging)
+      const { data: existingHoldingsBeforeDelete, count: existingCount } = await supabaseAdmin
         .from('holdings')
-        .delete()
+        .select('ticker', { count: 'exact', head: false })
+        .eq('portfolio_id', portfolio.id);
+
+      if (DEBUG && existingHoldingsBeforeDelete) {
+        console.log(`  🗑️ Found ${existingHoldingsBeforeDelete.length} existing holdings before delete:`, existingHoldingsBeforeDelete.map(h => h.ticker));
+      }
+
+      const { error: deleteError, count: deletedCount } = await supabaseAdmin
+        .from('holdings')
+        .delete({ count: 'exact' })
         .eq('portfolio_id', portfolio.id);
 
       if (deleteError) {
         logger.error('Error deleting old holdings', null, { portfolio_id: portfolio.id, error: deleteError });
         if (DEBUG) console.log(`  ⚠️ Error deleting old holdings:`, deleteError);
+        // Don't continue if delete fails - we'd get duplicate key errors
+        continue;
+      }
+
+      if (DEBUG) {
+        console.log(`  ✅ Deleted ${deletedCount || existingCount || 0} existing holdings for portfolio ${portfolio.id}`);
+      }
+
+      // Verify deletion worked
+      const { data: remainingHoldings, count: remainingCount } = await supabaseAdmin
+        .from('holdings')
+        .select('ticker', { count: 'exact', head: false })
+        .eq('portfolio_id', portfolio.id);
+
+      if (remainingHoldings && remainingHoldings.length > 0) {
+        logger.error('Holdings still exist after delete', null, { 
+          portfolio_id: portfolio.id, 
+          remaining_count: remainingHoldings.length,
+          remaining_tickers: remainingHoldings.map(h => h.ticker)
+        });
+        if (DEBUG) {
+          console.log(`  ⚠️ WARNING: ${remainingHoldings.length} holdings still exist after delete!`, remainingHoldings.map(h => h.ticker));
+        }
+        // Don't continue - we'd get duplicate key errors
+        continue;
       }
 
       if (holdingsToUpsert.length > 0) {
@@ -290,14 +345,42 @@ export async function POST(request) {
         }
 
         if (nonZeroHoldings.length > 0) {
+          // Verify no duplicates in the array we're about to insert
+          const tickersToInsert = nonZeroHoldings.map(h => h.ticker);
+          const uniqueTickers = new Set(tickersToInsert);
+          if (tickersToInsert.length !== uniqueTickers.size) {
+            const duplicates = tickersToInsert.filter((t, i) => tickersToInsert.indexOf(t) !== i);
+            logger.error('Duplicate tickers found in holdings array', null, {
+              portfolio_id: portfolio.id,
+              duplicates,
+              all_tickers: tickersToInsert
+            });
+            if (DEBUG) {
+              console.log(`  ⚠️ WARNING: Found duplicate tickers in array:`, duplicates);
+              console.log(`  📋 All tickers:`, tickersToInsert);
+            }
+          }
+
+          if (DEBUG) {
+            console.log(`  📤 About to insert ${nonZeroHoldings.length} holdings:`, tickersToInsert);
+          }
+
           // Insert the new holdings (we already deleted all existing ones above)
           const { error: insertError } = await supabaseAdmin
             .from('holdings')
             .insert(nonZeroHoldings);
 
           if (insertError) {
-            logger.error('Error inserting holdings', null, { portfolio_id: portfolio.id, error: insertError });
-            if (DEBUG) console.log(`  ❌ Error inserting holdings:`, insertError);
+            logger.error('Error inserting holdings', null, { 
+              portfolio_id: portfolio.id, 
+              error: insertError,
+              holdings_count: nonZeroHoldings.length,
+              tickers: tickersToInsert
+            });
+            if (DEBUG) {
+              console.log(`  ❌ Error inserting holdings:`, insertError);
+              console.log(`  📋 Holdings we tried to insert:`, nonZeroHoldings);
+            }
           } else {
             holdingsSynced += nonZeroHoldings.length;
             if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for portfolio ${portfolio.id}`);
