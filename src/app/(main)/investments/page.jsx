@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import PageContainer from "../../../components/PageContainer";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
@@ -12,6 +13,7 @@ import { SiGooglegemini, SiX } from "react-icons/si";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 import LineChart from "../../../components/ui/LineChart";
+import { formatDateString } from "../../../lib/portfolioUtils";
 
 // Logo display component with error handling
 function LogoDisplay({ logo, ticker }) {
@@ -773,6 +775,7 @@ export default function InvestmentsPage() {
   const [investmentPortfolios, setInvestmentPortfolios] = useState([]);
   const [allHoldings, setAllHoldings] = useState([]);
   const [stockQuotes, setStockQuotes] = useState({});
+  const [portfolioSnapshots, setPortfolioSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
@@ -782,6 +785,8 @@ export default function InvestmentsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('[FETCH DATA] Starting to fetch investment portfolios for user:', profile.id);
+        
         // Fetch all plaid investment portfolios for this user
         // Include account balance (source of truth for cash)
         const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
@@ -800,13 +805,55 @@ export default function InvestmentsPage() {
           .eq('type', 'plaid_investment')
           .order('created_at', { ascending: false });
 
-        if (plaidPortfoliosError) throw plaidPortfoliosError;
+        console.log('[FETCH DATA] Query result:', {
+          portfoliosCount: plaidPortfoliosData?.length || 0,
+          error: plaidPortfoliosError,
+          portfolios: plaidPortfoliosData
+        });
+
+        if (plaidPortfoliosError) {
+          console.error('[FETCH DATA] Error fetching portfolios:', plaidPortfoliosError);
+          throw plaidPortfoliosError;
+        }
+        
+        console.log('[FETCH DATA] Setting investment portfolios:', plaidPortfoliosData?.length || 0);
         setInvestmentPortfolios(plaidPortfoliosData || []);
+
+        // Fetch portfolio snapshots for all investment portfolios
+        const portfolioIds = (plaidPortfoliosData || []).map(p => p.id);
+        console.log('[FETCH DATA] Portfolio IDs to fetch snapshots for:', portfolioIds);
+        
+        if (portfolioIds.length > 0) {
+          const { data: snapshotsData, error: snapshotsError } = await supabase
+            .from('portfolio_snapshots')
+            .select('*')
+            .in('portfolio_id', portfolioIds)
+            .order('snapshot_date', { ascending: true });
+
+          console.log('[FETCH DATA] Snapshots query result:', {
+            snapshotsCount: snapshotsData?.length || 0,
+            error: snapshotsError,
+            snapshots: snapshotsData
+          });
+
+          if (snapshotsError) {
+            console.error('[FETCH DATA] Error fetching portfolio snapshots:', snapshotsError);
+          } else {
+            console.log('[FETCH DATA] Setting portfolio snapshots:', snapshotsData?.length || 0);
+            setPortfolioSnapshots(snapshotsData || []);
+          }
+        } else {
+          console.log('[FETCH DATA] No portfolio IDs, setting empty snapshots');
+          setPortfolioSnapshots([]);
+        }
 
         // Aggregate all holdings from all portfolios
         const holdingsMap = new Map(); // To combine duplicate tickers across portfolios
 
-        (plaidPortfoliosData || []).forEach(portfolio => {
+        console.log('[FETCH DATA] Aggregating holdings from', (plaidPortfoliosData || []).length, 'portfolios');
+        
+        (plaidPortfoliosData || []).forEach((portfolio, pIndex) => {
+          console.log(`[FETCH DATA] Portfolio ${pIndex + 1} holdings count:`, portfolio.holdings?.length || 0);
           (portfolio.holdings || []).forEach(holding => {
             const ticker = holding.ticker.toUpperCase();
             const shares = parseFloat(holding.shares) || 0;
@@ -831,6 +878,7 @@ export default function InvestmentsPage() {
         });
 
         const holdingsArray = Array.from(holdingsMap.values());
+        console.log('[FETCH DATA] Aggregated holdings count:', holdingsArray.length);
         
         // Fetch ticker logos and info
         if (holdingsArray.length > 0) {
@@ -926,24 +974,71 @@ export default function InvestmentsPage() {
 
   // Calculate combined portfolio metrics (must be before conditional return)
   const portfolioMetrics = useMemo(() => {
-    let totalCash = 0;
+    // For investment accounts, the account balance from Plaid IS the total account value
+    // (it already includes cash + holdings value from the institution)
+    // We should use it directly as the total portfolio value
+    
+    let totalPortfolioValue = 0;
     let totalHoldingsValue = 0;
 
-    investmentPortfolios.forEach(portfolio => {
-      // Account balance is source of truth for cash
-      const accountBalance = portfolio.source_account?.balances?.current || 0;
-      totalCash += accountBalance;
+    console.log('[PORTFOLIO METRICS] Calculating portfolio metrics...');
+    console.log('[PORTFOLIO METRICS] Investment portfolios:', investmentPortfolios.length);
+    
+    investmentPortfolios.forEach((portfolio, index) => {
+      // Account balance is the TOTAL account value (cash + holdings) from Plaid
+      // Parse it as a number (it comes from JSONB as a string or number)
+      const balances = portfolio.source_account?.balances;
+      const accountBalance = typeof balances?.current === 'string' 
+        ? parseFloat(balances.current) 
+        : (balances?.current || 0);
+      
+      console.log(`[PORTFOLIO METRICS] Portfolio ${index + 1} (${portfolio.name || portfolio.id}):`, {
+        accountBalance,
+        balancesRaw: balances,
+        accountName: portfolio.source_account?.name,
+        portfolioId: portfolio.id
+      });
+      
+      totalPortfolioValue += accountBalance;
     });
 
-    allHoldings.forEach(holding => {
+    console.log('[PORTFOLIO METRICS] Total portfolio value (from account balances):', totalPortfolioValue);
+    console.log('[PORTFOLIO METRICS] All holdings count:', allHoldings.length);
+
+    // Calculate holdings value for display purposes (using current market prices)
+    allHoldings.forEach((holding, index) => {
       const ticker = holding.ticker.toUpperCase();
       const quote = stockQuotes[ticker];
       const currentPrice = quote?.price || holding.avg_cost || 0;
       const shares = holding.shares || 0;
-      totalHoldingsValue += shares * currentPrice;
+      const value = shares * currentPrice;
+      totalHoldingsValue += value;
+      
+      if (index < 5) { // Log first 5 holdings
+        console.log(`[PORTFOLIO METRICS] Holding ${index + 1} (${ticker}):`, {
+          shares,
+          currentPrice,
+          value,
+          hasQuote: !!quote,
+          quotePrice: quote?.price,
+          avgCost: holding.avg_cost
+        });
+      }
     });
 
-    const totalPortfolioValue = totalCash + totalHoldingsValue;
+    console.log('[PORTFOLIO METRICS] Total holdings value (calculated):', totalHoldingsValue);
+
+    // For cash calculation: Account balance already includes everything
+    // So cash = total - holdings value (approximate, since account balance 
+    // uses Plaid's valuation, not our current market prices)
+    const totalCash = totalPortfolioValue - totalHoldingsValue;
+    
+    console.log('[PORTFOLIO METRICS] Final calculations:', {
+      totalPortfolioValue,
+      totalHoldingsValue,
+      totalCash,
+      stockQuotesCount: Object.keys(stockQuotes).length
+    });
 
     // Calculate holdings with current values
     const holdingsWithValues = allHoldings.map(holding => {
@@ -994,7 +1089,10 @@ export default function InvestmentsPage() {
             {/* Main Panel - 2/3 width */}
             <div className="lg:w-2/3 flex flex-col gap-6">
               {/* Portfolio Value Chart Card */}
-              <CombinedPortfolioChartCard portfolioMetrics={portfolioMetrics} />
+              <CombinedPortfolioChartCard 
+                portfolioMetrics={portfolioMetrics}
+                snapshots={portfolioSnapshots}
+              />
             </div>
 
             {/* Side Panel - 1/3 width */}
@@ -1070,8 +1168,218 @@ export default function InvestmentsPage() {
 }
 
 // Combined Portfolio Chart Card Component
-function CombinedPortfolioChartCard({ portfolioMetrics }) {
+function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
+  const { profile } = useUser();
   const totalValue = portfolioMetrics.totalPortfolioValue;
+  const [timeRange, setTimeRange] = useState('ALL');
+  
+  // Aggregate snapshots by date (sum values across all portfolios)
+  const aggregatedChartData = useMemo(() => {
+    console.log('[CHART DATA] Aggregating snapshots...');
+    console.log('[CHART DATA] Snapshots count:', snapshots?.length || 0);
+    console.log('[CHART DATA] Current total value:', totalValue);
+    
+    if (!snapshots || snapshots.length === 0) {
+      console.log('[CHART DATA] No snapshots available');
+      return [];
+    }
+    
+    // Log first few snapshots
+    snapshots.slice(0, 5).forEach((snapshot, index) => {
+      console.log(`[CHART DATA] Snapshot ${index + 1}:`, {
+        date: snapshot.snapshot_date,
+        total_value: snapshot.total_value,
+        cash: snapshot.cash,
+        holdings_value: snapshot.holdings_value,
+        portfolio_id: snapshot.portfolio_id
+      });
+    });
+    
+    // Group snapshots by date
+    const snapshotsByDate = new Map();
+    snapshots.forEach(snapshot => {
+      const date = snapshot.snapshot_date;
+      if (!snapshotsByDate.has(date)) {
+        snapshotsByDate.set(date, {
+          date,
+          dateString: date,
+          value: 0,
+        });
+      }
+      const aggregated = snapshotsByDate.get(date);
+      aggregated.value += parseFloat(snapshot.total_value) || 0;
+    });
+    
+    // Convert to array and sort by date
+    const sortedData = Array.from(snapshotsByDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(item => ({
+        date: parseLocalDate(item.date),
+        dateString: item.dateString,
+        value: item.value,
+      }));
+    
+    console.log('[CHART DATA] Aggregated data by date:', sortedData);
+    
+    // If only one snapshot, add current value as second point
+    if (sortedData.length === 1) {
+      const today = formatDateString(new Date());
+      console.log('[CHART DATA] Only one snapshot, adding current value as second point');
+      sortedData.push({
+        date: parseLocalDate(today),
+        dateString: today,
+        value: totalValue || 0,
+      });
+    }
+    
+    console.log('[CHART DATA] Final aggregated chart data:', sortedData);
+    return sortedData;
+  }, [snapshots, totalValue]);
+  
+  // Filter chart data based on time range
+  const filteredData = useMemo(() => {
+    if (aggregatedChartData.length === 0) return [];
+    if (timeRange === 'ALL') return aggregatedChartData;
+    
+    const now = new Date();
+    let startDate = new Date(now);
+    
+    switch (timeRange) {
+      case '1W':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '1M':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '3M':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'YTD':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case '1Y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        return aggregatedChartData;
+    }
+    
+    // Filter data based on start date
+    const filtered = aggregatedChartData.filter(item => item.date >= startDate);
+    // If there isn't enough data for the selected range, show all available data
+    if (filtered.length === 0 && aggregatedChartData.length > 0) {
+      return aggregatedChartData;
+    }
+    return filtered;
+  }, [aggregatedChartData, timeRange]);
+  
+  // Display chart data (always include current value as the last point)
+  const displayChartData = useMemo(() => {
+    if (filteredData.length === 0) {
+      // If no filtered data, try to show at least a line from most recent snapshot to current value
+      if (aggregatedChartData.length === 0) return [];
+      // Use the most recent snapshot as start, current value as end
+      const latestSnapshot = aggregatedChartData[aggregatedChartData.length - 1];
+      const today = formatDateString(new Date());
+      return [
+        latestSnapshot,
+        {
+          date: parseLocalDate(today),
+          dateString: today,
+          value: totalValue || 0,
+        }
+      ];
+    }
+    
+    // Always add current value as the last point (for "now")
+    const today = formatDateString(new Date());
+    const lastPoint = filteredData[filteredData.length - 1];
+    const todayDateString = today;
+    
+    // Only add current value if it's different from the last point or if the last point isn't today
+    if (lastPoint.dateString !== todayDateString) {
+      return [
+        ...filteredData,
+        {
+          date: parseLocalDate(today),
+          dateString: todayDateString,
+          value: totalValue || 0,
+        }
+      ];
+    } else {
+      // If the last point is today, update its value to the current value
+      return [
+        ...filteredData.slice(0, -1),
+        {
+          ...lastPoint,
+          value: totalValue || 0,
+        }
+      ];
+    }
+  }, [filteredData, aggregatedChartData, totalValue]);
+  
+  // Calculate percentage change from first value in filtered/display data
+  const percentChange = useMemo(() => {
+    console.log('[PERCENTAGE CHANGE] Calculating percentage change...');
+    console.log('[PERCENTAGE CHANGE] Display chart data length:', displayChartData.length);
+    console.log('[PERCENTAGE CHANGE] Display chart data:', displayChartData);
+    console.log('[PERCENTAGE CHANGE] Current total value:', totalValue);
+    
+    if (displayChartData.length === 0) {
+      console.log('[PERCENTAGE CHANGE] No display chart data, returning 0');
+      return 0;
+    }
+    const startValue = displayChartData[0].value;
+    const currentValue = totalValue || 0;
+    
+    console.log('[PERCENTAGE CHANGE] Start value (first point):', startValue);
+    console.log('[PERCENTAGE CHANGE] Current value:', currentValue);
+    
+    if (startValue === 0) {
+      console.log('[PERCENTAGE CHANGE] Start value is 0, returning 0');
+      return 0;
+    }
+    
+    const change = ((currentValue - startValue) / Math.abs(startValue)) * 100;
+    console.log('[PERCENTAGE CHANGE] Calculated change:', {
+      change,
+      dollarChange: currentValue - startValue,
+      startValue,
+      currentValue
+    });
+    
+    return change;
+  }, [displayChartData, totalValue]);
+  
+  const returnAmount = useMemo(() => {
+    if (displayChartData.length === 0) return 0;
+    const startValue = displayChartData[0].value;
+    const amount = (totalValue || 0) - startValue;
+    console.log('[RETURN AMOUNT]', {
+      startValue,
+      currentValue: totalValue,
+      returnAmount: amount
+    });
+    return amount;
+  }, [displayChartData, totalValue]);
+  
+  // Calculate chart color based on performance
+  const chartColor = useMemo(() => {
+    if (displayChartData.length < 2) return 'var(--color-accent)';
+    const startValue = displayChartData[0].value;
+    const endValue = displayChartData[displayChartData.length - 1].value;
+    return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
+  }, [displayChartData]);
+  
+  const availableRanges = useMemo(() => {
+    return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
+  }, []);
+  
+  // For accent color styling
+  const validAccentColor = '#00f3ff';
+  const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
+  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
   
   return (
     <Card variant="glass" padding="none">
@@ -1082,15 +1390,75 @@ function CombinedPortfolioChartCard({ portfolioMetrics }) {
         <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-2">
           <AnimatedCounter value={totalValue || 0} duration={120} />
         </div>
-        <div className="text-xs text-[var(--color-muted)]">
-          {portfolioMetrics.holdingsWithValues.length} position{portfolioMetrics.holdingsWithValues.length !== 1 ? 's' : ''}
+        <div className={`text-xs font-medium ${percentChange > 0 ? 'text-emerald-500' :
+          percentChange < 0 ? 'text-rose-500' :
+            'text-[var(--color-muted)]'
+          }`}>
+          {returnAmount >= 0 ? '+' : ''}{formatCurrencyWithSmallCents(returnAmount)}
+          {' '}
+          ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
         </div>
       </div>
       
-      {/* Chart - placeholder for now, will show actual data when snapshots are available */}
-      <div className="px-4 sm:px-6 pb-4 pt-4 border-t border-[var(--color-border)]/50">
-        <div className="h-64 flex items-center justify-center text-[var(--color-muted)]/60 text-sm">
-          Chart view coming soon (snapshots needed)
+      {/* Chart */}
+      <div className="px-4 sm:px-6 pb-4 pt-4">
+        {displayChartData.length > 0 ? (
+          <div style={{ height: '240px' }}>
+            <LineChart
+              data={displayChartData}
+              dataKey="value"
+              width="100%"
+              height={240}
+              margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
+              strokeColor={chartColor}
+              strokeWidth={2}
+              showArea={true}
+              areaOpacity={0.15}
+              showDots={false}
+              dotRadius={4}
+              showTooltip={false}
+              gradientId={`combinedPortfolioChartGradient`}
+              curveType="monotone"
+              animationDuration={800}
+              xAxisDataKey="dateString"
+            />
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-[var(--color-muted)]/60 text-sm">
+            Chart data will appear here once snapshots are available
+          </div>
+        )}
+      </div>
+      
+      {/* Time Range Selector */}
+      <div className="mt-2 pt-2 px-4 sm:px-6 pb-4 border-t border-[var(--color-border)]/50">
+        <div className="flex justify-between items-center w-full">
+          {availableRanges.map((range) => {
+            const isActive = timeRange === range;
+            
+            return (
+              <div key={range} className="flex-1 flex justify-center">
+                <button
+                  onClick={() => setTimeRange(range)}
+                  className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
+                  style={{
+                    color: isActive ? activeTextColor : 'var(--color-muted)'
+                  }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="combinedPortfolioTimeRange"
+                      className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
+                    {range}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </Card>

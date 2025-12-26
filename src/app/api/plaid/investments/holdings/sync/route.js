@@ -279,10 +279,10 @@ export async function POST(request) {
       // Get unique tickers to check/create in database
       const uniqueTickers = Array.from(holdingsByTicker.keys());
       
-      // Check which tickers exist in database
+      // Check which tickers exist in database and which are missing data
       const { data: existingTickers, error: tickerCheckError } = await supabaseAdmin
         .from('tickers')
-        .select('symbol')
+        .select('symbol, name, sector, logo')
         .in('symbol', uniqueTickers);
 
       if (tickerCheckError) {
@@ -291,46 +291,86 @@ export async function POST(request) {
 
       const existingTickerSymbols = new Set((existingTickers || []).map(t => t.symbol));
       const newTickers = uniqueTickers.filter(t => !existingTickerSymbols.has(t));
+      
+      // Also find existing tickers that are missing data (name, sector, or logo)
+      const existingTickersMissingData = (existingTickers || []).filter(t => {
+        return !t.name || !t.sector || !t.logo || t.logo.trim() === '';
+      }).map(t => t.symbol);
+      
+      // Combine new tickers and existing tickers missing data
+      const tickersToProcess = [...new Set([...newTickers, ...existingTickersMissingData])];
 
-      // Fetch details and create tickers for new ones
-      if (newTickers.length > 0) {
-        logger.info('Creating new tickers', { count: newTickers.length, tickers: newTickers });
-        if (DEBUG) console.log(`  🔍 Found ${newTickers.length} new tickers to create:`, newTickers);
+      // Fetch details and create/update tickers
+      if (tickersToProcess.length > 0) {
+        logger.info('Processing tickers', { 
+          new: newTickers.length, 
+          missingData: existingTickersMissingData.length,
+          total: tickersToProcess.length,
+          tickers: tickersToProcess 
+        });
+        if (DEBUG) console.log(`  🔍 Found ${tickersToProcess.length} tickers to process (${newTickers.length} new, ${existingTickersMissingData.length} missing data):`, tickersToProcess);
 
         // Fetch ticker details from Finnhub
         const { fetchBulkTickerDetails } = await import('../../../../../../lib/marketData');
-        const tickerDetails = await fetchBulkTickerDetails(newTickers, 250); // 250ms delay between requests
+        const tickerDetails = await fetchBulkTickerDetails(tickersToProcess, 250); // 250ms delay between requests
 
-        // Prepare ticker inserts with logos
+        // Prepare ticker upserts with logos (match pattern from ai-trading/initialize)
         const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
+        
+        // Build map of existing ticker data for preservation
+        const existingTickerMap = new Map();
+        if (existingTickers) {
+          existingTickers.forEach(t => {
+            existingTickerMap.set(t.symbol, t);
+          });
+        }
+
         const tickerInserts = tickerDetails.map(detail => {
+          const symbol = detail.ticker.toUpperCase();
+          const existingTicker = existingTickerMap.get(symbol);
+          
+          // Use existing data if available and valid, otherwise use fetched data
+          const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
+            ? existingTicker.name 
+            : (detail.name || null);
+          const sector = (existingTicker?.sector && existingTicker.sector.trim() !== '') 
+            ? existingTicker.sector 
+            : (detail.sector || null);
+          const domain = detail.domain || null;
+          
+          // Logo logic: preserve existing logo if valid, otherwise generate from domain
           let logo = null;
-          if (detail.domain && logoDevPublicKey) {
-            logo = `https://img.logo.dev/${detail.domain}?token=${logoDevPublicKey}`;
+          if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
+            // Preserve existing logo (already has a valid logo)
+            logo = existingTicker.logo;
+          } else if (domain && logoDevPublicKey) {
+            // Generate logo URL from domain using logo.dev
+            logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
           }
+          // If no domain available, logo remains null
 
           return {
-            symbol: detail.ticker.toUpperCase(),
-            name: detail.name || null,
-            sector: detail.sector || null,
+            symbol: symbol,
+            name: name,
+            sector: sector,
             logo: logo,
           };
         });
 
-        // Insert new tickers
+        // Upsert tickers (will update existing ones that are missing data)
         const { error: tickerInsertError } = await supabaseAdmin
           .from('tickers')
           .upsert(tickerInserts, {
             onConflict: 'symbol',
-            ignoreDuplicates: false,
+            ignoreDuplicates: false, // Update if exists
           });
 
         if (tickerInsertError) {
-          logger.error('Error inserting new tickers', null, { error: tickerInsertError });
-          if (DEBUG) console.log(`  ⚠️ Error inserting new tickers:`, tickerInsertError);
+          logger.error('Error upserting tickers', null, { error: tickerInsertError });
+          if (DEBUG) console.log(`  ⚠️ Error upserting tickers:`, tickerInsertError);
         } else {
-          logger.info('Successfully created new tickers', { count: tickerInserts.length });
-          if (DEBUG) console.log(`  ✅ Created ${tickerInserts.length} new tickers`);
+          logger.info('Successfully processed tickers', { count: tickerInserts.length });
+          if (DEBUG) console.log(`  ✅ Processed ${tickerInserts.length} tickers (created/updated)`);
         }
       }
       
