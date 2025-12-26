@@ -222,6 +222,7 @@ export async function POST(request) {
 
       // Calculate total holdings value and cash
       let totalHoldingsValue = 0;
+      let cashFromHoldings = 0; // Cash positions like CUR:USD
       const holdingsToUpsert = [];
 
       // Use a Map to aggregate holdings by ticker (in case Plaid returns duplicates)
@@ -233,6 +234,16 @@ export async function POST(request) {
         const quantity = parseFloat(holding.quantity) || 0;
         const costBasis = parseFloat(holding.cost_basis) || 0;
         const institutionValue = parseFloat(holding.institution_value) || 0;
+
+        // Check if this is a cash position (e.g., CUR:USD, CUR:EUR, etc.)
+        if (tickerUpper.startsWith('CUR:')) {
+          // This is cash, not a holding - add to cash value
+          cashFromHoldings += institutionValue;
+          if (DEBUG) {
+            console.log(`  💵 Cash position: ${tickerUpper} = $${institutionValue.toFixed(2)} (adding to cash, not holdings)`);
+          }
+          return; // Skip adding to holdings
+        }
 
         totalHoldingsValue += institutionValue;
 
@@ -264,26 +275,81 @@ export async function POST(request) {
 
       // Convert map to array
       holdingsToUpsert.push(...Array.from(holdingsByTicker.values()));
+
+      // Get unique tickers to check/create in database
+      const uniqueTickers = Array.from(holdingsByTicker.keys());
+      
+      // Check which tickers exist in database
+      const { data: existingTickers, error: tickerCheckError } = await supabaseAdmin
+        .from('tickers')
+        .select('symbol')
+        .in('symbol', uniqueTickers);
+
+      if (tickerCheckError) {
+        logger.warn('Error checking existing tickers', { error: tickerCheckError });
+      }
+
+      const existingTickerSymbols = new Set((existingTickers || []).map(t => t.symbol));
+      const newTickers = uniqueTickers.filter(t => !existingTickerSymbols.has(t));
+
+      // Fetch details and create tickers for new ones
+      if (newTickers.length > 0) {
+        logger.info('Creating new tickers', { count: newTickers.length, tickers: newTickers });
+        if (DEBUG) console.log(`  🔍 Found ${newTickers.length} new tickers to create:`, newTickers);
+
+        // Fetch ticker details from Finnhub
+        const { fetchBulkTickerDetails } = await import('../../../../../../lib/marketData');
+        const tickerDetails = await fetchBulkTickerDetails(newTickers, 250); // 250ms delay between requests
+
+        // Prepare ticker inserts with logos
+        const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
+        const tickerInserts = tickerDetails.map(detail => {
+          let logo = null;
+          if (detail.domain && logoDevPublicKey) {
+            logo = `https://img.logo.dev/${detail.domain}?token=${logoDevPublicKey}`;
+          }
+
+          return {
+            symbol: detail.ticker.toUpperCase(),
+            name: detail.name || null,
+            sector: detail.sector || null,
+            logo: logo,
+          };
+        });
+
+        // Insert new tickers
+        const { error: tickerInsertError } = await supabaseAdmin
+          .from('tickers')
+          .upsert(tickerInserts, {
+            onConflict: 'symbol',
+            ignoreDuplicates: false,
+          });
+
+        if (tickerInsertError) {
+          logger.error('Error inserting new tickers', null, { error: tickerInsertError });
+          if (DEBUG) console.log(`  ⚠️ Error inserting new tickers:`, tickerInsertError);
+        } else {
+          logger.info('Successfully created new tickers', { count: tickerInserts.length });
+          if (DEBUG) console.log(`  ✅ Created ${tickerInserts.length} new tickers`);
+        }
+      }
       
       if (DEBUG) {
         console.log(`  💰 Total holdings value: $${totalHoldingsValue.toFixed(2)}`);
         console.log(`  📝 Holdings to upsert: ${holdingsToUpsert.length}`);
       }
 
-      // Update portfolio cash (available balance or current - holdings value)
-      const accountData = accountMap.get(accountId);
-      const availableCash = accountData?.balances?.available || 0;
-      const currentBalance = accountData?.balances?.current || 0;
-      // If available is 0 or null, estimate cash as current balance - holdings value
-      const estimatedCash = availableCash > 0 ? availableCash : Math.max(0, currentBalance - totalHoldingsValue);
-
-      await supabaseAdmin
-        .from('portfolios')
-        .update({
-          current_cash: estimatedCash,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', portfolio.id);
+      // Note: We no longer update portfolio.current_cash here
+      // Account balance (from accounts table) is the source of truth for cash
+      // Portfolio value = account balance + holdings value
+      if (DEBUG) {
+        const accountData = accountMap.get(accountId);
+        const currentBalance = accountData?.balances?.current || 0;
+        console.log(`  💵 Account balance (source of truth for cash): $${currentBalance.toFixed(2)}`);
+        console.log(`  💵 Cash from holdings (CUR:*): $${cashFromHoldings.toFixed(2)}`);
+        console.log(`  📊 Holdings value (non-cash): $${totalHoldingsValue.toFixed(2)}`);
+        console.log(`  📊 Total portfolio value: $${(currentBalance + totalHoldingsValue).toFixed(2)}`);
+      }
 
       // Delete all existing holdings for this portfolio, then insert new ones
       // This ensures we have exactly what Plaid has (handles removals too)
@@ -384,6 +450,53 @@ export async function POST(request) {
           } else {
             holdingsSynced += nonZeroHoldings.length;
             if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for portfolio ${portfolio.id}`);
+
+            // Create a snapshot for this portfolio (conditional - only if date/value changed)
+            try {
+              // Get account balance (source of truth for cash)
+              const { data: accountData } = await supabaseAdmin
+                .from('accounts')
+                .select('balances')
+                .eq('id', account.id)
+                .single();
+              
+              const accountBalance = accountData?.balances?.current || 0;
+              
+              // Fetch current holdings to calculate holdings value
+              const { data: currentHoldings } = await supabaseAdmin
+                .from('holdings')
+                .select('ticker, shares, avg_cost')
+                .eq('portfolio_id', portfolio.id);
+
+              // Create snapshot conditionally (only if date changed and value changed)
+              const { createPortfolioSnapshotConditional } = await import('../../../../../../lib/portfolioSnapshotUtils');
+              const snapshotResult = await createPortfolioSnapshotConditional(
+                portfolio.id,
+                accountBalance,
+                currentHoldings || [],
+                {} // No stock quotes available during holdings sync - uses avg_cost
+              );
+
+              if (snapshotResult.success && !snapshotResult.skipped) {
+                logger.info('Created portfolio snapshot', { 
+                  portfolio_id: portfolio.id, 
+                  reason: snapshotResult.reason 
+                });
+                if (DEBUG) console.log(`  📸 Created portfolio snapshot for portfolio ${portfolio.id}: ${snapshotResult.reason}`);
+              } else if (snapshotResult.skipped) {
+                if (DEBUG) console.log(`  ⏭️ Skipped portfolio snapshot for portfolio ${portfolio.id}: ${snapshotResult.reason}`);
+              } else {
+                logger.warn('Error creating portfolio snapshot', { 
+                  portfolio_id: portfolio.id, 
+                  error: snapshotResult.error 
+                });
+                if (DEBUG) console.log(`  ⚠️ Error creating snapshot:`, snapshotResult.error);
+              }
+            } catch (snapshotErr) {
+              logger.warn('Exception creating portfolio snapshot', { portfolio_id: portfolio.id, error: snapshotErr });
+              if (DEBUG) console.log(`  ⚠️ Exception creating snapshot:`, snapshotErr);
+              // Don't fail the whole sync if snapshot creation fails
+            }
           }
         } else {
           if (DEBUG) console.log(`  ⚠️ No non-zero holdings to insert for account ${accountId}`);

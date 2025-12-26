@@ -61,10 +61,19 @@ class Logger {
     console.log(`[${level.toUpperCase()}] [${this.context}] ${message}`, metadata);
 
     // Send to Axiom using next-axiom's logger
-    this.axiomLogger.log(level, message, {
-      context: this.context,
-      ...metadata,
-    });
+    // Wrap in try-catch to handle serverless environment issues
+    try {
+      this.axiomLogger.log(level, message, {
+        context: this.context,
+        ...metadata,
+      });
+    } catch (error) {
+      // Suppress terminal-related errors in serverless environments
+      // These are harmless formatting errors from the logging library
+      if (!error?.message?.includes('terminal') && !error?.message?.includes('Cannot read properties of undefined')) {
+        console.error('Error logging to Axiom:', error);
+      }
+    }
 
     return logData;
   }
@@ -76,6 +85,12 @@ class Logger {
     try {
       await this.axiomLogger.flush();
     } catch (error) {
+      // Suppress terminal-related errors in serverless environments
+      // These are harmless formatting errors from the logging library
+      if (error?.message?.includes('terminal') || error?.message?.includes('Cannot read properties of undefined')) {
+        // Silently ignore - this is just a formatting issue in serverless environments
+        return;
+      }
       console.error('Failed to flush logs to Axiom:', error);
     }
   }

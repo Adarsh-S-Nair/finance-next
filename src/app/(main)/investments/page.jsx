@@ -11,6 +11,7 @@ import { LuPlus, LuBot, LuChevronLeft } from "react-icons/lu";
 import { SiGooglegemini, SiX } from "react-icons/si";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
+import LineChart from "../../../components/ui/LineChart";
 
 // Logo display component with error handling
 function LogoDisplay({ logo, ticker }) {
@@ -769,63 +770,106 @@ export default function InvestmentsPage() {
   const router = useRouter();
   const { profile } = useUser();
   const [portfolios, setPortfolios] = useState([]);
-  const [investmentAccounts, setInvestmentAccounts] = useState([]);
+  const [investmentPortfolios, setInvestmentPortfolios] = useState([]);
+  const [allHoldings, setAllHoldings] = useState([]);
+  const [stockQuotes, setStockQuotes] = useState({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch investment accounts and portfolios
+  // Fetch investment portfolios and holdings
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch investment accounts (type='investment' and product_type='investments')
-        const { data: accountsData, error: accountsError } = await supabase
-          .from('accounts')
+        // Fetch all plaid investment portfolios for this user
+        // Include account balance (source of truth for cash)
+        const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
+          .from('portfolios')
           .select(`
             *,
-            institutions(name, logo)
+            holdings(id, ticker, shares, avg_cost),
+            source_account:accounts!portfolios_source_account_id_fkey(
+              id,
+              name,
+              balances,
+              institutions(name, logo)
+            )
           `)
           .eq('user_id', profile.id)
-          .eq('type', 'investment')
-          .eq('product_type', 'investments')
-          .order('name', { ascending: true });
+          .eq('type', 'plaid_investment')
+          .order('created_at', { ascending: false });
 
-        if (accountsError) throw accountsError;
+        if (plaidPortfoliosError) throw plaidPortfoliosError;
+        setInvestmentPortfolios(plaidPortfoliosData || []);
 
-        // Fetch portfolios for these accounts
-        const accountIds = (accountsData || []).map(acc => acc.id);
-        let portfoliosMap = {};
-        
-        if (accountIds.length > 0) {
-          const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
-            .from('portfolios')
-            .select(`
-              *,
-              holdings(id, ticker, shares, avg_cost)
-            `)
-            .eq('type', 'plaid_investment')
-            .in('source_account_id', accountIds);
+        // Aggregate all holdings from all portfolios
+        const holdingsMap = new Map(); // To combine duplicate tickers across portfolios
 
-          if (plaidPortfoliosError) throw plaidPortfoliosError;
+        (plaidPortfoliosData || []).forEach(portfolio => {
+          (portfolio.holdings || []).forEach(holding => {
+            const ticker = holding.ticker.toUpperCase();
+            const shares = parseFloat(holding.shares) || 0;
+            const avgCost = parseFloat(holding.avg_cost) || 0;
+            const costBasis = shares * avgCost;
 
-          // Create a map of account_id -> portfolio
-          (plaidPortfoliosData || []).forEach(portfolio => {
-            portfoliosMap[portfolio.source_account_id] = portfolio;
+            if (holdingsMap.has(ticker)) {
+              const existing = holdingsMap.get(ticker);
+              // Sum shares and cost basis for weighted average
+              existing.shares += shares;
+              existing.totalCostBasis += costBasis;
+              existing.avg_cost = existing.shares > 0 ? existing.totalCostBasis / existing.shares : 0;
+            } else {
+              holdingsMap.set(ticker, {
+                ticker: ticker,
+                shares: shares,
+                totalCostBasis: costBasis,
+                avg_cost: avgCost,
+              });
+            }
           });
+        });
+
+        const holdingsArray = Array.from(holdingsMap.values());
+        
+        // Fetch ticker logos and info
+        if (holdingsArray.length > 0) {
+          const tickers = holdingsArray.map(h => h.ticker);
+          const { data: tickersData } = await supabase
+            .from('tickers')
+            .select('symbol, logo, name, sector')
+            .in('symbol', tickers);
+
+          const tickerMap = new Map();
+          if (tickersData) {
+            tickersData.forEach(t => {
+              tickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
+            });
+          }
+
+          const holdingsWithLogos = holdingsArray.map(holding => ({
+            ...holding,
+            logo: tickerMap.get(holding.ticker)?.logo || null,
+            name: tickerMap.get(holding.ticker)?.name || null,
+            sector: tickerMap.get(holding.ticker)?.sector || null,
+          }));
+
+          setAllHoldings(holdingsWithLogos);
+
+          // Fetch stock quotes
+          const tickerList = tickers.join(',');
+          try {
+            const quotesRes = await fetch(`/api/market-data/quotes?tickers=${tickerList}`);
+            if (quotesRes.ok) {
+              const quotesData = await quotesRes.json();
+              setStockQuotes(quotesData.quotes || {});
+            }
+          } catch (quotesErr) {
+            console.error('Error fetching stock quotes:', quotesErr);
+          }
+        } else {
+          setAllHoldings([]);
         }
-
-        // Transform accounts data
-        const transformedAccounts = (accountsData || []).map(account => ({
-          id: account.id,
-          name: account.name,
-          balance: account.balances?.current || 0,
-          institution: account.institutions?.name || 'Unknown',
-          logo: account.institutions?.logo,
-          portfolio: portfoliosMap[account.id] || null,
-        }));
-
-        setInvestmentAccounts(transformedAccounts);
 
         // Fetch paper trading portfolios (AI and Alpaca)
         const { data: portfoliosData, error: portfoliosError } = await supabase
@@ -880,6 +924,54 @@ export default function InvestmentsPage() {
     }
   };
 
+  // Calculate combined portfolio metrics (must be before conditional return)
+  const portfolioMetrics = useMemo(() => {
+    let totalCash = 0;
+    let totalHoldingsValue = 0;
+
+    investmentPortfolios.forEach(portfolio => {
+      // Account balance is source of truth for cash
+      const accountBalance = portfolio.source_account?.balances?.current || 0;
+      totalCash += accountBalance;
+    });
+
+    allHoldings.forEach(holding => {
+      const ticker = holding.ticker.toUpperCase();
+      const quote = stockQuotes[ticker];
+      const currentPrice = quote?.price || holding.avg_cost || 0;
+      const shares = holding.shares || 0;
+      totalHoldingsValue += shares * currentPrice;
+    });
+
+    const totalPortfolioValue = totalCash + totalHoldingsValue;
+
+    // Calculate holdings with current values
+    const holdingsWithValues = allHoldings.map(holding => {
+      const ticker = holding.ticker.toUpperCase();
+      const quote = stockQuotes[ticker];
+      const currentPrice = quote?.price || holding.avg_cost || 0;
+      const shares = holding.shares || 0;
+      const value = shares * currentPrice;
+      const avgCost = holding.avg_cost || 0;
+
+      return {
+        ...holding,
+        currentPrice,
+        value,
+        avgCost,
+        percentage: totalPortfolioValue > 0 ? (value / totalPortfolioValue) * 100 : 0,
+      };
+    }).sort((a, b) => b.value - a.value);
+
+    return {
+      cash: totalCash,
+      totalHoldingsValue,
+      totalPortfolioValue,
+      holdingsWithValues,
+      cashPercentage: totalPortfolioValue > 0 ? (totalCash / totalPortfolioValue) * 100 : 0,
+    };
+  }, [investmentPortfolios, allHoldings, stockQuotes]);
+
   if (loading) {
     return (
       <PageContainer>
@@ -895,15 +987,32 @@ export default function InvestmentsPage() {
 
   return (
     <PageContainer>
-      {/* Investment Accounts Section */}
-      {investmentAccounts.length > 0 && (
+      {/* Main Investment Portfolio View */}
+      {investmentPortfolios.length > 0 ? (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-[var(--color-fg)] mb-4">Investment Accounts</h2>
-          <div className="space-y-4">
-            {investmentAccounts.map((account) => (
-              <InvestmentAccountCard key={account.id} account={account} />
-            ))}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Main Panel - 2/3 width */}
+            <div className="lg:w-2/3 flex flex-col gap-6">
+              {/* Portfolio Value Chart Card */}
+              <CombinedPortfolioChartCard portfolioMetrics={portfolioMetrics} />
+            </div>
+
+            {/* Side Panel - 1/3 width */}
+            <div className="lg:w-1/3 flex flex-col gap-4">
+              {/* Holdings Card */}
+              <HoldingsCard 
+                holdings={portfolioMetrics.holdingsWithValues}
+                stockQuotes={stockQuotes}
+              />
+            </div>
           </div>
+        </div>
+      ) : (
+        <div className="mb-8 text-center py-16 bg-[var(--color-surface)]/30 rounded-2xl border border-[var(--color-border)]/50 border-dashed">
+          <p className="text-[var(--color-muted)] mb-4">No investment accounts connected yet</p>
+          <p className="text-sm text-[var(--color-muted)]/80">
+            Connect your investment accounts from the Accounts page to see your portfolio here
+          </p>
         </div>
       )}
 
@@ -960,108 +1069,111 @@ export default function InvestmentsPage() {
   );
 }
 
-// Investment Account Card Component
-function InvestmentAccountCard({ account }) {
-  const [stockQuotes, setStockQuotes] = useState({});
-  const portfolio = account.portfolio;
-  const holdings = portfolio?.holdings || [];
-
-  // Fetch stock quotes for holdings
-  useEffect(() => {
-    if (holdings.length > 0) {
-      const tickers = holdings.map(h => h.ticker.toUpperCase());
-      const tickerList = tickers.join(',');
-      
-      fetch(`/api/market-data/quotes?tickers=${tickerList}`)
-        .then(res => res.json())
-        .then(data => {
-          setStockQuotes(data.quotes || {});
-        })
-        .catch(err => console.error('Error fetching stock quotes:', err));
-    }
-  }, [holdings]);
-
-  // Calculate total portfolio value
-  const totalValue = useMemo(() => {
-    if (!portfolio) return account.balance;
-    
-    const cash = parseFloat(portfolio.current_cash) || 0;
-    let holdingsValue = 0;
-    
-    holdings.forEach(holding => {
-      const ticker = holding.ticker.toUpperCase();
-      const quote = stockQuotes[ticker];
-      const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
-      const shares = parseFloat(holding.shares) || 0;
-      holdingsValue += shares * currentPrice;
-    });
-    
-    return cash + holdingsValue;
-  }, [portfolio, holdings, stockQuotes, account.balance]);
-
+// Combined Portfolio Chart Card Component
+function CombinedPortfolioChartCard({ portfolioMetrics }) {
+  const totalValue = portfolioMetrics.totalPortfolioValue;
+  
   return (
-    <Card className="p-4" variant="glass">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          {account.logo && (
-            <img src={account.logo} alt={account.institution} className="w-8 h-8 rounded-full object-cover" />
-          )}
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--color-fg)]">{account.name}</h3>
-            <p className="text-xs text-[var(--color-muted)]">{account.institution}</p>
-          </div>
+    <Card variant="glass" padding="none">
+      <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">
+          Portfolio Value
         </div>
-        <div className="text-right">
-          <div className="text-lg font-semibold text-[var(--color-fg)]">
-            {formatCurrency(totalValue)}
-          </div>
+        <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-2">
+          <AnimatedCounter value={totalValue || 0} duration={120} />
+        </div>
+        <div className="text-xs text-[var(--color-muted)]">
+          {portfolioMetrics.holdingsWithValues.length} position{portfolioMetrics.holdingsWithValues.length !== 1 ? 's' : ''}
         </div>
       </div>
+      
+      {/* Chart - placeholder for now, will show actual data when snapshots are available */}
+      <div className="px-4 sm:px-6 pb-4 pt-4 border-t border-[var(--color-border)]/50">
+        <div className="h-64 flex items-center justify-center text-[var(--color-muted)]/60 text-sm">
+          Chart view coming soon (snapshots needed)
+        </div>
+      </div>
+    </Card>
+  );
+}
 
+// Holdings Card Component (similar to portfolio detail page)
+function HoldingsCard({ holdings, stockQuotes }) {
+  return (
+    <Card variant="glass" padding="none">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Holdings</div>
+      </div>
       {holdings.length > 0 ? (
-        <div className="space-y-2">
-          <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-            Holdings
-          </div>
-          <div className="space-y-2">
-            {holdings.slice(0, 5).map((holding) => {
-              const ticker = holding.ticker.toUpperCase();
-              const quote = stockQuotes[ticker];
-              const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
-              const shares = parseFloat(holding.shares) || 0;
-              const value = shares * currentPrice;
-              const avgCost = parseFloat(holding.avg_cost) || 0;
-              const gainPercent = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
+        <div className="pb-2">
+          {holdings.slice(0, 10).map((holding) => {
+            const quote = stockQuotes[holding.ticker];
+            const currentPrice = quote?.price || null;
+            const avgCost = holding.avgCost;
 
-              return (
-                <div key={holding.id} className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-medium text-[var(--color-fg)]">{ticker}</div>
-                    <div className="text-xs text-[var(--color-muted)]">{shares.toFixed(2)} shares</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-[var(--color-fg)]">
-                      {formatCurrency(value)}
-                    </div>
-                    {quote?.price && (
-                      <div className={`text-xs ${gainPercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {gainPercent >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
-                      </div>
+            let gainPercent = null;
+            let currentValue = holding.value;
+
+            if (currentPrice && avgCost > 0) {
+              gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
+              currentValue = holding.shares * currentPrice;
+            }
+
+            const hasQuote = gainPercent !== null;
+
+            return (
+              <div
+                key={holding.ticker}
+                className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div
+                    className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                    style={{
+                      background: holding.logo ? 'transparent' : 'var(--color-surface)',
+                      border: '1px solid var(--color-border)/50'
+                    }}
+                  >
+                    {holding.logo ? (
+                      <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[9px] font-medium text-[var(--color-muted)]">{holding.ticker.slice(0, 2)}</span>
                     )}
                   </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                      {holding.ticker}
+                    </div>
+                    <div className="text-xs text-[var(--color-muted)]">
+                      {holding.shares.toFixed(2)} shares
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-          {holdings.length > 5 && (
-            <div className="text-xs text-[var(--color-muted)] text-center pt-2">
-              +{holdings.length - 5} more holding{holdings.length - 5 !== 1 ? 's' : ''}
-            </div>
-          )}
+
+                <div className="text-right">
+                  <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                    {formatCurrency(currentValue)}
+                  </div>
+                  {hasQuote ? (
+                    <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' :
+                      gainPercent > 0 ? 'text-emerald-500' :
+                        'text-rose-500'
+                      }`}>
+                      {gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--color-muted)]">—</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
-        <div className="text-sm text-[var(--color-muted)] text-center py-4">
-          No holdings yet
+        <div className="px-4 py-8 text-center">
+          <div className="text-[var(--color-muted)]/60 text-[13px]">
+            No holdings yet
+          </div>
         </div>
       )}
     </Card>

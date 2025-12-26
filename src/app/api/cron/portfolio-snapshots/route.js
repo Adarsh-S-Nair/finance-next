@@ -1,9 +1,11 @@
 /**
  * Portfolio Snapshots Cron Job
  * 
- * This endpoint is called daily by Vercel cron to create snapshots of all portfolios.
- * It calculates the current value of each portfolio (cash + holdings) and creates
- * a snapshot in the ai_portfolio_snapshots table.
+ * This endpoint is called daily by Vercel cron to create snapshots of AI portfolios.
+ * 
+ * NOTE: Plaid investment portfolios use webhook-driven snapshot creation (similar to account snapshots)
+ * and do NOT need this cron job. This cron job is primarily for AI simulation portfolios
+ * that don't receive webhook updates.
  * 
  * Vercel Cron Configuration (vercel.json):
  * {
@@ -57,34 +59,37 @@ export async function GET(request) {
     console.log(`Snapshot Date: ${snapshotDate}`);
     console.log('========================================\n');
 
-    // Step 1: Fetch all active portfolios
+    // Step 1: Fetch only AI portfolios (Plaid portfolios use webhook-driven snapshots)
     const { data: portfolios, error: portfoliosError } = await supabase
       .from('ai_portfolios')
       .select('id, current_cash, name')
       .eq('status', 'active');
     
     if (portfoliosError) {
-      console.error('❌ Error fetching portfolios:', portfoliosError);
-      throw new Error(`Failed to fetch portfolios: ${portfoliosError.message}`);
+      console.error('❌ Error fetching AI portfolios:', portfoliosError);
+      throw new Error(`Failed to fetch AI portfolios: ${portfoliosError.message}`);
     }
+
+    // Map to unified format for compatibility with existing code
+    const portfoliosToProcess = (portfolios || []).map(p => ({ ...p, isLegacy: true }));
     
-    if (!portfolios || portfolios.length === 0) {
-      console.log('ℹ️  No active portfolios found');
+    if (!portfoliosToProcess || portfoliosToProcess.length === 0) {
+      console.log('ℹ️  No portfolios found');
       return NextResponse.json({
         success: true,
-        message: 'No active portfolios to snapshot',
+        message: 'No portfolios to snapshot',
         snapshotsCreated: 0,
         snapshotsSkipped: 0,
         date: snapshotDate,
       });
     }
     
-    console.log(`📊 Found ${portfolios.length} active portfolios\n`);
+    console.log(`📊 Found ${portfoliosToProcess.length} AI portfolios (Plaid portfolios use webhook-driven snapshots)\n`);
 
     // Step 2: Check which portfolios already have snapshots for today
-    const portfolioIds = portfolios.map(p => p.id);
+    const portfolioIds = portfoliosToProcess.map(p => p.id);
     const { data: existingSnapshots, error: existingError } = await supabase
-      .from('ai_portfolio_snapshots')
+      .from('portfolio_snapshots')
       .select('portfolio_id')
       .in('portfolio_id', portfolioIds)
       .eq('snapshot_date', snapshotDate);
@@ -99,7 +104,7 @@ export async function GET(request) {
     );
     
     // Filter out portfolios that already have snapshots for today
-    const portfoliosToSnapshot = portfolios.filter(
+    const portfoliosToSnapshot = portfoliosToProcess.filter(
       p => !existingPortfolioIds.has(p.id)
     );
     
@@ -116,7 +121,7 @@ export async function GET(request) {
       });
     }
 
-    // Step 3: Fetch holdings for all portfolios that need snapshots
+    // Step 3: Fetch holdings for all AI portfolios that need snapshots
     const { data: allHoldings, error: holdingsError } = await supabase
       .from('ai_portfolio_holdings')
       .select('portfolio_id, ticker, shares, avg_cost')
@@ -137,7 +142,7 @@ export async function GET(request) {
     });
 
     // Step 4: Fetch current stock prices for all unique tickers
-    const allTickers = [...new Set((allHoldings || []).map(h => h.ticker.toUpperCase()))];
+    const allTickers = [...new Set((allHoldings || []).map(h => (h.ticker || '').toUpperCase()))];
     const stockQuotes = {};
     
     if (allTickers.length > 0) {
@@ -190,15 +195,18 @@ export async function GET(request) {
         // Prepare stock quotes map for this portfolio's holdings
         const portfolioQuotes = {};
         holdings.forEach(h => {
-          const ticker = h.ticker.toUpperCase();
+          const ticker = (h.ticker || '').toUpperCase();
           if (stockQuotes[ticker]) {
             portfolioQuotes[ticker] = stockQuotes[ticker];
           }
         });
         
+        // For AI portfolios, use current_cash field (they manage their own cash)
+        const accountBalance = parseFloat(portfolio.current_cash) || 0;
+        
         // Calculate portfolio value
         const { totalValue, cash, holdingsValue } = calculatePortfolioValue(
-          portfolio.current_cash,
+          accountBalance,
           holdings,
           portfolioQuotes
         );
@@ -218,17 +226,17 @@ export async function GET(request) {
       }
     }
     
-    // Step 6: Insert snapshots (using upsert to handle race conditions)
-    if (snapshotsToInsert.length > 0) {
-      console.log(`\n💾 Inserting ${snapshotsToInsert.length} snapshots...`);
-      
-      const { data: insertedSnapshots, error: insertError } = await supabase
-        .from('ai_portfolio_snapshots')
-        .upsert(snapshotsToInsert, {
-          onConflict: 'portfolio_id,snapshot_date',
-          ignoreDuplicates: false,
-        })
-        .select();
+      // Step 6: Insert snapshots (using upsert to handle race conditions)
+      if (snapshotsToInsert.length > 0) {
+        console.log(`\n💾 Inserting ${snapshotsToInsert.length} snapshots...`);
+        
+        const { data: insertedSnapshots, error: insertError } = await supabase
+          .from('portfolio_snapshots')
+          .upsert(snapshotsToInsert, {
+            onConflict: 'portfolio_id,snapshot_date',
+            ignoreDuplicates: false,
+          })
+          .select();
       
       if (insertError) {
         console.error('❌ Error inserting snapshots:', insertError);
