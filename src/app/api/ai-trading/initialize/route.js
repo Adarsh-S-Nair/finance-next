@@ -1161,31 +1161,38 @@ export async function POST(request) {
       console.log('\n📝 Creating manual trading portfolio (no AI)');
       console.log('========================================\n');
       
-      // Calculate next rebalance date (1 month from today for monthly cadence)
-      const today = new Date();
-      const nextRebalanceDate = new Date(today);
-      nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
-      const year = nextRebalanceDate.getFullYear();
-      const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
-      const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
-      const nextRebalanceDateStr = `${year}-${month}-${day}`;
+      // Build portfolio insert object
+      const portfolioData = {
+        user_id: userId,
+        name: name.trim(),
+        type: 'ai_simulation',
+        asset_type: assetType,
+        ai_model: null,
+        starting_capital: startingCapital,
+        current_cash: startingCapital,
+        status: 'active',
+        crypto_assets: cryptoAssets,
+      };
+      
+      // Only add rebalance fields for stock portfolios (crypto doesn't need rebalancing)
+      if (assetType === 'stock') {
+        // Calculate next rebalance date (1 month from today for monthly cadence)
+        const today = new Date();
+        const nextRebalanceDate = new Date(today);
+        nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
+        const year = nextRebalanceDate.getFullYear();
+        const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
+        const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
+        const nextRebalanceDateStr = `${year}-${month}-${day}`;
+        
+        portfolioData.rebalance_cadence = 'monthly';
+        portfolioData.next_rebalance_date = nextRebalanceDateStr;
+        portfolioData.previous_rebalance_date = null;
+      }
       
       const { data: portfolio, error: insertError } = await supabase
         .from('portfolios')
-        .insert({
-          user_id: userId,
-          name: name.trim(),
-          type: 'ai_simulation',
-          asset_type: assetType,
-          ai_model: null,
-          starting_capital: startingCapital,
-          current_cash: startingCapital,
-          status: 'active',
-          rebalance_cadence: 'monthly',
-          next_rebalance_date: nextRebalanceDateStr,
-          previous_rebalance_date: null,
-          crypto_assets: cryptoAssets,
-        })
+        .insert(portfolioData)
         .select()
         .single();
 

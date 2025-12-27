@@ -3,15 +3,16 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import PageContainer from "../../../../components/PageContainer";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
 import Drawer from "../../../../components/ui/Drawer";
 import ConfirmDialog from "../../../../components/ui/ConfirmDialog";
 import LineChart from "../../../../components/ui/LineChart";
-import { LuChevronRight, LuSettings, LuTrash2 } from "react-icons/lu";
+import { LuTrash2 } from "react-icons/lu";
 import { useUser } from "../../../../components/UserProvider";
 import { supabase } from "../../../../lib/supabaseClient";
+import { useInvestmentsHeader } from "../InvestmentsHeaderContext";
+import { ChartSkeleton, CardSkeleton, HoldingsTableSkeleton } from "../../../../components/ui/Skeleton";
 
 // Format currency with 2 decimal places
 const formatCurrency = (amount) => {
@@ -190,6 +191,7 @@ export default function PortfolioDetailPage() {
   const params = useParams();
   const portfolioId = params.portfolio_id;
   const { profile } = useUser();
+  const { setHeaderActions } = useInvestmentsHeader();
   const [portfolio, setPortfolio] = useState(null);
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -205,6 +207,16 @@ export default function PortfolioDetailPage() {
   const [trades, setTrades] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [marketStatus, setMarketStatus] = useState(null);
+
+  // Register header actions with layout
+  useEffect(() => {
+    if (setHeaderActions) {
+      setHeaderActions({
+        onSettingsClick: () => setShowSettings(true),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setHeaderActions]);
 
   // Calculate current total value
   const currentTotalValue = useMemo(() => {
@@ -233,7 +245,7 @@ export default function PortfolioDetailPage() {
       try {
         // Fetch portfolio
         const { data: portfolioData, error: portfolioError } = await supabase
-          .from('ai_portfolios')
+          .from('portfolios')
           .select('*')
           .eq('id', portfolioId)
           .single();
@@ -261,7 +273,7 @@ export default function PortfolioDetailPage() {
 
         // Fetch snapshots
         const { data: snapshotsData, error: snapshotsError } = await supabase
-          .from('ai_portfolio_snapshots')
+          .from('portfolio_snapshots')
           .select('*')
           .eq('portfolio_id', portfolioId)
           .order('snapshot_date', { ascending: true });
@@ -304,7 +316,7 @@ export default function PortfolioDetailPage() {
 
         // Fetch holdings
         const { data: holdingsData, error: holdingsError } = await supabase
-          .from('ai_portfolio_holdings')
+          .from('holdings')
           .select('*')
           .eq('portfolio_id', portfolioId);
 
@@ -350,7 +362,7 @@ export default function PortfolioDetailPage() {
 
         // Fetch trades
         const { data: tradesData, error: tradesError } = await supabase
-          .from('ai_portfolio_trades')
+          .from('trades')
           .select('*')
           .eq('portfolio_id', portfolioId)
           .order('executed_at', { ascending: false });
@@ -915,7 +927,7 @@ export default function PortfolioDetailPage() {
     setIsDeleting(true);
     try {
       const { error } = await supabase
-        .from('ai_portfolios')
+        .from('portfolios')
         .delete()
         .eq('id', portfolio.id);
 
@@ -932,39 +944,26 @@ export default function PortfolioDetailPage() {
 
   if (loading || !portfolio) {
     return (
-      <PageContainer>
-        <div className="flex items-center justify-center py-32">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)] mx-auto mb-4" />
-            <p className="text-[var(--color-muted)]">Loading portfolio...</p>
+      <>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Main Section */}
+          <div className="lg:w-2/3 flex flex-col gap-6">
+            <ChartSkeleton />
+            <CardSkeleton className="h-64" />
+          </div>
+
+          {/* Side Column */}
+          <div className="lg:w-1/3 flex flex-col gap-4">
+            <CardSkeleton className="h-48" />
+            <HoldingsTableSkeleton />
           </div>
         </div>
-      </PageContainer>
+      </>
     );
   }
 
   return (
-    <PageContainer>
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2 text-sm">
-          <button
-            onClick={() => router.push('/investments')}
-            className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
-          >
-            Portfolios
-          </button>
-          <LuChevronRight className="w-3.5 h-3.5 text-[var(--color-border)]" />
-          <span className="text-[var(--color-fg)] font-medium">{portfolio.name}</span>
-        </div>
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-all cursor-pointer"
-          title="Portfolio Settings"
-        >
-          <LuSettings className="w-4 h-4" />
-        </button>
-      </div>
+    <>
 
       {/* Main Layout: Main Section + Side Column */}
       <div className="flex flex-col lg:flex-row gap-6">
@@ -1614,7 +1613,7 @@ export default function PortfolioDetailPage() {
         busy={isDeleting}
         busyLabel="Deleting..."
       />
-    </PageContainer>
+    </>
   );
 }
 

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import PageContainer from "../../../components/PageContainer";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
@@ -11,10 +10,13 @@ import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import { LuPlus, LuBot, LuChevronLeft } from "react-icons/lu";
 import { SiGooglegemini, SiX } from "react-icons/si";
+import { FiLoader } from "react-icons/fi";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 import LineChart from "../../../components/ui/LineChart";
 import { formatDateString } from "../../../lib/portfolioUtils";
+import { useInvestmentsHeader } from "./InvestmentsHeaderContext";
+import { ChartSkeleton, PortfolioCardSkeleton, CardSkeleton, ListSkeleton } from "../../../components/ui/Skeleton";
 
 // Logo display component with error handling
 function LogoDisplay({ logo, ticker }) {
@@ -266,6 +268,7 @@ function RebalanceCountdown({ nextRebalanceDate, rebalanceCadence }) {
 
 // Create Portfolio Drawer
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
+  const router = useRouter();
   const { profile } = useUser();
   const [step, setStep] = useState('form'); // 'form'
 
@@ -283,11 +286,19 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   // AI is only available for stock portfolios
   const hasAI = assetType === 'stock';
 
-  // Available crypto options
+  // Available crypto options with Trust Wallet chain mapping
   const AVAILABLE_CRYPTOS = [
-    { symbol: 'BTC', name: 'Bitcoin' },
-    { symbol: 'ETH', name: 'Ethereum' },
+    { symbol: 'BTC', name: 'Bitcoin', chain: 'bitcoin' },
+    { symbol: 'ETH', name: 'Ethereum', chain: 'ethereum' },
   ];
+
+  // State for crypto ticker data (logos)
+  const [cryptoTickers, setCryptoTickers] = useState({});
+
+  // Get Trust Wallet logo URL for a crypto
+  const getTrustWalletLogoUrl = (chain) => {
+    return `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${chain}/info/logo.png`;
+  };
 
   // Capital bounds
   const MIN_CAPITAL = 1000;
@@ -307,9 +318,13 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   // Handle asset type change
   const handleAssetTypeChange = (type) => {
     setAssetType(type);
-    // Reset name when switching asset types (unless manually edited)
+    // Auto-fill name when switching asset types (unless manually edited)
     if (!nameManuallyEdited) {
-      setName('');
+      if (type === 'crypto') {
+        setName('Crypto Portfolio');
+      } else {
+        setName('');
+      }
     }
   };
 
@@ -317,11 +332,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const handleCryptoToggle = (cryptoSymbol) => {
     setSelectedCryptos(prev => {
       if (prev.includes(cryptoSymbol)) {
-        // Don't allow deselecting if it's the last one
-        if (prev.length > 1) {
-          return prev.filter(c => c !== cryptoSymbol);
-        }
-        return prev;
+        return prev.filter(c => c !== cryptoSymbol);
       } else {
         return [...prev, cryptoSymbol];
       }
@@ -354,6 +365,12 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
       return;
     }
 
+    // For crypto portfolios, ensure at least one crypto is selected
+    if (assetType === 'crypto' && selectedCryptos.length === 0) {
+      setError('Please select at least one cryptocurrency');
+      return;
+    }
+
     setIsCreating(true);
     setError(null);
 
@@ -377,9 +394,11 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         throw new Error(result.error || 'Failed to initialize portfolio');
       }
 
+      // Call onCreated callback and navigate to the portfolio detail page
       onCreated(result.portfolio);
       handleReset();
       onClose();
+      router.push(`/investments/${result.portfolio.id}`);
     } catch (err) {
       console.error('Error creating portfolio:', err);
       setError(err.message || 'Failed to create portfolio');
@@ -400,13 +419,86 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   };
 
   useEffect(() => {
-    if (isOpen && !nameManuallyEdited && !name && hasAI) {
-      const model = AI_MODELS[selectedModel];
-      if (model) {
-        setName(`${model.name} Portfolio`);
+    if (isOpen && !nameManuallyEdited) {
+      if (hasAI) {
+        // Auto-fill for AI stock portfolios
+        const model = AI_MODELS[selectedModel];
+        if (model) {
+          setName(`${model.name} Portfolio`);
+        }
+      } else if (assetType === 'crypto') {
+        // Auto-fill for crypto portfolios
+        setName('Crypto Portfolio');
       }
     }
-  }, [isOpen, hasAI, selectedModel]);
+  }, [isOpen, hasAI, selectedModel, assetType]);
+
+  // Fetch and upsert crypto tickers when drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchCryptoTickers = async () => {
+      try {
+        // Get crypto symbols we need
+        const cryptoSymbols = AVAILABLE_CRYPTOS.map(c => c.symbol);
+
+        // Fetch existing crypto tickers
+        const { data: existingTickers, error: fetchError } = await supabase
+          .from('tickers')
+          .select('symbol, name, logo, asset_type')
+          .in('symbol', cryptoSymbols);
+
+        if (fetchError) {
+          console.error('Error fetching crypto tickers:', fetchError);
+          return;
+        }
+
+        // Create a map of symbol -> ticker data for easy lookup
+        const tickerMap = {};
+        if (existingTickers) {
+          existingTickers.forEach(ticker => {
+            tickerMap[ticker.symbol] = ticker;
+          });
+        }
+
+        // Fill in any missing data with defaults and Trust Wallet URLs
+        AVAILABLE_CRYPTOS.forEach(crypto => {
+          if (!tickerMap[crypto.symbol]) {
+            // Ticker doesn't exist - use defaults
+            tickerMap[crypto.symbol] = {
+              symbol: crypto.symbol,
+              name: crypto.name,
+              logo: getTrustWalletLogoUrl(crypto.chain),
+            };
+          } else {
+            // Ticker exists - ensure we have name and logo
+            if (!tickerMap[crypto.symbol].name) {
+              tickerMap[crypto.symbol].name = crypto.name;
+            }
+            if (!tickerMap[crypto.symbol].logo) {
+              tickerMap[crypto.symbol].logo = getTrustWalletLogoUrl(crypto.chain);
+            }
+          }
+        });
+
+        setCryptoTickers(tickerMap);
+      } catch (err) {
+        console.error('Error fetching crypto tickers:', err);
+        // Fallback: use Trust Wallet URLs directly
+        const fallbackMap = {};
+        AVAILABLE_CRYPTOS.forEach(crypto => {
+          fallbackMap[crypto.symbol] = {
+            symbol: crypto.symbol,
+            name: crypto.name,
+            logo: getTrustWalletLogoUrl(crypto.chain),
+          };
+        });
+        setCryptoTickers(fallbackMap);
+      }
+    };
+
+    fetchCryptoTickers();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -472,7 +564,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           type="text"
           value={name}
           onChange={handleNameChange}
-          placeholder="e.g., My Portfolio"
+          placeholder={assetType === 'crypto' ? 'Crypto Portfolio' : 'e.g., My Portfolio'}
           className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
         />
       </div>
@@ -558,26 +650,54 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           <div className="space-y-2">
             {AVAILABLE_CRYPTOS.map((crypto) => {
               const isSelected = selectedCryptos.includes(crypto.symbol);
+              const tickerData = cryptoTickers[crypto.symbol];
+              const logoUrl = tickerData?.logo || getTrustWalletLogoUrl(crypto.chain);
+              const displayName = tickerData?.name || crypto.name;
+
               return (
                 <button
                   key={crypto.symbol}
                   type="button"
                   onClick={() => handleCryptoToggle(crypto.symbol)}
-                  disabled={isSelected && selectedCryptos.length === 1}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                    isSelected && selectedCryptos.length === 1
-                      ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
-                      : isSelected
-                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                    isSelected
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
                   }`}
                 >
-                  <div>
-                    <p className="text-sm font-medium text-[var(--color-fg)]">{crypto.name}</p>
+                  {/* Crypto Logo */}
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt={crypto.symbol}
+                      className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
+                      style={{ border: '1px solid var(--color-border)' }}
+                      onError={(e) => {
+                        // Fallback to a placeholder if image fails to load
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium text-[var(--color-muted)]"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)'
+                      }}
+                    >
+                      {crypto.symbol.charAt(0)}
+                    </div>
+                  )}
+
+                  {/* Crypto Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-fg)]">{displayName}</p>
                     <p className="text-xs text-[var(--color-muted)]">{crypto.symbol}</p>
                   </div>
+
+                  {/* Selection Indicator */}
                   {isSelected && (
-                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0">
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                       </svg>
@@ -680,15 +800,23 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   ];
 
   const renderFooter = () => {
-    if (isCreating) return null;
+    // Disable create button if crypto portfolio has no cryptos selected
+    const isCreateDisabled = assetType === 'crypto' && selectedCryptos.length === 0;
 
     return (
       <div className="flex gap-3 w-full">
-        <Button variant="outline" onClick={onClose} className="flex-1">
+        <Button variant="outline" onClick={onClose} disabled={isCreating} className="flex-1">
           Cancel
         </Button>
-        <Button onClick={handleCreatePortfolio} disabled={isCreating} className="flex-1">
-          Create Portfolio
+        <Button onClick={handleCreatePortfolio} disabled={isCreating || isCreateDisabled} className="flex-1">
+          {isCreating ? (
+            <>
+              <FiLoader className="h-4 w-4 mr-2 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            'Create Portfolio'
+          )}
         </Button>
       </div>
     );
@@ -711,6 +839,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
 export default function InvestmentsPage() {
   const router = useRouter();
   const { profile } = useUser();
+  const { setHeaderActions } = useInvestmentsHeader();
   const [portfolios, setPortfolios] = useState([]);
   const [investmentPortfolios, setInvestmentPortfolios] = useState([]);
   const [allHoldings, setAllHoldings] = useState([]);
@@ -723,6 +852,16 @@ export default function InvestmentsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [investmentTransactions, setInvestmentTransactions] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Register header actions with layout
+  useEffect(() => {
+    if (setHeaderActions) {
+      setHeaderActions({
+        onConnectClick: () => setShowLinkModal(true),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setHeaderActions]);
 
   // Fetch investment portfolios and holdings
   useEffect(() => {
@@ -845,11 +984,12 @@ export default function InvestmentsPage() {
           setAllHoldings([]);
         }
 
-        // Fetch paper trading portfolios (AI and Alpaca)
+        // Fetch paper trading portfolios (AI and crypto)
         const { data: portfoliosData, error: portfoliosError } = await supabase
-          .from('ai_portfolios')
+          .from('portfolios')
           .select('*')
           .eq('user_id', profile.id)
+          .eq('type', 'ai_simulation')
           .order('created_at', { ascending: false });
 
         if (portfoliosError) throw portfoliosError;
@@ -887,7 +1027,7 @@ export default function InvestmentsPage() {
     setIsDeleting(true);
     try {
       const { error } = await supabase
-        .from('ai_portfolios')
+        .from('portfolios')
         .delete()
         .eq('id', portfolio.id);
 
@@ -895,9 +1035,10 @@ export default function InvestmentsPage() {
 
       // Refresh portfolios list
       const { data, error: fetchError } = await supabase
-        .from('ai_portfolios')
+        .from('portfolios')
         .select('*')
         .eq('user_id', profile.id)
+        .eq('type', 'ai_simulation')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -1023,32 +1164,26 @@ export default function InvestmentsPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <div className="flex items-center justify-center py-32">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)] mx-auto mb-4" />
-            <p className="text-[var(--color-muted)]">Loading portfolios...</p>
+      <>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Main Panel - 2/3 width */}
+          <div className="lg:w-2/3 flex flex-col gap-6">
+            <ChartSkeleton />
+            <CardSkeleton className="h-64" />
+          </div>
+
+          {/* Side Panel - 1/3 width */}
+          <div className="lg:w-1/3 flex flex-col gap-4">
+            <CardSkeleton className="h-64" />
+            <CardSkeleton className="h-64" />
           </div>
         </div>
-      </PageContainer>
+      </>
     );
   }
 
   return (
-    <PageContainer>
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>Investments</h1>
-        <Button
-          size="sm"
-          variant="matte"
-          onClick={() => setShowLinkModal(true)}
-          className="gap-1.5 !rounded-full pl-3 pr-4"
-        >
-          <LuPlus className="w-3.5 h-3.5" />
-          Connect
-        </Button>
-      </div>
+    <>
 
       {/* Main Investment Portfolio View */}
       {investmentPortfolios.length > 0 ? (
@@ -1146,7 +1281,7 @@ export default function InvestmentsPage() {
         busy={isDeleting}
         busyLabel="Deleting..."
       />
-    </PageContainer>
+    </>
   );
 }
 
@@ -2240,7 +2375,7 @@ function MiniPortfolioCard({ portfolio, onClick }) {
       try {
         // Get recent snapshots for sparkline (last 14 days)
         const { data: snapshotData } = await supabase
-          .from('ai_portfolio_snapshots')
+          .from('portfolio_snapshots')
           .select('total_value, snapshot_date')
           .eq('portfolio_id', portfolio.id)
           .order('snapshot_date', { ascending: true })
@@ -2441,9 +2576,9 @@ function PortfolioCard({ portfolio, onCardClick }) {
           }
         }
 
-        // Fetch snapshots (for both AI and Alpaca portfolios)
+        // Fetch snapshots (for both AI and crypto portfolios)
         const { data: snapshotsData, error: snapshotsError } = await supabase
-          .from('ai_portfolio_snapshots')
+          .from('portfolio_snapshots')
           .select('*')
           .eq('portfolio_id', portfolio.id)
           .order('snapshot_date', { ascending: true });
@@ -2451,9 +2586,9 @@ function PortfolioCard({ portfolio, onCardClick }) {
         if (snapshotsError) throw snapshotsError;
         setSnapshots(snapshotsData || []);
 
-        // Fetch current holdings (for both AI and Alpaca portfolios)
+        // Fetch current holdings (for both AI and crypto portfolios)
         const { data: holdingsData, error: holdingsError } = await supabase
-          .from('ai_portfolio_holdings')
+          .from('holdings')
           .select('*')
           .eq('portfolio_id', portfolio.id);
 
