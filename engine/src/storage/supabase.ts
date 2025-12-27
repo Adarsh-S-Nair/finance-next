@@ -9,10 +9,8 @@ import { Candle } from '../types';
 
 export class SupabaseStorage {
   private client: SupabaseClient;
-  private config: Config;
 
   constructor(config: Config) {
-    this.config = config;
     this.client = createClient(config.supabase.url, config.supabase.serviceKey, {
       auth: {
         autoRefreshToken: false,
