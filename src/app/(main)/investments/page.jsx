@@ -267,19 +267,14 @@ function RebalanceCountdown({ nextRebalanceDate, rebalanceCadence }) {
 // Create Portfolio Drawer
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const { profile } = useUser();
-  const [step, setStep] = useState('select'); // 'select', 'alpaca', 'ai'
+  const [step, setStep] = useState('form'); // 'form'
 
-  // AI Portfolio state
+  // Portfolio state
   const [name, setName] = useState('');
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [startingCapital, setStartingCapital] = useState(100000);
-
-  // Alpaca Portfolio state
-  const [alpacaName, setAlpacaName] = useState('');
-  const [alpacaApiKey, setAlpacaApiKey] = useState('');
-  const [alpacaSecretKey, setAlpacaSecretKey] = useState('');
-  const [showSecretKey, setShowSecretKey] = useState(false);
+  const [assetType, setAssetType] = useState('stock'); // 'stock' or 'crypto'
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
@@ -314,7 +309,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
-  const handleCreateAI = async () => {
+  const handleCreatePortfolio = async () => {
     if (!name.trim()) {
       setError('Please enter a portfolio name');
       return;
@@ -337,6 +332,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           name: name.trim(),
           aiModel: selectedModel,
           startingCapital: startingCapital,
+          assetType: assetType,
         }),
       });
 
@@ -357,75 +353,24 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
-  const handleConnectAlpaca = async () => {
-    if (!alpacaName.trim()) {
-      setError('Please enter a portfolio name');
-      return;
-    }
-
-    if (!alpacaApiKey.trim()) {
-      setError('Please enter your Alpaca API Key');
-      return;
-    }
-
-    if (!alpacaSecretKey.trim()) {
-      setError('Please enter your Alpaca Secret Key');
-      return;
-    }
-
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/portfolios/connect-alpaca', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: profile.id,
-          name: alpacaName.trim(),
-          apiKey: alpacaApiKey.trim(),
-          secretKey: alpacaSecretKey.trim(),
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to connect Alpaca account');
-      }
-
-      onCreated(result.portfolio);
-      handleReset();
-      onClose();
-    } catch (err) {
-      console.error('Error connecting Alpaca account:', err);
-      setError(err.message || 'Failed to connect Alpaca account');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   const handleReset = () => {
-    setStep('select');
+    setStep('form');
     setName('');
     setNameManuallyEdited(false);
     setSelectedModel('gemini-3-flash-preview');
     setStartingCapital(100000);
-    setAlpacaName('');
-    setAlpacaApiKey('');
-    setAlpacaSecretKey('');
-    setShowSecretKey(false);
+    setAssetType('stock');
     setError(null);
   };
 
   useEffect(() => {
-    if (isOpen && step === 'ai' && !nameManuallyEdited && !name) {
+    if (isOpen && !nameManuallyEdited && !name) {
       const model = AI_MODELS[selectedModel];
       if (model) {
         setName(`${model.name} Portfolio`);
       }
     }
-  }, [isOpen, step]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -477,108 +422,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     </div>
   );
 
-  const renderSelectionScreen = () => (
-    <div className="space-y-3 pt-2">
-      <div className="grid grid-cols-1 gap-3">
-        <button
-          type="button"
-          onClick={() => setStep('alpaca')}
-          className="p-4 rounded-lg border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)] transition-all text-left cursor-pointer"
-        >
-          <h3 className="text-sm font-semibold text-[var(--color-fg)] mb-1">Connect Alpaca Account</h3>
-          <p className="text-xs text-[var(--color-muted)]">
-            Connect your existing Alpaca paper trading account to track your real portfolio
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStep('ai')}
-          className="p-4 rounded-lg border-2 border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)] transition-all text-left cursor-pointer"
-        >
-          <h3 className="text-sm font-semibold text-[var(--color-fg)] mb-1">AI Portfolio</h3>
-          <p className="text-xs text-[var(--color-muted)]">
-            Create a paper trading simulation powered by AI to make investment decisions
-          </p>
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderAlpacaForm = () => (
-    <div className="space-y-6 pt-2">
-      <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-          Portfolio Name
-        </label>
-        <input
-          type="text"
-          value={alpacaName}
-          onChange={(e) => setAlpacaName(e.target.value)}
-          placeholder="e.g., My Alpaca Portfolio"
-          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-          Alpaca API Key
-        </label>
-        <input
-          type="text"
-          value={alpacaApiKey}
-          onChange={(e) => setAlpacaApiKey(e.target.value)}
-          placeholder="Enter your Alpaca API Key"
-          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] font-mono text-sm"
-        />
-        <p className="text-xs text-[var(--color-muted)] mt-1.5">
-          Find this in your Alpaca dashboard under API Keys
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-          Alpaca Secret Key
-        </label>
-        <div className="relative">
-          <input
-            type={showSecretKey ? "text" : "password"}
-            value={alpacaSecretKey}
-            onChange={(e) => setAlpacaSecretKey(e.target.value)}
-            placeholder="Enter your Alpaca Secret Key"
-            className="w-full px-3 py-2.5 pr-10 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] font-mono text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => setShowSecretKey(!showSecretKey)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
-          >
-            {showSecretKey ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
-          </button>
-        </div>
-        <p className="text-xs text-[var(--color-muted)] mt-1.5">
-          Your secret key will be securely stored and encrypted
-        </p>
-      </div>
-
-      {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <p className="text-sm text-red-500">{error}</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderAIForm = () => (
+  const renderPortfolioForm = () => (
     <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
       <div>
         <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
@@ -588,9 +432,39 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           type="text"
           value={name}
           onChange={handleNameChange}
-          placeholder="e.g., My Claude Portfolio"
+          placeholder="e.g., My Portfolio"
           className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
         />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+          Asset Type
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setAssetType('stock')}
+            className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${assetType === 'stock'
+              ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+              : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
+              }`}
+          >
+            Stock
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssetType('crypto')}
+            className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${assetType === 'crypto'
+              ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+              : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
+              }`}
+          >
+            Crypto
+          </button>
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-1.5">
+          Choose between stock or crypto paper trading
+        </p>
       </div>
       <div>
         <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
@@ -696,59 +570,28 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
 
   const views = [
     {
-      id: 'select',
+      id: 'form',
       title: 'Create Portfolio',
-      description: 'Choose how you want to create your portfolio',
-      content: renderSelectionScreen(),
-      showBackButton: false,
-    },
-    {
-      id: 'alpaca',
-      title: 'Connect Alpaca Account',
-      description: 'Connect your Alpaca paper trading account',
-      content: renderAlpacaForm(),
-      showBackButton: true,
-    },
-    {
-      id: 'ai',
-      title: 'Create AI Portfolio',
       description: 'Set up a new paper trading simulation',
       content: (
         <div className="relative h-full">
           {isCreating && <AIThinkingOverlay />}
-          {renderAIForm()}
+          {renderPortfolioForm()}
         </div>
       ),
-      showBackButton: true,
+      showBackButton: false,
     },
   ];
 
   const renderFooter = () => {
     if (isCreating) return null;
 
-    if (step === 'select') {
-      return (
-        <div className="flex gap-3 w-full">
-          <Button variant="outline" onClick={onClose} className="flex-1">
-            Cancel
-          </Button>
-        </div>
-      );
-    }
-
-    if (step === 'alpaca') {
-      return (
-        <div className="flex gap-3 w-full">
-          <Button onClick={handleConnectAlpaca} disabled={isCreating} className="flex-1">
-            Connect Account
-          </Button>
-        </div>
-      );
-    }
-
     return (
       <div className="flex gap-3 w-full">
-        <Button onClick={handleCreateAI} disabled={isCreating} className="flex-1">
+        <Button variant="outline" onClick={onClose} className="flex-1">
+          Cancel
+        </Button>
+        <Button onClick={handleCreatePortfolio} disabled={isCreating} className="flex-1">
           Create Portfolio
         </Button>
       </div>
@@ -980,36 +823,49 @@ export default function InvestmentsPage() {
 
     let totalAccountBalance = 0; // Total from account balances
     let totalHoldingsValue = 0; // Holdings value at current market prices
+    let totalCash = 0; // Sum of cash from each account (calculated per account)
 
-    // Get account balances (for investment accounts, this is the total: cash + holdings)
+    // Calculate per-account: balances, holdings value, and cash
+    // This matches the logic used in the individual account cards
     investmentPortfolios.forEach((portfolio) => {
-      const balances = portfolio.source_account?.balances;
-      const accountBalance = typeof balances?.current === 'string'
+      const balances = portfolio.source_account?.balances || {};
+      const accountBalance = typeof balances.current === 'string'
         ? parseFloat(balances.current)
-        : (balances?.current || 0);
+        : (balances.current || 0);
 
       totalAccountBalance += accountBalance;
+
+      // Calculate holdings value for this portfolio at CURRENT MARKET PRICE
+      const portfolioHoldingsValue = (portfolio.holdings || []).reduce((sum, h) => {
+        const ticker = (h.ticker || '').toUpperCase();
+        const quote = stockQuotes[ticker];
+        // Use current price if available, otherwise fall back to avg_cost
+        const price = quote?.price || h.avg_cost || 0;
+        return sum + ((h.shares || 0) * price);
+      }, 0);
+
+      totalHoldingsValue += portfolioHoldingsValue;
+
+      // Calculate cash for this account: account balance - holdings value (clamped to 0)
+      // This matches the logic in the individual account cards
+      const accountCash = Math.max(0, accountBalance - portfolioHoldingsValue);
+      totalCash += accountCash;
     });
 
-    // Calculate holdings value using CURRENT market prices
-    // allHoldings already only includes holdings from investment portfolios (plaid_investment)
-    allHoldings.forEach((holding) => {
-      const ticker = holding.ticker.toUpperCase();
-      const quote = stockQuotes[ticker];
-      const currentPrice = quote?.price || holding.avg_cost || 0;
-      const shares = parseFloat(holding.shares) || 0;
-      const value = shares * currentPrice;
-      totalHoldingsValue += value;
-    });
+    // Cash is the sum of cash from each account (calculated per account above)
+    const cash = totalCash;
 
-    // Calculate cash: account balance - holdings value (approximate)
-    // For investment accounts, account balance = cash + holdings (at institution's valuation)
-    // We use current market prices for holdings, so cash = account balance - holdings at current prices
-    const cash = totalAccountBalance - totalHoldingsValue;
-
-    // Total portfolio value = holdings at current prices + cash
-    // This ensures we use current market prices for holdings
+    // Total portfolio value = holdings at current market prices + cash
+    // This gives us the real-time combined portfolio value across all non-paper trading accounts
+    // Note: This uses current market prices, not account balances (which may be stale)
     const totalPortfolioValue = totalHoldingsValue + cash;
+
+    console.log('[Chart Debug] Portfolio metrics calculation:', {
+      totalAccountBalance,
+      totalHoldingsValue,
+      cash,
+      totalPortfolioValue
+    });
 
     // Calculate holdings with current values
     const holdingsWithValues = allHoldings.map(holding => {
@@ -1029,12 +885,15 @@ export default function InvestmentsPage() {
       };
     }).sort((a, b) => b.value - a.value);
 
+    // Calculate cash percentage based on total portfolio value
+    const cashPercentage = totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0;
+
     return {
       cash: cash,
       totalHoldingsValue,
-      totalPortfolioValue,
+      totalPortfolioValue, // Holdings at current market prices + cash
       holdingsWithValues,
-      cashPercentage: totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0,
+      cashPercentage,
     };
   }, [investmentPortfolios, allHoldings, stockQuotes]);
 
@@ -1114,17 +973,13 @@ export default function InvestmentsPage() {
 
           {/* Side Panel - 1/3 width */}
           <div className="lg:w-1/3 flex flex-col gap-4">
-            {/* Portfolio Summary Card */}
+            {/* Portfolio Summary Card (now includes linked accounts) */}
             <PortfolioSummaryCard
               portfolioMetrics={portfolioMetrics}
               holdingsCount={allHoldings.length}
               accounts={investmentPortfolios}
+              stockQuotes={stockQuotes}
             />
-
-            {/* Investment Accounts Carousel */}
-            {investmentPortfolios.length > 0 && (
-              <InvestmentAccountsCard accounts={investmentPortfolios} stockQuotes={stockQuotes} />
-            )}
 
             {/* Holdings & Sectors Card */}
             <HoldingsCard
@@ -1225,39 +1080,74 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
       return [];
     }
 
-    // Group snapshots by minute (in EST) and aggregate balances
-    const snapshotsByMinute = new Map();
+    // Helper to get date string (YYYY-MM-DD) in EST
+    // Used to group snapshots by date so we sum all accounts on the same day
+    const getESTDateKey = (utcDate) => {
+      const estTime = utcDate.getTime() - (5 * 60 * 60 * 1000);
+      const estDate = new Date(estTime);
+      return estDate.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+    };
 
+    // Group snapshots by date (EST) first - we want to sum all accounts on the same day
+    const snapshotsByDate = new Map();
+
+    console.log('[Chart Debug] Processing snapshots:', snapshots.length, 'snapshots');
     snapshots.forEach(snapshot => {
       const utcDate = new Date(snapshot.recorded_at);
-      // Group by EST minute
-      const minuteKey = getESTMinuteKey(utcDate);
+      const dateKey = getESTDateKey(utcDate);
       const balance = parseFloat(snapshot.current_balance) || 0;
 
-      if (snapshotsByMinute.has(minuteKey)) {
-        // Sum balances for all accounts in the same minute
-        const existing = snapshotsByMinute.get(minuteKey);
+      console.log('[Chart Debug] Snapshot:', {
+        account_id: snapshot.account_id,
+        dateKey,
+        balance,
+        recorded_at: snapshot.recorded_at
+      });
+
+      if (snapshotsByDate.has(dateKey)) {
+        // Sum balances for all accounts on the same date
+        const existing = snapshotsByDate.get(dateKey);
         existing.value += balance;
-        // Keep the earliest date in this minute group
+        console.log('[Chart Debug] Adding to existing date:', dateKey, 'balance:', balance, 'new total:', existing.value);
+        // Keep the earliest time on this date
         if (utcDate < existing.date) {
           existing.date = utcDate;
         }
       } else {
-        snapshotsByMinute.set(minuteKey, {
+        snapshotsByDate.set(dateKey, {
           date: utcDate,
           value: balance
         });
+        console.log('[Chart Debug] New date entry:', dateKey, 'balance:', balance);
       }
     });
 
+    console.log('[Chart Debug] Snapshots grouped by date:', Array.from(snapshotsByDate.entries()).map(([dateKey, data]) => ({
+      dateKey,
+      value: data.value,
+      date: data.date.toISOString()
+    })));
+
     // Convert to array and sort by date
-    let chartData = Array.from(snapshotsByMinute.values())
+    let chartData = Array.from(snapshotsByDate.values())
       .map((data) => ({
         date: data.date,
         dateString: data.date.toISOString(),
-        value: data.value
+        value: data.value // This is the sum of account balances from snapshots for this date
       }))
       .sort((a, b) => a.date - b.date);
+
+    console.log('[Chart Debug] Chart data after grouping and sorting:', chartData.map(d => ({
+      date: d.dateString,
+      value: d.value
+    })));
+
+    // For the first data point, we need to calculate it the same way as today's value:
+    // sum(holdings_price * num_shares) + cash
+    // Since we're using account snapshots (which have account balances), the first point
+    // should use the account balance sum - this matches how we calculate today's value
+    // (which is also based on account balances as the source of truth for historical snapshots)
+    // Note: Historical snapshots use account balances, while today uses calculated holdings+cash
 
     // Limit to max 40 data points, spread evenly
     const maxPoints = 40;
@@ -1266,22 +1156,45 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
       chartData = chartData.filter((_, index) => index % step === 0 || index === chartData.length - 1);
     }
 
+    // The first data point is already calculated correctly (sum of account balances from first date)
+    // which matches what the percentage change calculation uses
+
     // Always include current value as the last point
+    // totalValue is portfolioMetrics.totalPortfolioValue = totalHoldingsValue + cash
+    // This represents the combined portfolio value: sum(holdings_price * num_shares) + cash
+    // Calculated using current market prices for holdings, matching what's shown in account cards
     const currentDateTime = new Date();
     const lastPoint = chartData[chartData.length - 1];
-    const currentMinuteKey = getESTMinuteKey(currentDateTime);
+    const currentDateKey = getESTDateKey(currentDateTime);
 
-    // Only add current point if it's in a different minute from the last snapshot
-    if (!lastPoint || getESTMinuteKey(lastPoint.date) !== currentMinuteKey) {
-      chartData.push({
+    // Only add current point if it's on a different date from the last snapshot
+    console.log('[Chart Debug] Current value (totalValue):', totalValue);
+    console.log('[Chart Debug] Last point before update:', lastPoint ? {
+      date: lastPoint.dateString,
+      value: lastPoint.value
+    } : 'none');
+
+    if (!lastPoint || getESTDateKey(lastPoint.date) !== currentDateKey) {
+      const newPoint = {
         date: currentDateTime,
         dateString: currentDateTime.toISOString(),
-        value: totalValue || 0
-      });
+        value: totalValue || 0 // Combined portfolio value: sum(holdings at current prices) + cash
+      };
+      chartData.push(newPoint);
+      console.log('[Chart Debug] Added new current point:', newPoint);
     } else {
-      // Update last point with current value
-      lastPoint.value = totalValue || 0;
+      // Update last point with current combined portfolio value (same date, so update value)
+      const oldValue = lastPoint.value;
+      lastPoint.value = totalValue || 0; // Combined portfolio value: sum(holdings at current prices) + cash
+      console.log('[Chart Debug] Updated last point value from', oldValue, 'to', lastPoint.value);
     }
+
+    console.log('[Chart Debug] Final chart data:', chartData.map(d => ({
+      date: d.dateString,
+      value: d.value
+    })));
+    console.log('[Chart Debug] First data point value:', chartData[0]?.value);
+    console.log('[Chart Debug] Last data point value:', chartData[chartData.length - 1]?.value);
 
     return chartData;
   }, [snapshots, totalValue]);
@@ -1353,16 +1266,26 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   // Calculate percentage change from first value in filtered/display data
   const percentChange = useMemo(() => {
     if (displayChartData.length === 0) {
+      console.log('[Chart Debug] Percent change: no display data');
       return 0;
     }
     const startValue = displayChartData[0].value;
     const currentValue = totalValue || 0;
 
+    console.log('[Chart Debug] Percent change calculation:', {
+      startValue,
+      currentValue,
+      displayChartDataLength: displayChartData.length,
+      firstPoint: displayChartData[0]
+    });
+
     if (startValue === 0) {
       return 0;
     }
 
-    return ((currentValue - startValue) / Math.abs(startValue)) * 100;
+    const percent = ((currentValue - startValue) / Math.abs(startValue)) * 100;
+    console.log('[Chart Debug] Calculated percent change:', percent + '%');
+    return percent;
   }, [displayChartData, totalValue]);
 
   const returnAmount = useMemo(() => {
@@ -1397,8 +1320,8 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
   const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
 
-  // Get date/time in EST for display (shows hovered point or last point)
-  const displayDateTime = useMemo(() => {
+  // Get date/time and value for display (shows hovered point or last point)
+  const displayData = useMemo(() => {
     if (displayChartData.length === 0) return null;
 
     // Use activeIndex if hovering, otherwise use last point
@@ -1421,7 +1344,8 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
-      })
+      }),
+      value: point.value // Use the actual value from the data point
     };
   }, [displayChartData, activeIndex]);
 
@@ -1432,25 +1356,25 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
           <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
             Portfolio Value
           </div>
-          {displayDateTime && (
+          {displayData && (
             <div className="text-right">
               <div className="text-xs text-[var(--color-muted)] font-medium">
-                {displayDateTime.date}
+                {displayData.date}
               </div>
               <div className="text-xs text-[var(--color-muted)]/80">
-                {displayDateTime.time} EST
+                {displayData.time} EST
               </div>
             </div>
           )}
         </div>
         <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-2">
-          <AnimatedCounter value={totalValue || 0} duration={120} />
+          <AnimatedCounter value={displayData?.value ?? (totalValue || 0)} duration={120} />
         </div>
         <div className={`text-xs font-medium ${percentChange > 0 ? 'text-emerald-500' :
           percentChange < 0 ? 'text-rose-500' :
             'text-[var(--color-muted)]'
           }`}>
-          {returnAmount >= 0 ? '+' : ''}{formatCurrencyWithSmallCents(returnAmount)}
+          {returnAmount >= 0 ? '+' : ''}{formatCurrency(returnAmount)}
           {' '}
           ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
         </div>
@@ -1484,6 +1408,7 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
               curveType="monotone"
               animationDuration={800}
               xAxisDataKey="dateString"
+              yAxisDomain={['dataMin', 'dataMax']}
             />
           </div>
         ) : (
@@ -1631,258 +1556,157 @@ function HoldingsCard({ holdings, stockQuotes, sectors = [] }) {
   );
 }
 
-// Portfolio Summary Card Component
-function PortfolioSummaryCard({ portfolioMetrics, holdingsCount, accounts = [] }) {
+// Portfolio Summary Card Component - Now includes linked accounts
+function PortfolioSummaryCard({ portfolioMetrics, holdingsCount, accounts = [], stockQuotes = {} }) {
   const investedPercentage = 100 - portfolioMetrics.cashPercentage;
   const circumference = 2 * Math.PI * 36;
   const strokeDashoffset = circumference - (investedPercentage / 100) * circumference;
 
-  return (
-    <Card variant="glass" padding="none">
-      <div className="px-4 pt-4 pb-3">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Summary</div>
-      </div>
+  // Calculate full value for each account and group by institution
+  const groupedByInstitution = useMemo(() => {
+    // First calculate value for each account
+    const accountsWithValues = [...accounts].map(portfolio => {
+      const account = portfolio.source_account;
+      const balances = account?.balances || {};
+      const accountBalance = balances.current || 0;
 
-      <div className="px-4 pb-4">
-        <div className="flex items-center gap-5">
-          {/* Donut Chart */}
-          <div className="relative w-[80px] h-[80px] flex-shrink-0">
-            <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-              <circle
-                cx="40"
-                cy="40"
-                r="36"
-                fill="none"
-                stroke="var(--color-border)"
-                strokeWidth="6"
-              />
-              <circle
-                cx="40"
-                cy="40"
-                r="36"
-                fill="none"
-                stroke="url(#summaryGradient)"
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
-              />
-              <defs>
-                <linearGradient id="summaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#6366f1" />
-                  <stop offset="100%" stopColor="#8b5cf6" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-                {investedPercentage.toFixed(0)}%
-              </div>
-            </div>
-          </div>
+      // Calculate holdings value at current market price: sum(price * shares)
+      const holdingsValue = (portfolio.holdings || []).reduce((sum, h) => {
+        const ticker = (h.ticker || '').toUpperCase();
+        const quote = stockQuotes[ticker];
+        const price = quote?.price || h.avg_cost || 0;
+        return sum + ((h.shares || 0) * price);
+      }, 0);
 
-          {/* Stats - Right aligned values */}
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-[var(--color-muted)]">Cash</span>
-              <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                {formatCurrencyWithSmallCents(portfolioMetrics.cash)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-[var(--color-muted)]">Invested</span>
-              <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                {formatCurrencyWithSmallCents(portfolioMetrics.totalHoldingsValue)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
+      // Cash is remainder (account balance minus holdings value)
+      const cashValue = Math.max(0, accountBalance - holdingsValue);
 
-// Investment Accounts Card Component - Clean Carousel
-function InvestmentAccountsCard({ accounts, stockQuotes = {} }) {
-  const scrollContainerRef = useRef(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+      // Total value = holdings at market price + cash
+      const totalValue = holdingsValue + cashValue;
 
-  // Sort accounts by balance (highest first)
-  const sortedAccounts = useMemo(() => {
-    return [...accounts].sort((a, b) => {
-      const balanceA = a.source_account?.balances?.current || 0;
-      const balanceB = b.source_account?.balances?.current || 0;
-      return balanceB - balanceA;
+      return { ...portfolio, totalValue };
     });
-  }, [accounts]);
 
-  // Handle scroll to update active index
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const cardWidth = container.offsetWidth;
-    const newIndex = Math.round(scrollLeft / cardWidth);
-    setActiveIndex(Math.min(newIndex, sortedAccounts.length - 1));
-  };
+    // Group by institution
+    const institutionMap = new Map();
+    accountsWithValues.forEach(portfolio => {
+      const account = portfolio.source_account;
+      const institution = account?.institutions;
+      const institutionId = institution?.id || 'unknown';
 
-  // Navigate to specific index
-  const scrollToIndex = (index) => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const cardWidth = container.offsetWidth;
-    container.scrollTo({ left: index * cardWidth, behavior: 'smooth' });
-    setActiveIndex(index);
-  };
+      if (institutionMap.has(institutionId)) {
+        const existing = institutionMap.get(institutionId);
+        existing.totalValue += portfolio.totalValue;
+        existing.accountCount += 1;
+      } else {
+        institutionMap.set(institutionId, {
+          id: institutionId,
+          name: institution?.name || 'Brokerage',
+          logo: institution?.logo,
+          totalValue: portfolio.totalValue,
+          accountCount: 1
+        });
+      }
+    });
 
-  if (sortedAccounts.length === 0) return null;
+    // Convert to array and sort by value
+    return Array.from(institutionMap.values()).sort((a, b) => b.totalValue - a.totalValue);
+  }, [accounts, stockQuotes]);
 
   return (
     <Card variant="glass" padding="none">
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
-          Accounts
+      {/* Summary Section - Ultra Minimal */}
+      <div className="p-5">
+        {/* Header */}
+        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-3">
+          Portfolio Value
         </div>
-        {sortedAccounts.length > 1 && (
-          <div className="text-[10px] text-[var(--color-muted)]">
-            {activeIndex + 1} / {sortedAccounts.length}
+
+        {/* Total Value - Hero */}
+        <div className="text-2xl font-bold text-[var(--color-fg)] tabular-nums mb-4">
+          {formatCurrency(portfolioMetrics.totalHoldingsValue + portfolioMetrics.cash)}
+        </div>
+
+        {/* Simple breakdown - inline */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[var(--color-muted)]">Holdings</span>
+            <span className="font-medium text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(portfolioMetrics.totalHoldingsValue)}
+            </span>
           </div>
-        )}
+          <div className="w-px h-3 bg-[var(--color-border)]" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[var(--color-muted)]">Cash</span>
+            <span className="font-medium text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(portfolioMetrics.cash)}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="pb-4">
-        {/* Carousel Container */}
-        <div className="overflow-hidden">
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="flex gap-0 overflow-x-auto snap-x snap-mandatory"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch'
-            }}
-          >
-            {sortedAccounts.map((portfolio) => {
-              const account = portfolio.source_account;
-              if (!account) return null;
-              const institution = account.institutions;
-
-              // Get balances from account
-              const balances = account.balances || {};
-              const currentBalance = balances.current || 0;
-
-              // Calculate holdings value at CURRENT MARKET PRICE
-              const holdingsValue = (portfolio.holdings || []).reduce((sum, h) => {
-                const ticker = (h.ticker || '').toUpperCase();
-                const quote = stockQuotes[ticker];
-                // Use current price if available, otherwise fall back to avg_cost
-                const price = quote?.price || h.avg_cost || 0;
-                return sum + ((h.shares || 0) * price);
-              }, 0);
-
-              // Cash is remainder (account balance minus current holdings value)
-              const cashValue = Math.max(0, currentBalance - holdingsValue);
-              const holdingsPercent = currentBalance > 0 ? (holdingsValue / currentBalance) * 100 : 0;
-
-              return (
-                <div
-                  key={portfolio.id}
-                  className="flex-shrink-0 w-full px-4 snap-center"
-                >
-                  {/* Clean Card Design */}
+      {/* Institutions Section */}
+      {groupedByInstitution.length > 0 && (
+        <>
+          <div className="mx-4 border-t border-[var(--color-border)]/40" />
+          <div className="px-4 pt-3 pb-2">
+            <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider">
+              Linked Accounts
+            </div>
+          </div>
+          <div className="pb-4">
+            {groupedByInstitution.map((institution) => (
+              <div
+                key={institution.id}
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+              >
+                {/* Institution Logo */}
+                {institution.logo ? (
+                  <img
+                    src={institution.logo}
+                    alt=""
+                    className="w-9 h-9 rounded-lg object-contain flex-shrink-0"
+                    style={{ border: '1px solid var(--color-border)' }}
+                  />
+                ) : (
                   <div
-                    className="rounded-xl p-4 border"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                     style={{
                       background: 'var(--color-surface)',
-                      borderColor: 'var(--color-border)'
+                      border: '1px solid var(--color-border)'
                     }}
                   >
-                    {/* Institution Header */}
-                    <div className="flex items-center gap-2.5 mb-4">
-                      {institution?.logo ? (
-                        <img
-                          src={institution.logo}
-                          alt=""
-                          className="w-8 h-8 rounded-lg object-contain"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-[var(--color-accent)]">
-                            {(institution?.name || 'B')[0]}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                          {account.name}
-                        </div>
-                        <div className="text-[10px] text-[var(--color-muted)]">
-                          {institution?.name || 'Brokerage'}
-                        </div>
-                      </div>
-                    </div>
+                    <span className="text-xs font-medium text-[var(--color-muted)]">
+                      {institution.name[0]}
+                    </span>
+                  </div>
+                )}
 
-                    {/* Balance */}
-                    <div className="mb-4">
-                      <div className="text-xl font-semibold text-[var(--color-fg)] tabular-nums">
-                        {formatCurrency(currentBalance)}
-                      </div>
-                    </div>
-
-                    {/* Allocation Bar */}
-                    <div className="mb-3">
-                      <div className="w-full h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${holdingsPercent}%`,
-                            background: 'linear-gradient(90deg, #6366f1, #8b5cf6)'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Holdings vs Cash */}
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
-                        <span className="text-[var(--color-muted)]">Holdings</span>
-                        <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(holdingsValue)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-[var(--color-muted)]/30" />
-                        <span className="text-[var(--color-muted)]">Cash</span>
-                        <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(cashValue)}</span>
-                      </div>
-                    </div>
+                {/* Institution Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                    {institution.name}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {institution.accountCount} {institution.accountCount === 1 ? 'account' : 'accounts'}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Dots */}
-        {sortedAccounts.length > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-3">
-            {sortedAccounts.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => scrollToIndex(index)}
-                className={`h-1 rounded-full transition-all cursor-pointer ${index === activeIndex
-                  ? 'bg-[var(--color-accent)] w-3'
-                  : 'bg-[var(--color-muted)]/25 w-1 hover:bg-[var(--color-muted)]/40'
-                  }`}
-              />
+                {/* Combined Value */}
+                <div className="text-right flex-shrink-0">
+                  <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                    {formatCurrency(institution.totalValue)}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </Card>
   );
 }
+
 
 // Sectors Card Component
 function SectorsCard({ sectors }) {
@@ -1911,10 +1735,12 @@ function SectorsCard({ sectors }) {
 // Investment Transactions Card Component
 function InvestmentTransactionsCard({ transactions }) {
   const [tickerLogos, setTickerLogos] = useState({});
+  const [tickerInfo, setTickerInfo] = useState({});
+  const MAX_VISIBLE = 5;
 
-  // Fetch ticker logos on mount
+  // Fetch ticker logos and info on mount
   useEffect(() => {
-    const fetchLogos = async () => {
+    const fetchTickerData = async () => {
       if (!transactions || transactions.length === 0) return;
 
       // Get unique tickers from transactions
@@ -1929,22 +1755,25 @@ function InvestmentTransactionsCard({ transactions }) {
       try {
         const { data } = await supabase
           .from('tickers')
-          .select('symbol, logo')
+          .select('symbol, logo, name')
           .in('symbol', tickers);
 
         if (data) {
           const logoMap = {};
+          const infoMap = {};
           data.forEach(t => {
             logoMap[t.symbol] = t.logo;
+            infoMap[t.symbol] = { name: t.name };
           });
           setTickerLogos(logoMap);
+          setTickerInfo(infoMap);
         }
       } catch (err) {
-        console.error('Error fetching ticker logos:', err);
+        console.error('Error fetching ticker data:', err);
       }
     };
 
-    fetchLogos();
+    fetchTickerData();
   }, [transactions]);
 
   if (!transactions || transactions.length === 0) {
@@ -1953,11 +1782,16 @@ function InvestmentTransactionsCard({ transactions }) {
         <div className="px-5 pt-5 pb-3">
           <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
         </div>
-        <div className="px-5 py-10 text-center">
+        <div className="px-5 py-8 text-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-surface)]/60 flex items-center justify-center">
+            <svg className="w-6 h-6 text-[var(--color-muted)]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
           <div className="text-[var(--color-muted)]/60 text-sm">
             No investment transactions yet
           </div>
-          <p className="text-xs text-[var(--color-muted)]/40 mt-2">
+          <p className="text-xs text-[var(--color-muted)]/40 mt-1">
             Transactions will appear here when you buy or sell securities
           </p>
         </div>
@@ -1965,118 +1799,170 @@ function InvestmentTransactionsCard({ transactions }) {
     );
   }
 
-  // Helper to get accent color for transaction type
-  const getAccentColor = (type, subtype) => {
+  // Helper to get accent info for transaction type
+  const getAccentInfo = (type, subtype) => {
     const normalizedType = (type || '').toLowerCase();
     const normalizedSubtype = (subtype || '').toLowerCase();
 
     if (normalizedType === 'buy' || normalizedSubtype === 'buy') {
-      return { color: '#10b981', isBuy: true, isSell: false, isTransfer: false };
+      return { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', label: 'BUY', isBuy: true, isSell: false, isTransfer: false, isDividend: false };
     } else if (normalizedType === 'sell' || normalizedSubtype === 'sell') {
-      return { color: '#ef4444', isBuy: false, isSell: true, isTransfer: false };
+      return { color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)', label: 'SELL', isBuy: false, isSell: true, isTransfer: false, isDividend: false };
     } else if (normalizedType === 'dividend' || normalizedSubtype === 'dividend') {
-      return { color: '#8b5cf6', isBuy: false, isSell: false, isDividend: true, isTransfer: false };
+      return { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)', label: 'DIV', isBuy: false, isSell: false, isDividend: true, isTransfer: false };
     } else if (normalizedType === 'fee') {
-      return { color: '#f59e0b', isBuy: false, isSell: false, isTransfer: false };
+      return { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', label: 'FEE', isBuy: false, isSell: false, isTransfer: false, isDividend: false };
     } else if (normalizedType === 'transfer' || normalizedSubtype === 'contribution' || normalizedSubtype === 'transfer') {
-      return { color: '#3b82f6', isBuy: false, isSell: false, isTransfer: true };
+      return { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)', label: 'XFER', isBuy: false, isSell: false, isTransfer: true, isDividend: false };
     }
     // Other types - blue as default
-    return { color: '#3b82f6', isBuy: false, isSell: false, isTransfer: true };
+    return { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)', label: 'OTHER', isBuy: false, isSell: false, isTransfer: true, isDividend: false };
   };
+
+  const hasMoreTransactions = transactions.length > MAX_VISIBLE;
+  const visibleTransactions = transactions.slice(0, MAX_VISIBLE);
 
   return (
     <Card variant="glass" padding="none">
-      <div className="px-5 pt-5 pb-3">
+      {/* Header */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
         <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
+        {hasMoreTransactions ? (
+          <button className="text-[11px] text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 font-medium transition-colors cursor-pointer">
+            View all
+          </button>
+        ) : (
+          <div className="text-[10px] text-[var(--color-muted)]/50 tabular-nums">
+            {transactions.length} total
+          </div>
+        )}
       </div>
+
+      {/* Column Headers */}
+      <div className="px-5 py-2 flex items-center text-[10px] text-[var(--color-muted)]/60 uppercase tracking-wider border-b border-[var(--color-border)]/10">
+        <div className="flex-1 min-w-0">Security</div>
+        <div className="w-20 text-right">Shares</div>
+        <div className="w-24 text-right">Amount</div>
+        <div className="w-16 text-right">Date</div>
+      </div>
+
+      {/* Transactions list */}
       <div className="pb-2">
-        {transactions.slice(0, 5).map((transaction) => {
+        {visibleTransactions.map((transaction, index) => {
           const details = transaction.investment_details || {};
-          const accent = getAccentColor(details.type, details.subtype);
+          const accent = getAccentInfo(details.type, details.subtype);
           const ticker = details.ticker || null;
           const logo = ticker ? tickerLogos[ticker] : null;
+          const companyName = ticker ? tickerInfo[ticker]?.name : null;
           const quantity = details.quantity ? parseFloat(details.quantity) : null;
-          const price = details.price ? parseFloat(details.price) : null;
           const amount = Math.abs(parseFloat(transaction.amount) || 0);
           const date = transaction.date
             ? new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
             : '-';
 
-          // Format shares with direction indicator
-          const sharesText = quantity !== null
-            ? `${accent.isBuy ? '+' : accent.isSell ? '-' : ''}${quantity.toFixed(quantity % 1 === 0 ? 0 : 2)} shares`
-            : null;
+          // Format shares count
+          const sharesDisplay = quantity !== null
+            ? `${accent.isBuy ? '+' : accent.isSell ? '-' : ''}${quantity.toFixed(quantity % 1 === 0 ? 0 : 2)}`
+            : '—';
 
-          // Better title for non-ticker transactions
+          // Title for non-ticker transactions
           const title = ticker
             ? ticker
             : accent.isTransfer
               ? 'Cash Transfer'
-              : 'Transaction';
+              : details.security_name || 'Transaction';
+
+          // Secondary text (company name)
+          const secondaryText = ticker && companyName
+            ? companyName
+            : accent.isTransfer ? 'Account contribution' : null;
 
           return (
             <div
               key={transaction.id}
-              className="px-5 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+              className="relative hover:bg-[var(--color-surface)]/30 transition-all"
             >
-              <div className="flex items-center gap-3">
-                {/* Ticker Logo */}
-                {logo ? (
-                  <img
-                    src={logo}
-                    alt={ticker}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                    style={{ border: '1px solid var(--color-border)' }}
-                  />
-                ) : (
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium"
-                    style={{
-                      backgroundColor: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)',
-                      color: 'var(--color-muted)'
-                    }}
-                  >
-                    {ticker ? ticker.slice(0, 2) : '$'}
-                  </div>
-                )}
+              {/* Left border accent */}
+              <div
+                className="absolute left-0 top-0 bottom-0 w-[3px]"
+                style={{ backgroundColor: accent.color }}
+              />
 
-                {/* Transaction Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[var(--color-fg)]">
-                    {title}
+              <div className="flex items-center px-5 py-2.5">
+                {/* Security column: Logo + Ticker/Name + Badge */}
+                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                  {/* Logo */}
+                  <div className="flex-shrink-0">
+                    {logo ? (
+                      <img
+                        src={logo}
+                        alt={ticker}
+                        className="w-8 h-8 rounded-full object-cover"
+                        style={{ border: '1px solid var(--color-border)' }}
+                      />
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium"
+                        style={{
+                          backgroundColor: accent.bgColor,
+                          border: '1px solid var(--color-border)',
+                          color: accent.color
+                        }}
+                      >
+                        {ticker ? ticker.slice(0, 2) : '$'}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                    {sharesText && (
-                      <span style={{ color: accent.isBuy ? '#10b981' : accent.isSell ? '#ef4444' : undefined }}>
-                        {sharesText}
+
+                  {/* Ticker/Name */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                        {title}
                       </span>
-                    )}
-                    {sharesText && price !== null && (
-                      <span className="mx-1.5 text-[var(--color-border)]">•</span>
-                    )}
-                    {price !== null && (
-                      <span>@ {formatCurrency(price)}</span>
-                    )}
-                    {!sharesText && price === null && accent.isTransfer && (
-                      <span>Account contribution</span>
-                    )}
-                    {!sharesText && price === null && !accent.isTransfer && (
-                      <span>{details.security_name || 'Investment activity'}</span>
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wide flex-shrink-0"
+                        style={{
+                          backgroundColor: accent.bgColor,
+                          color: accent.color
+                        }}
+                      >
+                        {accent.label}
+                      </span>
+                    </div>
+                    {secondaryText && (
+                      <div className="text-[10px] text-[var(--color-muted)]/60 truncate mt-0.5">
+                        {secondaryText}
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Amount & Date */}
-                <div className="text-right flex-shrink-0">
-                  <div className={`text-sm font-medium tabular-nums ${accent.isSell || accent.isDividend ? 'text-emerald-500' : 'text-[var(--color-fg)]'
+                {/* Shares column */}
+                <div className="w-20 text-right flex-shrink-0">
+                  <span
+                    className="text-sm tabular-nums font-medium"
+                    style={{
+                      color: accent.isBuy ? '#10b981' : accent.isSell ? '#ef4444' : 'var(--color-muted)'
+                    }}
+                  >
+                    {sharesDisplay}
+                  </span>
+                </div>
+
+                {/* Amount column */}
+                <div className="w-24 text-right flex-shrink-0">
+                  <span className={`text-sm font-semibold tabular-nums ${accent.isSell || accent.isDividend ? 'text-emerald-500' : 'text-[var(--color-fg)]'
                     }`}>
-                    {accent.isSell || accent.isDividend ? '+' : ''}{formatCurrency(amount)}
-                  </div>
-                  <div className="text-[11px] text-[var(--color-muted)]/60">
+                    {accent.isSell || accent.isDividend ? '+' : accent.isBuy ? '-' : ''}{formatCurrency(amount)}
+                  </span>
+                </div>
+
+                {/* Date column */}
+                <div className="w-16 text-right flex-shrink-0">
+                  <span className="text-[11px] text-[var(--color-muted)]/50">
                     {date}
-                  </div>
+                  </span>
                 </div>
               </div>
             </div>

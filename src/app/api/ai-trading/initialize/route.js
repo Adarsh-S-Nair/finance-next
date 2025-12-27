@@ -37,12 +37,20 @@ export async function POST(request) {
     const supabase = getSupabaseClient();
     
     const body = await request.json();
-    const { userId, name, aiModel, startingCapital } = body;
+    const { userId, name, aiModel, startingCapital, assetType = 'stock' } = body;
 
     // Validate required fields
     if (!userId || !name || !aiModel || !startingCapital) {
       return NextResponse.json(
         { error: 'Missing required fields: userId, name, aiModel, startingCapital' },
+        { status: 400 }
+      );
+    }
+
+    // Validate assetType
+    if (assetType !== 'stock' && assetType !== 'crypto') {
+      return NextResponse.json(
+        { error: 'Invalid assetType. Must be "stock" or "crypto"' },
         { status: 400 }
       );
     }
@@ -352,10 +360,12 @@ export async function POST(request) {
     const nextRebalanceDateStr = `${year}-${month}-${day}`;
     
     const { data: portfolio, error: insertError } = await supabase
-      .from('ai_portfolios')
+      .from('portfolios')
       .insert({
         user_id: userId,
         name: name.trim(),
+        type: 'ai_simulation',
+        asset_type: assetType,
         ai_model: aiModel,
         starting_capital: startingCapital,
         current_cash: startingCapital,
@@ -384,7 +394,7 @@ export async function POST(request) {
     
     // Step 6: Fetch current portfolio holdings (if any)
     const { data: holdings, error: holdingsError } = await supabase
-      .from('ai_portfolio_holdings')
+      .from('holdings')
       .select('ticker, shares, avg_cost')
       .eq('portfolio_id', portfolio.id);
     
@@ -518,7 +528,7 @@ export async function POST(request) {
       // Update portfolio status to error (if portfolio was created)
       if (portfolio?.id) {
         await supabase
-          .from('ai_portfolios')
+          .from('portfolios')
           .update({ status: 'error' })
           .eq('id', portfolio.id);
       }
@@ -665,7 +675,7 @@ export async function POST(request) {
             
             // Record the trade as pending (no executed_at, is_pending=true)
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('ai_portfolio_trades')
+              .from('trades')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -793,7 +803,7 @@ export async function POST(request) {
             // Map TRIM/INCREASE to buy/sell for database storage
             const dbAction = 'buy';
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('ai_portfolio_trades')
+              .from('trades')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -826,7 +836,7 @@ export async function POST(request) {
               const newAvgCost = newTotalCost / newTotalShares;
               
               const { error: updateError } = await supabase
-                .from('ai_portfolio_holdings')
+                .from('holdings')
                 .update({
                   shares: newTotalShares,
                   avg_cost: newAvgCost,
@@ -847,7 +857,7 @@ export async function POST(request) {
             } else {
               // Create new holding
               const { error: insertError } = await supabase
-                .from('ai_portfolio_holdings')
+                .from('holdings')
                 .insert({
                   portfolio_id: portfolio.id,
                   ticker: tickerUpper,
@@ -898,7 +908,7 @@ export async function POST(request) {
             // Map TRIM/INCREASE to buy/sell for database storage
             const dbAction = 'sell';
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('ai_portfolio_trades')
+              .from('trades')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -923,7 +933,7 @@ export async function POST(request) {
             
             if (remainingShares > 0.0001) { // Keep holding if there are remaining shares (accounting for floating point)
               const { error: updateError } = await supabase
-                .from('ai_portfolio_holdings')
+                .from('holdings')
                 .update({
                   shares: remainingShares,
                   // avg_cost stays the same when selling
@@ -944,7 +954,7 @@ export async function POST(request) {
             } else {
               // Delete holding if no shares remaining
               const { error: deleteError } = await supabase
-                .from('ai_portfolio_holdings')
+                .from('holdings')
                 .delete()
                 .eq('portfolio_id', portfolio.id)
                 .eq('ticker', tickerUpper);
@@ -987,7 +997,7 @@ export async function POST(request) {
         // Update portfolio cash and last_traded_at (only if trades were executed)
         if (executedTrades.length > 0) {
           const { error: updateCashError } = await supabase
-            .from('ai_portfolios')
+            .from('portfolios')
             .update({
               current_cash: currentCash,
               last_traded_at: new Date().toISOString(),
@@ -1055,7 +1065,7 @@ export async function POST(request) {
     console.log(`   Snapshot Date: ${snapshotDate}`);
     
     const { data: snapshotData, error: snapshotError } = await supabase
-      .from('ai_portfolio_snapshots')
+      .from('portfolio_snapshots')
       .insert({
         portfolio_id: portfolio.id,
         total_value: totalValue,
@@ -1075,7 +1085,7 @@ export async function POST(request) {
 
     // Step 11: Update portfolio status to active and refresh portfolio data
     const { data: updatedPortfolio, error: updateError } = await supabase
-      .from('ai_portfolios')
+      .from('portfolios')
       .update({ status: 'active' })
       .eq('id', portfolio.id)
       .select()
@@ -1087,7 +1097,7 @@ export async function POST(request) {
 
     // Refresh holdings after trades
     const { data: updatedHoldings } = await supabase
-      .from('ai_portfolio_holdings')
+      .from('holdings')
       .select('ticker, shares, avg_cost')
       .eq('portfolio_id', portfolio.id);
 
