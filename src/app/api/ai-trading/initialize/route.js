@@ -37,12 +37,12 @@ export async function POST(request) {
     const supabase = getSupabaseClient();
     
     const body = await request.json();
-    const { userId, name, aiModel, startingCapital, assetType = 'stock' } = body;
+    const { userId, name, aiModel, startingCapital, assetType = 'stock', cryptoAssets } = body;
 
     // Validate required fields
-    if (!userId || !name || !aiModel || !startingCapital) {
+    if (!userId || !name || !startingCapital) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, name, aiModel, startingCapital' },
+        { error: 'Missing required fields: userId, name, startingCapital' },
         { status: 400 }
       );
     }
@@ -55,19 +55,52 @@ export async function POST(request) {
       );
     }
 
+    // If AI is enabled, validate aiModel
+    if (aiModel && !AI_MODELS[aiModel]) {
+      return NextResponse.json(
+        { error: 'Invalid aiModel' },
+        { status: 400 }
+      );
+    }
+
+    // Validate cryptoAssets for crypto portfolios
+    if (assetType === 'crypto') {
+      if (!cryptoAssets || !Array.isArray(cryptoAssets) || cryptoAssets.length === 0) {
+        return NextResponse.json(
+          { error: 'cryptoAssets must be a non-empty array for crypto portfolios' },
+          { status: 400 }
+        );
+      }
+      // Validate crypto symbols
+      const validCryptos = ['BTC', 'ETH'];
+      const invalidCryptos = cryptoAssets.filter(c => !validCryptos.includes(c));
+      if (invalidCryptos.length > 0) {
+        return NextResponse.json(
+          { error: `Invalid crypto symbols: ${invalidCryptos.join(', ')}. Valid symbols: ${validCryptos.join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const hasAI = !!aiModel;
+
     console.log('\n========================================');
-    console.log('🚀 INITIALIZING AI PORTFOLIO');
+    console.log(`🚀 INITIALIZING ${hasAI ? 'AI ' : ''}PORTFOLIO`);
     console.log('========================================');
     console.log(`Portfolio: ${name}`);
-    console.log(`AI Model: ${aiModel}`);
+    console.log(`AI Model: ${aiModel || 'None (Manual Trading)'}`);
+    console.log(`Asset Type: ${assetType}`);
     console.log(`Starting Capital: $${startingCapital.toLocaleString()}`);
     console.log('----------------------------------------');
 
-    // Step 1: Scrape Nasdaq 100 constituents from website (first step of workflow)
-    console.log('\n📊 STEP 1: SCRAPING NASDAQ-100 CONSTITUENTS');
-    console.log('========================================');
-    
-    const constituents = await scrapeNasdaq100Constituents();
+    // If AI is enabled, fetch market data and initialize AI trading
+    // Otherwise, just create the portfolio
+    if (hasAI) {
+      // Step 1: Scrape Nasdaq 100 constituents from website (first step of workflow)
+      console.log('\n📊 STEP 1: SCRAPING NASDAQ-100 CONSTITUENTS');
+      console.log('========================================');
+      
+      const constituents = await scrapeNasdaq100Constituents();
     console.log(`✅ Scraped ${constituents.length} Nasdaq 100 constituents from website`);
     
     // Extract ticker symbols
@@ -348,51 +381,52 @@ export async function POST(request) {
     console.log(`Failed tickers: ${failedTickers.length}`);
     console.log('========================================\n');
 
-    // Step 4: Create the portfolio in the database
-    // Calculate next rebalance date (1 month from today for monthly cadence)
-    const today = new Date();
-    const nextRebalanceDate = new Date(today);
-    nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
-    // Format as YYYY-MM-DD using local date (not UTC) to avoid timezone issues
-    const year = nextRebalanceDate.getFullYear();
-    const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
-    const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
-    const nextRebalanceDateStr = `${year}-${month}-${day}`;
-    
-    const { data: portfolio, error: insertError } = await supabase
-      .from('portfolios')
-      .insert({
-        user_id: userId,
-        name: name.trim(),
-        type: 'ai_simulation',
-        asset_type: assetType,
-        ai_model: aiModel,
-        starting_capital: startingCapital,
-        current_cash: startingCapital,
-        status: 'initializing', // Start in initializing state
-        rebalance_cadence: 'monthly', // Default to monthly for all new portfolios
-        next_rebalance_date: nextRebalanceDateStr,
-        previous_rebalance_date: null, // No previous rebalance for new portfolio
-      })
-      .select()
-      .single();
+      // Step 4: Create the portfolio in the database (before AI processing)
+      // Calculate next rebalance date (1 month from today for monthly cadence)
+      const today = new Date();
+      const nextRebalanceDate = new Date(today);
+      nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
+      // Format as YYYY-MM-DD using local date (not UTC) to avoid timezone issues
+      const year = nextRebalanceDate.getFullYear();
+      const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
+      const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
+      const nextRebalanceDateStr = `${year}-${month}-${day}`;
+      
+      const { data: portfolio, error: insertError } = await supabase
+        .from('portfolios')
+        .insert({
+          user_id: userId,
+          name: name.trim(),
+          type: 'ai_simulation',
+          asset_type: assetType,
+          ai_model: aiModel,
+          starting_capital: startingCapital,
+          current_cash: startingCapital,
+          status: 'initializing', // Start in initializing state
+          rebalance_cadence: 'monthly', // Default to monthly for all new portfolios
+          next_rebalance_date: nextRebalanceDateStr,
+          previous_rebalance_date: null, // No previous rebalance for new portfolio
+          crypto_assets: assetType === 'crypto' ? cryptoAssets : null,
+        })
+        .select()
+        .single();
 
-    if (insertError) {
-      console.error('❌ Database insert error:', insertError);
-      throw new Error(`Failed to create portfolio: ${insertError.message}`);
-    }
-
-    console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
-
-    // Step 5: Create price map for quick lookups (needed for holdings formatting)
-    const priceMap = new Map();
-    enrichedData.forEach(stock => {
-      if (stock.currentPrice) {
-        priceMap.set(stock.ticker, stock.currentPrice);
+      if (insertError) {
+        console.error('❌ Database insert error:', insertError);
+        throw new Error(`Failed to create portfolio: ${insertError.message}`);
       }
-    });
-    
-    // Step 6: Fetch current portfolio holdings (if any)
+
+      console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
+
+      // Step 5: Create price map for quick lookups (needed for holdings formatting)
+      const priceMap = new Map();
+      enrichedData.forEach(stock => {
+        if (stock.currentPrice) {
+          priceMap.set(stock.ticker, stock.currentPrice);
+        }
+      });
+      
+      // Step 6: Fetch current portfolio holdings (if any)
     const { data: holdings, error: holdingsError } = await supabase
       .from('holdings')
       .select('ticker, shares, avg_cost')
@@ -1101,27 +1135,83 @@ export async function POST(request) {
       .select('ticker, shares, avg_cost')
       .eq('portfolio_id', portfolio.id);
 
-    console.log('\n✅ PORTFOLIO INITIALIZATION COMPLETE');
-    console.log('========================================\n');
+      console.log('\n✅ PORTFOLIO INITIALIZATION COMPLETE');
+      console.log('========================================\n');
 
-    return NextResponse.json({
-      success: true,
-      portfolio: updatedPortfolio || portfolio,
-      holdings: updatedHoldings || [],
-      trades: {
-        executed: executedTrades,
-        pending: pendingTrades,
-        errors: tradeErrors,
-        totalExecuted: executedTrades.length,
-        totalPending: pendingTrades.length,
-        totalErrors: tradeErrors.length,
-      },
-      aiResponse: {
-        content: aiResponse.content,
-        parsed: parsedResponse,
-        usage: aiResponse.usage,
-      },
-    });
+      return NextResponse.json({
+        success: true,
+        portfolio: updatedPortfolio || portfolio,
+        holdings: updatedHoldings || [],
+        trades: {
+          executed: executedTrades,
+          pending: pendingTrades,
+          errors: tradeErrors,
+          totalExecuted: executedTrades.length,
+          totalPending: pendingTrades.length,
+          totalErrors: tradeErrors.length,
+        },
+        aiResponse: {
+          content: aiResponse.content,
+          parsed: parsedResponse,
+          usage: aiResponse.usage,
+        },
+      });
+    } else {
+      // Non-AI portfolio: Just create the portfolio without AI initialization
+      console.log('\n📝 Creating manual trading portfolio (no AI)');
+      console.log('========================================\n');
+      
+      // Calculate next rebalance date (1 month from today for monthly cadence)
+      const today = new Date();
+      const nextRebalanceDate = new Date(today);
+      nextRebalanceDate.setMonth(nextRebalanceDate.getMonth() + 1);
+      const year = nextRebalanceDate.getFullYear();
+      const month = String(nextRebalanceDate.getMonth() + 1).padStart(2, '0');
+      const day = String(nextRebalanceDate.getDate()).padStart(2, '0');
+      const nextRebalanceDateStr = `${year}-${month}-${day}`;
+      
+      const { data: portfolio, error: insertError } = await supabase
+        .from('portfolios')
+        .insert({
+          user_id: userId,
+          name: name.trim(),
+          type: 'ai_simulation',
+          asset_type: assetType,
+          ai_model: null,
+          starting_capital: startingCapital,
+          current_cash: startingCapital,
+          status: 'active',
+          rebalance_cadence: 'monthly',
+          next_rebalance_date: nextRebalanceDateStr,
+          previous_rebalance_date: null,
+          crypto_assets: cryptoAssets,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('❌ Database insert error:', insertError);
+        throw new Error(`Failed to create portfolio: ${insertError.message}`);
+      }
+
+      console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
+      console.log('========================================\n');
+
+      return NextResponse.json({
+        success: true,
+        portfolio: portfolio,
+        holdings: [],
+        trades: {
+          executed: [],
+          pending: [],
+          errors: [],
+          totalExecuted: 0,
+          totalPending: 0,
+          totalErrors: 0,
+        },
+        aiResponse: null,
+      });
+    }
 
   } catch (error) {
     console.error('❌ Portfolio initialization failed:', error);

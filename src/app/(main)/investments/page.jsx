@@ -275,9 +275,19 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [startingCapital, setStartingCapital] = useState(100000);
   const [assetType, setAssetType] = useState('stock'); // 'stock' or 'crypto'
+  const [selectedCryptos, setSelectedCryptos] = useState(['BTC', 'ETH']); // Default to BTC and ETH
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+
+  // AI is only available for stock portfolios
+  const hasAI = assetType === 'stock';
+
+  // Available crypto options
+  const AVAILABLE_CRYPTOS = [
+    { symbol: 'BTC', name: 'Bitcoin' },
+    { symbol: 'ETH', name: 'Ethereum' },
+  ];
 
   // Capital bounds
   const MIN_CAPITAL = 1000;
@@ -286,12 +296,36 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   // Auto-fill name when model changes (unless user manually edited)
   const handleModelSelect = (modelId) => {
     setSelectedModel(modelId);
-    if (!nameManuallyEdited) {
+    if (!nameManuallyEdited && hasAI) {
       const model = AI_MODELS[modelId];
       if (model) {
         setName(`${model.name} Portfolio`);
       }
     }
+  };
+
+  // Handle asset type change
+  const handleAssetTypeChange = (type) => {
+    setAssetType(type);
+    // Reset name when switching asset types (unless manually edited)
+    if (!nameManuallyEdited) {
+      setName('');
+    }
+  };
+
+  // Handle crypto selection
+  const handleCryptoToggle = (cryptoSymbol) => {
+    setSelectedCryptos(prev => {
+      if (prev.includes(cryptoSymbol)) {
+        // Don't allow deselecting if it's the last one
+        if (prev.length > 1) {
+          return prev.filter(c => c !== cryptoSymbol);
+        }
+        return prev;
+      } else {
+        return [...prev, cryptoSymbol];
+      }
+    });
   };
 
   const handleNameChange = (e) => {
@@ -330,9 +364,10 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         body: JSON.stringify({
           userId: profile.id,
           name: name.trim(),
-          aiModel: selectedModel,
+          aiModel: hasAI ? selectedModel : null,
           startingCapital: startingCapital,
           assetType: assetType,
+          cryptoAssets: assetType === 'crypto' ? selectedCryptos : null,
         }),
       });
 
@@ -360,17 +395,18 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     setSelectedModel('gemini-3-flash-preview');
     setStartingCapital(100000);
     setAssetType('stock');
+    setSelectedCryptos(['BTC', 'ETH']);
     setError(null);
   };
 
   useEffect(() => {
-    if (isOpen && !nameManuallyEdited && !name) {
+    if (isOpen && !nameManuallyEdited && !name && hasAI) {
       const model = AI_MODELS[selectedModel];
       if (model) {
         setName(`${model.name} Portfolio`);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, hasAI, selectedModel]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -378,49 +414,53 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   }, [isOpen]);
 
-  const selectedModelInfo = AI_MODELS[selectedModel];
+  const selectedModelInfo = hasAI ? AI_MODELS[selectedModel] : null;
 
-  const AIThinkingOverlay = () => (
-    <div className="absolute inset-0 bg-[var(--color-content-bg)]/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
-      <div className="mb-6 flex items-center justify-center">
-        {selectedModelInfo && (
-          <selectedModelInfo.icon
-            className="w-10 h-10 animate-pulse"
-            style={{
-              color: selectedModelInfo.color === '#000000' ? 'var(--color-fg)' : selectedModelInfo.color,
-              animationDuration: '1.5s'
-            }}
-          />
-        )}
+  const AIThinkingOverlay = () => {
+    if (!hasAI) return null;
+    
+    return (
+      <div className="absolute inset-0 bg-[var(--color-content-bg)]/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+        <div className="mb-6 flex items-center justify-center">
+          {selectedModelInfo && (
+            <selectedModelInfo.icon
+              className="w-10 h-10 animate-pulse"
+              style={{
+                color: selectedModelInfo.color === '#000000' ? 'var(--color-fg)' : selectedModelInfo.color,
+                animationDuration: '1.5s'
+              }}
+            />
+          )}
+        </div>
+        <div className="text-center px-6">
+          <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">
+            AI is thinking...
+          </h3>
+          <p className="text-sm text-[var(--color-muted)] max-w-xs">
+            {selectedModelInfo?.name || 'The AI'} is analyzing the market and making initial investment decisions
+          </p>
+        </div>
+        <div className="flex gap-1.5 mt-6">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full bg-[var(--color-accent)]"
+              style={{
+                animation: 'bounce 1.4s ease-in-out infinite',
+                animationDelay: `${i * 0.16}s`,
+              }}
+            />
+          ))}
+        </div>
+        <style jsx>{`
+          @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+            40% { transform: translateY(-8px); opacity: 1; }
+          }
+        `}</style>
       </div>
-      <div className="text-center px-6">
-        <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">
-          AI is thinking...
-        </h3>
-        <p className="text-sm text-[var(--color-muted)] max-w-xs">
-          {selectedModelInfo?.name || 'The AI'} is analyzing the market and making initial investment decisions
-        </p>
-      </div>
-      <div className="flex gap-1.5 mt-6">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="w-2 h-2 rounded-full bg-[var(--color-accent)]"
-            style={{
-              animation: 'bounce 1.4s ease-in-out infinite',
-              animationDelay: `${i * 0.16}s`,
-            }}
-          />
-        ))}
-      </div>
-      <style jsx>{`
-        @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-          40% { transform: translateY(-8px); opacity: 1; }
-        }
-      `}</style>
-    </div>
-  );
+    );
+  };
 
   const renderPortfolioForm = () => (
     <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
@@ -437,33 +477,45 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
           Asset Type
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-1 inline-flex w-full">
+          {/* Animated background slider */}
+          <div
+            className="absolute top-1 bottom-1 bg-[var(--color-accent)] rounded-md transition-all duration-200 ease-out"
+            style={{
+              left: assetType === 'stock' ? '4px' : '50%',
+              width: 'calc(50% - 4px)',
+            }}
+          />
           <button
             type="button"
-            onClick={() => setAssetType('stock')}
-            className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${assetType === 'stock'
-              ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-              : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
-              }`}
+            onClick={() => handleAssetTypeChange('stock')}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${
+              assetType === 'stock'
+                ? 'text-[var(--color-on-accent)]'
+                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
+            }`}
           >
             Stock
           </button>
           <button
             type="button"
-            onClick={() => setAssetType('crypto')}
-            className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${assetType === 'crypto'
-              ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-              : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
-              }`}
+            onClick={() => handleAssetTypeChange('crypto')}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${
+              assetType === 'crypto'
+                ? 'text-[var(--color-on-accent)]'
+                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
+            }`}
           >
             Crypto
           </button>
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-1.5">
-          Choose between stock or crypto paper trading
+          {assetType === 'stock' 
+            ? 'AI-powered stock trading portfolio' 
+            : 'Manual crypto trading portfolio'}
         </p>
       </div>
       <div>
@@ -498,68 +550,112 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           Simulated paper money for trading
         </p>
       </div>
-      <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-          AI Model
-        </label>
-        <div className="space-y-4">
-          {AI_PROVIDERS.map((provider) => {
-            const ProviderIcon = provider.icon;
-            return (
-              <div key={provider.id}>
-                <div className="flex items-center gap-2 mb-2">
-                  <ProviderIcon
-                    className="w-3.5 h-3.5"
-                    style={{ color: provider.color === '#000000' ? 'var(--color-fg)' : provider.color }}
-                  />
-                  <span className="text-xs font-medium text-[var(--color-muted)]">
-                    {provider.name}
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {provider.models.map((model) => {
-                    const isSelected = selectedModel === model.id;
-                    const isDisabled = model.disabled;
-                    return (
-                      <button
-                        key={model.id}
-                        type="button"
-                        onClick={() => !isDisabled && handleModelSelect(model.id)}
-                        disabled={isDisabled}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isDisabled
-                          ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
-                          : isSelected
-                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
-                          }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
-                            {isDisabled && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-muted)]">
-                                Coming soon
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
-                        </div>
-                        {isSelected && !isDisabled && (
-                          <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+      {!hasAI && (
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Crypto Assets
+          </label>
+          <div className="space-y-2">
+            {AVAILABLE_CRYPTOS.map((crypto) => {
+              const isSelected = selectedCryptos.includes(crypto.symbol);
+              return (
+                <button
+                  key={crypto.symbol}
+                  type="button"
+                  onClick={() => handleCryptoToggle(crypto.symbol)}
+                  disabled={isSelected && selectedCryptos.length === 1}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                    isSelected && selectedCryptos.length === 1
+                      ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
+                      : isSelected
+                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-fg)]">{crypto.name}</p>
+                    <p className="text-xs text-[var(--color-muted)]">{crypto.symbol}</p>
+                  </div>
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mt-1.5">
+            Select which cryptocurrencies you want to trade (at least one required)
+          </p>
         </div>
-      </div>
+      )}
+      {hasAI && (
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            AI Model
+          </label>
+          <div className="space-y-4">
+            {AI_PROVIDERS.map((provider) => {
+              const ProviderIcon = provider.icon;
+              return (
+                <div key={provider.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <ProviderIcon
+                      className="w-3.5 h-3.5"
+                      style={{ color: provider.color === '#000000' ? 'var(--color-fg)' : provider.color }}
+                    />
+                    <span className="text-xs font-medium text-[var(--color-muted)]">
+                      {provider.name}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {provider.models.map((model) => {
+                      const isSelected = selectedModel === model.id;
+                      const isDisabled = model.disabled;
+                      return (
+                        <button
+                          key={model.id}
+                          type="button"
+                          onClick={() => !isDisabled && handleModelSelect(model.id)}
+                          disabled={isDisabled}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isDisabled
+                            ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
+                            : isSelected
+                              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                            }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-[var(--color-fg)]">{model.name}</p>
+                              {isDisabled && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-muted)]">
+                                  Coming soon
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--color-muted)]">{model.description}</p>
+                          </div>
+                          {isSelected && !isDisabled && (
+                            <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0 ml-3">
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
           <p className="text-sm text-red-500">{error}</p>
@@ -575,7 +671,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
       description: 'Set up a new paper trading simulation',
       content: (
         <div className="relative h-full">
-          {isCreating && <AIThinkingOverlay />}
+          {isCreating && hasAI && <AIThinkingOverlay />}
           {renderPortfolioForm()}
         </div>
       ),
