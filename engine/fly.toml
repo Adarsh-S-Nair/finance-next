@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for zentari-next-engine on 2025-12-27T23:39:39Z
+# fly.toml app configuration file generated for zentari-next-engine on 2025-12-27T23:59:34Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'zentari-next-engine'
-primary_region = 'ewr'
+primary_region = 'iad'
 
 [build]
 
