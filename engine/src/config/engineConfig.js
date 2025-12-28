@@ -13,9 +13,9 @@ const ENGINE_CONFIG = {
     executionTimeframe: "1m",
   },
   risk: {
-    riskPerTradePct: 0.005,        // 0.5% risk per trade
-    maxOpenPositions: 1,
-    maxDailyNetOutflowPct: 1.0,    // 100% max daily net cash outflow limit (allows one full deployment per day)
+    riskPerTradePct: 0.0075,        // 0.75% risk per trade (was 0.5%)
+    maxOpenPositions: 2,            // Allow 2 concurrent positions (was 1)
+    maxDailyNetOutflowPct: 1.0,     // 100% max daily net cash outflow limit
     cooldownBarsAfterStop: 6,
     requireStopLoss: true,
     feeBps: 5,                      // 5 basis points (0.05%)
@@ -25,11 +25,11 @@ const ENGINE_CONFIG = {
     emaFast: 20,
     emaSlow: 200,
     rsiPeriod: 14,
-    pullbackPct: 0.003,             // 0.3%
-    rsiMin: 40,
-    rsiMax: 55,
-    stopLossPct: 0.005,             // 0.5%
-    takeProfitRMultiple: 2,
+    pullbackPct: 0.008,             // 0.8% (was 0.3%) - catch more pullback entries
+    rsiMin: 30,                     // Was 40 - only filter oversold
+    rsiMax: 70,                     // Was 55 - only filter overbought
+    stopLossPct: 0.01,              // 1.0% (was 0.5%) - reduce noise stop-outs
+    takeProfitRMultiple: 2.5,       // 2.5R (was 2R) - higher reward for wider stop
   },
 };
 
@@ -49,7 +49,7 @@ function getDefaultEngineConfig() {
  */
 function deepMerge(target, source) {
   const output = { ...target };
-  
+
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach((key) => {
       if (isObject(source[key])) {
@@ -63,7 +63,7 @@ function deepMerge(target, source) {
       }
     });
   }
-  
+
   return output;
 }
 
