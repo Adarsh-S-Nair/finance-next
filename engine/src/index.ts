@@ -2,7 +2,7 @@
  * Market Data Engine Entry Point
  * 
  * Streams crypto market data from Coinbase, aggregates into 1-minute candles,
- * and writes to Supabase with idempotent upserts.
+ * and further aggregates into 5m, 1h, and 1d candles, writing all to Supabase.
  */
 
 import { loadConfig, Config } from './config';
@@ -20,11 +20,18 @@ interface CandleBuffer {
   volume: number;
 }
 
+interface TimeframeConfig {
+  timeframe: string;
+  intervalMs: number;
+  buffers: Map<string, CandleBuffer>;
+}
+
 class MarketDataEngine {
   private config: Config;
   private feed: CoinbaseFeed | null = null;
   private storage: SupabaseStorage;
-  private candleBuffers: Map<string, CandleBuffer> = new Map();
+  private candleBuffers: Map<string, CandleBuffer> = new Map(); // 1m buffers
+  private timeframeConfigs: TimeframeConfig[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
   private refreshInterval: NodeJS.Timeout | null = null;
   private currentProducts: string[] = [];
@@ -33,6 +40,13 @@ class MarketDataEngine {
   constructor() {
     this.config = loadConfig();
     this.storage = new SupabaseStorage(this.config);
+    
+    // Initialize timeframe configurations for aggregation
+    this.timeframeConfigs = [
+      { timeframe: '5m', intervalMs: 5 * 60 * 1000, buffers: new Map() },
+      { timeframe: '1h', intervalMs: 60 * 60 * 1000, buffers: new Map() },
+      { timeframe: '1d', intervalMs: 24 * 60 * 60 * 1000, buffers: new Map() },
+    ];
   }
 
   async start(): Promise<void> {
@@ -46,6 +60,15 @@ class MarketDataEngine {
 
     // Load products from portfolios
     await this.refreshProducts();
+    
+    // Initialize higher timeframe buffers for all current products
+    for (const product of this.currentProducts) {
+      for (const tfConfig of this.timeframeConfigs) {
+        if (!tfConfig.buffers.has(product)) {
+          tfConfig.buffers.set(product, this.createEmptyBufferForTimeframe(product, tfConfig.intervalMs));
+        }
+      }
+    }
 
     // Set up periodic candle flushing
     this.startFlushInterval();
@@ -98,19 +121,29 @@ class MarketDataEngine {
         const oldProducts = Array.from(this.candleBuffers.keys());
         const newProducts = this.currentProducts;
 
-        // Remove buffers for products no longer needed
+        // Remove buffers for products no longer needed (1m and all higher timeframes)
         for (const oldProduct of oldProducts) {
           if (!newProducts.includes(oldProduct)) {
             this.candleBuffers.delete(oldProduct);
-            this.log(`Removed buffer for ${oldProduct}`);
+            this.log(`Removed 1m buffer for ${oldProduct}`);
+            // Remove higher timeframe buffers
+            for (const tfConfig of this.timeframeConfigs) {
+              tfConfig.buffers.delete(oldProduct);
+            }
           }
         }
 
-        // Add buffers for new products
+        // Add buffers for new products (1m and all higher timeframes)
         for (const newProduct of newProducts) {
           if (!this.candleBuffers.has(newProduct)) {
             this.candleBuffers.set(newProduct, this.createEmptyBuffer(newProduct));
-            this.log(`Added buffer for ${newProduct}`);
+            this.log(`Added 1m buffer for ${newProduct}`);
+          }
+          // Initialize buffers for higher timeframes
+          for (const tfConfig of this.timeframeConfigs) {
+            if (!tfConfig.buffers.has(newProduct)) {
+              tfConfig.buffers.set(newProduct, this.createEmptyBufferForTimeframe(newProduct, tfConfig.intervalMs));
+            }
           }
         }
 
@@ -222,9 +255,10 @@ class MarketDataEngine {
       return;
     }
 
-    const candle: Candle = {
-      productId: buffer.ticker,  // productId is stored in ticker field of buffer
-      timeframe: '1m',  // Currently only aggregating 1-minute candles
+    // Create and write 1m candle
+    const candle1m: Candle = {
+      productId: buffer.ticker,
+      timeframe: '1m',
       timestamp: buffer.startTime,
       open: buffer.open,
       high: buffer.high!,
@@ -233,10 +267,84 @@ class MarketDataEngine {
       volume: buffer.volume,
     };
 
-    // Upsert to database (async, don't await to avoid blocking)
-    this.storage.upsertCandles([candle]).catch((error) => {
-      this.log(`Error upserting candle for ${productId}: ${error.message}`);
+    const candlesToWrite: Candle[] = [candle1m];
+
+    // Add 1m candle to higher timeframe buffers and check if they should be flushed
+    for (const tfConfig of this.timeframeConfigs) {
+      const tfBuffer = tfConfig.buffers.get(productId);
+      if (!tfBuffer) continue;
+
+      const candleTime = candle1m.timestamp.getTime();
+      const tfStartTime = tfBuffer.startTime.getTime();
+      
+      // Calculate which higher timeframe bucket this 1m candle belongs to
+      const candleBucketStart = Math.floor(candleTime / tfConfig.intervalMs) * tfConfig.intervalMs;
+
+      if (candleBucketStart !== tfStartTime) {
+        // 1m candle belongs to a different higher timeframe bucket
+        // Flush the current bucket if it has data
+        if (tfBuffer.open !== null) {
+          const tfCandle: Candle = {
+            productId: buffer.ticker,
+            timeframe: tfConfig.timeframe,
+            timestamp: tfBuffer.startTime,
+            open: tfBuffer.open,
+            high: tfBuffer.high!,
+            low: tfBuffer.low!,
+            close: tfBuffer.close!,
+            volume: tfBuffer.volume,
+          };
+          candlesToWrite.push(tfCandle);
+        }
+
+        // Start new bucket for the 1m candle's timeframe
+        const newBucketStart = new Date(candleBucketStart);
+        tfConfig.buffers.set(productId, {
+          ticker: buffer.ticker,
+          startTime: newBucketStart,
+          open: candle1m.open,
+          high: candle1m.high,
+          low: candle1m.low,
+          close: candle1m.close,
+          volume: candle1m.volume,
+        });
+      } else {
+        // 1m candle belongs to the current higher timeframe bucket
+        // Add it to the buffer
+        if (tfBuffer.open === null) {
+          tfBuffer.open = candle1m.open;
+          tfBuffer.high = candle1m.high;
+          tfBuffer.low = candle1m.low;
+        } else {
+          tfBuffer.high = Math.max(tfBuffer.high!, candle1m.high);
+          tfBuffer.low = Math.min(tfBuffer.low!, candle1m.low);
+        }
+        tfBuffer.close = candle1m.close;
+        tfBuffer.volume += candle1m.volume;
+      }
+    }
+
+    // Upsert all candles to database (async, don't await to avoid blocking)
+    this.storage.upsertCandles(candlesToWrite).catch((error) => {
+      this.log(`Error upserting candles for ${productId}: ${error.message}`);
     });
+  }
+
+  private createEmptyBufferForTimeframe(ticker: string, intervalMs: number, timestamp?: Date): CandleBuffer {
+    const now = timestamp || new Date();
+    const startTime = new Date(
+      Math.floor(now.getTime() / intervalMs) * intervalMs
+    );
+
+    return {
+      ticker,
+      startTime,
+      open: null,
+      high: null,
+      low: null,
+      close: null,
+      volume: 0,
+    };
   }
 
   private handleError(error: Error): void {
@@ -265,8 +373,29 @@ class MarketDataEngine {
       clearInterval(this.refreshInterval);
     }
 
-    // Flush any remaining candles
+    // Flush any remaining candles (1m and higher timeframes)
     this.flushAllCandles();
+    
+    // Also flush any incomplete higher timeframe buffers
+    for (const tfConfig of this.timeframeConfigs) {
+      for (const [productId, buffer] of tfConfig.buffers.entries()) {
+        if (buffer.open !== null) {
+          const candle: Candle = {
+            productId: buffer.ticker,
+            timeframe: tfConfig.timeframe,
+            timestamp: buffer.startTime,
+            open: buffer.open,
+            high: buffer.high!,
+            low: buffer.low!,
+            close: buffer.close!,
+            volume: buffer.volume,
+          };
+          this.storage.upsertCandles([candle]).catch((error) => {
+            this.log(`Error upserting final ${tfConfig.timeframe} candle for ${productId}: ${error.message}`);
+          });
+        }
+      }
+    }
 
     // Give a moment for final writes
     await new Promise((resolve) => setTimeout(resolve, 1000));

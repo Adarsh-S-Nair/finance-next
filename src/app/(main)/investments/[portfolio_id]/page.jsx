@@ -207,6 +207,7 @@ export default function PortfolioDetailPage() {
   const [trades, setTrades] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [marketStatus, setMarketStatus] = useState(null);
+  const [cryptoCandles, setCryptoCandles] = useState({}); // { 'BTC-USD': [...candles], 'ETH-USD': [...candles] }
 
   // Register header actions with layout
   useEffect(() => {
@@ -224,18 +225,41 @@ export default function PortfolioDetailPage() {
     const cash = parseFloat(portfolio.current_cash) || 0;
 
     let holdingsValue = 0;
-    if (holdings.length > 0) {
-      holdingsValue = holdings.reduce((sum, holding) => {
-        const shares = parseFloat(holding.shares) || 0;
-        const ticker = holding.ticker.toUpperCase();
-        const quote = stockQuotes[ticker];
-        const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
-        return sum + shares * currentPrice;
-      }, 0);
+    
+    // For crypto portfolios, calculate value from latest candle prices
+    if (portfolio.asset_type === 'crypto' && portfolio.crypto_assets) {
+      const cryptoAssets = portfolio.crypto_assets;
+      cryptoAssets.forEach(symbol => {
+        const productId = `${symbol.toUpperCase()}-USD`;
+        const candles = cryptoCandles[productId] || [];
+        if (candles.length > 0) {
+          // Use the most recent candle's close price
+          const latestCandle = candles[candles.length - 1];
+          const price = latestCandle.close || 0;
+          
+          // Find holding for this crypto
+          const holding = holdings.find(h => h.ticker.toUpperCase() === symbol.toUpperCase());
+          if (holding) {
+            const shares = parseFloat(holding.shares) || 0;
+            holdingsValue += shares * price;
+          }
+        }
+      });
+    } else {
+      // For stock portfolios, use stock quotes
+      if (holdings.length > 0) {
+        holdingsValue = holdings.reduce((sum, holding) => {
+          const shares = parseFloat(holding.shares) || 0;
+          const ticker = holding.ticker.toUpperCase();
+          const quote = stockQuotes[ticker];
+          const currentPrice = quote?.price || parseFloat(holding.avg_cost) || 0;
+          return sum + shares * currentPrice;
+        }, 0);
+      }
     }
 
     return cash + holdingsValue;
-  }, [holdings, portfolio?.current_cash, stockQuotes, portfolio?.id]);
+  }, [holdings, portfolio?.current_cash, stockQuotes, portfolio?.id, portfolio?.asset_type, portfolio?.crypto_assets, cryptoCandles]);
 
   // Fetch portfolio and data
   useEffect(() => {
@@ -271,7 +295,7 @@ export default function PortfolioDetailPage() {
           }
         }
 
-        // Fetch snapshots
+        // Fetch snapshots (for non-crypto portfolios or as fallback)
         const { data: snapshotsData, error: snapshotsError } = await supabase
           .from('portfolio_snapshots')
           .select('*')
@@ -280,6 +304,37 @@ export default function PortfolioDetailPage() {
 
         if (snapshotsError) throw snapshotsError;
         setSnapshots(snapshotsData || []);
+
+        // Fetch crypto candles for crypto portfolios
+        if (portfolioData.asset_type === 'crypto' && portfolioData.crypto_assets && Array.isArray(portfolioData.crypto_assets) && portfolioData.crypto_assets.length > 0) {
+          try {
+            // Convert crypto symbols (BTC, ETH) to Coinbase product IDs (BTC-USD, ETH-USD)
+            const products = portfolioData.crypto_assets
+              .map(symbol => `${symbol.toUpperCase()}-USD`)
+              .join(',');
+
+            // Calculate time range - fetch last 30 days by default
+            // Timeframe will be selected based on timeRange later, but start with 1h for good balance
+            const endTime = new Date();
+            const startTime = new Date();
+            startTime.setDate(startTime.getDate() - 30);
+
+            const timeframe = '1h'; // Default to 1h candles
+
+            const candlesRes = await fetch(
+              `/api/market-data/crypto-candles?products=${products}&timeframe=${timeframe}&startTime=${startTime.toISOString()}&endTime=${endTime.toISOString()}`
+            );
+
+            if (candlesRes.ok) {
+              const candlesData = await candlesRes.json();
+              setCryptoCandles(candlesData.candles || {});
+            } else {
+              console.error('Failed to fetch crypto candles:', await candlesRes.text());
+            }
+          } catch (candlesErr) {
+            console.error('Error fetching crypto candles:', candlesErr);
+          }
+        }
 
         // Fetch benchmark data
         // Use SPY for Alpaca portfolios, QQQ for AI portfolios
@@ -512,10 +567,105 @@ export default function PortfolioDetailPage() {
     }
   }, [profile?.accent_color]);
 
-  // Chart data calculations (same as original)
+  // Chart data calculations
   const chartData = useMemo(() => {
     if (!portfolio) return [];
     const startingCapital = parseFloat(portfolio.starting_capital) || 100000;
+    
+    // For crypto portfolios, build chart from crypto candles
+    if (portfolio.asset_type === 'crypto' && portfolio.crypto_assets && Object.keys(cryptoCandles).length > 0) {
+      const cash = parseFloat(portfolio.current_cash) || 0;
+      const data = [];
+      
+      // Get all unique timestamps from all crypto candles
+      const allTimestamps = new Set();
+      Object.values(cryptoCandles).forEach(candles => {
+        candles.forEach(candle => {
+          allTimestamps.add(candle.time);
+        });
+      });
+      
+      const sortedTimestamps = Array.from(allTimestamps).sort();
+      
+      // Build chart data points from candles
+      sortedTimestamps.forEach(timestamp => {
+        const candleTime = new Date(timestamp);
+        let holdingsValue = 0;
+        
+        // Calculate portfolio value at this timestamp
+        portfolio.crypto_assets.forEach(symbol => {
+          const productId = `${symbol.toUpperCase()}-USD`;
+          const candles = cryptoCandles[productId] || [];
+          
+          // Find candle at or before this timestamp
+          const candle = candles.find(c => new Date(c.time).getTime() <= candleTime.getTime());
+          if (!candle) {
+            // Try to find the closest candle
+            const sortedCandles = [...candles].sort((a, b) => 
+              new Date(a.time).getTime() - new Date(b.time).getTime()
+            );
+            const closestCandle = sortedCandles.find(c => new Date(c.time).getTime() >= candleTime.getTime()) 
+              || sortedCandles[sortedCandles.length - 1];
+            if (closestCandle) {
+              const holding = holdings.find(h => h.ticker.toUpperCase() === symbol.toUpperCase());
+              if (holding) {
+                const shares = parseFloat(holding.shares) || 0;
+                holdingsValue += shares * (closestCandle.close || 0);
+              }
+            }
+          } else {
+            const holding = holdings.find(h => h.ticker.toUpperCase() === symbol.toUpperCase());
+            if (holding) {
+              const shares = parseFloat(holding.shares) || 0;
+              holdingsValue += shares * (candle.close || 0);
+            }
+          }
+        });
+        
+        const totalValue = cash + holdingsValue;
+        const dateString = candleTime.toISOString().split('T')[0];
+        
+        data.push({
+          month: candleTime.toLocaleString('en-US', { month: 'short' }),
+          monthFull: candleTime.toLocaleString('en-US', { month: 'long' }),
+          year: candleTime.getFullYear(),
+          date: candleTime,
+          dateString: dateString,
+          value: totalValue,
+          benchmark: null, // No benchmark for crypto yet
+        });
+      });
+      
+      // Add current point if we have current value
+      if (currentTotalValue && data.length > 0) {
+        const now = new Date();
+        const lastPoint = data[data.length - 1];
+        const lastDate = new Date(lastPoint.date);
+        const isToday = now.toDateString() === lastDate.toDateString();
+        
+        if (!isToday) {
+          const todayString = now.toISOString().split('T')[0];
+          data.push({
+            month: now.toLocaleString('en-US', { month: 'short' }),
+            monthFull: now.toLocaleString('en-US', { month: 'long' }),
+            year: now.getFullYear(),
+            date: now,
+            dateString: todayString,
+            value: currentTotalValue,
+            benchmark: null,
+          });
+        } else {
+          data[data.length - 1] = {
+            ...lastPoint,
+            value: currentTotalValue,
+          };
+        }
+      }
+      
+      return data;
+    }
+    
+    // For non-crypto portfolios, use snapshots (original logic)
     let firstBenchmarkPrice = null;
     let normalizedBenchmark = {};
 
@@ -586,7 +736,7 @@ export default function PortfolioDetailPage() {
       }
     }
     return data;
-  }, [snapshots, currentTotalValue, benchmarkData, portfolio?.starting_capital]);
+  }, [snapshots, currentTotalValue, benchmarkData, portfolio?.starting_capital, portfolio?.asset_type, portfolio?.crypto_assets, portfolio?.current_cash, cryptoCandles, holdings]);
 
   const filteredData = useMemo(() => {
     if (chartData.length === 0) return [];
