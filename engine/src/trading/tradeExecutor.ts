@@ -57,7 +57,15 @@ export async function executeBuyTrade({
       };
     }
 
-    const { quantity, totalValue } = positionSizeResult;
+    if (!positionSizeResult.quantity) {
+      return {
+        ok: false,
+        reason: `Position sizing failed: missing quantity`,
+      };
+    }
+
+    const { quantity } = positionSizeResult;
+    const totalValue = quantity * entryPrice;
 
     // Check if we have enough cash
     if (totalValue > cashBalance) {
