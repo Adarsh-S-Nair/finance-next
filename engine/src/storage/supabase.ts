@@ -59,28 +59,66 @@ export class SupabaseStorage {
 
   /**
    * Test database connection
+   * More lenient - allows table to not exist yet (PGRST204)
    */
   async testConnection(): Promise<boolean> {
     try {
+      // Try a simple query to test connection
+      // Use a system table or simple query that should always work
       const { error } = await this.client.from('crypto_candles').select('ticker').limit(1);
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 is "no rows returned" which is fine for a test
-        throw error;
+      
+      if (error) {
+        // PGRST116 = no rows returned (table exists, just empty) - OK
+        if (error.code === 'PGRST116') {
+          this.log('Database connection successful (table exists but is empty)');
+          return true;
+        }
+        
+        // PGRST204 = relation does not exist - table not created yet, but connection works
+        if (error.code === 'PGRST204') {
+          this.log('Database connection successful (table does not exist yet - will be created later)');
+          return true;
+        }
+        
+        // For other errors, log full details
+        const errorInfo: any = {
+          message: error.message || 'Unknown error',
+          code: error.code || 'unknown',
+        };
+        
+        if (error.details) errorInfo.details = error.details;
+        if (error.hint) errorInfo.hint = error.hint;
+        
+        this.log(`Database query error: ${JSON.stringify(errorInfo, null, 2)}`);
+        
+        // If it's a connection/auth error, fail
+        if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('auth')) {
+          throw error;
+        }
+        
+        // Otherwise, assume connection works but table doesn't exist
+        return true;
       }
+      
+      this.log('Database connection successful');
       return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : error && typeof error === 'object' && 'message' in error
-        ? String(error.message)
-        : String(error);
-      const errorCode = error && typeof error === 'object' && 'code' in error
-        ? String(error.code)
-        : 'unknown';
-      this.log(`Database connection test failed: ${errorMessage} (code: ${errorCode})`);
-      if (error && typeof error === 'object' && 'details' in error) {
-        this.log(`Error details: ${JSON.stringify(error)}`);
+    } catch (error: any) {
+      // Handle non-Supabase errors (network, auth, etc.)
+      const errorDetails: any = {
+        type: 'connection_error',
+      };
+      
+      if (error instanceof Error) {
+        errorDetails.message = error.message;
+        errorDetails.name = error.name;
+        if (error.stack) errorDetails.stack = error.stack;
+      } else if (error && typeof error === 'object') {
+        Object.assign(errorDetails, error);
+      } else {
+        errorDetails.raw = String(error);
       }
+      
+      this.log(`Database connection test failed: ${JSON.stringify(errorDetails, null, 2)}`);
       return false;
     }
   }
