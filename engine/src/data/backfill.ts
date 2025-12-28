@@ -50,7 +50,7 @@ async function fetchHistoricalCandles(
     throw new Error(`Coinbase API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as number[][];
 
   // Coinbase returns: [timestamp, low, high, open, close, volume]
   return data
