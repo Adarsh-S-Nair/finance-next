@@ -1080,18 +1080,70 @@ export async function POST(request) {
     
     // Calculate holdings value using current prices
     let holdingsValue = 0;
-    for (const [ticker, holding] of finalHoldingsMap.entries()) {
-      const currentPrice = priceMap.get(ticker);
-      if (currentPrice) {
-        holdingsValue += holding.shares * currentPrice;
-      } else {
-        // Fall back to avg_cost if price not available
-        holdingsValue += holding.shares * holding.avg_cost;
+    
+    // For crypto portfolios, fetch current crypto prices from candles table
+    if (assetType === 'crypto' && cryptoAssets && cryptoAssets.length > 0) {
+      console.log('   Fetching current crypto prices for snapshot...');
+      
+      // Fetch latest prices for each crypto asset
+      const cryptoPriceMap = new Map();
+      for (const symbol of cryptoAssets) {
+        const symbolUpper = symbol.toUpperCase();
+        const productId = `${symbolUpper}-USD`;
+        
+        try {
+          // Get the most recent candle for this product
+          const { data: latestCandle, error: candleError } = await supabase
+            .from('crypto_candles')
+            .select('close')
+            .eq('product_id', productId)
+            .eq('timeframe', '1m')
+            .order('time', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (!candleError && latestCandle) {
+            const price = parseFloat(latestCandle.close);
+            cryptoPriceMap.set(symbolUpper, price);
+            console.log(`   ${symbolUpper}: $${price.toFixed(2)}`);
+          } else {
+            console.log(`   ⚠️  Could not fetch price for ${symbolUpper}`);
+          }
+        } catch (err) {
+          console.log(`   ⚠️  Error fetching price for ${symbolUpper}:`, err.message);
+        }
+      }
+      
+      // Calculate holdings value using crypto prices
+      for (const [ticker, holding] of finalHoldingsMap.entries()) {
+        const currentPrice = cryptoPriceMap.get(ticker);
+        if (currentPrice) {
+          holdingsValue += holding.shares * currentPrice;
+        } else {
+          // Fall back to avg_cost if price not available
+          holdingsValue += holding.shares * holding.avg_cost;
+        }
+      }
+    } else {
+      // For stock portfolios, use priceMap from stock data
+      for (const [ticker, holding] of finalHoldingsMap.entries()) {
+        const currentPrice = priceMap.get(ticker);
+        if (currentPrice) {
+          holdingsValue += holding.shares * currentPrice;
+        } else {
+          // Fall back to avg_cost if price not available
+          holdingsValue += holding.shares * holding.avg_cost;
+        }
       }
     }
     
     const totalValue = finalCash + holdingsValue;
-    const snapshotDate = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD format
+    // Use formatDateString to get local date (not UTC) to avoid timezone issues
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const snapshotDate = `${year}-${month}-${day}`; // YYYY-MM-DD format (local time)
     
     console.log(`   Cash: $${finalCash.toFixed(2)}`);
     console.log(`   Holdings Value: $${holdingsValue.toFixed(2)}`);
@@ -1114,6 +1166,9 @@ export async function POST(request) {
       console.error('❌ Failed to create portfolio snapshot:', snapshotError);
     } else {
       console.log(`✅ Created initial portfolio snapshot (ID: ${snapshotData.id})`);
+      if (assetType === 'crypto') {
+        console.log('   📊 Crypto portfolio baseline snapshot created');
+      }
     }
     console.log('========================================\n');
 

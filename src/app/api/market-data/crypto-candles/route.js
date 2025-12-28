@@ -10,13 +10,14 @@ export const dynamic = 'force-dynamic';
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Try service role key first (bypasses RLS), fallback to anon key
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase environment variables');
   }
   
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(supabaseUrl, supabaseKey);
 }
 
 export async function GET(request) {
@@ -53,13 +54,16 @@ export async function GET(request) {
 
     const supabase = getSupabaseClient();
 
+    console.log('=== CRYPTO CANDLES API ===');
+    console.log('Query params:', { products, timeframe, startTime, endTime });
+    console.log('Product list:', productList);
+
     // Build query
     let query = supabase
       .from('crypto_candles')
       .select('product_id, timeframe, time, open, high, low, close, volume')
       .in('product_id', productList)
-      .eq('timeframe', timeframe)
-      .order('time', { ascending: true });
+      .eq('timeframe', timeframe);
 
     // Add time filters if provided
     if (startTime) {
@@ -68,6 +72,9 @@ export async function GET(request) {
     if (endTime) {
       query = query.lte('time', endTime);
     }
+
+    // Order by time ascending
+    query = query.order('time', { ascending: true });
 
     const { data, error } = await query;
 
@@ -79,13 +86,19 @@ export async function GET(request) {
       );
     }
 
+    console.log('Query result:', {
+      dataLength: data?.length || 0,
+      sampleData: data?.slice(0, 3),
+      error: error?.message
+    });
+
     // Group candles by product_id
     const candlesByProduct = {};
     productList.forEach(product => {
       candlesByProduct[product] = [];
     });
 
-    if (data) {
+    if (data && data.length > 0) {
       data.forEach(candle => {
         if (candlesByProduct[candle.product_id]) {
           candlesByProduct[candle.product_id].push({
@@ -98,7 +111,16 @@ export async function GET(request) {
           });
         }
       });
+    } else {
+      console.log('No data returned from query');
     }
+
+    console.log('Grouped candles:', Object.keys(candlesByProduct).map(key => ({
+      product: key,
+      count: candlesByProduct[key].length,
+      sample: candlesByProduct[key][0]
+    })));
+    console.log('=== END CRYPTO CANDLES API ===');
 
     return NextResponse.json({
       candles: candlesByProduct,

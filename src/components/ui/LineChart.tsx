@@ -295,6 +295,7 @@ export default function LineChart({
               strokeOpacity={line.strokeOpacity}
               strokeDasharray={line.strokeDasharray}
               fill={line.showArea ? `url(#${line.gradientId})` : 'none'}
+              baseValue="dataMin"
               isAnimationActive={false}
               activeDot={false} // We handle active dot manually
               dot={showDots ? {
