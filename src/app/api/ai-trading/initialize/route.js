@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadPrompt, fillTemplate } from '../../../../lib/promptLoader';
 import { callGemini } from '../../../../lib/geminiClient';
 import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails, checkMarketStatus } from '../../../../lib/marketData';
+import { formatDateString } from '../../../../lib/portfolioUtils';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -1139,11 +1140,7 @@ export async function POST(request) {
     
     const totalValue = finalCash + holdingsValue;
     // Use formatDateString to get local date (not UTC) to avoid timezone issues
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const snapshotDate = `${year}-${month}-${day}`; // YYYY-MM-DD format (local time)
+    const snapshotDate = formatDateString(new Date()); // YYYY-MM-DD format (local time)
     
     console.log(`   Cash: $${finalCash.toFixed(2)}`);
     console.log(`   Holdings Value: $${holdingsValue.toFixed(2)}`);

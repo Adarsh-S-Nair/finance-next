@@ -19,7 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getChartQuery, formatDateForQuery, ChartRange } from '@/utils/chartRange';
+import { getChartQuery, formatDateForQuery, ChartRange } from '../../../../utils/chartRange';
 
 export const dynamic = 'force-dynamic';
 
