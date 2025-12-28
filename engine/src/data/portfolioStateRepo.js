@@ -170,9 +170,19 @@ class PortfolioStateRepository {
             totalSellValue: 0,
           };
         }
+        // Log the actual error for debugging
+        console.error(`[PortfolioStateRepo] getTodayNetCashflow error:`, {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          portfolioId,
+          todayStart: todayStart.toISOString(),
+          todayEnd: todayEnd.toISOString(),
+        });
         return {
           ok: false,
-          reason: "DB_ERROR",
+          reason: `DB_ERROR: ${error.message || error.code || 'Unknown error'}`,
           netCashflow: 0,
           buyCount: 0,
           sellCount: 0,
@@ -214,9 +224,15 @@ class PortfolioStateRepository {
         totalSellValue,
       };
     } catch (error) {
+      // Log the actual error for debugging
+      console.error(`[PortfolioStateRepo] getTodayNetCashflow exception:`, {
+        message: error.message,
+        stack: error.stack,
+        portfolioId,
+      });
       return {
         ok: false,
-        reason: "DB_ERROR",
+        reason: `DB_ERROR: ${error.message || 'Unknown exception'}`,
         netCashflow: 0,
         buyCount: 0,
         sellCount: 0,

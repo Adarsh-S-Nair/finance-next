@@ -562,39 +562,77 @@ export default function PortfolioDetailPage() {
           setHoldings([]);
         }
 
-        // Fetch trades
-        const { data: tradesData, error: tradesError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('portfolio_id', portfolioId)
-          .order('executed_at', { ascending: false });
+        // Fetch trades for crypto portfolios, orders for others
+        if (portfolioData.asset_type === 'crypto') {
+          // Fetch trades (entry -> exit pairs) for crypto portfolios
+          const { data: tradesData, error: tradesError } = await supabase
+            .from('trades')
+            .select('*')
+            .eq('portfolio_id', portfolioId)
+            .order('created_at', { ascending: false });
 
-        if (tradesError) throw tradesError;
+          if (tradesError) throw tradesError;
 
-        if (tradesData && tradesData.length > 0) {
-          const tradeTickers = [...new Set(tradesData.map(t => t.ticker.toUpperCase()))];
-          const { data: tradeTickersData } = await supabase
-            .from('tickers')
-            .select('symbol, logo, name, sector')
-            .in('symbol', tradeTickers);
+          if (tradesData && tradesData.length > 0) {
+            const tradeTickers = [...new Set(tradesData.map(t => t.ticker.toUpperCase()))];
+            const { data: tradeTickersData } = await supabase
+              .from('tickers')
+              .select('symbol, logo, name, sector')
+              .in('symbol', tradeTickers);
 
-          const tradeTickerMap = new Map();
-          if (tradeTickersData) {
-            tradeTickersData.forEach(t => {
-              tradeTickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
-            });
+            const tradeTickerMap = new Map();
+            if (tradeTickersData) {
+              tradeTickersData.forEach(t => {
+                tradeTickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
+              });
+            }
+
+            const tradesWithLogos = tradesData.map(trade => ({
+              ...trade,
+              logo: tradeTickerMap.get(trade.ticker.toUpperCase())?.logo || null,
+              companyName: tradeTickerMap.get(trade.ticker.toUpperCase())?.name || null,
+              sector: tradeTickerMap.get(trade.ticker.toUpperCase())?.sector || null,
+            }));
+
+            setTrades(tradesWithLogos);
+          } else {
+            setTrades([]);
           }
-
-          const tradesWithLogos = tradesData.map(trade => ({
-            ...trade,
-            logo: tradeTickerMap.get(trade.ticker.toUpperCase())?.logo || null,
-            companyName: tradeTickerMap.get(trade.ticker.toUpperCase())?.name || null,
-            sector: tradeTickerMap.get(trade.ticker.toUpperCase())?.sector || null,
-          }));
-
-          setTrades(tradesWithLogos);
         } else {
-          setTrades([]);
+          // Fetch orders for non-crypto portfolios
+          const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('portfolio_id', portfolioId)
+            .order('executed_at', { ascending: false });
+
+          if (ordersError) throw ordersError;
+
+          if (ordersData && ordersData.length > 0) {
+            const orderTickers = [...new Set(ordersData.map(t => t.ticker.toUpperCase()))];
+            const { data: orderTickersData } = await supabase
+              .from('tickers')
+              .select('symbol, logo, name, sector')
+              .in('symbol', orderTickers);
+
+            const orderTickerMap = new Map();
+            if (orderTickersData) {
+              orderTickersData.forEach(t => {
+                orderTickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
+              });
+            }
+
+            const ordersWithLogos = ordersData.map(order => ({
+              ...order,
+              logo: orderTickerMap.get(order.ticker.toUpperCase())?.logo || null,
+              companyName: orderTickerMap.get(order.ticker.toUpperCase())?.name || null,
+              sector: orderTickerMap.get(order.ticker.toUpperCase())?.sector || null,
+            }));
+
+            setTrades(ordersWithLogos);
+          } else {
+            setTrades([]);
+          }
         }
       } catch (err) {
         console.error('Error fetching portfolio data:', err);
@@ -1123,43 +1161,166 @@ export default function PortfolioDetailPage() {
 
   // Calculate crypto portfolio value data over time
   const cryptoPortfolioValueData = useMemo(() => {
-    if (!portfolio || portfolio.asset_type !== 'crypto' || !portfolio.crypto_assets || cryptoChartData.length === 0 || !holdings || holdings.length === 0) {
+    if (!portfolio || portfolio.asset_type !== 'crypto' || !portfolio.crypto_assets) {
       return [];
     }
     
     // Get holdings quantities for each crypto
     const holdingsMap = {};
-    holdings.forEach(holding => {
-      const symbol = holding.ticker?.toUpperCase();
-      if (symbol && portfolio.crypto_assets.includes(symbol)) {
-        // Use shares field (same as stocks) for crypto quantity
-        holdingsMap[symbol] = parseFloat(holding.shares) || 0;
-      }
-    });
-    
-    // Calculate portfolio value at each time point
-    return cryptoChartData.map(point => {
-      let totalValue = 0;
-      portfolio.crypto_assets.forEach(symbol => {
-        const symbolUpper = symbol.toUpperCase();
-        const quantity = holdingsMap[symbolUpper] || 0;
-        const price = point[`actualPrice_${symbolUpper}`];
-        if (price && quantity > 0) {
-          totalValue += price * quantity;
+    if (holdings && holdings.length > 0) {
+      holdings.forEach(holding => {
+        const symbol = holding.ticker?.toUpperCase();
+        if (symbol && portfolio.crypto_assets.includes(symbol)) {
+          // Use shares field (same as stocks) for crypto quantity
+          holdingsMap[symbol] = parseFloat(holding.shares) || 0;
         }
       });
+    }
+    
+    const dataPoints = [];
+    
+    // Create snapshot data point if it exists
+    let snapshotPoint = null;
+    const firstSnapshot = snapshots.length > 0 ? snapshots[0] : null;
+    if (firstSnapshot && firstSnapshot.snapshot_date) {
+      // Parse snapshot_date (YYYY-MM-DD format)
+      const snapshotDate = parseLocalDate(firstSnapshot.snapshot_date);
+      const snapshotValue = parseFloat(firstSnapshot.total_value) || 0;
       
-      // Add cash if available
-      if (portfolio.current_cash) {
-        totalValue += parseFloat(portfolio.current_cash) || 0;
+      // Create date string for snapshot (set to start of day)
+      const year = snapshotDate.getFullYear();
+      const month = snapshotDate.getMonth();
+      const day = snapshotDate.getDate();
+      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00`;
+      
+      snapshotPoint = {
+        month: snapshotDate.toLocaleString('en-US', { month: 'short' }),
+        monthFull: snapshotDate.toLocaleString('en-US', { month: 'long' }),
+        year: snapshotDate.getFullYear(),
+        date: snapshotDate,
+        dateString: dateString,
+        time: snapshotDate,
+        value: snapshotValue
+      };
+    }
+    
+    // Calculate portfolio value at each time point from candle data
+    if (cryptoChartData.length > 0) {
+      const candleDataPoints = cryptoChartData.map(point => {
+        let totalValue = 0;
+        portfolio.crypto_assets.forEach(symbol => {
+          const symbolUpper = symbol.toUpperCase();
+          const quantity = holdingsMap[symbolUpper] || 0;
+          const price = point[`actualPrice_${symbolUpper}`];
+          if (price && quantity > 0) {
+            totalValue += price * quantity;
+          }
+        });
+        
+        // Add cash if available
+        if (portfolio.current_cash) {
+          totalValue += parseFloat(portfolio.current_cash) || 0;
+        }
+        
+        return {
+          ...point,
+          value: totalValue
+        };
+      });
+      
+      dataPoints.push(...candleDataPoints);
+    }
+    
+    // Create current value data point
+    let currentPoint = null;
+    if (currentTotalValue > 0) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const day = now.getDate();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      
+      currentPoint = {
+        month: now.toLocaleString('en-US', { month: 'short' }),
+        monthFull: now.toLocaleString('en-US', { month: 'long' }),
+        year: now.getFullYear(),
+        date: now,
+        dateString: dateString,
+        time: now,
+        value: currentTotalValue
+      };
+    }
+    
+    // Combine all points: snapshot first, then candle data, then current value last
+    const allPoints = [];
+    
+    // Add snapshot first if it exists (always first data point)
+    if (snapshotPoint) {
+      allPoints.push(snapshotPoint);
+    }
+    
+    // Add candle data points (filter out any that are before or equal to snapshot date)
+    if (dataPoints.length > 0) {
+      const pointsToAdd = snapshotPoint 
+        ? dataPoints.filter(point => {
+            // Only include candle points that are after the snapshot date
+            return point.date > snapshotPoint.date;
+          })
+        : dataPoints;
+      allPoints.push(...pointsToAdd);
+    }
+    
+    // Add current value last if it exists and is more recent than the last point
+    if (currentPoint) {
+      const lastPointDate = allPoints.length > 0 ? allPoints[allPoints.length - 1].date : null;
+      // Only add if no points exist yet, or if current point is more recent
+      if (!lastPointDate || currentPoint.date >= lastPointDate) {
+        // Remove the last point if it's at the same time as current (to avoid duplicates)
+        if (lastPointDate && Math.abs(currentPoint.date.getTime() - lastPointDate.getTime()) < 60000) {
+          allPoints.pop();
+        }
+        allPoints.push(currentPoint);
+      }
+    }
+    
+    // Sort by date, then ensure snapshot is first and current is last
+    if (allPoints.length > 1) {
+      // Sort all points by date
+      allPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+      
+      // Move snapshot to first position if it exists
+      if (snapshotPoint) {
+        const snapshotIndex = allPoints.findIndex(p => 
+          snapshotPoint.date.getTime() === p.date.getTime() && 
+          snapshotPoint.value === p.value
+        );
+        if (snapshotIndex > 0) {
+          const snapshot = allPoints.splice(snapshotIndex, 1)[0];
+          allPoints.unshift(snapshot);
+        }
       }
       
-      return {
-        ...point,
-        value: totalValue
-      };
-    });
-  }, [cryptoChartData, holdings, portfolio]);
+      // Move current point to last position if it exists and is most recent
+      if (currentPoint) {
+        const currentIndex = allPoints.findIndex(p => 
+          currentPoint.date.getTime() === p.date.getTime() && 
+          currentPoint.value === p.value
+        );
+        if (currentIndex >= 0 && currentIndex < allPoints.length - 1) {
+          const current = allPoints.splice(currentIndex, 1)[0];
+          allPoints.push(current);
+        }
+      }
+    }
+    
+    console.log('cryptoPortfolioValueData - allPoints length:', allPoints.length);
+    console.log('cryptoPortfolioValueData - allPoints:', allPoints);
+    
+    return allPoints;
+  }, [cryptoChartData, holdings, portfolio, snapshots, currentTotalValue]);
 
   // Filter crypto portfolio value data based on time range
   const filteredCryptoPortfolioValueData = useMemo(() => {
@@ -1222,16 +1383,30 @@ export default function PortfolioDetailPage() {
 
   // Log first snapshot and current value for crypto portfolios
   useEffect(() => {
-    if (portfolio?.asset_type === 'crypto' && cryptoPortfolioValueData.length > 0) {
-      const firstSnapshotValue = cryptoPortfolioValueData[0]?.value || 0;
-      const currentValue = currentTotalValue || 0;
+    if (portfolio?.asset_type === 'crypto' && !loading) {
+      // Get first snapshot from database (ordered by snapshot_date ascending)
+      const firstSnapshot = snapshots.length > 0 ? snapshots[0] : null;
       
       console.log('=== CRYPTO PORTFOLIO VALUES ===');
-      console.log('First Snapshot Value:', formatCurrency(firstSnapshotValue));
-      console.log('Current Value:', formatCurrency(currentValue));
+      console.log('Portfolio ID:', portfolio?.id);
+      console.log('Snapshots array length:', snapshots.length);
+      console.log('All snapshots:', snapshots);
+      console.log('First snapshot:', firstSnapshot);
+      
+      if (firstSnapshot) {
+        console.log('First snapshot total_value (raw):', firstSnapshot.total_value);
+        console.log('First snapshot total_value (type):', typeof firstSnapshot.total_value);
+        const firstSnapshotValue = parseFloat(firstSnapshot.total_value);
+        const currentValue = currentTotalValue || 0;
+        
+        console.log('First Snapshot Value (from DB):', formatCurrency(firstSnapshotValue));
+        console.log('Current Calculated Value:', formatCurrency(currentValue));
+      } else {
+        console.log('⚠️ No snapshots found in database');
+      }
       console.log('================================');
     }
-  }, [portfolio?.asset_type, cryptoPortfolioValueData, currentTotalValue]);
+  }, [portfolio?.asset_type, portfolio?.id, snapshots, currentTotalValue, loading]);
 
   const handleDeleteClick = () => {
     if (showSettings) setShowSettings(false);
@@ -1939,85 +2114,176 @@ export default function PortfolioDetailPage() {
             </>
           )}
 
-          {/* Orders Table */}
+          {/* Trades Table (for crypto) or Orders Table (for others) */}
           <Card variant="glass" padding="none">
             <div className="px-5 pt-5 pb-3">
-              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Orders</div>
+              <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
+                {portfolio.asset_type === 'crypto' ? 'Trades' : 'Orders'}
+              </div>
             </div>
             {trades.length > 0 ? (
               <div className="pb-3">
                 {trades.map((trade) => {
-                  const isBuy = trade.action.toLowerCase() === 'buy';
+                  // For crypto portfolios, display trades (entry -> exit pairs)
+                  if (portfolio.asset_type === 'crypto') {
+                    const isClosed = trade.status === 'closed';
+                    const realizedPnl = trade.realized_pnl ? parseFloat(trade.realized_pnl) : null;
+                    const entryDate = trade.created_at;
+                    const exitDate = trade.closed_at;
 
-                  return (
-                    <div
-                      key={trade.id}
-                      className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        {/* Left: Logo + Ticker + Details */}
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div
-                            className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-                            style={{
-                              background: trade.logo ? 'transparent' : 'var(--color-surface)',
-                              border: '1px solid var(--color-border)'
-                            }}
-                          >
-                            {trade.logo ? (
-                              <img src={trade.logo} alt={trade.ticker} className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-[10px] font-medium text-[var(--color-muted)]">{trade.ticker.slice(0, 2)}</span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-[var(--color-fg)] truncate">
-                                {trade.ticker}
-                              </span>
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isBuy
-                                ? 'bg-emerald-500/10 text-emerald-500'
-                                : 'bg-rose-500/10 text-rose-500'
+                    return (
+                      <div
+                        key={trade.id}
+                        className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          {/* Left: Logo + Ticker + Details */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div
+                              className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                              style={{
+                                background: trade.logo ? 'transparent' : 'var(--color-surface)',
+                                border: '1px solid var(--color-border)'
+                              }}
+                            >
+                              {trade.logo ? (
+                                <img src={trade.logo} alt={trade.ticker} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-[10px] font-medium text-[var(--color-muted)]">{trade.ticker.slice(0, 2)}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                                  {trade.ticker}
+                                </span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                  isClosed 
+                                    ? 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)]'
+                                    : 'bg-blue-500/10 text-blue-500'
                                 }`}>
-                                {isBuy ? 'BUY' : 'SELL'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-[var(--color-muted)]">
-                              {parseFloat(trade.shares).toFixed(2)} shares @ {formatCurrency(parseFloat(trade.price))}
+                                  {isClosed ? 'CLOSED' : 'OPEN'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-[var(--color-muted)]">
+                                {parseFloat(trade.quantity).toFixed(4)} @ {formatCurrency(parseFloat(trade.entry_price))}
+                                {isClosed && (
+                                  <> → {formatCurrency(parseFloat(trade.exit_price))}</>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Right: Total + Date */}
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                            {formatCurrency(parseFloat(trade.total_value))}
-                          </div>
-                          <div className="text-[11px] text-[var(--color-muted)]/60">
-                            {new Date(trade.executed_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric'
-                            })}
+                          {/* Right: P&L + Dates */}
+                          <div className="text-right flex-shrink-0">
+                            {isClosed && realizedPnl !== null ? (
+                              <>
+                                <div className={`text-sm font-medium tabular-nums ${
+                                  realizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                                }`}>
+                                  {realizedPnl >= 0 ? '+' : ''}{formatCurrency(realizedPnl)}
+                                </div>
+                                <div className={`text-[10px] font-medium tabular-nums ${
+                                  realizedPnl >= 0 ? 'text-emerald-500/70' : 'text-rose-500/70'
+                                }`}>
+                                  {((realizedPnl / (parseFloat(trade.entry_price) * parseFloat(trade.quantity))) * 100).toFixed(2)}%
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm font-medium text-[var(--color-muted)] tabular-nums">
+                                —
+                              </div>
+                            )}
+                            <div className="text-[11px] text-[var(--color-muted)]/60 mt-1">
+                              {entryDate && new Date(entryDate).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                              {exitDate && (
+                                <> → {new Date(exitDate).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}</>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
+                    );
+                  } else {
+                    // For non-crypto portfolios, display orders (buy/sell orders)
+                    const isBuy = trade.action.toLowerCase() === 'buy';
 
-                      {/* Reasoning */}
-                      {trade.reasoning && (
-                        <div className="mt-2">
-                          <p className="text-xs text-[var(--color-muted)] leading-relaxed line-clamp-2">
-                            {trade.reasoning}
-                          </p>
+                    return (
+                      <div
+                        key={trade.id}
+                        className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          {/* Left: Logo + Ticker + Details */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div
+                              className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                              style={{
+                                background: trade.logo ? 'transparent' : 'var(--color-surface)',
+                                border: '1px solid var(--color-border)'
+                              }}
+                            >
+                              {trade.logo ? (
+                                <img src={trade.logo} alt={trade.ticker} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-[10px] font-medium text-[var(--color-muted)]">{trade.ticker.slice(0, 2)}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                                  {trade.ticker}
+                                </span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isBuy
+                                  ? 'bg-emerald-500/10 text-emerald-500'
+                                  : 'bg-rose-500/10 text-rose-500'
+                                  }`}>
+                                  {isBuy ? 'BUY' : 'SELL'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-[var(--color-muted)]">
+                                {parseFloat(trade.shares).toFixed(2)} shares @ {formatCurrency(parseFloat(trade.price))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Total + Date */}
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                              {formatCurrency(parseFloat(trade.total_value))}
+                            </div>
+                            <div className="text-[11px] text-[var(--color-muted)]/60">
+                              {trade.executed_at && new Date(trade.executed_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
+
+                        {/* Reasoning */}
+                        {trade.reasoning && (
+                          <div className="mt-2">
+                            <p className="text-xs text-[var(--color-muted)] leading-relaxed line-clamp-2">
+                              {trade.reasoning}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
                 })}
               </div>
             ) : (
               <div className="px-5 py-10 text-center">
                 <div className="text-[var(--color-muted)]/60 text-sm">
-                  No orders yet
+                  {portfolio.asset_type === 'crypto' ? 'No trades yet' : 'No orders yet'}
                 </div>
               </div>
             )}
