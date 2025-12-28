@@ -302,15 +302,24 @@ class MarketDataEngine {
             });
 
             if (!tickResult.ok) {
-              this.log(`Engine tick failed for ${symbol} (portfolio ${portfolio.id}): ${tickResult.notes?.join(', ') || 'unknown error'}`);
+              this.log(`❌ Engine tick failed for ${symbol} (portfolio ${portfolio.id}): ${tickResult.notes?.join(', ') || 'unknown error'}`);
               continue;
             }
+
+            // Log tick results for debugging
+            const indicatorsStatus = tickResult.indicators.ok ? '✅' : `❌ ${tickResult.indicators.reason}`;
+            const riskStatus = tickResult.risk.allowed ? '✅ ALLOWED' : `❌ BLOCKED: ${tickResult.risk.reason}`;
+            const signalStatus = `${tickResult.signal.action} - ${tickResult.signal.reason}`;
+            
+            this.log(`📊 ${symbol} (${portfolio.id}): Indicators=${indicatorsStatus} Risk=${riskStatus} Signal=${signalStatus}`);
 
             // Check if we have a BUY signal and risk allows
             if (tickResult.signal.action === 'BUY' && tickResult.risk.allowed) {
               const entryPrice = tickResult.signal.debug.close5m;
               const stopLossPct = defaultConfig.strategy.stopLossPct;
               const stopPrice = entryPrice * (1 - stopLossPct);
+
+              this.log(`🎯 BUY signal detected for ${symbol} @ $${entryPrice.toFixed(2)} (stop: $${stopPrice.toFixed(2)})`);
 
               // Execute trade
               const tradeResult = await executeBuyTrade({
@@ -326,18 +335,16 @@ class MarketDataEngine {
               });
 
               if (tradeResult.ok) {
-                this.log(`✅ BUY executed: ${tradeResult.quantity?.toFixed(4)} ${symbol} @ $${entryPrice.toFixed(2)} = $${tradeResult.totalValue?.toFixed(2)} (portfolio ${portfolio.id})`);
+                this.log(`✅ BUY EXECUTED: ${tradeResult.quantity?.toFixed(4)} ${symbol} @ $${entryPrice.toFixed(2)} = $${tradeResult.totalValue?.toFixed(2)} (portfolio ${portfolio.id})`);
               } else {
                 this.log(`❌ Trade execution failed for ${symbol} (portfolio ${portfolio.id}): ${tradeResult.reason}`);
               }
             } else {
-              // Log why we didn't trade (for debugging)
-              const reason = !tickResult.risk.allowed 
-                ? `Risk blocked: ${tickResult.risk.reason}`
-                : `Signal: ${tickResult.signal.action} - ${tickResult.signal.reason}`;
-              // Only log occasionally to avoid spam
-              if (Math.random() < 0.1) { // Log 10% of HOLD signals
-                this.log(`⏸️  No trade for ${symbol} (portfolio ${portfolio.id}): ${reason}`);
+              // Log why we didn't trade (more detailed)
+              if (!tickResult.risk.allowed) {
+                this.log(`⏸️  No trade for ${symbol}: Risk blocked - ${tickResult.risk.reason}`);
+              } else if (tickResult.signal.action !== 'BUY') {
+                this.log(`⏸️  No trade for ${symbol}: Signal is ${tickResult.signal.action} (${tickResult.signal.reason})`);
               }
             }
           } catch (error: any) {
