@@ -10,6 +10,7 @@ import { CoinbaseFeed } from './feeds/coinbase';
 import { SupabaseStorage } from './storage/supabase';
 import { Tick, Candle } from './types';
 import { executeBuyTrade } from './trading/tradeExecutor';
+import { backfillIfNeeded } from './data/backfill';
 
 interface CandleBuffer {
   ticker: string;
@@ -62,6 +63,9 @@ class MarketDataEngine {
 
     // Load products from portfolios
     await this.refreshProducts();
+
+    // Backfill historical data if needed
+    await this.backfillHistoricalData();
     
     // Initialize higher timeframe buffers for all current products
     for (const product of this.currentProducts) {
@@ -179,6 +183,53 @@ class MarketDataEngine {
         this.log(`Error in product refresh: ${error.message}`);
       });
     }, 5 * 60 * 1000);
+  }
+
+  private async backfillHistoricalData(): Promise<void> {
+    try {
+      this.log('Checking historical data availability...');
+
+      // Required candles for indicators:
+      // - 5m: Need 20 (EMA20) + 15 (RSI14) + buffer = 100
+      // - 1h: Need 200 (EMA200) + 3 (slope) + buffer = 260
+      const backfillTasks = [
+        { timeframe: '5m', required: 100 },
+        { timeframe: '1h', required: 260 },
+      ];
+
+      for (const product of this.currentProducts) {
+        for (const task of backfillTasks) {
+          const result = await backfillIfNeeded({
+            supabaseClient: this.storage.getClient(),
+            symbol: product,
+            timeframe: task.timeframe,
+            requiredCandles: task.required,
+          });
+
+          if (result.ok) {
+            if (result.candlesInserted && result.candlesInserted > 0) {
+              this.log(
+                `✅ Backfilled ${result.candlesInserted} ${task.timeframe} candles for ${product}`
+              );
+            } else {
+              this.log(
+                `✓ Sufficient ${task.timeframe} data for ${product} (no backfill needed)`
+              );
+            }
+          } else {
+            this.log(
+              `⚠️  Backfill failed for ${product} ${task.timeframe}: ${result.reason}`
+            );
+            // Continue with other products/timeframes even if one fails
+          }
+        }
+      }
+
+      this.log('Historical data check completed');
+    } catch (error: any) {
+      this.log(`Error during backfill: ${error.message}`);
+      // Don't throw - allow engine to start even if backfill fails
+    }
   }
 
   private startTradingInterval(): void {
