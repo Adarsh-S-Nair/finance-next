@@ -20,6 +20,13 @@ export class SupabaseStorage {
   }
 
   /**
+   * Get the Supabase client (for use by trading logic)
+   */
+  getClient(): SupabaseClient {
+    return this.client;
+  }
+
+  /**
    * Upsert candles into the database with idempotency
    * Uses the crypto_candles table schema:
    * - product_id (text, e.g., "BTC-USD")

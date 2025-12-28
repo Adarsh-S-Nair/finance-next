@@ -9,6 +9,7 @@ import { loadConfig, Config } from './config';
 import { CoinbaseFeed } from './feeds/coinbase';
 import { SupabaseStorage } from './storage/supabase';
 import { Tick, Candle } from './types';
+import { executeBuyTrade } from './trading/tradeExecutor';
 
 interface CandleBuffer {
   ticker: string;
@@ -34,6 +35,7 @@ class MarketDataEngine {
   private timeframeConfigs: TimeframeConfig[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
   private refreshInterval: NodeJS.Timeout | null = null;
+  private tradingInterval: NodeJS.Timeout | null = null;
   private currentProducts: string[] = [];
   private isShuttingDown = false;
 
@@ -75,6 +77,9 @@ class MarketDataEngine {
 
     // Set up periodic product refresh (every 5 minutes)
     this.startProductRefreshInterval();
+
+    // Set up trading interval (every 5 minutes, when 5m candles close)
+    this.startTradingInterval();
 
     // Set up WebSocket feed
     this.feed = new CoinbaseFeed(this.config, {
@@ -174,6 +179,126 @@ class MarketDataEngine {
         this.log(`Error in product refresh: ${error.message}`);
       });
     }, 5 * 60 * 1000);
+  }
+
+  private startTradingInterval(): void {
+    // Run trading logic every 5 minutes (when 5m candles close)
+    // Align to 5-minute boundaries
+    const fiveMinutesMs = 5 * 60 * 1000;
+    const now = new Date();
+    const msUntilNext5m = fiveMinutesMs - (now.getTime() % fiveMinutesMs);
+    
+    setTimeout(() => {
+      this.runTradingCycle();
+      this.tradingInterval = setInterval(() => {
+        this.runTradingCycle();
+      }, fiveMinutesMs);
+    }, msUntilNext5m);
+  }
+
+  private async runTradingCycle(): Promise<void> {
+    try {
+      this.log('Running trading cycle...');
+      
+      // Get all active crypto portfolios
+      const { data: portfolios, error } = await this.storage.getClient()
+        .from('portfolios')
+        .select('id, crypto_assets, current_cash, starting_capital, status')
+        .eq('asset_type', 'crypto')
+        .eq('status', 'active')
+        .not('crypto_assets', 'is', null);
+
+      if (error) {
+        this.log(`Error fetching portfolios: ${error.message}`);
+        return;
+      }
+
+      if (!portfolios || portfolios.length === 0) {
+        this.log('No active crypto portfolios found');
+        return;
+      }
+
+      // Import runEngineTick (JavaScript module)
+      const { runEngineTick } = require('./runner/engineTick');
+      const { getDefaultEngineConfig } = require('./config/engineConfig');
+
+      // Process each portfolio
+      for (const portfolio of portfolios) {
+        const cryptoAssets = portfolio.crypto_assets || [];
+        
+        if (!Array.isArray(cryptoAssets) || cryptoAssets.length === 0) {
+          continue;
+        }
+
+        // Process each symbol in the portfolio
+        for (const asset of cryptoAssets) {
+          const symbol = typeof asset === 'string' ? `${asset.toUpperCase()}-USD` : null;
+          if (!symbol || !this.currentProducts.includes(symbol)) {
+            continue;
+          }
+
+          try {
+            const now = new Date();
+            const defaultConfig = getDefaultEngineConfig();
+
+            // Run engine tick to get signal
+            const tickResult = await runEngineTick({
+              supabaseClient: this.storage.getClient(),
+              symbol,
+              now,
+              portfolioId: portfolio.id,
+              portfolioOverrides: null, // Could load from portfolio config later
+            });
+
+            if (!tickResult.ok) {
+              this.log(`Engine tick failed for ${symbol} (portfolio ${portfolio.id}): ${tickResult.notes?.join(', ') || 'unknown error'}`);
+              continue;
+            }
+
+            // Check if we have a BUY signal and risk allows
+            if (tickResult.signal.action === 'BUY' && tickResult.risk.allowed) {
+              const entryPrice = tickResult.signal.debug.close5m;
+              const stopLossPct = defaultConfig.strategy.stopLossPct;
+              const stopPrice = entryPrice * (1 - stopLossPct);
+
+              // Execute trade
+              const tradeResult = await executeBuyTrade({
+                supabaseClient: this.storage.getClient(),
+                portfolioId: portfolio.id,
+                symbol,
+                entryPrice,
+                stopPrice,
+                equity: portfolio.starting_capital, // TODO: Calculate true equity with holdings
+                cashBalance: parseFloat(portfolio.current_cash),
+                config: defaultConfig,
+                reasoning: `Engine signal: ${tickResult.signal.reason}`,
+              });
+
+              if (tradeResult.ok) {
+                this.log(`✅ BUY executed: ${tradeResult.quantity?.toFixed(4)} ${symbol} @ $${entryPrice.toFixed(2)} = $${tradeResult.totalValue?.toFixed(2)} (portfolio ${portfolio.id})`);
+              } else {
+                this.log(`❌ Trade execution failed for ${symbol} (portfolio ${portfolio.id}): ${tradeResult.reason}`);
+              }
+            } else {
+              // Log why we didn't trade (for debugging)
+              const reason = !tickResult.risk.allowed 
+                ? `Risk blocked: ${tickResult.risk.reason}`
+                : `Signal: ${tickResult.signal.action} - ${tickResult.signal.reason}`;
+              // Only log occasionally to avoid spam
+              if (Math.random() < 0.1) { // Log 10% of HOLD signals
+                this.log(`⏸️  No trade for ${symbol} (portfolio ${portfolio.id}): ${reason}`);
+              }
+            }
+          } catch (error: any) {
+            this.log(`Error processing ${symbol} for portfolio ${portfolio.id}: ${error.message}`);
+          }
+        }
+      }
+
+      this.log('Trading cycle completed');
+    } catch (error: any) {
+      this.log(`Error in trading cycle: ${error.message}`);
+    }
   }
 
   private handleTick(tick: Tick): void {
@@ -371,6 +496,9 @@ class MarketDataEngine {
     }
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
+    }
+    if (this.tradingInterval) {
+      clearInterval(this.tradingInterval);
     }
 
     // Flush any remaining candles (1m and higher timeframes)
