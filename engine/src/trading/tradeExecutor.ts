@@ -83,8 +83,8 @@ export async function executeBuyTrade({
       };
     }
 
-    // Insert trade record
-    const { data: tradeRecord, error: tradeError } = await supabaseClient
+    // Insert order record
+    const { data: orderRecord, error: orderError } = await supabaseClient
       .from('orders')
       .insert({
         portfolio_id: portfolioId,
@@ -105,11 +105,36 @@ export async function executeBuyTrade({
       .select()
       .single();
 
-    if (tradeError) {
+    if (orderError) {
       return {
         ok: false,
-        reason: `Failed to record trade: ${tradeError.message}`,
+        reason: `Failed to record order: ${orderError.message}`,
       };
+    }
+
+    // Create trade record for crypto trading portfolios
+    // This creates an "open" trade that will be closed when the exit order is executed
+    const { data: tradeRecord, error: createTradeError } = await supabaseClient
+      .from('trades')
+      .insert({
+        portfolio_id: portfolioId,
+        entry_order_id: orderRecord.id,
+        exit_order_id: null,
+        ticker: symbol,
+        quantity: quantity,
+        entry_price: entryPrice,
+        exit_price: null,
+        realized_pnl: null,
+        hold_duration: null,
+        status: 'open',
+        closed_at: null,
+      })
+      .select()
+      .single();
+
+    // Log error but don't fail the order creation if trade creation fails
+    if (createTradeError) {
+      console.error(`Failed to create trade record: ${createTradeError.message}`);
     }
 
     // Get existing holding
@@ -183,7 +208,7 @@ export async function executeBuyTrade({
 
     return {
       ok: true,
-      tradeId: tradeRecord.id,
+      tradeId: orderRecord.id,
       quantity,
       totalValue,
     };

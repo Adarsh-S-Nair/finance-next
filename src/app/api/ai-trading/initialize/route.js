@@ -508,6 +508,7 @@ export async function POST(request) {
           next_rebalance_date: nextRebalanceDateStr,
           previous_rebalance_date: null, // No previous rebalance for new portfolio
           crypto_assets: assetType === 'crypto' ? cryptoAssets : null,
+          portfolio_type: assetType === 'crypto' ? 'trading' : 'investing', // Crypto portfolios are for trading
         })
         .select()
         .single();
@@ -1241,6 +1242,7 @@ export async function POST(request) {
         current_cash: startingCapital,
         status: 'active',
         crypto_assets: cryptoAssets,
+        portfolio_type: assetType === 'crypto' ? 'trading' : 'investing', // Crypto portfolios are for trading
       };
       
       // Only add rebalance fields for stock portfolios (crypto doesn't need rebalancing)
