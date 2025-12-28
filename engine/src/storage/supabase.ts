@@ -69,7 +69,18 @@ export class SupabaseStorage {
       }
       return true;
     } catch (error) {
-      this.log(`Database connection test failed: ${error}`);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : error && typeof error === 'object' && 'message' in error
+        ? String(error.message)
+        : String(error);
+      const errorCode = error && typeof error === 'object' && 'code' in error
+        ? String(error.code)
+        : 'unknown';
+      this.log(`Database connection test failed: ${errorMessage} (code: ${errorCode})`);
+      if (error && typeof error === 'object' && 'details' in error) {
+        this.log(`Error details: ${JSON.stringify(error)}`);
+      }
       return false;
     }
   }
