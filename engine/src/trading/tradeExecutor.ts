@@ -114,7 +114,7 @@ export async function executeBuyTrade({
 
     // Create trade record for crypto trading portfolios
     // This creates an "open" trade that will be closed when the exit order is executed
-    const { data: tradeRecord, error: createTradeError } = await supabaseClient
+    const { error: createTradeError } = await supabaseClient
       .from('trades')
       .insert({
         portfolio_id: portfolioId,
