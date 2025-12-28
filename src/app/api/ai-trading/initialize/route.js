@@ -32,6 +32,106 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
+/**
+ * Create initial portfolio snapshot
+ * Works for both AI and non-AI portfolios, stock and crypto
+ */
+async function createInitialPortfolioSnapshot(supabase, portfolio, assetType, cryptoAssets, holdingsMap = new Map(), cash, priceMap = new Map()) {
+  console.log('\n📸 CREATING INITIAL PORTFOLIO SNAPSHOT');
+  console.log('========================================');
+  
+  // Calculate holdings value using current prices
+  let holdingsValue = 0;
+  
+  // For crypto portfolios, fetch current crypto prices from candles table
+  if (assetType === 'crypto' && cryptoAssets && cryptoAssets.length > 0) {
+    console.log('   Fetching current crypto prices for snapshot...');
+    
+    // Fetch latest prices for each crypto asset
+    const cryptoPriceMap = new Map();
+    for (const symbol of cryptoAssets) {
+      const symbolUpper = symbol.toUpperCase();
+      const productId = `${symbolUpper}-USD`;
+      
+      try {
+        // Get the most recent candle for this product
+        const { data: latestCandle, error: candleError } = await supabase
+          .from('crypto_candles')
+          .select('close')
+          .eq('product_id', productId)
+          .eq('timeframe', '1m')
+          .order('time', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (!candleError && latestCandle) {
+          const price = parseFloat(latestCandle.close);
+          cryptoPriceMap.set(symbolUpper, price);
+          console.log(`   ${symbolUpper}: $${price.toFixed(2)}`);
+        } else {
+          console.log(`   ⚠️  Could not fetch price for ${symbolUpper}`);
+        }
+      } catch (err) {
+        console.log(`   ⚠️  Error fetching price for ${symbolUpper}:`, err.message);
+      }
+    }
+    
+    // Calculate holdings value using crypto prices
+    for (const [ticker, holding] of holdingsMap.entries()) {
+      const currentPrice = cryptoPriceMap.get(ticker);
+      if (currentPrice) {
+        holdingsValue += holding.shares * currentPrice;
+      } else {
+        // Fall back to avg_cost if price not available
+        holdingsValue += holding.shares * holding.avg_cost;
+      }
+    }
+  } else {
+    // For stock portfolios, use priceMap from stock data
+    for (const [ticker, holding] of holdingsMap.entries()) {
+      const currentPrice = priceMap.get(ticker);
+      if (currentPrice) {
+        holdingsValue += holding.shares * currentPrice;
+      } else {
+        // Fall back to avg_cost if price not available
+        holdingsValue += holding.shares * holding.avg_cost;
+      }
+    }
+  }
+  
+  const totalValue = cash + holdingsValue;
+  const snapshotDate = formatDateString(new Date()); // YYYY-MM-DD format (local time)
+  
+  console.log(`   Cash: $${cash.toFixed(2)}`);
+  console.log(`   Holdings Value: $${holdingsValue.toFixed(2)}`);
+  console.log(`   Total Value: $${totalValue.toFixed(2)}`);
+  console.log(`   Snapshot Date: ${snapshotDate}`);
+  
+  const { data: snapshotData, error: snapshotError } = await supabase
+    .from('portfolio_snapshots')
+    .insert({
+      portfolio_id: portfolio.id,
+      total_value: totalValue,
+      cash: cash,
+      holdings_value: holdingsValue,
+      snapshot_date: snapshotDate,
+    })
+    .select()
+    .single();
+  
+  if (snapshotError) {
+    console.error('❌ Failed to create portfolio snapshot:', snapshotError);
+    return { success: false, error: snapshotError };
+  } else {
+    console.log(`✅ Created initial portfolio snapshot (ID: ${snapshotData.id})`);
+    if (assetType === 'crypto') {
+      console.log('   📊 Crypto portfolio baseline snapshot created');
+    }
+    console.log('========================================\n');
+    return { success: true, data: snapshotData };
+  }
+}
+
 export async function POST(request) {
   try {
     // Create Supabase client (lazy, only when actually needed)
@@ -710,7 +810,7 @@ export async function POST(request) {
             
             // Record the trade as pending (no executed_at, is_pending=true)
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('trades')
+              .from('orders')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -838,7 +938,7 @@ export async function POST(request) {
             // Map TRIM/INCREASE to buy/sell for database storage
             const dbAction = 'buy';
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('trades')
+              .from('orders')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -943,7 +1043,7 @@ export async function POST(request) {
             // Map TRIM/INCREASE to buy/sell for database storage
             const dbAction = 'sell';
             const { data: tradeRecord, error: tradeError } = await supabase
-              .from('trades')
+              .from('orders')
               .insert({
                 portfolio_id: portfolio.id,
                 ticker: tickerUpper,
@@ -1076,98 +1176,15 @@ export async function POST(request) {
     // Step 10: Create initial portfolio snapshot
     // Create a snapshot after trades are processed (executed or pending)
     // This captures the portfolio state after the initial trades
-    console.log('\n📸 CREATING INITIAL PORTFOLIO SNAPSHOT');
-    console.log('========================================');
-    
-    // Calculate holdings value using current prices
-    let holdingsValue = 0;
-    
-    // For crypto portfolios, fetch current crypto prices from candles table
-    if (assetType === 'crypto' && cryptoAssets && cryptoAssets.length > 0) {
-      console.log('   Fetching current crypto prices for snapshot...');
-      
-      // Fetch latest prices for each crypto asset
-      const cryptoPriceMap = new Map();
-      for (const symbol of cryptoAssets) {
-        const symbolUpper = symbol.toUpperCase();
-        const productId = `${symbolUpper}-USD`;
-        
-        try {
-          // Get the most recent candle for this product
-          const { data: latestCandle, error: candleError } = await supabase
-            .from('crypto_candles')
-            .select('close')
-            .eq('product_id', productId)
-            .eq('timeframe', '1m')
-            .order('time', { ascending: false })
-            .limit(1)
-            .single();
-          
-          if (!candleError && latestCandle) {
-            const price = parseFloat(latestCandle.close);
-            cryptoPriceMap.set(symbolUpper, price);
-            console.log(`   ${symbolUpper}: $${price.toFixed(2)}`);
-          } else {
-            console.log(`   ⚠️  Could not fetch price for ${symbolUpper}`);
-          }
-        } catch (err) {
-          console.log(`   ⚠️  Error fetching price for ${symbolUpper}:`, err.message);
-        }
-      }
-      
-      // Calculate holdings value using crypto prices
-      for (const [ticker, holding] of finalHoldingsMap.entries()) {
-        const currentPrice = cryptoPriceMap.get(ticker);
-        if (currentPrice) {
-          holdingsValue += holding.shares * currentPrice;
-        } else {
-          // Fall back to avg_cost if price not available
-          holdingsValue += holding.shares * holding.avg_cost;
-        }
-      }
-    } else {
-      // For stock portfolios, use priceMap from stock data
-      for (const [ticker, holding] of finalHoldingsMap.entries()) {
-        const currentPrice = priceMap.get(ticker);
-        if (currentPrice) {
-          holdingsValue += holding.shares * currentPrice;
-        } else {
-          // Fall back to avg_cost if price not available
-          holdingsValue += holding.shares * holding.avg_cost;
-        }
-      }
-    }
-    
-    const totalValue = finalCash + holdingsValue;
-    // Use formatDateString to get local date (not UTC) to avoid timezone issues
-    const snapshotDate = formatDateString(new Date()); // YYYY-MM-DD format (local time)
-    
-    console.log(`   Cash: $${finalCash.toFixed(2)}`);
-    console.log(`   Holdings Value: $${holdingsValue.toFixed(2)}`);
-    console.log(`   Total Value: $${totalValue.toFixed(2)}`);
-    console.log(`   Snapshot Date: ${snapshotDate}`);
-    
-    const { data: snapshotData, error: snapshotError } = await supabase
-      .from('portfolio_snapshots')
-      .insert({
-        portfolio_id: portfolio.id,
-        total_value: totalValue,
-        cash: finalCash,
-        holdings_value: holdingsValue,
-        snapshot_date: snapshotDate,
-      })
-      .select()
-      .single();
-    
-    if (snapshotError) {
-      console.error('❌ Failed to create portfolio snapshot:', snapshotError);
-    } else {
-      console.log(`✅ Created initial portfolio snapshot (ID: ${snapshotData.id})`);
-      if (assetType === 'crypto') {
-        console.log('   📊 Crypto portfolio baseline snapshot created');
-      }
-    }
-    console.log('========================================\n');
+    await createInitialPortfolioSnapshot(
+      supabase,
+      portfolio,
+      assetType,
+      cryptoAssets,
+      finalHoldingsMap,
+      finalCash,
+      priceMap
+    );
 
     // Step 11: Update portfolio status to active and refresh portfolio data
     const { data: updatedPortfolio, error: updateError } = await supabase
@@ -1254,7 +1271,18 @@ export async function POST(request) {
       }
 
       console.log(`✅ Portfolio created with ID: ${portfolio.id}`);
-      console.log('========================================\n');
+      
+      // Create initial portfolio snapshot for non-AI portfolios
+      // No holdings at creation, so pass empty Map and starting capital as cash
+      await createInitialPortfolioSnapshot(
+        supabase,
+        portfolio,
+        assetType,
+        cryptoAssets,
+        new Map(), // No holdings yet
+        startingCapital, // Starting cash
+        new Map() // No price map needed since no holdings
+      );
 
       return NextResponse.json({
         success: true,

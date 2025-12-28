@@ -85,7 +85,7 @@ export async function executeBuyTrade({
 
     // Insert trade record
     const { data: tradeRecord, error: tradeError } = await supabaseClient
-      .from('trades')
+      .from('orders')
       .insert({
         portfolio_id: portfolioId,
         ticker: symbol,

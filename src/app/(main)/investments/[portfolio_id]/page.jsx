@@ -564,7 +564,7 @@ export default function PortfolioDetailPage() {
 
         // Fetch trades
         const { data: tradesData, error: tradesError } = await supabase
-          .from('trades')
+          .from('orders')
           .select('*')
           .eq('portfolio_id', portfolioId)
           .order('executed_at', { ascending: false });
@@ -1219,6 +1219,19 @@ export default function PortfolioDetailPage() {
   }, [filteredCryptoPortfolioValueData, cryptoPortfolioDisplayData, cryptoTimeRange, portfolio?.starting_capital]);
 
   const cryptoPortfolioChartColor = cryptoPortfolioPercentChange >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+
+  // Log first snapshot and current value for crypto portfolios
+  useEffect(() => {
+    if (portfolio?.asset_type === 'crypto' && cryptoPortfolioValueData.length > 0) {
+      const firstSnapshotValue = cryptoPortfolioValueData[0]?.value || 0;
+      const currentValue = currentTotalValue || 0;
+      
+      console.log('=== CRYPTO PORTFOLIO VALUES ===');
+      console.log('First Snapshot Value:', formatCurrency(firstSnapshotValue));
+      console.log('Current Value:', formatCurrency(currentValue));
+      console.log('================================');
+    }
+  }, [portfolio?.asset_type, cryptoPortfolioValueData, currentTotalValue]);
 
   const handleDeleteClick = () => {
     if (showSettings) setShowSettings(false);

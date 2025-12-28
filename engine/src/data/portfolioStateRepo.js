@@ -150,7 +150,7 @@ class PortfolioStateRepository {
 
       // Query trades executed today
       const { data, error } = await this.client
-        .from("trades")
+        .from("orders")
         .select("action, total_value")
         .eq("portfolio_id", portfolioId)
         .gte("executed_at", todayStart.toISOString())
@@ -241,7 +241,7 @@ class PortfolioStateRepository {
 
       // Query last 30 trades ordered by executed_at desc
       const { data, error } = await this.client
-        .from("trades")
+        .from("orders")
         .select("executed_at, reasoning, meta")
         .eq("portfolio_id", portfolioId)
         .not("executed_at", "is", null)
