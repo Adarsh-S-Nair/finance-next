@@ -11,7 +11,8 @@ export interface Tick {
 }
 
 export interface Candle {
-  ticker: string;
+  productId: string;  // Coinbase product ID (e.g., "BTC-USD")
+  timeframe: string;  // Candle timeframe (e.g., "1m", "5m", "1h", "1d")
   timestamp: Date;
   open: number;
   high: number;

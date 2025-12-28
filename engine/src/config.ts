@@ -37,7 +37,7 @@ export function loadConfig(): Config {
     },
     coinbase: {
       wsUrl: 'wss://ws-feed.exchange.coinbase.com',
-      products: ['BTC-USD', 'ETH-USD'],
+      products: ['BTC-USD', 'ETH-USD'], // Fallback if no portfolios found
     },
     aggregation: {
       candleIntervalMs: 60 * 1000, // 1 minute
