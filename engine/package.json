@@ -1,13 +1,13 @@
 {
   "name": "finance-next-engine",
   "version": "1.0.0",
-  "description": "24/7 crypto market data streaming engine",
-  "main": "dist/index.js",
+  "description": "Risk-first paper trading engine",
+  "main": "src/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "watch": "tsc --watch"
+    "build": "echo \"No build step required for JS runtime\"",
+    "start": "node src/index.js",
+    "dev": "NODE_ENV=development node src/index.js",
+    "watch": "node src/index.js"
   },
   "keywords": [
     "crypto",
@@ -31,4 +31,3 @@
     "node": ">=18.0.0"
   }
 }
-
