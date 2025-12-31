@@ -138,7 +138,10 @@ export async function GET(request) {
     // and return $1.00 for cash holdings without making API calls
     const cryptoTickers = new Set();
     const cashTickers = new Set();
+    const foundTickers = new Set();
+    
     try {
+      // First, check tickers table
       const { data: tickerData } = await supabaseAdmin
         .from('tickers')
         .select('symbol, asset_type')
@@ -146,6 +149,7 @@ export async function GET(request) {
       
       if (tickerData) {
         tickerData.forEach(t => {
+          foundTickers.add(t.symbol);
           if (t.asset_type === 'crypto') {
             cryptoTickers.add(t.symbol);
           } else if (t.asset_type === 'cash') {
@@ -153,6 +157,35 @@ export async function GET(request) {
           }
         });
       }
+      
+      // For tickers not found in tickers table, check holdings table as fallback
+      const missingTickers = tickers.filter(t => !foundTickers.has(t));
+      if (missingTickers.length > 0) {
+        const { data: holdingsData } = await supabaseAdmin
+          .from('holdings')
+          .select('ticker, asset_type')
+          .in('ticker', missingTickers);
+        
+        if (holdingsData) {
+          holdingsData.forEach(h => {
+            if (h.asset_type === 'crypto') {
+              cryptoTickers.add(h.ticker);
+            } else if (h.asset_type === 'cash') {
+              cashTickers.add(h.ticker);
+            }
+          });
+          if (holdingsData.length > 0) {
+            console.log(`[Quotes] Found ${holdingsData.length} tickers in holdings table:`, holdingsData.map(h => `${h.ticker}(${h.asset_type})`));
+          }
+        }
+      }
+      
+      // Also detect cash by CUR: prefix pattern (legacy format)
+      tickers.forEach(t => {
+        if (t.startsWith('CUR:') && !cashTickers.has(t)) {
+          cashTickers.add(t);
+        }
+      });
       
       if (cryptoTickers.size > 0) {
         console.log(`[Quotes] Detected ${cryptoTickers.size} crypto tickers:`, Array.from(cryptoTickers));

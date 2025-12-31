@@ -294,8 +294,13 @@ export async function POST(request) {
 
         totalHoldingsValue += institutionValue;
 
+        // Determine asset_type for the holding
+        let holdingAssetType = 'stock';
+        if (securityInfo.isCrypto) holdingAssetType = 'crypto';
+        else if (isCashHolding) holdingAssetType = 'cash';
+
         if (DEBUG) {
-          const assetLabel = securityInfo.isCrypto ? '🪙 Crypto' : '📊 Stock';
+          const assetLabel = isCashHolding ? '💵 Cash' : (securityInfo.isCrypto ? '🪙 Crypto' : '📊 Stock');
           console.log(`  ${assetLabel}: ${tickerUpper} - ${quantity} shares @ $${costBasis > 0 && quantity > 0 ? (costBasis / quantity).toFixed(2) : '0.00'} = $${institutionValue.toFixed(2)}`);
         }
 
@@ -309,6 +314,7 @@ export async function POST(request) {
             ticker: tickerUpper,
             shares: totalShares,
             avg_cost: totalShares > 0 ? totalCostBasis / totalShares : 0,
+            asset_type: holdingAssetType,
           });
         } else {
           const avgCost = quantity > 0 ? costBasis / quantity : 0;
@@ -317,6 +323,7 @@ export async function POST(request) {
             ticker: tickerUpper,
             shares: quantity,
             avg_cost: avgCost,
+            asset_type: holdingAssetType,
           });
         }
       });

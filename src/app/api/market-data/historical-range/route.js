@@ -37,23 +37,49 @@ export async function GET(request) {
     // Check if this is a crypto or cash ticker from our database
     let isCrypto = false;
     let isCash = false;
-    try {
-      const { data: tickerData } = await supabaseAdmin
-        .from('tickers')
-        .select('asset_type')
-        .eq('symbol', ticker)
-        .single();
-      
-      if (tickerData?.asset_type === 'crypto') {
-        isCrypto = true;
-        console.log(`[Historical-Range ${ticker}] Detected as crypto, will use ${ticker}-USD`);
-      } else if (tickerData?.asset_type === 'cash') {
-        isCash = true;
-        console.log(`[Historical-Range ${ticker}] Detected as cash, returning flat $1.00`);
+    
+    // Check for CUR: prefix pattern (legacy cash format)
+    if (ticker.startsWith('CUR:')) {
+      isCash = true;
+      console.log(`[Historical-Range ${ticker}] Detected as cash (CUR: prefix), returning flat $1.00`);
+    } else {
+      try {
+        // First, check tickers table
+        const { data: tickerData } = await supabaseAdmin
+          .from('tickers')
+          .select('asset_type')
+          .eq('symbol', ticker)
+          .single();
+        
+        if (tickerData?.asset_type === 'crypto') {
+          isCrypto = true;
+          console.log(`[Historical-Range ${ticker}] Detected as crypto, will use ${ticker}-USD`);
+        } else if (tickerData?.asset_type === 'cash') {
+          isCash = true;
+          console.log(`[Historical-Range ${ticker}] Detected as cash, returning flat $1.00`);
+        }
+      } catch (dbError) {
+        // Ticker not in tickers table, check holdings table as fallback
+        try {
+          const { data: holdingData } = await supabaseAdmin
+            .from('holdings')
+            .select('asset_type')
+            .eq('ticker', ticker)
+            .limit(1)
+            .single();
+          
+          if (holdingData?.asset_type === 'crypto') {
+            isCrypto = true;
+            console.log(`[Historical-Range ${ticker}] Detected as crypto (from holdings), will use ${ticker}-USD`);
+          } else if (holdingData?.asset_type === 'cash') {
+            isCash = true;
+            console.log(`[Historical-Range ${ticker}] Detected as cash (from holdings), returning flat $1.00`);
+          }
+        } catch (holdingError) {
+          // Neither table has it, assume stock
+          console.warn(`[Historical-Range ${ticker}] Could not look up asset type from either table`);
+        }
       }
-    } catch (dbError) {
-      // If DB lookup fails, continue assuming stock
-      console.warn(`[Historical-Range ${ticker}] Could not look up asset type:`, dbError.message);
     }
 
     // For cash tickers, return a flat line at $1.00
