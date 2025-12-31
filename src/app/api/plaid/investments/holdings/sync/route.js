@@ -106,23 +106,33 @@ export async function POST(request) {
         
         // Determine asset type from Plaid's security type
         const isCrypto = security.type === 'cryptocurrency';
+        const isCash = security.type === 'cash' || security.is_cash_equivalent === true;
+        
+        // Determine the asset_type for our database
+        let assetType = 'stock'; // default
+        if (isCrypto) assetType = 'crypto';
+        else if (isCash) assetType = 'cash';
         
         securityMap.set(security.security_id, {
           ticker,
           type: security.type,
           isCrypto,
+          isCash,
           name: security.name,
-          // For crypto, use the ticker as-is; for stocks, we might need exchange info
-          assetType: isCrypto ? 'crypto' : 'stock'
+          assetType
         });
       });
       
       if (DEBUG) {
         const cryptoSecurities = Array.from(securityMap.values()).filter(s => s.isCrypto);
-        const stockSecurities = Array.from(securityMap.values()).filter(s => !s.isCrypto);
-        console.log(`📊 Security types: ${stockSecurities.length} stocks/ETFs, ${cryptoSecurities.length} crypto`);
+        const cashSecurities = Array.from(securityMap.values()).filter(s => s.isCash);
+        const stockSecurities = Array.from(securityMap.values()).filter(s => !s.isCrypto && !s.isCash);
+        console.log(`📊 Security types: ${stockSecurities.length} stocks/ETFs, ${cryptoSecurities.length} crypto, ${cashSecurities.length} cash`);
         if (cryptoSecurities.length > 0) {
           console.log(`🪙 Crypto holdings:`, cryptoSecurities.map(s => s.ticker));
+        }
+        if (cashSecurities.length > 0) {
+          console.log(`💵 Cash holdings:`, cashSecurities.map(s => `${s.ticker} (${s.name})`));
         }
       }
     }
@@ -249,32 +259,35 @@ export async function POST(request) {
       // Use a Map to aggregate holdings by ticker (in case Plaid returns duplicates)
       const holdingsByTicker = new Map();
 
-      // Track which tickers are crypto for later ticker upserts
+      // Track which tickers are crypto/cash for later ticker upserts
       const cryptoTickers = new Set();
+      const cashTickers = new Set();
       const tickerSecurityInfo = new Map(); // ticker -> security info from Plaid
       
       accountHoldings.forEach(holding => {
-        const securityInfo = securityMap.get(holding.security_id) || { ticker: holding.security_id, isCrypto: false, assetType: 'stock' };
+        const securityInfo = securityMap.get(holding.security_id) || { ticker: holding.security_id, isCrypto: false, isCash: false, assetType: 'stock' };
         const ticker = securityInfo.ticker || holding.security_id;
         const tickerUpper = ticker.toUpperCase();
         const quantity = parseFloat(holding.quantity) || 0;
         const costBasis = parseFloat(holding.cost_basis) || 0;
         const institutionValue = parseFloat(holding.institution_value) || 0;
 
-        // Check if this is a cash position (e.g., CUR:USD, CUR:EUR, etc.)
-        if (tickerUpper.startsWith('CUR:')) {
-          // This is cash, not a holding - add to cash value
+        // Check for legacy CUR: prefixed cash positions
+        const isLegacyCashFormat = tickerUpper.startsWith('CUR:');
+        const isCashHolding = securityInfo.isCash || isLegacyCashFormat;
+
+        // Track cash value for logging purposes
+        if (isCashHolding) {
           cashFromHoldings += institutionValue;
-          if (DEBUG) {
-            console.log(`  💵 Cash position: ${tickerUpper} = $${institutionValue.toFixed(2)} (adding to cash, not holdings)`);
-          }
-          return; // Skip adding to holdings
         }
 
-        // Track crypto tickers
+        // Track tickers by type
         if (securityInfo.isCrypto) {
           cryptoTickers.add(tickerUpper);
           tickerSecurityInfo.set(tickerUpper, securityInfo);
+        } else if (isCashHolding) {
+          cashTickers.add(tickerUpper);
+          tickerSecurityInfo.set(tickerUpper, { ...securityInfo, isCash: true, assetType: 'cash' });
         } else {
           tickerSecurityInfo.set(tickerUpper, securityInfo);
         }
@@ -308,8 +321,13 @@ export async function POST(request) {
         }
       });
       
-      if (DEBUG && cryptoTickers.size > 0) {
-        console.log(`  🪙 Found ${cryptoTickers.size} crypto holdings:`, Array.from(cryptoTickers));
+      if (DEBUG) {
+        if (cryptoTickers.size > 0) {
+          console.log(`  🪙 Found ${cryptoTickers.size} crypto holdings:`, Array.from(cryptoTickers));
+        }
+        if (cashTickers.size > 0) {
+          console.log(`  💵 Found ${cashTickers.size} cash holdings:`, Array.from(cashTickers));
+        }
       }
 
       // Convert map to array
@@ -323,7 +341,7 @@ export async function POST(request) {
       const cryptoTickersList = uniqueTickers.filter(t => cryptoTickers.has(t));
       
       if (DEBUG) {
-        console.log(`  📊 Processing ${stockTickers.length} stock tickers and ${cryptoTickersList.length} crypto tickers`);
+        console.log(`  📊 Processing ${stockTickers.length} stock tickers, ${cryptoTickersList.length} crypto tickers, and ${cashTickers.size} cash tickers`);
       }
       
       // Check which tickers exist in database and which are missing data
@@ -354,9 +372,10 @@ export async function POST(request) {
       // Combine new tickers and existing tickers missing data
       const tickersToProcess = [...new Set([...newTickers, ...existingTickersMissingData])];
       
-      // Split into stock and crypto for processing
-      const stockTickersToProcess = tickersToProcess.filter(t => !cryptoTickers.has(t));
+      // Split into stock, crypto, and cash for processing
+      const stockTickersToProcess = tickersToProcess.filter(t => !cryptoTickers.has(t) && !cashTickers.has(t));
       const cryptoTickersToProcess = tickersToProcess.filter(t => cryptoTickers.has(t));
+      const cashTickersToProcess = tickersToProcess.filter(t => cashTickers.has(t));
 
       // Build map of existing ticker data for preservation
       const existingTickerMap = new Map();
@@ -452,6 +471,45 @@ export async function POST(request) {
         });
       }
 
+      // Process CASH tickers - use Plaid's security info
+      if (cashTickersToProcess.length > 0) {
+        logger.info('Processing cash tickers', { 
+          count: cashTickersToProcess.length,
+          tickers: cashTickersToProcess 
+        });
+        if (DEBUG) console.log(`  💵 Processing ${cashTickersToProcess.length} cash tickers:`, cashTickersToProcess);
+
+        cashTickersToProcess.forEach(ticker => {
+          const existingTicker = existingTickerMap.get(ticker);
+          const securityInfo = tickerSecurityInfo.get(ticker);
+          
+          // Use Plaid's security name if available
+          const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
+            ? existingTicker.name 
+            : (securityInfo?.name || ticker);
+          
+          // Cash is its own category
+          const sector = (existingTicker?.sector && existingTicker.sector.trim() !== '') 
+            ? existingTicker.sector 
+            : 'Cash';
+          
+          // No logo needed for cash
+          const logo = (existingTicker?.logo && existingTicker.logo.trim() !== '') 
+            ? existingTicker.logo 
+            : null;
+
+          allTickerInserts.push({
+            symbol: ticker,
+            name: name,
+            sector: sector,
+            logo: logo,
+            asset_type: 'cash', // Explicitly set as cash
+          });
+          
+          if (DEBUG) console.log(`  💵 Cash ticker: ${ticker} (name: ${name})`);
+        });
+      }
+
       // Upsert all tickers (stocks and crypto)
       if (allTickerInserts.length > 0) {
         const { error: tickerInsertError } = await supabaseAdmin
@@ -467,8 +525,9 @@ export async function POST(request) {
         } else {
           const stockCount = allTickerInserts.filter(t => t.asset_type === 'stock').length;
           const cryptoCount = allTickerInserts.filter(t => t.asset_type === 'crypto').length;
-          logger.info('Successfully processed tickers', { total: allTickerInserts.length, stocks: stockCount, crypto: cryptoCount });
-          if (DEBUG) console.log(`  ✅ Processed ${allTickerInserts.length} tickers (${stockCount} stocks, ${cryptoCount} crypto)`);
+          const cashCount = allTickerInserts.filter(t => t.asset_type === 'cash').length;
+          logger.info('Successfully processed tickers', { total: allTickerInserts.length, stocks: stockCount, crypto: cryptoCount, cash: cashCount });
+          if (DEBUG) console.log(`  ✅ Processed ${allTickerInserts.length} tickers (${stockCount} stocks, ${cryptoCount} crypto, ${cashCount} cash)`);
         }
       }
       

@@ -133,9 +133,11 @@ export async function GET(request) {
       );
     }
 
-    // Look up asset types from tickers table to determine crypto vs stock
+    // Look up asset types from tickers table to determine crypto, cash, vs stock
     // This allows us to fetch crypto prices correctly (with -USD suffix for Yahoo)
+    // and return $1.00 for cash holdings without making API calls
     const cryptoTickers = new Set();
+    const cashTickers = new Set();
     try {
       const { data: tickerData } = await supabaseAdmin
         .from('tickers')
@@ -146,6 +148,8 @@ export async function GET(request) {
         tickerData.forEach(t => {
           if (t.asset_type === 'crypto') {
             cryptoTickers.add(t.symbol);
+          } else if (t.asset_type === 'cash') {
+            cashTickers.add(t.symbol);
           }
         });
       }
@@ -153,10 +157,16 @@ export async function GET(request) {
       if (cryptoTickers.size > 0) {
         console.log(`[Quotes] Detected ${cryptoTickers.size} crypto tickers:`, Array.from(cryptoTickers));
       }
+      if (cashTickers.size > 0) {
+        console.log(`[Quotes] Detected ${cashTickers.size} cash tickers:`, Array.from(cashTickers));
+      }
     } catch (dbError) {
-      // If DB lookup fails, continue without crypto detection
+      // If DB lookup fails, continue without crypto/cash detection
       console.warn('[Quotes] Could not look up asset types from DB:', dbError.message);
     }
+    
+    // Filter out cash tickers from the rest of the processing
+    const nonCashTickers = tickers.filter(t => !cashTickers.has(t));
 
     const now = new Date();
     const cacheThreshold = now.getTime() - CACHE_TTL_MS;
@@ -164,8 +174,16 @@ export async function GET(request) {
     // Build result map from in-memory cache
     const quotes = {};
     const cachedTickers = new Set();
+    
+    // Handle cash tickers immediately - they're always worth $1.00
+    cashTickers.forEach(ticker => {
+      quotes[ticker] = { price: 1.0, cached: true, cachedAt: now.toISOString() };
+      // Also add to cache
+      inMemoryCache.set(ticker, { price: 1.0, updatedAt: now.toISOString() });
+      cachedTickers.add(ticker);
+    });
 
-    tickers.forEach((ticker) => {
+    nonCashTickers.forEach((ticker) => {
       const cached = inMemoryCache.get(ticker);
       if (!cached) return;
 
@@ -180,8 +198,8 @@ export async function GET(request) {
       }
     });
 
-    // Step 2: Identify tickers needing fresh data
-    const staleTickers = tickers.filter(t => !cachedTickers.has(t));
+    // Step 2: Identify tickers needing fresh data (excluding cash)
+    const staleTickers = nonCashTickers.filter(t => !cachedTickers.has(t));
 
     // Step 3: Fetch fresh prices for stale tickers
     if (staleTickers.length > 0) {

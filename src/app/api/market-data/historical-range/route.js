@@ -34,8 +34,9 @@ export async function GET(request) {
       );
     }
 
-    // Check if this is a crypto ticker from our database
+    // Check if this is a crypto or cash ticker from our database
     let isCrypto = false;
+    let isCash = false;
     try {
       const { data: tickerData } = await supabaseAdmin
         .from('tickers')
@@ -46,10 +47,39 @@ export async function GET(request) {
       if (tickerData?.asset_type === 'crypto') {
         isCrypto = true;
         console.log(`[Historical-Range ${ticker}] Detected as crypto, will use ${ticker}-USD`);
+      } else if (tickerData?.asset_type === 'cash') {
+        isCash = true;
+        console.log(`[Historical-Range ${ticker}] Detected as cash, returning flat $1.00`);
       }
     } catch (dbError) {
       // If DB lookup fails, continue assuming stock
       console.warn(`[Historical-Range ${ticker}] Could not look up asset type:`, dbError.message);
+    }
+
+    // For cash tickers, return a flat line at $1.00
+    if (isCash) {
+      const start = parseInt(startTimestamp) * 1000;
+      const end = parseInt(endTimestamp) * 1000;
+      // Generate data points based on interval
+      const intervalMs = {
+        '1m': 60 * 1000,
+        '5m': 5 * 60 * 1000,
+        '15m': 15 * 60 * 1000,
+        '30m': 30 * 60 * 1000,
+        '1h': 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+      }[interval];
+      
+      const dataPoints = [];
+      for (let ts = start; ts <= end; ts += intervalMs) {
+        dataPoints.push({ time: Math.floor(ts / 1000), close: 1.0 });
+      }
+      
+      console.log(`[Historical-Range ${ticker}] 💵 Cash Generated ${dataPoints.length} data points (interval: ${interval})`);
+      return NextResponse.json({
+        ticker,
+        data: dataPoints,
+      });
     }
 
     // For crypto, Yahoo Finance uses format like BTC-USD
