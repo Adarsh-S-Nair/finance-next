@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 // Cache TTL: 5 minutes (matches frontend refresh cadence)
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -18,18 +18,6 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // Note: This is per lambda/runtime instance and may be reset on cold starts,
 // which is fine for our use case—it's only a performance optimization.
 const inMemoryCache = new Map();
-
-// Lazy initialize supabase admin client
-let supabaseAdmin = null;
-function getSupabaseAdmin() {
-  if (!supabaseAdmin) {
-    supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return supabaseAdmin;
-}
 
 /**
  * Fetch quote from Yahoo Finance
@@ -149,8 +137,7 @@ export async function GET(request) {
     // This allows us to fetch crypto prices correctly (with -USD suffix for Yahoo)
     const cryptoTickers = new Set();
     try {
-      const supabase = getSupabaseAdmin();
-      const { data: tickerData } = await supabase
+      const { data: tickerData } = await supabaseAdmin
         .from('tickers')
         .select('symbol, asset_type')
         .in('symbol', tickers);

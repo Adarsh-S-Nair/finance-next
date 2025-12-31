@@ -1,17 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Lazy initialize supabase admin client
-let supabaseAdmin = null;
-function getSupabaseAdmin() {
-  if (!supabaseAdmin) {
-    supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return supabaseAdmin;
-}
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 /**
  * Fetch historical stock/crypto prices for a time range with specified interval
@@ -49,8 +37,7 @@ export async function GET(request) {
     // Check if this is a crypto ticker from our database
     let isCrypto = false;
     try {
-      const supabase = getSupabaseAdmin();
-      const { data: tickerData } = await supabase
+      const { data: tickerData } = await supabaseAdmin
         .from('tickers')
         .select('asset_type')
         .eq('symbol', ticker)

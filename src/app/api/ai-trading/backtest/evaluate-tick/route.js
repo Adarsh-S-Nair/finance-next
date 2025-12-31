@@ -4,26 +4,10 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Dynamic import of engine modules (CommonJS)
-function loadEngineModules() {
-  const path = require('path');
-  const enginePath = path.join(process.cwd(), 'engine', 'src');
-  
-  try {
-    // Use require for CommonJS modules
-    const { computeIndicators } = require(path.join(enginePath, 'indicators', 'indicators'));
-    const { evaluateEntrySignal } = require(path.join(enginePath, 'strategy', 'signalEvaluator'));
-    const { RiskManager } = require(path.join(enginePath, 'risk', 'riskManager'));
-    const { getDefaultEngineConfig } = require(path.join(enginePath, 'config', 'engineConfig'));
-    
-    return { computeIndicators, evaluateEntrySignal, RiskManager, getDefaultEngineConfig };
-  } catch (error) {
-    console.error('Failed to load engine modules:', error);
-    throw error;
-  }
-}
+import { computeIndicators } from '../../../../../../engine/src/indicators/indicators';
+import { evaluateEntrySignal } from '../../../../../../engine/src/strategy/signalEvaluator';
+import { RiskManager } from '../../../../../../engine/src/risk/riskManager';
+import { getDefaultEngineConfig } from '../../../../../../engine/src/config/engineConfig';
 
 export async function POST(request) {
   try {
@@ -39,8 +23,6 @@ export async function POST(request) {
     // Debug: Log that API was called
     console.log(`🔍 [BACKTEST] API called for ${symbol} at ${timestamp} (${candles5m?.length || 0} 5m candles, ${candles1h?.length || 0} 1h candles)`);
 
-    // Load engine modules (synchronous require)
-    const { computeIndicators, evaluateEntrySignal, RiskManager, getDefaultEngineConfig } = loadEngineModules();
     const config = getDefaultEngineConfig();
 
     // Convert candle format from client to engine format
