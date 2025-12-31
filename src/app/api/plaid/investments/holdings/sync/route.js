@@ -5,6 +5,78 @@ import { createLogger } from '../../../../../../lib/logger';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('holdings-sync');
 
+// Mapping of crypto ticker symbols to Trust Wallet blockchain chain names for logos
+// Trust Wallet assets repo: https://github.com/trustwallet/assets/tree/master/blockchains
+const CRYPTO_CHAIN_MAP = {
+  'BTC': 'bitcoin',
+  'ETH': 'ethereum',
+  'SOL': 'solana',
+  'DOGE': 'doge',
+  'XRP': 'xrp',
+  'ADA': 'cardano',
+  'DOT': 'polkadot',
+  'AVAX': 'avalanchec',
+  'MATIC': 'polygon',
+  'LINK': 'ethereum', // LINK is on Ethereum
+  'ATOM': 'cosmos',
+  'LTC': 'litecoin',
+  'UNI': 'ethereum', // UNI is on Ethereum
+  'SHIB': 'ethereum', // SHIB is on Ethereum
+  'PEPE': 'ethereum', // PEPE is on Ethereum
+  'TRX': 'tron',
+  'BCH': 'bitcoincash',
+  'XLM': 'stellar',
+  'ALGO': 'algorand',
+  'VET': 'vechain',
+  'FIL': 'filecoin',
+  'NEAR': 'near',
+  'APT': 'aptos',
+  'ARB': 'arbitrum',
+  'OP': 'optimism',
+  'INJ': 'injective',
+  'SUI': 'sui',
+  'SEI': 'sei',
+  'TON': 'ton',
+  'HBAR': 'hedera',
+  'ETC': 'classic',
+  'XMR': 'monero',
+  'ICP': 'internet-computer',
+  'FTM': 'fantom',
+  'EGLD': 'elrond',
+  'THETA': 'theta',
+  'XTZ': 'tezos',
+  'EOS': 'eos',
+  'AAVE': 'ethereum', // AAVE is on Ethereum
+  'MKR': 'ethereum', // MKR is on Ethereum
+  'GRT': 'ethereum', // GRT is on Ethereum
+  'CRO': 'cronos',
+  'QNT': 'ethereum', // QNT is on Ethereum
+  'SAND': 'ethereum', // SAND is on Ethereum
+  'MANA': 'ethereum', // MANA is on Ethereum
+  'AXS': 'ethereum', // AXS is on Ethereum
+  'APE': 'ethereum', // APE is on Ethereum
+  'LDO': 'ethereum', // LDO is on Ethereum
+  'CRV': 'ethereum', // CRV is on Ethereum
+  'SNX': 'ethereum', // SNX is on Ethereum
+  'COMP': 'ethereum', // COMP is on Ethereum
+  '1INCH': 'ethereum', // 1INCH is on Ethereum
+  'ENS': 'ethereum', // ENS is on Ethereum
+  'BAT': 'ethereum', // BAT is on Ethereum
+};
+
+/**
+ * Get Trust Wallet logo URL for a crypto ticker
+ * @param {string} ticker - Crypto ticker symbol (e.g., 'BTC', 'ETH')
+ * @returns {string|null} - Logo URL or null if chain not found
+ */
+function getCryptoLogoUrl(ticker) {
+  const chain = CRYPTO_CHAIN_MAP[ticker.toUpperCase()];
+  if (chain) {
+    return `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${chain}/info/logo.png`;
+  }
+  return null;
+}
+
 export async function POST(request) {
   let plaidItemId = null;
 
@@ -369,9 +441,12 @@ export async function POST(request) {
         const hasName = t.name && t.name.trim() !== '';
         const hasSector = t.sector && t.sector.trim() !== '';
         const hasLogo = t.logo && t.logo.trim() !== '';
-        // Check if asset_type is wrong (e.g., crypto marked as stock)
+        // Check if asset_type is wrong (e.g., crypto marked as stock, or cash marked as stock)
         const isCrypto = cryptoTickers.has(t.symbol);
-        const correctAssetType = isCrypto ? 'crypto' : 'stock';
+        const isCash = cashTickers.has(t.symbol);
+        let correctAssetType = 'stock';
+        if (isCrypto) correctAssetType = 'crypto';
+        else if (isCash) correctAssetType = 'cash';
         const hasCorrectAssetType = t.asset_type === correctAssetType;
         return !hasName || !hasSector || !hasLogo || !hasCorrectAssetType;
       }).map(t => t.symbol);
@@ -438,7 +513,7 @@ export async function POST(request) {
         });
       }
 
-      // Process CRYPTO tickers - use Plaid's security info, no Finnhub
+      // Process CRYPTO tickers - use Plaid's security info and Trust Wallet logos
       if (cryptoTickersToProcess.length > 0) {
         logger.info('Processing crypto tickers', { 
           count: cryptoTickersToProcess.length,
@@ -460,11 +535,17 @@ export async function POST(request) {
             ? existingTicker.sector 
             : 'Cryptocurrency';
           
-          // For crypto logos, we could use a crypto-specific logo service
-          // For now, preserve existing logo or leave null
-          const logo = (existingTicker?.logo && existingTicker.logo.trim() !== '') 
-            ? existingTicker.logo 
-            : null;
+          // Get crypto logo from Trust Wallet assets
+          let logo = null;
+          if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
+            logo = existingTicker.logo;
+          } else {
+            // Try to get logo from Trust Wallet using our chain mapping
+            logo = getCryptoLogoUrl(ticker);
+            if (logo && DEBUG) {
+              console.log(`  🖼️ Got Trust Wallet logo for ${ticker}: ${logo}`);
+            }
+          }
 
           allTickerInserts.push({
             symbol: ticker,
@@ -474,7 +555,7 @@ export async function POST(request) {
             asset_type: 'crypto', // Explicitly set as crypto
           });
           
-          if (DEBUG) console.log(`  🪙 Crypto ticker: ${ticker} (name: ${name})`);
+          if (DEBUG) console.log(`  🪙 Crypto ticker: ${ticker} (name: ${name}, logo: ${logo ? 'yes' : 'no'})`);
         });
       }
 
