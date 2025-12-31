@@ -42,7 +42,8 @@ export function AccountsProvider({ children }) {
         mask: account.mask,
         institutionId: account.institution_id,
         itemId: account.item_id,
-        accountId: account.account_id
+        accountId: account.account_id,
+        createdAt: account.created_at
       };
 
       institutionsMap[institutionId].accounts.push(accountData);

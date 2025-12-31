@@ -41,7 +41,7 @@ function getPlaidClient() {
 export { getPlaidClient };
 
 // Helper function to create link token
-export async function createLinkToken(userId, products = ['transactions']) {
+export async function createLinkToken(userId, products = ['transactions'], accountFilters = null) {
   try {
     // Check environment variables first
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
@@ -59,6 +59,11 @@ export async function createLinkToken(userId, products = ['transactions']) {
       language: 'en',
       webhook: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook` : undefined,
     };
+
+    // Add account filters if provided - restricts which account types are shown in Link
+    if (accountFilters) {
+      request.account_filters = accountFilters;
+    }
 
     const response = await client.linkTokenCreate(request);
     return response.data;

@@ -15,6 +15,8 @@ export async function POST(request) {
 
     // Determine product type based on accountType
     const isInvestmentProduct = accountType === 'investment';
+    const isCreditCardProduct = accountType === 'credit_card';
+    const isCheckingSavingsProduct = accountType === 'checking_savings';
 
     // Exchange public token for access token
     const tokenResponse = await exchangePublicToken(publicToken);
@@ -22,8 +24,52 @@ export async function POST(request) {
 
     // Get accounts from Plaid
     const accountsResponse = await getAccounts(access_token);
-    const { accounts, institution_id } = accountsResponse;
-    console.log(`📊 Found ${accounts.length} accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+    const { accounts: allAccounts, institution_id } = accountsResponse;
+    console.log(`📊 Found ${allAccounts.length} total accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+
+    // Filter accounts based on the user's selected account type
+    // This ensures we only store accounts that match the user's intent
+    // (Plaid returns ALL accounts at an institution regardless of product requested)
+    let accounts = allAccounts;
+    
+    if (accountType) {
+      accounts = allAccounts.filter(account => {
+        if (isInvestmentProduct) {
+          // Only keep investment accounts when user selected brokerage/investment
+          return account.type === 'investment';
+        } else if (isCreditCardProduct) {
+          // Only keep credit accounts when user selected credit card
+          return account.type === 'credit';
+        } else if (isCheckingSavingsProduct) {
+          // Only keep depository accounts when user selected checking/savings
+          return account.type === 'depository';
+        }
+        // Default: keep all accounts
+        return true;
+      });
+      
+      console.log(`🔍 Filtered to ${accounts.length} accounts matching type "${accountType}" (from ${allAccounts.length} total)`);
+      
+      // Log which accounts were filtered out for debugging
+      const filteredOut = allAccounts.filter(a => !accounts.includes(a));
+      if (filteredOut.length > 0) {
+        console.log(`⏭️ Skipped ${filteredOut.length} accounts that don't match selected type:`, 
+          filteredOut.map(a => ({ name: a.name, type: a.type, subtype: a.subtype }))
+        );
+      }
+    }
+
+    // If no accounts match the filter, return an error
+    if (accounts.length === 0) {
+      console.warn(`⚠️ No accounts match the selected type "${accountType}"`);
+      return Response.json(
+        { 
+          error: 'No matching accounts found', 
+          details: `No ${accountType} accounts were found at this institution. The institution returned ${allAccounts.length} account(s) but none matched the selected account type.`
+        },
+        { status: 400 }
+      );
+    }
     
     // Debug logging for account details
     console.log('🔍 DEBUG: Full accounts response from exchange-token:', JSON.stringify(accountsResponse, null, 2));
@@ -251,9 +297,11 @@ export async function POST(request) {
       // Don't fail the whole process if snapshot creation fails
     }
 
-    // Trigger transaction sync for the new plaid item (if there are non-investment accounts)
-    const hasNonInvestmentAccounts = accountsData.some(acc => acc.type !== 'investment');
-    if (hasNonInvestmentAccounts) {
+    // Trigger transaction sync for the new plaid item (only for checking/savings or credit card products)
+    // We explicitly check the product type rather than just account types to avoid syncing transactions
+    // for investment accounts that happen to also have a credit card
+    const shouldSyncTransactions = !isInvestmentProduct && accountsData.length > 0;
+    if (shouldSyncTransactions) {
       try {
         console.log('🔄 Starting transaction sync...');
         const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
@@ -279,9 +327,9 @@ export async function POST(request) {
       }
     }
 
-    // Trigger holdings and investment transactions sync for investment accounts (if using investments product)
-    const hasInvestmentAccounts = accountsData.some(acc => acc.type === 'investment');
-    if (hasInvestmentAccounts && isInvestmentProduct) {
+    // Trigger holdings and investment transactions sync (only for investment product)
+    const shouldSyncInvestments = isInvestmentProduct && accountsData.length > 0;
+    if (shouldSyncInvestments) {
       // Sync holdings
       try {
         console.log('🔄 Starting holdings sync...');

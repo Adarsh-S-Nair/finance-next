@@ -8,15 +8,16 @@ import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
-import { LuPlus, LuBot, LuChevronLeft } from "react-icons/lu";
+import { LuPlus, LuBot, LuLock, LuChevronRight } from "react-icons/lu";
 import { SiGooglegemini, SiX } from "react-icons/si";
 import { FiLoader } from "react-icons/fi";
+import { PiBankFill } from "react-icons/pi";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 import LineChart from "../../../components/ui/LineChart";
 import { formatDateString } from "../../../lib/portfolioUtils";
 import { useInvestmentsHeader } from "./InvestmentsHeaderContext";
-import { ChartSkeleton, PortfolioCardSkeleton, CardSkeleton, ListSkeleton } from "../../../components/ui/Skeleton";
+import { ChartSkeleton, CardSkeleton } from "../../../components/ui/Skeleton";
 
 // Logo display component with error handling
 function LogoDisplay({ logo, ticker }) {
@@ -82,9 +83,6 @@ AI_PROVIDERS.forEach(provider => {
   });
 });
 
-// Starting capital presets
-const CAPITAL_PRESETS = [10000, 50000, 100000, 500000, 1000000];
-
 // Format currency with 2 decimal places
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -93,33 +91,6 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
-};
-
-// Format currency with smaller decimal digits (for display)
-const formatCurrencyWithSmallCents = (amount) => {
-  const formatted = formatCurrency(amount);
-  const parts = formatted.split('.');
-  if (parts.length === 2) {
-    return (
-      <>
-        {parts[0]}<span className="text-[0.85em] text-[var(--color-muted)]">.{parts[1]}</span>
-      </>
-    );
-  }
-  return formatted;
-};
-
-// Format percentage
-const formatPercent = (value) => {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
-};
-
-// Parse a date string (YYYY-MM-DD) as a local date, not UTC
-// This prevents timezone issues where "2025-12-22" becomes "2025-12-21" in local time
-const parseLocalDate = (dateString) => {
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(year, month - 1, day);
 };
 
 // Animated counter component for smooth number transitions
@@ -140,10 +111,7 @@ function AnimatedCounter({ value, duration = 120 }) {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
-      // Use easeOutCubic for smooth deceleration
       const easeProgress = 1 - Math.pow(1 - progress, 3);
-
       const currentValue = startValue + (endValue - startValue) * easeProgress;
       setDisplayValue(currentValue);
 
@@ -170,141 +138,63 @@ function AnimatedCounter({ value, duration = 120 }) {
 
   return (
     <span className={isAnimating ? 'transition-all duration-150' : ''}>
-      {formatCurrencyWithSmallCents(displayValue)}
+      {formatCurrency(displayValue)}
     </span>
   );
 }
-
-// Rebalance Countdown Component
-function RebalanceCountdown({ nextRebalanceDate, rebalanceCadence }) {
-  const [timeRemaining, setTimeRemaining] = useState(null);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const calculateTimeRemaining = () => {
-      const now = new Date();
-      const nextDate = new Date(nextRebalanceDate);
-
-      // Set time to end of day for the rebalance date
-      nextDate.setHours(23, 59, 59, 999);
-
-      const diff = nextDate - now;
-
-      if (diff <= 0) {
-        setTimeRemaining({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        setProgress(100);
-        return;
-      }
-
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeRemaining({ days, hours, minutes, seconds });
-
-      // Calculate progress based on cadence
-      let totalDays = 30; // Default to monthly
-      if (rebalanceCadence === 'daily') totalDays = 1;
-      else if (rebalanceCadence === 'weekly') totalDays = 7;
-      else if (rebalanceCadence === 'monthly') totalDays = 30;
-      else if (rebalanceCadence === 'quarterly') totalDays = 90;
-      else if (rebalanceCadence === 'yearly') totalDays = 365;
-
-      // Calculate how many days have passed since last rebalance (or creation)
-      const previousDate = new Date(nextDate);
-      previousDate.setDate(previousDate.getDate() - totalDays);
-      const elapsed = now - previousDate;
-      const total = nextDate - previousDate;
-      const progressPercent = Math.min(Math.max((elapsed / total) * 100, 0), 100);
-
-      setProgress(progressPercent);
-    };
-
-    calculateTimeRemaining();
-    const interval = setInterval(calculateTimeRemaining, 1000);
-
-    return () => clearInterval(interval);
-  }, [nextRebalanceDate, rebalanceCadence]);
-
-  if (!timeRemaining) {
-    return (
-      <div className="text-sm text-[var(--color-muted)]">Calculating...</div>
-    );
-  }
-
-  const formatCadence = (cadence) => {
-    if (!cadence) return 'Monthly';
-    return cadence.charAt(0).toUpperCase() + cadence.slice(1);
-  };
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="text-lg font-medium text-[var(--color-fg)] tabular-nums">
-        {timeRemaining.days > 0 ? (
-          <>{timeRemaining.days}d {timeRemaining.hours}h</>
-        ) : timeRemaining.hours > 0 ? (
-          <>{timeRemaining.hours}h {timeRemaining.minutes}m</>
-        ) : (
-          <>{timeRemaining.minutes}m {timeRemaining.seconds}s</>
-        )}
-      </div>
-      <div className="text-right">
-        <div className="text-[11px] text-[var(--color-muted)]/60">
-          {new Date(nextRebalanceDate).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric'
-          })}
-        </div>
-        <div className="text-[10px] text-[var(--color-muted)]/50">
-          {formatCadence(rebalanceCadence)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Portfolio Detail View Component removed - now in [portfolio_id]/page.jsx
 
 // Create Portfolio Drawer
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const router = useRouter();
   const { profile } = useUser();
-  const [step, setStep] = useState('form'); // 'form'
+  const [step, setStep] = useState('form');
 
   // Portfolio state
   const [name, setName] = useState('');
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [startingCapital, setStartingCapital] = useState(100000);
-  const [assetType, setAssetType] = useState('stock'); // 'stock' or 'crypto'
-  const [selectedCryptos, setSelectedCryptos] = useState(['BTC', 'ETH']); // Default to BTC and ETH
+  const [assetType, setAssetType] = useState('stock');
+  const [selectedCryptos, setSelectedCryptos] = useState(['BTC', 'ETH']);
+  const [portfolioMode, setPortfolioMode] = useState('live');
+
+  const getLocalDateString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [backtestStartDate, setBacktestStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return getLocalDateString(date);
+  });
+  const [backtestEndDate, setBacktestEndDate] = useState(() => {
+    return getLocalDateString(new Date());
+  });
+
+  const todayLocalString = useMemo(() => getLocalDateString(new Date()), []);
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
 
-  // AI is only available for stock portfolios
   const hasAI = assetType === 'stock';
 
-  // Available crypto options with Trust Wallet chain mapping
   const AVAILABLE_CRYPTOS = [
     { symbol: 'BTC', name: 'Bitcoin', chain: 'bitcoin' },
     { symbol: 'ETH', name: 'Ethereum', chain: 'ethereum' },
   ];
 
-  // State for crypto ticker data (logos)
   const [cryptoTickers, setCryptoTickers] = useState({});
 
-  // Get Trust Wallet logo URL for a crypto
   const getTrustWalletLogoUrl = (chain) => {
     return `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${chain}/info/logo.png`;
   };
 
-  // Capital bounds
   const MIN_CAPITAL = 1000;
   const MAX_CAPITAL = 10000000;
 
-  // Auto-fill name when model changes (unless user manually edited)
   const handleModelSelect = (modelId) => {
     setSelectedModel(modelId);
     if (!nameManuallyEdited && hasAI) {
@@ -315,10 +205,11 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
-  // Handle asset type change
   const handleAssetTypeChange = (type) => {
+    if (portfolioMode === 'backtest' && type === 'stock') {
+      return;
+    }
     setAssetType(type);
-    // Auto-fill name when switching asset types (unless manually edited)
     if (!nameManuallyEdited) {
       if (type === 'crypto') {
         setName('Crypto Portfolio');
@@ -328,7 +219,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   };
 
-  // Handle crypto selection
   const handleCryptoToggle = (cryptoSymbol) => {
     setSelectedCryptos(prev => {
       if (prev.includes(cryptoSymbol)) {
@@ -344,18 +234,8 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     setNameManuallyEdited(true);
   };
 
-  const handleCapitalInputChange = (e) => {
-    const value = e.target.value.replace(/[^0-9,]/g, '').replace(/,/g, '');
-    if (value === '') {
-      setStartingCapital(MIN_CAPITAL);
-    } else {
-      const numValue = parseInt(value, 10);
-      setStartingCapital(Math.max(MIN_CAPITAL, Math.min(MAX_CAPITAL, numValue)));
-    }
-  };
-
   const handleCreatePortfolio = async () => {
-    if (!name.trim()) {
+    if (portfolioMode === 'live' && !name.trim()) {
       setError('Please enter a portfolio name');
       return;
     }
@@ -365,16 +245,60 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
       return;
     }
 
-    // For crypto portfolios, ensure at least one crypto is selected
     if (assetType === 'crypto' && selectedCryptos.length === 0) {
       setError('Please select at least one cryptocurrency');
       return;
+    }
+
+    if (portfolioMode === 'backtest') {
+      const startDate = new Date(backtestStartDate);
+      const endDate = new Date(backtestEndDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (startDate >= endDate) {
+        setError('Start date must be before end date');
+        return;
+      }
+
+      if (endDate > today) {
+        setError('End date cannot be in the future');
+        return;
+      }
     }
 
     setIsCreating(true);
     setError(null);
 
     try {
+      if (portfolioMode === 'backtest') {
+        const response = await fetch('/api/ai-trading/backtest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            startingCapital: startingCapital,
+            assetType: assetType,
+            cryptoAssets: assetType === 'crypto' ? selectedCryptos : null,
+            startDate: backtestStartDate,
+            endDate: backtestEndDate,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to run backtest');
+        }
+
+        handleReset();
+        onClose();
+        const params = new URLSearchParams({
+          data: JSON.stringify(result.backtest),
+        });
+        router.push(`/investments/backtest?${params.toString()}`);
+        return;
+      }
+
       const response = await fetch('/api/ai-trading/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -394,7 +318,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         throw new Error(result.error || 'Failed to initialize portfolio');
       }
 
-      // Call onCreated callback and navigate to the portfolio detail page
       onCreated(result.portfolio);
       handleReset();
       onClose();
@@ -415,45 +338,38 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     setStartingCapital(100000);
     setAssetType('stock');
     setSelectedCryptos(['BTC', 'ETH']);
+    setPortfolioMode('live');
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    setBacktestStartDate(getLocalDateString(date));
+    setBacktestEndDate(getLocalDateString(new Date()));
     setError(null);
   };
 
   useEffect(() => {
     if (isOpen && !nameManuallyEdited) {
       if (hasAI) {
-        // Auto-fill for AI stock portfolios
         const model = AI_MODELS[selectedModel];
         if (model) {
           setName(`${model.name} Portfolio`);
         }
       } else if (assetType === 'crypto') {
-        // Auto-fill for crypto portfolios
         setName('Crypto Portfolio');
       }
     }
   }, [isOpen, hasAI, selectedModel, assetType]);
 
-  // Fetch and upsert crypto tickers when drawer opens
   useEffect(() => {
     if (!isOpen) return;
 
     const fetchCryptoTickers = async () => {
       try {
-        // Get crypto symbols we need
         const cryptoSymbols = AVAILABLE_CRYPTOS.map(c => c.symbol);
-
-        // Fetch existing crypto tickers
-        const { data: existingTickers, error: fetchError } = await supabase
+        const { data: existingTickers } = await supabase
           .from('tickers')
           .select('symbol, name, logo, asset_type')
           .in('symbol', cryptoSymbols);
 
-        if (fetchError) {
-          console.error('Error fetching crypto tickers:', fetchError);
-          return;
-        }
-
-        // Create a map of symbol -> ticker data for easy lookup
         const tickerMap = {};
         if (existingTickers) {
           existingTickers.forEach(ticker => {
@@ -461,17 +377,14 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           });
         }
 
-        // Fill in any missing data with defaults and Trust Wallet URLs
         AVAILABLE_CRYPTOS.forEach(crypto => {
           if (!tickerMap[crypto.symbol]) {
-            // Ticker doesn't exist - use defaults
             tickerMap[crypto.symbol] = {
               symbol: crypto.symbol,
               name: crypto.name,
               logo: getTrustWalletLogoUrl(crypto.chain),
             };
           } else {
-            // Ticker exists - ensure we have name and logo
             if (!tickerMap[crypto.symbol].name) {
               tickerMap[crypto.symbol].name = crypto.name;
             }
@@ -484,7 +397,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         setCryptoTickers(tickerMap);
       } catch (err) {
         console.error('Error fetching crypto tickers:', err);
-        // Fallback: use Trust Wallet URLs directly
         const fallbackMap = {};
         AVAILABLE_CRYPTOS.forEach(crypto => {
           fallbackMap[crypto.symbol] = {
@@ -506,11 +418,20 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (portfolioMode === 'backtest' && assetType === 'stock') {
+      setAssetType('crypto');
+      if (!nameManuallyEdited) {
+        setName('Crypto Portfolio');
+      }
+    }
+  }, [portfolioMode]);
+
   const selectedModelInfo = hasAI ? AI_MODELS[selectedModel] : null;
 
   const AIThinkingOverlay = () => {
     if (!hasAI) return null;
-    
+
     return (
       <div className="absolute inset-0 bg-[var(--color-content-bg)]/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
         <div className="mb-6 flex items-center justify-center">
@@ -557,23 +478,69 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const renderPortfolioForm = () => (
     <div className={`space-y-6 pt-2 ${isCreating ? 'opacity-0' : ''}`}>
       <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
-          Portfolio Name
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
+          Portfolio Mode
         </label>
-        <input
-          type="text"
-          value={name}
-          onChange={handleNameChange}
-          placeholder={assetType === 'crypto' ? 'Crypto Portfolio' : 'e.g., My Portfolio'}
-          className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
-        />
+        <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-1 inline-flex w-full">
+          <div
+            className="absolute top-1 bottom-1 bg-[var(--color-accent)] rounded-md transition-all duration-200 ease-out"
+            style={{
+              left: portfolioMode === 'live' ? '4px' : '50%',
+              width: 'calc(50% - 4px)',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setPortfolioMode('live')}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md flex items-center justify-center gap-2 ${portfolioMode === 'live'
+              ? 'text-[var(--color-on-accent)]'
+              : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
+              }`}
+          >
+            LIVE
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPortfolioMode('backtest')}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${portfolioMode === 'backtest'
+              ? 'text-[var(--color-on-accent)]'
+              : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
+              }`}
+          >
+            Backtest
+          </button>
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-1.5">
+          {portfolioMode === 'live'
+            ? 'Creates and saves a portfolio to your account'
+            : 'Runs a simulation without saving to your account'}
+        </p>
       </div>
+
+      {portfolioMode === 'live' && (
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Portfolio Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={handleNameChange}
+            placeholder={assetType === 'crypto' ? 'Crypto Portfolio' : 'e.g., My Portfolio'}
+            className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+          />
+        </div>
+      )}
+
       <div>
         <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
           Asset Type
         </label>
         <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-1 inline-flex w-full">
-          {/* Animated background slider */}
           <div
             className="absolute top-1 bottom-1 bg-[var(--color-accent)] rounded-md transition-all duration-200 ease-out"
             style={{
@@ -584,64 +551,63 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           <button
             type="button"
             onClick={() => handleAssetTypeChange('stock')}
-            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${
-              assetType === 'stock'
-                ? 'text-[var(--color-on-accent)]'
-                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
-            }`}
+            disabled={portfolioMode === 'backtest'}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 rounded-md flex items-center justify-center gap-1.5 ${portfolioMode === 'backtest'
+              ? 'opacity-50 cursor-not-allowed text-[var(--color-muted)]'
+              : assetType === 'stock'
+                ? 'text-[var(--color-on-accent)] cursor-pointer'
+                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)] cursor-pointer'
+              }`}
           >
             Stock
+            {portfolioMode === 'backtest' && <LuLock className="w-3 h-3" />}
           </button>
           <button
             type="button"
             onClick={() => handleAssetTypeChange('crypto')}
-            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${
-              assetType === 'crypto'
-                ? 'text-[var(--color-on-accent)]'
-                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
-            }`}
+            className={`relative z-10 flex-1 py-2.5 px-4 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${assetType === 'crypto'
+              ? 'text-[var(--color-on-accent)]'
+              : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
+              }`}
           >
             Crypto
           </button>
         </div>
-        <p className="text-xs text-[var(--color-muted)] mt-1.5">
-          {assetType === 'stock' 
-            ? 'AI-powered stock trading portfolio' 
-            : 'Manual crypto trading portfolio'}
-        </p>
       </div>
+
       <div>
-        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+        <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
           Starting Capital
         </label>
-        <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-1 inline-flex w-full">
+          {(() => {
+            const capitalOptions = [25000, 50000, 100000, 250000];
+            const selectedIndex = capitalOptions.indexOf(startingCapital);
+            const width = 'calc(25% - 3px)';
+            const left = selectedIndex >= 0 ? `calc(${selectedIndex * 25}% + 4px)` : '4px';
+            return (
+              <div
+                className="absolute top-1 bottom-1 bg-[var(--color-accent)] rounded-md transition-all duration-200 ease-out"
+                style={{ left: left, width: width }}
+              />
+            );
+          })()}
           {[25000, 50000, 100000, 250000].map((amount) => (
             <button
               key={amount}
               type="button"
               onClick={() => setStartingCapital(amount)}
-              className={`py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${startingCapital === amount
-                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50'
+              className={`relative z-10 flex-1 py-2.5 px-2 text-sm font-medium transition-colors duration-200 cursor-pointer rounded-md ${startingCapital === amount
+                ? 'text-[var(--color-on-accent)]'
+                : 'text-[var(--color-fg)] hover:text-[var(--color-accent)]'
                 }`}
             >
               ${amount >= 1000000 ? `${amount / 1000000}M` : `${amount / 1000}K`}
             </button>
           ))}
         </div>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
-          <input
-            type="text"
-            value={startingCapital.toLocaleString()}
-            onChange={handleCapitalInputChange}
-            className="w-full pl-7 pr-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] tabular-nums"
-          />
-        </div>
-        <p className="text-xs text-[var(--color-muted)] mt-1.5">
-          Simulated paper money for trading
-        </p>
       </div>
+
       {!hasAI && (
         <div>
           <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
@@ -659,43 +625,30 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
                   key={crypto.symbol}
                   type="button"
                   onClick={() => handleCryptoToggle(crypto.symbol)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
-                    isSelected
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
-                  }`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${isSelected
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                    }`}
                 >
-                  {/* Crypto Logo */}
                   {logoUrl ? (
                     <img
                       src={logoUrl}
                       alt={crypto.symbol}
                       className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
                       style={{ border: '1px solid var(--color-border)' }}
-                      onError={(e) => {
-                        // Fallback to a placeholder if image fails to load
-                        e.target.style.display = 'none';
-                      }}
                     />
                   ) : (
                     <div
                       className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium text-[var(--color-muted)]"
-                      style={{
-                        background: 'var(--color-surface)',
-                        border: '1px solid var(--color-border)'
-                      }}
+                      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
                     >
                       {crypto.symbol.charAt(0)}
                     </div>
                   )}
-
-                  {/* Crypto Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[var(--color-fg)]">{displayName}</p>
                     <p className="text-xs text-[var(--color-muted)]">{crypto.symbol}</p>
                   </div>
-
-                  {/* Selection Indicator */}
                   {isSelected && (
                     <div className="w-5 h-5 rounded-full bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0">
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -707,11 +660,9 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
               );
             })}
           </div>
-          <p className="text-xs text-[var(--color-muted)] mt-1.5">
-            Select which cryptocurrencies you want to trade (at least one required)
-          </p>
         </div>
       )}
+
       {hasAI && (
         <div>
           <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
@@ -776,6 +727,38 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           </div>
         </div>
       )}
+
+      {portfolioMode === 'backtest' && (
+        <div>
+          <label className="block text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2">
+            Date Range
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-[var(--color-muted)] mb-1.5">Start Date</label>
+              <input
+                type="date"
+                value={backtestStartDate}
+                onChange={(e) => setBacktestStartDate(e.target.value)}
+                max={backtestEndDate}
+                className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--color-muted)] mb-1.5">End Date</label>
+              <input
+                type="date"
+                value={backtestEndDate}
+                onChange={(e) => setBacktestEndDate(e.target.value)}
+                max={todayLocalString}
+                min={backtestStartDate}
+                className="w-full px-3 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)]"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
           <p className="text-sm text-red-500">{error}</p>
@@ -787,8 +770,10 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const views = [
     {
       id: 'form',
-      title: 'Create Portfolio',
-      description: 'Set up a new paper trading simulation',
+      title: portfolioMode === 'backtest' ? 'Run Backtest' : 'Create Portfolio',
+      description: portfolioMode === 'backtest'
+        ? 'Simulate trading strategy on historical data'
+        : 'Set up a new paper trading simulation',
       content: (
         <div className="relative h-full">
           {isCreating && hasAI && <AIThinkingOverlay />}
@@ -800,7 +785,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   ];
 
   const renderFooter = () => {
-    // Disable create button if crypto portfolio has no cryptos selected
     const isCreateDisabled = assetType === 'crypto' && selectedCryptos.length === 0;
 
     return (
@@ -812,10 +796,10 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           {isCreating ? (
             <>
               <FiLoader className="h-4 w-4 mr-2 animate-spin" />
-              Creating...
+              {portfolioMode === 'backtest' ? 'Running...' : 'Creating...'}
             </>
           ) : (
-            'Create Portfolio'
+            portfolioMode === 'backtest' ? 'Run Backtest' : 'Create Portfolio'
           )}
         </Button>
       </div>
@@ -836,6 +820,10 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   );
 }
 
+// ============================================================================
+// MAIN PAGE COMPONENT
+// ============================================================================
+
 export default function InvestmentsPage() {
   const router = useRouter();
   const { profile } = useUser();
@@ -850,8 +838,9 @@ export default function InvestmentsPage() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, portfolio: null });
   const [isDeleting, setIsDeleting] = useState(false);
-  const [investmentTransactions, setInvestmentTransactions] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [chartTimeRange, setChartTimeRange] = useState('ALL');
+  const [sparklineData, setSparklineData] = useState({});
 
   // Register header actions with layout
   useEffect(() => {
@@ -860,15 +849,12 @@ export default function InvestmentsPage() {
         onConnectClick: () => setShowLinkModal(true),
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setHeaderActions]);
 
   // Fetch investment portfolios and holdings
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all plaid investment portfolios for this user
-        // Include account balance (source of truth for cash)
         const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
           .from('portfolios')
           .select(`
@@ -885,130 +871,95 @@ export default function InvestmentsPage() {
           .eq('type', 'plaid_investment')
           .order('created_at', { ascending: false });
 
-        if (plaidPortfoliosError) {
-          console.error('Error fetching portfolios:', plaidPortfoliosError);
-          throw plaidPortfoliosError;
-        }
+        if (plaidPortfoliosError) throw plaidPortfoliosError;
 
         setInvestmentPortfolios(plaidPortfoliosData || []);
 
-        // Fetch account snapshots for investment accounts (use these as baseline)
         const accountIds = (plaidPortfoliosData || [])
           .map(p => p.source_account?.id)
-          .filter(id => id); // Remove nulls
+          .filter(id => id);
 
         if (accountIds.length > 0) {
-          const { data: accountSnapshotsData, error: accountSnapshotsError } = await supabase
+          const { data: accountSnapshotsData } = await supabase
             .from('account_snapshots')
             .select('*')
             .in('account_id', accountIds)
             .order('recorded_at', { ascending: true });
 
-          if (accountSnapshotsError) {
-            console.error('Error fetching account snapshots:', accountSnapshotsError);
-            setPortfolioSnapshots([]);
-          } else {
-            // Store account snapshots in portfolioSnapshots state for now
-            // We'll transform them in the chart component
-            setPortfolioSnapshots(accountSnapshotsData || []);
-          }
-        } else {
-          setPortfolioSnapshots([]);
+          setPortfolioSnapshots(accountSnapshotsData || []);
         }
 
-        // Aggregate all holdings from all portfolios
-        const holdingsMap = new Map(); // To combine duplicate tickers across portfolios
+        const allTickers = (plaidPortfoliosData || []).flatMap(p =>
+          (p.holdings || []).map(h => h.ticker.toUpperCase())
+        );
 
-        (plaidPortfoliosData || []).forEach((portfolio) => {
-          (portfolio.holdings || []).forEach(holding => {
-            const ticker = holding.ticker.toUpperCase();
-            const shares = parseFloat(holding.shares) || 0;
-            const avgCost = parseFloat(holding.avg_cost) || 0;
-            const costBasis = shares * avgCost;
+        const uniqueTickers = [...new Set(allTickers)];
 
-            if (holdingsMap.has(ticker)) {
-              const existing = holdingsMap.get(ticker);
-              // Sum shares and cost basis for weighted average
-              existing.shares += shares;
-              existing.totalCostBasis += costBasis;
-              existing.avg_cost = existing.shares > 0 ? existing.totalCostBasis / existing.shares : 0;
-            } else {
-              holdingsMap.set(ticker, {
-                ticker: ticker,
-                shares: shares,
-                totalCostBasis: costBasis,
-                avg_cost: avgCost,
-              });
-            }
-          });
-        });
-
-        const holdingsArray = Array.from(holdingsMap.values());
-
-        // Fetch ticker logos and info
-        if (holdingsArray.length > 0) {
-          const tickers = holdingsArray.map(h => h.ticker);
+        if (uniqueTickers.length > 0) {
+          // Fetch ticker metadata (logos, names, sectors) from our DB
           const { data: tickersData } = await supabase
             .from('tickers')
             .select('symbol, logo, name, sector')
-            .in('symbol', tickers);
+            .in('symbol', uniqueTickers);
 
-          const tickerMap = new Map();
-          if (tickersData) {
-            tickersData.forEach(t => {
-              tickerMap.set(t.symbol, { logo: t.logo, name: t.name, sector: t.sector });
-            });
-          }
+          const tickerMap = {};
+          (tickersData || []).forEach(t => {
+            tickerMap[t.symbol] = t;
+          });
 
-          const holdingsWithLogos = holdingsArray.map(holding => ({
-            ...holding,
-            logo: tickerMap.get(holding.ticker)?.logo || null,
-            name: tickerMap.get(holding.ticker)?.name || null,
-            sector: tickerMap.get(holding.ticker)?.sector || null,
-          }));
+          // Initialize quotes map with ticker metadata
+          const quotesMap = {};
+          uniqueTickers.forEach(ticker => {
+            quotesMap[ticker] = {
+              price: null,
+              logo: tickerMap[ticker]?.logo || null,
+              name: tickerMap[ticker]?.name || null,
+              sector: tickerMap[ticker]?.sector || null,
+            };
+          });
 
-          setAllHoldings(holdingsWithLogos);
-
-          // Fetch stock quotes
-          const tickerList = tickers.join(',');
+          // Fetch current prices from the quotes API
           try {
-            const quotesRes = await fetch(`/api/market-data/quotes?tickers=${tickerList}`);
-            if (quotesRes.ok) {
-              const quotesData = await quotesRes.json();
-              setStockQuotes(quotesData.quotes || {});
+            const quoteResponse = await fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(',')}`);
+            if (quoteResponse.ok) {
+              const quoteData = await quoteResponse.json();
+              // quoteData.quotes is an object: { AAPL: { price, cached, cachedAt }, ... }
+              Object.entries(quoteData.quotes || {}).forEach(([symbol, data]) => {
+                if (quotesMap[symbol]) {
+                  quotesMap[symbol].price = data.price;
+                }
+              });
             }
-          } catch (quotesErr) {
-            console.error('Error fetching stock quotes:', quotesErr);
+          } catch (err) {
+            console.error('Error fetching quotes:', err);
           }
-        } else {
-          setAllHoldings([]);
+
+          setStockQuotes(quotesMap);
         }
 
-        // Fetch paper trading portfolios (AI and crypto)
-        const { data: portfoliosData, error: portfoliosError } = await supabase
+        const combinedHoldings = [];
+        (plaidPortfoliosData || []).forEach(portfolio => {
+          (portfolio.holdings || []).forEach(h => {
+            combinedHoldings.push({
+              ...h,
+              portfolioId: portfolio.id,
+              portfolioName: portfolio.name
+            });
+          });
+        });
+        setAllHoldings(combinedHoldings);
+
+        // Fetch AI portfolios
+        const { data: aiPortfoliosData } = await supabase
           .from('portfolios')
           .select('*')
           .eq('user_id', profile.id)
-          .eq('type', 'ai_simulation')
+          .eq('type', 'ai_trading')
           .order('created_at', { ascending: false });
 
-        if (portfoliosError) throw portfoliosError;
-        setPortfolios(portfoliosData || []);
-
-        // Fetch investment transactions
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from('transactions')
-          .select('*, account:accounts(name, institutions(name, logo))')
-          .eq('transaction_source', 'investments')
-          .in('account_id', accountIds.length > 0 ? accountIds : ['no-accounts'])
-          .order('date', { ascending: false })
-          .limit(50);
-
-        if (!transactionsError && transactionsData) {
-          setInvestmentTransactions(transactionsData);
-        }
+        setPortfolios(aiPortfoliosData || []);
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching investment data:', err);
       } finally {
         setLoading(false);
       }
@@ -1019,31 +970,144 @@ export default function InvestmentsPage() {
     }
   }, [profile?.id, refreshTrigger]);
 
+  // Calculate portfolio metrics
+  const portfolioMetrics = useMemo(() => {
+    if (!investmentPortfolios.length) {
+      return {
+        totalHoldingsValue: 0,
+        cash: 0,
+        totalPortfolioValue: 0,
+        cashPercentage: 0,
+        holdingsWithValues: []
+      };
+    }
+
+    const holdingsWithValues = [];
+    let totalHoldingsValue = 0;
+    let totalCash = 0;
+
+    investmentPortfolios.forEach(portfolio => {
+      const account = portfolio.source_account;
+      const accountBalance = account?.balances?.current || 0;
+
+      // Calculate holdings value for THIS account at current market prices
+      let accountHoldingsValue = 0;
+      (portfolio.holdings || []).forEach(h => {
+        const ticker = (h.ticker || '').toUpperCase();
+        const quote = stockQuotes[ticker];
+        const shares = h.shares || 0;
+        const avgCost = h.avg_cost || 0;
+        
+        // Use current price if available, otherwise fall back to avg_cost
+        const currentPrice = quote?.price || null;
+        const priceForCalc = currentPrice !== null ? currentPrice : avgCost;
+        const value = shares * priceForCalc;
+        
+        totalHoldingsValue += value;
+        accountHoldingsValue += value;
+
+        const existing = holdingsWithValues.find(hv => hv.ticker === ticker);
+        if (existing) {
+          existing.shares += shares;
+          existing.value += value;
+          // Weight average cost when combining
+          const totalShares = existing.shares;
+          existing.avgCost = ((existing.avgCost * (totalShares - shares)) + (avgCost * shares)) / totalShares;
+        } else {
+          holdingsWithValues.push({
+            ticker,
+            shares,
+            avgCost,
+            currentPrice,
+            value,
+            logo: quote?.logo || null,
+            name: quote?.name || null,
+            sector: quote?.sector || null
+          });
+        }
+      });
+
+      // Cash for this account = account balance - holdings value in this account
+      // If account has no holdings, full balance is cash
+      // If holdings exceed balance (due to price increases), cash is 0
+      const accountCash = Math.max(0, accountBalance - accountHoldingsValue);
+      totalCash += accountCash;
+    });
+
+    const cash = totalCash;
+    const totalPortfolioValue = totalHoldingsValue + cash;
+    const cashPercentage = totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0;
+
+    holdingsWithValues.sort((a, b) => b.value - a.value);
+
+    return {
+      totalHoldingsValue,
+      cash,
+      totalPortfolioValue,
+      cashPercentage,
+      holdingsWithValues
+    };
+  }, [investmentPortfolios, stockQuotes]);
+
+  // Fetch sparkline data for holdings
+  useEffect(() => {
+    const tickers = portfolioMetrics.holdingsWithValues.map(h => h.ticker);
+    if (tickers.length === 0) return;
+
+    const fetchSparklineData = async () => {
+      const now = new Date();
+      let startDate = new Date();
+      
+      // Calculate start date based on time range
+      switch (chartTimeRange) {
+        case '1W': startDate.setDate(now.getDate() - 7); break;
+        case '1M': startDate.setMonth(now.getMonth() - 1); break;
+        case '3M': startDate.setMonth(now.getMonth() - 3); break;
+        case 'YTD': startDate = new Date(now.getFullYear(), 0, 1); break;
+        case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
+        case 'ALL': startDate.setFullYear(now.getFullYear() - 5); break;
+        default: startDate.setMonth(now.getMonth() - 1);
+      }
+
+      const startTs = Math.floor(startDate.getTime() / 1000);
+      const endTs = Math.floor(now.getTime() / 1000);
+      const sparklines = {};
+
+      // Fetch sparkline data for each ticker
+      await Promise.all(tickers.map(async (ticker) => {
+        try {
+          const response = await fetch(
+            `/api/market-data/historical-range?ticker=${ticker}&start=${startTs}&end=${endTs}&interval=1d`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            // Extract just the prices for the sparkline
+            sparklines[ticker] = (data.prices || []).map(p => p.price);
+          }
+        } catch (err) {
+          console.error(`Error fetching sparkline for ${ticker}:`, err);
+        }
+      }));
+
+      setSparklineData(sparklines);
+    };
+
+    fetchSparklineData();
+  }, [portfolioMetrics.holdingsWithValues, chartTimeRange]);
+
   const handlePortfolioClick = (portfolio) => {
     router.push(`/investments/${portfolio.id}`);
   };
 
   const handleDeletePortfolio = async (portfolio) => {
+    if (!portfolio) return;
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('portfolios')
-        .delete()
-        .eq('id', portfolio.id);
-
-      if (error) throw error;
-
-      // Refresh portfolios list
-      const { data, error: fetchError } = await supabase
-        .from('portfolios')
-        .select('*')
-        .eq('user_id', profile.id)
-        .eq('type', 'ai_simulation')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-      setPortfolios(data || []);
-
+      const response = await fetch(`/api/ai-trading/delete?portfolioId=${portfolio.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete portfolio');
+      setPortfolios(prev => prev.filter(p => p.id !== portfolio.id));
       setDeleteModal({ isOpen: false, portfolio: null });
     } catch (err) {
       console.error('Error deleting portfolio:', err);
@@ -1052,175 +1116,50 @@ export default function InvestmentsPage() {
     }
   };
 
-  // Calculate combined portfolio metrics (must be before conditional return)
-  const portfolioMetrics = useMemo(() => {
-    // Calculate portfolio value as: sum(holdings * shares * current_price) + cash
-    // Holdings come ONLY from investment portfolios (plaid_investment), not paper trading
-    // Cash = account balance - (holdings value at cost basis, approximate)
-
-    let totalAccountBalance = 0; // Total from account balances
-    let totalHoldingsValue = 0; // Holdings value at current market prices
-    let totalCash = 0; // Sum of cash from each account (calculated per account)
-
-    // Calculate per-account: balances, holdings value, and cash
-    // This matches the logic used in the individual account cards
-    investmentPortfolios.forEach((portfolio) => {
-      const balances = portfolio.source_account?.balances || {};
-      const accountBalance = typeof balances.current === 'string'
-        ? parseFloat(balances.current)
-        : (balances.current || 0);
-
-      totalAccountBalance += accountBalance;
-
-      // Calculate holdings value for this portfolio at CURRENT MARKET PRICE
-      const portfolioHoldingsValue = (portfolio.holdings || []).reduce((sum, h) => {
-        const ticker = (h.ticker || '').toUpperCase();
-        const quote = stockQuotes[ticker];
-        // Use current price if available, otherwise fall back to avg_cost
-        const price = quote?.price || h.avg_cost || 0;
-        return sum + ((h.shares || 0) * price);
-      }, 0);
-
-      totalHoldingsValue += portfolioHoldingsValue;
-
-      // Calculate cash for this account: account balance - holdings value (clamped to 0)
-      // This matches the logic in the individual account cards
-      const accountCash = Math.max(0, accountBalance - portfolioHoldingsValue);
-      totalCash += accountCash;
-    });
-
-    // Cash is the sum of cash from each account (calculated per account above)
-    const cash = totalCash;
-
-    // Total portfolio value = holdings at current market prices + cash
-    // This gives us the real-time combined portfolio value across all non-paper trading accounts
-    // Note: This uses current market prices, not account balances (which may be stale)
-    const totalPortfolioValue = totalHoldingsValue + cash;
-
-    console.log('[Chart Debug] Portfolio metrics calculation:', {
-      totalAccountBalance,
-      totalHoldingsValue,
-      cash,
-      totalPortfolioValue
-    });
-
-    // Calculate holdings with current values
-    const holdingsWithValues = allHoldings.map(holding => {
-      const ticker = holding.ticker.toUpperCase();
-      const quote = stockQuotes[ticker];
-      const currentPrice = quote?.price || holding.avg_cost || 0;
-      const shares = holding.shares || 0;
-      const value = shares * currentPrice;
-      const avgCost = holding.avg_cost || 0;
-
-      return {
-        ...holding,
-        currentPrice,
-        value,
-        avgCost,
-        percentage: totalPortfolioValue > 0 ? (value / totalPortfolioValue) * 100 : 0,
-      };
-    }).sort((a, b) => b.value - a.value);
-
-    // Calculate cash percentage based on total portfolio value
-    const cashPercentage = totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0;
-
-    return {
-      cash: cash,
-      totalHoldingsValue,
-      totalPortfolioValue, // Holdings at current market prices + cash
-      holdingsWithValues,
-      cashPercentage,
-    };
-  }, [investmentPortfolios, allHoldings, stockQuotes]);
-
-  // Calculate sector data from holdings
-  const sectorData = useMemo(() => {
-    const sectorMap = new Map();
-
-    portfolioMetrics.holdingsWithValues.forEach((holding) => {
-      const sector = holding.sector || 'Other';
-      const value = holding.value || 0;
-
-      if (sectorMap.has(sector)) {
-        sectorMap.set(sector, sectorMap.get(sector) + value);
-      } else {
-        sectorMap.set(sector, value);
-      }
-    });
-
-    const totalValue = portfolioMetrics.totalHoldingsValue;
-
-    const sectors = Array.from(sectorMap.entries())
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0
-      }))
-      .sort((a, b) => b.percentage - a.percentage);
-
-    return sectors;
-  }, [portfolioMetrics.holdingsWithValues, portfolioMetrics.totalHoldingsValue]);
-
   if (loading) {
     return (
-      <>
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Main Panel - 2/3 width */}
-          <div className="lg:w-2/3 flex flex-col gap-6">
-            <ChartSkeleton />
-            <CardSkeleton className="h-64" />
-          </div>
-
-          {/* Side Panel - 1/3 width */}
-          <div className="lg:w-1/3 flex flex-col gap-4">
-            <CardSkeleton className="h-64" />
-            <CardSkeleton className="h-64" />
-          </div>
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-2/3 flex flex-col gap-6">
+          <ChartSkeleton />
         </div>
-      </>
+        <div className="lg:w-1/3 flex flex-col gap-4">
+          <CardSkeleton className="h-48" />
+          <CardSkeleton className="h-64" />
+        </div>
+      </div>
     );
   }
 
   return (
     <>
-
-      {/* Main Investment Portfolio View */}
       {investmentPortfolios.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Panel - 2/3 width */}
           <div className="lg:w-2/3 flex flex-col gap-6">
-            {/* Portfolio Value Chart Card */}
-            <CombinedPortfolioChartCard
+            <PortfolioChartCard
               portfolioMetrics={portfolioMetrics}
               snapshots={portfolioSnapshots}
+              holdings={portfolioMetrics.holdingsWithValues}
+              timeRange={chartTimeRange}
+              onTimeRangeChange={setChartTimeRange}
             />
 
-            {/* Investment Transactions Card */}
-            <InvestmentTransactionsCard
-              transactions={investmentTransactions}
+            {/* Holdings List */}
+            <HoldingsList
+              holdings={portfolioMetrics.holdingsWithValues}
+              sparklineData={sparklineData}
             />
           </div>
 
           {/* Side Panel - 1/3 width */}
           <div className="lg:w-1/3 flex flex-col gap-4">
-            {/* Portfolio Summary Card (now includes linked accounts) */}
-            <PortfolioSummaryCard
+            <AccountsSummary
               portfolioMetrics={portfolioMetrics}
-              holdingsCount={allHoldings.length}
               accounts={investmentPortfolios}
               stockQuotes={stockQuotes}
             />
 
-            {/* Holdings & Sectors Card */}
-            <HoldingsCard
-              holdings={portfolioMetrics.holdingsWithValues}
-              stockQuotes={stockQuotes}
-              sectors={sectorData}
-            />
-
-            {/* Paper Trading Card */}
-            <PaperTradingCard
+            <PaperPortfoliosList
               portfolios={portfolios}
               onPortfolioClick={handlePortfolioClick}
               onCreateClick={() => setShowCreateModal(true)}
@@ -1229,19 +1168,23 @@ export default function InvestmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* No Investment Accounts Message - Full Width */}
           <div className="lg:w-2/3">
-            <div className="text-center py-16 bg-[var(--color-surface)]/30 rounded-2xl border border-[var(--color-border)]/50 border-dashed">
-              <p className="text-[var(--color-muted)] mb-4">No investment accounts connected yet</p>
-              <p className="text-sm text-[var(--color-muted)]/80">
-                Connect your investment accounts from the Accounts page to see your portfolio here
+            <div className="text-center py-16 bg-[var(--color-surface)]/30 rounded-xl border border-[var(--color-border)]/50 border-dashed">
+              <div className="mx-auto w-16 h-16 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-4 border border-[var(--color-border)]">
+                <PiBankFill className="h-8 w-8 text-[var(--color-muted)]" />
+              </div>
+              <p className="text-[var(--color-fg)] font-medium mb-2">No investment accounts connected</p>
+              <p className="text-sm text-[var(--color-muted)] mb-6 max-w-sm mx-auto">
+                Connect your brokerage accounts to see your portfolio and holdings here.
               </p>
+              <Button onClick={() => setShowLinkModal(true)}>
+                Connect Account
+              </Button>
             </div>
           </div>
 
-          {/* Side Panel - Paper Trading Only */}
           <div className="lg:w-1/3 flex flex-col gap-4">
-            <PaperTradingCard
+            <PaperPortfoliosList
               portfolios={portfolios}
               onPortfolioClick={handlePortfolioClick}
               onCreateClick={() => setShowCreateModal(true)}
@@ -1264,7 +1207,6 @@ export default function InvestmentsPage() {
         onClose={() => setShowLinkModal(false)}
         defaultAccountType="investment"
         onSuccess={() => {
-          // Trigger refresh of investments data
           setRefreshTrigger(prev => prev + 1);
         }}
       />
@@ -1274,8 +1216,8 @@ export default function InvestmentsPage() {
         onCancel={() => setDeleteModal({ isOpen: false, portfolio: null })}
         onConfirm={() => handleDeletePortfolio(deleteModal.portfolio)}
         title={`Delete ${deleteModal.portfolio?.name}`}
-        description="This will permanently delete this portfolio and all its trading history. This action cannot be undone."
-        confirmLabel="Delete Portfolio"
+        description="This will permanently delete this portfolio and all its trading history."
+        confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
         busy={isDeleting}
@@ -1285,257 +1227,294 @@ export default function InvestmentsPage() {
   );
 }
 
-// Combined Portfolio Chart Card Component
-function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
+// ============================================================================
+// PORTFOLIO CHART CARD - Clean minimal design with historical price interpolation
+// ============================================================================
+
+function PortfolioChartCard({ portfolioMetrics, snapshots, holdings, timeRange, onTimeRangeChange }) {
   const { profile } = useUser();
   const totalValue = portfolioMetrics.totalPortfolioValue;
-  const [timeRange, setTimeRange] = useState('ALL');
+  const cashValue = portfolioMetrics.cash;
+  const setTimeRange = onTimeRangeChange;
   const [activeIndex, setActiveIndex] = useState(null);
+  const [historicalPrices, setHistoricalPrices] = useState({});
+  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
 
-  // Get EST minute key for grouping snapshots
-  // EST is UTC-5, so we subtract 5 hours from UTC
-  const getESTMinuteKey = (utcDate) => {
-    // Convert UTC to EST (subtract 5 hours)
-    const estTime = utcDate.getTime() - (5 * 60 * 60 * 1000);
-    const estDate = new Date(estTime);
-    // Round to nearest minute
-    estDate.setSeconds(0, 0);
-    estDate.setMilliseconds(0);
-    // Return as ISO string for grouping
-    return estDate.toISOString();
-  };
+  // Get the oldest snapshot date as portfolio creation date
+  const oldestSnapshotDate = useMemo(() => {
+    if (!snapshots || snapshots.length === 0) return new Date();
+    const dates = snapshots.map(s => new Date(s.recorded_at));
+    return new Date(Math.min(...dates));
+  }, [snapshots]);
 
-  // Use account snapshots - these are account_snapshots, not portfolio_snapshots
-  const aggregatedChartData = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) {
-      return [];
-    }
-
-    // Helper to get date string (YYYY-MM-DD) in EST
-    // Used to group snapshots by date so we sum all accounts on the same day
-    const getESTDateKey = (utcDate) => {
-      const estTime = utcDate.getTime() - (5 * 60 * 60 * 1000);
-      const estDate = new Date(estTime);
-      return estDate.toISOString().split('T')[0]; // Returns YYYY-MM-DD
-    };
-
-    // Group snapshots by date (EST) first - we want to sum all accounts on the same day
-    const snapshotsByDate = new Map();
-
-    console.log('[Chart Debug] Processing snapshots:', snapshots.length, 'snapshots');
-    snapshots.forEach(snapshot => {
-      const utcDate = new Date(snapshot.recorded_at);
-      const dateKey = getESTDateKey(utcDate);
-      const balance = parseFloat(snapshot.current_balance) || 0;
-
-      console.log('[Chart Debug] Snapshot:', {
-        account_id: snapshot.account_id,
-        dateKey,
-        balance,
-        recorded_at: snapshot.recorded_at
-      });
-
-      if (snapshotsByDate.has(dateKey)) {
-        // Sum balances for all accounts on the same date
-        const existing = snapshotsByDate.get(dateKey);
-        existing.value += balance;
-        console.log('[Chart Debug] Adding to existing date:', dateKey, 'balance:', balance, 'new total:', existing.value);
-        // Keep the earliest time on this date
-        if (utcDate < existing.date) {
-          existing.date = utcDate;
-        }
-      } else {
-        snapshotsByDate.set(dateKey, {
-          date: utcDate,
-          value: balance
-        });
-        console.log('[Chart Debug] New date entry:', dateKey, 'balance:', balance);
-      }
-    });
-
-    console.log('[Chart Debug] Snapshots grouped by date:', Array.from(snapshotsByDate.entries()).map(([dateKey, data]) => ({
-      dateKey,
-      value: data.value,
-      date: data.date.toISOString()
-    })));
-
-    // Convert to array and sort by date
-    let chartData = Array.from(snapshotsByDate.values())
-      .map((data) => ({
-        date: data.date,
-        dateString: data.date.toISOString(),
-        value: data.value // This is the sum of account balances from snapshots for this date
-      }))
-      .sort((a, b) => a.date - b.date);
-
-    console.log('[Chart Debug] Chart data after grouping and sorting:', chartData.map(d => ({
-      date: d.dateString,
-      value: d.value
-    })));
-
-    // For the first data point, we need to calculate it the same way as today's value:
-    // sum(holdings_price * num_shares) + cash
-    // Since we're using account snapshots (which have account balances), the first point
-    // should use the account balance sum - this matches how we calculate today's value
-    // (which is also based on account balances as the source of truth for historical snapshots)
-    // Note: Historical snapshots use account balances, while today uses calculated holdings+cash
-
-    // Limit to max 40 data points, spread evenly
-    const maxPoints = 40;
-    if (chartData.length > maxPoints) {
-      const step = Math.floor(chartData.length / maxPoints);
-      chartData = chartData.filter((_, index) => index % step === 0 || index === chartData.length - 1);
-    }
-
-    // The first data point is already calculated correctly (sum of account balances from first date)
-    // which matches what the percentage change calculation uses
-
-    // Always include current value as the last point
-    // totalValue is portfolioMetrics.totalPortfolioValue = totalHoldingsValue + cash
-    // This represents the combined portfolio value: sum(holdings_price * num_shares) + cash
-    // Calculated using current market prices for holdings, matching what's shown in account cards
-    const currentDateTime = new Date();
-    const lastPoint = chartData[chartData.length - 1];
-    const currentDateKey = getESTDateKey(currentDateTime);
-
-    // Only add current point if it's on a different date from the last snapshot
-    console.log('[Chart Debug] Current value (totalValue):', totalValue);
-    console.log('[Chart Debug] Last point before update:', lastPoint ? {
-      date: lastPoint.dateString,
-      value: lastPoint.value
-    } : 'none');
-
-    if (!lastPoint || getESTDateKey(lastPoint.date) !== currentDateKey) {
-      const newPoint = {
-        date: currentDateTime,
-        dateString: currentDateTime.toISOString(),
-        value: totalValue || 0 // Combined portfolio value: sum(holdings at current prices) + cash
-      };
-      chartData.push(newPoint);
-      console.log('[Chart Debug] Added new current point:', newPoint);
-    } else {
-      // Update last point with current combined portfolio value (same date, so update value)
-      const oldValue = lastPoint.value;
-      lastPoint.value = totalValue || 0; // Combined portfolio value: sum(holdings at current prices) + cash
-      console.log('[Chart Debug] Updated last point value from', oldValue, 'to', lastPoint.value);
-    }
-
-    console.log('[Chart Debug] Final chart data:', chartData.map(d => ({
-      date: d.dateString,
-      value: d.value
-    })));
-    console.log('[Chart Debug] First data point value:', chartData[0]?.value);
-    console.log('[Chart Debug] Last data point value:', chartData[chartData.length - 1]?.value);
-
-    return chartData;
-  }, [snapshots, totalValue]);
-
-  // Filter chart data based on time range
-  const filteredData = useMemo(() => {
-    if (aggregatedChartData.length === 0) return [];
-    if (timeRange === 'ALL') return aggregatedChartData;
-
+  // Calculate the date range based on time range selection
+  const dateRange = useMemo(() => {
     const now = new Date();
-    let startDate = new Date(now);
+    let startDate = new Date(oldestSnapshotDate);
 
     switch (timeRange) {
-      case '1W':
-        startDate.setDate(now.getDate() - 7);
+      case '1W': 
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7); 
         break;
-      case '1M':
-        startDate.setMonth(now.getMonth() - 1);
+      case '1M': 
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 1); 
         break;
-      case '3M':
-        startDate.setMonth(now.getMonth() - 3);
+      case '3M': 
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 3); 
         break;
-      case 'YTD':
-        startDate = new Date(now.getFullYear(), 0, 1);
+      case 'YTD': 
+        startDate = new Date(now.getFullYear(), 0, 1); 
         break;
-      case '1Y':
-        startDate.setFullYear(now.getFullYear() - 1);
+      case '1Y': 
+        startDate = new Date(now);
+        startDate.setFullYear(now.getFullYear() - 1); 
         break;
-      default:
-        return aggregatedChartData;
+      default: // 'ALL'
+        startDate = new Date(oldestSnapshotDate);
     }
 
-    // Filter data based on start date
-    const filtered = aggregatedChartData.filter(item => item.date >= startDate);
-    // If there isn't enough data for the selected range, show all available data
-    if (filtered.length === 0 && aggregatedChartData.length > 0) {
-      return aggregatedChartData;
+    // If start date is before oldest snapshot, use oldest snapshot
+    if (startDate < oldestSnapshotDate) {
+      startDate = new Date(oldestSnapshotDate);
     }
-    return filtered;
-  }, [aggregatedChartData, timeRange]);
 
-  // Display chart data (always include current value as the last point)
-  // Note: filteredData is already sorted ascending (oldest first) from aggregatedChartData
-  const displayChartData = useMemo(() => {
-    if (filteredData.length === 0) {
-      // If no filtered data, try to show at least a line from most recent snapshot to current value
-      if (aggregatedChartData.length === 0) {
-        return [];
+    return { startDate, endDate: now };
+  }, [timeRange, oldestSnapshotDate]);
+
+  // Get unique tickers from holdings
+  const tickers = useMemo(() => {
+    if (!holdings || holdings.length === 0) return [];
+    return [...new Set(holdings.map(h => h.ticker))];
+  }, [holdings]);
+
+  // Determine the appropriate interval based on time range
+  const { interval, maxPoints } = useMemo(() => {
+    const { startDate, endDate } = dateRange;
+    const diffMs = endDate.getTime() - startDate.getTime();
+    const diffDays = diffMs / (24 * 60 * 60 * 1000);
+    
+    // Choose interval to get ~40 data points
+    // Yahoo Finance limits: 1m (7 days), 5m/15m/30m/1h (60 days), 1d (unlimited)
+    if (diffDays <= 2) {
+      // Less than 2 days: use 1-hour interval
+      return { interval: '1h', maxPoints: 40 };
+    } else if (diffDays <= 7) {
+      // 2-7 days: use 1-hour interval
+      return { interval: '1h', maxPoints: 40 };
+    } else if (diffDays <= 60) {
+      // 1 week to 2 months: use 1-hour interval (will get more points, we'll sample)
+      return { interval: '1h', maxPoints: 40 };
+    } else {
+      // More than 2 months: use daily interval
+      return { interval: '1d', maxPoints: 40 };
+    }
+  }, [dateRange]);
+
+  // Fetch historical prices for all tickers using range API
+  useEffect(() => {
+    if (tickers.length === 0) return;
+
+    const fetchHistoricalPrices = async () => {
+      setIsLoadingPrices(true);
+      const pricesMap = {};
+
+      try {
+        const { startDate, endDate } = dateRange;
+        const startTs = Math.floor(startDate.getTime() / 1000);
+        const endTs = Math.floor(endDate.getTime() / 1000);
+
+        // Fetch prices for each ticker in parallel using the range API
+        const promises = tickers.map(async (ticker) => {
+          try {
+            const response = await fetch(
+              `/api/market-data/historical-range?ticker=${ticker}&start=${startTs}&end=${endTs}&interval=${interval}`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              return { ticker, prices: data.prices || [] };
+            }
+          } catch (err) {
+            console.error(`Error fetching historical prices for ${ticker}:`, err);
+          }
+          return { ticker, prices: [] };
+        });
+
+        const results = await Promise.all(promises);
+        results.forEach(({ ticker, prices }) => {
+          pricesMap[ticker] = prices;
+        });
+
+        setHistoricalPrices(pricesMap);
+      } catch (err) {
+        console.error('Error fetching historical prices:', err);
+      } finally {
+        setIsLoadingPrices(false);
       }
-      // Use the most recent snapshot as start, current value as end
-      const latestSnapshot = aggregatedChartData[aggregatedChartData.length - 1];
-      const currentDateTime = new Date();
-      return [
-        latestSnapshot,
-        {
-          date: currentDateTime,
-          dateString: currentDateTime.toISOString(),
-          value: totalValue || 0,
+    };
+
+    fetchHistoricalPrices();
+  }, [tickers, dateRange, interval]);
+
+  // Generate 39 evenly spaced historical timestamps + 1 current timestamp for the chart
+  const chartTimestamps = useMemo(() => {
+    const { startDate, endDate } = dateRange;
+    const startTs = startDate.getTime();
+    const endTs = endDate.getTime();
+    const diffMs = endTs - startTs;
+    
+    // Generate 59 historical points, the 60th will be "now" with current value
+    const HISTORICAL_POINTS = 59;
+    const timestamps = [];
+    
+    for (let i = 0; i < HISTORICAL_POINTS; i++) {
+      const ts = startTs + (diffMs * i / HISTORICAL_POINTS);
+      timestamps.push(Math.floor(ts / 1000)); // Unix timestamp in seconds
+    }
+    
+    // Add current timestamp as the last point
+    const nowTs = Math.floor(Date.now() / 1000);
+    timestamps.push(nowTs);
+    
+    console.log(`[Chart] Generated ${timestamps.length} timestamps from ${new Date(timestamps[0] * 1000).toISOString()} to ${new Date(timestamps[timestamps.length - 1] * 1000).toISOString()}`);
+    return timestamps;
+  }, [dateRange]);
+
+  // Helper to find the closest price for a given timestamp
+  const findPriceAtTimestamp = (pricesArray, targetTs) => {
+    if (!pricesArray || pricesArray.length === 0) return null;
+    
+    // Find the closest price at or before the target timestamp
+    let closest = null;
+    for (const item of pricesArray) {
+      if (item.timestamp <= targetTs) {
+        closest = item.price;
+      } else {
+        break; // Array is sorted, no need to continue
+      }
+    }
+    
+    // If no price found before target, use the first available price
+    if (closest === null && pricesArray.length > 0) {
+      closest = pricesArray[0].price;
+    }
+    
+    return closest;
+  };
+
+  // Calculate chart data based on historical prices
+  const displayChartData = useMemo(() => {
+    if (chartTimestamps.length === 0) return [];
+
+    const diffDays = (dateRange.endDate - dateRange.startDate) / (24 * 60 * 60 * 1000);
+    const isShortRange = diffDays <= 7;
+
+    // Helper to format date string
+    const formatDate = (date) => {
+      if (isShortRange) {
+        return date.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+      } else {
+        return date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    };
+
+    // If no holdings, just show a flat line at total value
+    if (!holdings || holdings.length === 0) {
+      return chartTimestamps.map(ts => {
+        const date = new Date(ts * 1000);
+        return {
+          timestamp: ts,
+          dateString: formatDate(date),
+          date,
+          value: totalValue
+        };
+      });
+    }
+
+    // Calculate portfolio value for each timestamp (first 39 points)
+    const chartData = chartTimestamps.slice(0, -1).map((ts) => {
+      let portfolioValue = cashValue; // Start with cash
+      const date = new Date(ts * 1000);
+
+      holdings.forEach(holding => {
+        const ticker = holding.ticker;
+        const shares = holding.shares;
+        const tickerPrices = historicalPrices[ticker] || [];
+        
+        // Get the price for this timestamp
+        let price = findPriceAtTimestamp(tickerPrices, ts);
+        
+        // Fallback to current price or avg cost if no historical price found
+        if (price === null) {
+          price = holding.currentPrice || holding.avgCost || 0;
         }
-      ];
-    }
 
-    // filteredData is already sorted by date (ascending - oldest first)
-    // The aggregatedChartData logic already handles adding/updating today's value
-    // So we can use filteredData directly
-    return filteredData;
-  }, [filteredData, aggregatedChartData, totalValue]);
+        portfolioValue += shares * price;
+      });
 
-  // Calculate percentage change from first value in filtered/display data
-  const percentChange = useMemo(() => {
-    if (displayChartData.length === 0) {
-      console.log('[Chart Debug] Percent change: no display data');
-      return 0;
-    }
-    const startValue = displayChartData[0].value;
-    const currentValue = totalValue || 0;
-
-    console.log('[Chart Debug] Percent change calculation:', {
-      startValue,
-      currentValue,
-      displayChartDataLength: displayChartData.length,
-      firstPoint: displayChartData[0]
+      return {
+        timestamp: ts,
+        dateString: formatDate(date),
+        date,
+        value: portfolioValue
+      };
     });
 
-    if (startValue === 0) {
-      return 0;
+    // Add the current portfolio value as the final (40th) data point
+    const now = new Date();
+    chartData.push({
+      timestamp: Math.floor(now.getTime() / 1000),
+      dateString: formatDate(now),
+      date: now,
+      value: totalValue // Use the actual current portfolio value
+    });
+
+    return chartData;
+  }, [chartTimestamps, holdings, historicalPrices, cashValue, totalValue, dateRange]);
+
+  // Log chart data for debugging
+  useEffect(() => {
+    if (displayChartData.length > 0) {
+      console.log(`[Chart] Generated ${displayChartData.length} data points:`, 
+        displayChartData.slice(0, 3).map(d => `${d.dateString}: $${d.value.toFixed(2)}`).join(', '),
+        '...',
+        displayChartData.slice(-1).map(d => `${d.dateString}: $${d.value.toFixed(2)}`).join('')
+      );
     }
-
-    const percent = ((currentValue - startValue) / Math.abs(startValue)) * 100;
-    console.log('[Chart Debug] Calculated percent change:', percent + '%');
-    return percent;
-  }, [displayChartData, totalValue]);
-
-  const returnAmount = useMemo(() => {
-    if (displayChartData.length === 0) return 0;
-    const startValue = displayChartData[0].value;
-    return (totalValue || 0) - startValue;
-  }, [displayChartData, totalValue]);
-
-  // Calculate chart color based on performance
-  const chartColor = useMemo(() => {
-    if (displayChartData.length < 2) return 'var(--color-accent)';
-    const startValue = displayChartData[0].value;
-    const endValue = displayChartData[displayChartData.length - 1].value;
-    return endValue >= startValue ? 'var(--color-success)' : 'var(--color-danger)';
   }, [displayChartData]);
 
-  const availableRanges = useMemo(() => {
-    return ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
-  }, []);
+  // Calculate chart color and percent change
+  const chartColor = useMemo(() => {
+    if (displayChartData.length < 2) return 'var(--color-success)';
+    return displayChartData[displayChartData.length - 1].value >= displayChartData[0].value
+      ? 'var(--color-success)'
+      : 'var(--color-danger)';
+  }, [displayChartData]);
+
+  // When hovering, show hovered data point; otherwise show the last data point (current value)
+  const displayData = activeIndex !== null && displayChartData[activeIndex]
+    ? displayChartData[activeIndex]
+    : displayChartData[displayChartData.length - 1] || { value: totalValue, dateString: 'Now', date: new Date() };
+
+  const startValue = displayChartData[0]?.value || totalValue;
+  const percentChange = startValue > 0
+    ? ((displayData.value - startValue) / startValue) * 100
+    : 0;
+  const returnAmount = displayData.value - startValue;
+
+  // Always show all time range options
+  const availableRanges = ['1W', '1M', '3M', 'YTD', '1Y', 'ALL'];
 
   const handleMouseMove = (data, index) => {
     setActiveIndex(index);
@@ -1545,97 +1524,63 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
     setActiveIndex(null);
   };
 
-  // For accent color styling
-  const validAccentColor = '#00f3ff';
-  const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
   const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
-  const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
-
-  // Get date/time and value for display (shows hovered point or last point)
-  const displayData = useMemo(() => {
-    if (displayChartData.length === 0) return null;
-
-    // Use activeIndex if hovering, otherwise use last point
-    const point = activeIndex !== null && displayChartData[activeIndex]
-      ? displayChartData[activeIndex]
-      : displayChartData[displayChartData.length - 1];
-
-    if (!point) return null;
-
-    const date = new Date(point.dateString);
-    return {
-      date: date.toLocaleDateString('en-US', {
-        timeZone: 'America/New_York',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      time: date.toLocaleTimeString('en-US', {
-        timeZone: 'America/New_York',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      }),
-      value: point.value // Use the actual value from the data point
-    };
-  }, [displayChartData, activeIndex]);
+  const activeTextColor = isDarkMode ? 'var(--color-on-accent)' : '#fff';
 
   return (
     <Card variant="glass" padding="none">
-      <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
-        <div className="flex items-start justify-between mb-1">
-          <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
-            Portfolio Value
-          </div>
-          {displayData && (
-            <div className="text-right">
-              <div className="text-xs text-[var(--color-muted)] font-medium">
-                {displayData.date}
-              </div>
-              <div className="text-xs text-[var(--color-muted)]/80">
-                {displayData.time} EST
-              </div>
+      {/* Header */}
+      <div className="px-6 pt-6 pb-2">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">
+              Portfolio Value
             </div>
-          )}
-        </div>
-        <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-2">
-          <AnimatedCounter value={displayData?.value ?? (totalValue || 0)} duration={120} />
-        </div>
-        <div className={`text-xs font-medium ${percentChange > 0 ? 'text-emerald-500' :
-          percentChange < 0 ? 'text-rose-500' :
-            'text-[var(--color-muted)]'
-          }`}>
-          {returnAmount >= 0 ? '+' : ''}{formatCurrency(returnAmount)}
-          {' '}
-          ({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
+            <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
+              <AnimatedCounter value={displayData.value} />
+            </div>
+            <div className={`text-xs font-medium mt-0.5 ${percentChange > 0 ? 'text-emerald-500' : percentChange < 0 ? 'text-rose-500' : 'text-[var(--color-muted)]'}`}>
+              {returnAmount >= 0 ? '+' : ''}{formatCurrency(returnAmount)}
+              {' '}({percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%)
+            </div>
+          </div>
+          <div className="text-xs text-[var(--color-muted)]">
+            {displayData?.dateString || 'Today'}
+          </div>
         </div>
       </div>
 
       {/* Chart */}
-      <div className="pt-4 pb-2">
+      <div className="pt-4 pb-2 relative">
+        {isLoadingPrices && (
+          <div className="absolute top-6 right-6 z-10">
+            <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
         {displayChartData.length > 0 ? (
           <div
-            className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
+            className="w-full focus:outline-none relative"
             tabIndex={-1}
-            style={{ outline: 'none', height: '240px' }}
+            style={{ height: '200px' }}
             onMouseLeave={handleMouseLeave}
           >
             <LineChart
               data={displayChartData}
               dataKey="value"
               width="100%"
-              height={240}
+              height={200}
               margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
               strokeColor={chartColor}
               strokeWidth={2}
               showArea={true}
-              areaOpacity={0.15}
+              areaOpacity={0.35}
               showDots={false}
-              dotRadius={4}
+              dotRadius={5}
+              dotColor={chartColor}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               showTooltip={false}
-              gradientId={`combinedPortfolioChartGradient`}
+              gradientId="portfolioChartGradient"
               curveType="monotone"
               animationDuration={800}
               xAxisDataKey="dateString"
@@ -1643,30 +1588,27 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
             />
           </div>
         ) : (
-          <div className="h-64 flex items-center justify-center text-[var(--color-muted)]/60 text-sm">
-            Chart data will appear here once snapshots are available
+          <div className="h-48 flex items-center justify-center text-[var(--color-muted)] text-sm">
+            No chart data available
           </div>
         )}
       </div>
 
       {/* Time Range Selector */}
-      <div className="mt-2 pt-2 px-4 sm:px-6 pb-4 border-t border-[var(--color-border)]/50">
+      <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
         <div className="flex justify-between items-center w-full">
           {availableRanges.map((range) => {
             const isActive = timeRange === range;
-
             return (
               <div key={range} className="flex-1 flex justify-center">
                 <button
                   onClick={() => setTimeRange(range)}
-                  className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
-                  style={{
-                    color: isActive ? activeTextColor : 'var(--color-muted)'
-                  }}
+                  className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none"
+                  style={{ color: isActive ? activeTextColor : 'var(--color-muted)' }}
                 >
                   {isActive && (
                     <motion.div
-                      layoutId="combinedPortfolioTimeRange"
+                      layoutId="portfolioTimeRange"
                       className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
@@ -1684,569 +1626,294 @@ function CombinedPortfolioChartCard({ portfolioMetrics, snapshots }) {
   );
 }
 
-// Holdings Card Component (similar to portfolio detail page)
-function HoldingsCard({ holdings, stockQuotes, sectors = [] }) {
-  return (
-    <Card variant="glass" padding="none">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Holdings</div>
-      </div>
-      {holdings.length > 0 ? (
-        <div className="pb-2">
-          {holdings.slice(0, 10).map((holding) => {
-            const quote = stockQuotes[holding.ticker];
-            const currentPrice = quote?.price || null;
-            const avgCost = holding.avgCost;
+// ============================================================================
+// HOLDINGS LIST - Clean list like accounts page
+// ============================================================================
 
-            let gainPercent = null;
-            let currentValue = holding.value;
+// Mini sparkline component
+function MiniSparkline({ data, width = 80, height = 24, maxPoints = 20 }) {
+  if (!data || data.length < 2) return null;
 
-            if (currentPrice && avgCost > 0) {
-              gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
-              currentValue = holding.shares * currentPrice;
-            }
-
-            const hasQuote = gainPercent !== null;
-
-            return (
-              <div
-                key={holding.ticker}
-                className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div
-                    className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-                    style={{
-                      background: holding.logo ? 'transparent' : 'var(--color-surface)',
-                      border: '1px solid var(--color-border)/50'
-                    }}
-                  >
-                    {holding.logo ? (
-                      <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[9px] font-medium text-[var(--color-muted)]">{holding.ticker.slice(0, 2)}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                      {holding.ticker}
-                    </div>
-                    <div className="text-xs text-[var(--color-muted)]">
-                      {holding.shares.toFixed(2)} shares
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                    {formatCurrency(currentValue)}
-                  </div>
-                  {hasQuote ? (
-                    <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' :
-                      gainPercent > 0 ? 'text-emerald-500' :
-                        'text-rose-500'
-                      }`}>
-                      {gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%
-                    </div>
-                  ) : (
-                    <div className="text-xs text-[var(--color-muted)]">—</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="px-4 py-8 text-center">
-          <div className="text-[var(--color-muted)]/60 text-[13px]">
-            No holdings yet
-          </div>
-        </div>
-      )}
-
-      {/* Sectors Section */}
-      {sectors && sectors.length > 0 && (
-        <div className="px-4 pb-4 pt-2 border-t border-[var(--color-border)]/30">
-          <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wide mb-2">Sectors</div>
-          <div className="flex flex-wrap gap-1.5">
-            {sectors.map((sector) => (
-              <div
-                key={sector.name}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30"
-              >
-                <span className="text-[10px] text-[var(--color-muted)]">{sector.name}</span>
-                <span className="text-[10px] font-medium text-[var(--color-fg)] tabular-nums">
-                  {sector.percentage.toFixed(0)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// Portfolio Summary Card Component - Now includes linked accounts
-function PortfolioSummaryCard({ portfolioMetrics, holdingsCount, accounts = [], stockQuotes = {} }) {
-  const investedPercentage = 100 - portfolioMetrics.cashPercentage;
-  const circumference = 2 * Math.PI * 36;
-  const strokeDashoffset = circumference - (investedPercentage / 100) * circumference;
-
-  // Calculate full value for each account and group by institution
-  const groupedByInstitution = useMemo(() => {
-    // First calculate value for each account
-    const accountsWithValues = [...accounts].map(portfolio => {
-      const account = portfolio.source_account;
-      const balances = account?.balances || {};
-      const accountBalance = balances.current || 0;
-
-      // Calculate holdings value at current market price: sum(price * shares)
-      const holdingsValue = (portfolio.holdings || []).reduce((sum, h) => {
-        const ticker = (h.ticker || '').toUpperCase();
-        const quote = stockQuotes[ticker];
-        const price = quote?.price || h.avg_cost || 0;
-        return sum + ((h.shares || 0) * price);
-      }, 0);
-
-      // Cash is remainder (account balance minus holdings value)
-      const cashValue = Math.max(0, accountBalance - holdingsValue);
-
-      // Total value = holdings at market price + cash
-      const totalValue = holdingsValue + cashValue;
-
-      return { ...portfolio, totalValue };
-    });
-
-    // Group by institution
-    const institutionMap = new Map();
-    accountsWithValues.forEach(portfolio => {
-      const account = portfolio.source_account;
-      const institution = account?.institutions;
-      const institutionId = institution?.id || 'unknown';
-
-      if (institutionMap.has(institutionId)) {
-        const existing = institutionMap.get(institutionId);
-        existing.totalValue += portfolio.totalValue;
-        existing.accountCount += 1;
-      } else {
-        institutionMap.set(institutionId, {
-          id: institutionId,
-          name: institution?.name || 'Brokerage',
-          logo: institution?.logo,
-          totalValue: portfolio.totalValue,
-          accountCount: 1
-        });
-      }
-    });
-
-    // Convert to array and sort by value
-    return Array.from(institutionMap.values()).sort((a, b) => b.totalValue - a.totalValue);
-  }, [accounts, stockQuotes]);
-
-  return (
-    <Card variant="glass" padding="none">
-      {/* Summary Section - Ultra Minimal */}
-      <div className="p-5">
-        {/* Header */}
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-3">
-          Portfolio Value
-        </div>
-
-        {/* Total Value - Hero */}
-        <div className="text-2xl font-bold text-[var(--color-fg)] tabular-nums mb-4">
-          {formatCurrency(portfolioMetrics.totalHoldingsValue + portfolioMetrics.cash)}
-        </div>
-
-        {/* Simple breakdown - inline */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[var(--color-muted)]">Holdings</span>
-            <span className="font-medium text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(portfolioMetrics.totalHoldingsValue)}
-            </span>
-          </div>
-          <div className="w-px h-3 bg-[var(--color-border)]" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-[var(--color-muted)]">Cash</span>
-            <span className="font-medium text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(portfolioMetrics.cash)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Institutions Section */}
-      {groupedByInstitution.length > 0 && (
-        <>
-          <div className="mx-4 border-t border-[var(--color-border)]/40" />
-          <div className="px-4 pt-3 pb-2">
-            <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider">
-              Linked Accounts
-            </div>
-          </div>
-          <div className="pb-4">
-            {groupedByInstitution.map((institution) => (
-              <div
-                key={institution.id}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
-              >
-                {/* Institution Logo */}
-                {institution.logo ? (
-                  <img
-                    src={institution.logo}
-                    alt=""
-                    className="w-9 h-9 rounded-lg object-contain flex-shrink-0"
-                    style={{ border: '1px solid var(--color-border)' }}
-                  />
-                ) : (
-                  <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)'
-                    }}
-                  >
-                    <span className="text-xs font-medium text-[var(--color-muted)]">
-                      {institution.name[0]}
-                    </span>
-                  </div>
-                )}
-
-                {/* Institution Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                    {institution.name}
-                  </div>
-                  <div className="text-xs text-[var(--color-muted)]">
-                    {institution.accountCount} {institution.accountCount === 1 ? 'account' : 'accounts'}
-                  </div>
-                </div>
-
-                {/* Combined Value */}
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-                    {formatCurrency(institution.totalValue)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </Card>
-  );
-}
-
-
-// Sectors Card Component
-function SectorsCard({ sectors }) {
-  return (
-    <Card variant="glass" padding="md">
-      <div className="mb-3">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Sectors</div>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {sectors.map((sector) => (
-          <div
-            key={sector.name}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30"
-          >
-            <span className="text-[10px] text-[var(--color-muted)]">{sector.name}</span>
-            <span className="text-[10px] font-medium text-[var(--color-fg)] tabular-nums">
-              {sector.percentage.toFixed(0)}%
-            </span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-// Investment Transactions Card Component
-function InvestmentTransactionsCard({ transactions }) {
-  const [tickerLogos, setTickerLogos] = useState({});
-  const [tickerInfo, setTickerInfo] = useState({});
-  const MAX_VISIBLE = 5;
-
-  // Fetch ticker logos and info on mount
-  useEffect(() => {
-    const fetchTickerData = async () => {
-      if (!transactions || transactions.length === 0) return;
-
-      // Get unique tickers from transactions
-      const tickers = [...new Set(
-        transactions
-          .map(t => t.investment_details?.ticker)
-          .filter(Boolean)
-      )];
-
-      if (tickers.length === 0) return;
-
-      try {
-        const { data } = await supabase
-          .from('tickers')
-          .select('symbol, logo, name')
-          .in('symbol', tickers);
-
-        if (data) {
-          const logoMap = {};
-          const infoMap = {};
-          data.forEach(t => {
-            logoMap[t.symbol] = t.logo;
-            infoMap[t.symbol] = { name: t.name };
-          });
-          setTickerLogos(logoMap);
-          setTickerInfo(infoMap);
-        }
-      } catch (err) {
-        console.error('Error fetching ticker data:', err);
-      }
-    };
-
-    fetchTickerData();
-  }, [transactions]);
-
-  if (!transactions || transactions.length === 0) {
-    return (
-      <Card variant="glass" padding="none">
-        <div className="px-5 pt-5 pb-3">
-          <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
-        </div>
-        <div className="px-5 py-8 text-center">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--color-surface)]/60 flex items-center justify-center">
-            <svg className="w-6 h-6 text-[var(--color-muted)]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <div className="text-[var(--color-muted)]/60 text-sm">
-            No investment transactions yet
-          </div>
-          <p className="text-xs text-[var(--color-muted)]/40 mt-1">
-            Transactions will appear here when you buy or sell securities
-          </p>
-        </div>
-      </Card>
-    );
+  // Sample data if it has too many points
+  let sampledData = data;
+  if (data.length > maxPoints) {
+    const step = (data.length - 1) / (maxPoints - 1);
+    sampledData = [];
+    for (let i = 0; i < maxPoints; i++) {
+      const index = Math.round(i * step);
+      sampledData.push(data[index]);
+    }
   }
 
-  // Helper to get accent info for transaction type
-  const getAccentInfo = (type, subtype) => {
-    const normalizedType = (type || '').toLowerCase();
-    const normalizedSubtype = (subtype || '').toLowerCase();
+  const min = Math.min(...sampledData);
+  const max = Math.max(...sampledData);
+  const range = max - min || 1;
+  
+  // Determine if trend is up or down
+  const isUp = sampledData[sampledData.length - 1] >= sampledData[0];
+  const color = isUp ? '#10b981' : '#f43f5e'; // emerald-500 / rose-500
 
-    if (normalizedType === 'buy' || normalizedSubtype === 'buy') {
-      return { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', label: 'BUY', isBuy: true, isSell: false, isTransfer: false, isDividend: false };
-    } else if (normalizedType === 'sell' || normalizedSubtype === 'sell') {
-      return { color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)', label: 'SELL', isBuy: false, isSell: true, isTransfer: false, isDividend: false };
-    } else if (normalizedType === 'dividend' || normalizedSubtype === 'dividend') {
-      return { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)', label: 'DIV', isBuy: false, isSell: false, isDividend: true, isTransfer: false };
-    } else if (normalizedType === 'fee') {
-      return { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', label: 'FEE', isBuy: false, isSell: false, isTransfer: false, isDividend: false };
-    } else if (normalizedType === 'transfer' || normalizedSubtype === 'contribution' || normalizedSubtype === 'transfer') {
-      return { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)', label: 'XFER', isBuy: false, isSell: false, isTransfer: true, isDividend: false };
-    }
-    // Other types - blue as default
-    return { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)', label: 'OTHER', isBuy: false, isSell: false, isTransfer: true, isDividend: false };
-  };
+  // Create SVG path with smooth curves
+  const points = sampledData.map((value, i) => {
+    const x = (i / (sampledData.length - 1)) * width;
+    const y = height - 2 - ((value - min) / range) * (height - 4); // Add padding
+    return { x, y };
+  });
 
-  const hasMoreTransactions = transactions.length > MAX_VISIBLE;
-  const visibleTransactions = transactions.slice(0, MAX_VISIBLE);
+  // Create smooth curve using quadratic bezier
+  let pathD = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const midX = (prev.x + curr.x) / 2;
+    pathD += ` Q ${prev.x},${prev.y} ${midX},${(prev.y + curr.y) / 2}`;
+  }
+  // Connect to last point
+  const last = points[points.length - 1];
+  pathD += ` L ${last.x},${last.y}`;
 
   return (
-    <Card variant="glass" padding="none">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-        <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">Recent Transactions</div>
-        {hasMoreTransactions ? (
-          <button className="text-[11px] text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 font-medium transition-colors cursor-pointer">
-            View all
-          </button>
-        ) : (
-          <div className="text-[10px] text-[var(--color-muted)]/50 tabular-nums">
-            {transactions.length} total
-          </div>
-        )}
+    <svg width={width} height={height} className="flex-shrink-0">
+      <path
+        d={pathD}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HoldingsList({ holdings, sparklineData = {} }) {
+  if (!holdings || holdings.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="px-1 flex items-center justify-between">
+        <h2 className="text-sm font-medium text-[var(--color-muted)] uppercase tracking-wider">
+          Holdings
+        </h2>
+        <span className="text-xs text-[var(--color-muted)]">
+          {holdings.length} {holdings.length === 1 ? 'position' : 'positions'}
+        </span>
       </div>
 
-      {/* Column Headers */}
-      <div className="px-5 py-2 flex items-center text-[10px] text-[var(--color-muted)]/60 uppercase tracking-wider border-b border-[var(--color-border)]/10">
-        <div className="flex-1 min-w-0">Security</div>
-        <div className="w-20 text-right">Shares</div>
-        <div className="w-24 text-right">Amount</div>
-        <div className="w-16 text-right">Date</div>
-      </div>
+      <div className="space-y-1">
+        {holdings.map((holding) => {
+          // Use stored values from portfolioMetrics
+          const currentPrice = holding.currentPrice;
+          const avgCost = holding.avgCost;
+          const value = holding.value;
+          const sparkline = sparklineData[holding.ticker];
 
-      {/* Transactions list */}
-      <div className="pb-2">
-        {visibleTransactions.map((transaction, index) => {
-          const details = transaction.investment_details || {};
-          const accent = getAccentInfo(details.type, details.subtype);
-          const ticker = details.ticker || null;
-          const logo = ticker ? tickerLogos[ticker] : null;
-          const companyName = ticker ? tickerInfo[ticker]?.name : null;
-          const quantity = details.quantity ? parseFloat(details.quantity) : null;
-          const amount = Math.abs(parseFloat(transaction.amount) || 0);
-          const date = transaction.date
-            ? new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : '-';
-
-          // Format shares count
-          const sharesDisplay = quantity !== null
-            ? `${accent.isBuy ? '+' : accent.isSell ? '-' : ''}${quantity.toFixed(quantity % 1 === 0 ? 0 : 2)}`
-            : '—';
-
-          // Title for non-ticker transactions
-          const title = ticker
-            ? ticker
-            : accent.isTransfer
-              ? 'Cash Transfer'
-              : details.security_name || 'Transaction';
-
-          // Secondary text (company name)
-          const secondaryText = ticker && companyName
-            ? companyName
-            : accent.isTransfer ? 'Account contribution' : null;
+          // Calculate gain/loss percentage and amount if we have current price and avg cost
+          let gainPercent = null;
+          let gainAmount = null;
+          if (currentPrice !== null && avgCost > 0) {
+            gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
+            gainAmount = (currentPrice - avgCost) * holding.shares;
+          }
 
           return (
             <div
-              key={transaction.id}
-              className="relative hover:bg-[var(--color-surface)]/30 transition-all"
+              key={holding.ticker}
+              className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-[var(--color-surface)]/50 transition-colors"
             >
-              {/* Left border accent */}
-              <div
-                className="absolute left-0 top-0 bottom-0 w-[3px]"
-                style={{ backgroundColor: accent.color }}
-              />
-
-              <div className="flex items-center px-5 py-2.5">
-                {/* Security column: Logo + Ticker/Name + Badge */}
-                <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                  {/* Logo */}
-                  <div className="flex-shrink-0">
-                    {logo ? (
-                      <img
-                        src={logo}
-                        alt={ticker}
-                        className="w-8 h-8 rounded-full object-cover"
-                        style={{ border: '1px solid var(--color-border)' }}
-                      />
-                    ) : (
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium"
-                        style={{
-                          backgroundColor: accent.bgColor,
-                          border: '1px solid var(--color-border)',
-                          color: accent.color
-                        }}
-                      >
-                        {ticker ? ticker.slice(0, 2) : '$'}
-                      </div>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div
+                  className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+                  style={{
+                    background: holding.logo ? 'transparent' : 'var(--color-surface)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  {holding.logo ? (
+                    <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-medium text-[var(--color-muted)]">
+                      {holding.ticker.slice(0, 2)}
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-[var(--color-fg)]">{holding.ticker}</span>
+                    {holding.name && (
+                      <span className="text-xs text-[var(--color-muted)] truncate max-w-[140px]">{holding.name}</span>
                     )}
                   </div>
-
-                  {/* Ticker/Name */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium text-[var(--color-fg)] truncate">
-                        {title}
-                      </span>
-                      <span
-                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wide flex-shrink-0"
-                        style={{
-                          backgroundColor: accent.bgColor,
-                          color: accent.color
-                        }}
-                      >
-                        {accent.label}
-                      </span>
-                    </div>
-                    {secondaryText && (
-                      <div className="text-[10px] text-[var(--color-muted)]/60 truncate mt-0.5">
-                        {secondaryText}
-                      </div>
-                    )}
+                  <div className="text-xs text-[var(--color-muted)]">
+                    {holding.shares.toFixed(2)} shares {currentPrice !== null && `@ ${formatCurrency(currentPrice)}`}
                   </div>
                 </div>
+              </div>
 
-                {/* Shares column */}
-                <div className="w-20 text-right flex-shrink-0">
-                  <span
-                    className="text-sm tabular-nums font-medium"
-                    style={{
-                      color: accent.isBuy ? '#10b981' : accent.isSell ? '#ef4444' : 'var(--color-muted)'
-                    }}
-                  >
-                    {sharesDisplay}
-                  </span>
-                </div>
+              {/* Mini sparkline */}
+              <div className="flex-shrink-0 mx-4 flex items-center justify-center" style={{ width: 70 }}>
+                <MiniSparkline data={sparkline} width={70} height={24} maxPoints={20} />
+              </div>
 
-                {/* Amount column */}
-                <div className="w-24 text-right flex-shrink-0">
-                  <span className={`text-sm font-semibold tabular-nums ${accent.isSell || accent.isDividend ? 'text-emerald-500' : 'text-[var(--color-fg)]'
-                    }`}>
-                    {accent.isSell || accent.isDividend ? '+' : accent.isBuy ? '-' : ''}{formatCurrency(amount)}
-                  </span>
+              <div className="text-right">
+                <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                  {formatCurrency(value)}
                 </div>
-
-                {/* Date column */}
-                <div className="w-16 text-right flex-shrink-0">
-                  <span className="text-[11px] text-[var(--color-muted)]/50">
-                    {date}
-                  </span>
-                </div>
+                {gainPercent !== null ? (
+                  <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' : gainPercent > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {gainAmount >= 0 ? '+' : ''}{formatCurrency(gainAmount)} ({gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%)
+                  </div>
+                ) : (
+                  <div className="text-xs text-[var(--color-muted)]">-</div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ACCOUNTS SUMMARY - Minimal design
+// ============================================================================
+
+function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
+  const investedPercent = portfolioMetrics.totalPortfolioValue > 0
+    ? ((portfolioMetrics.totalHoldingsValue / portfolioMetrics.totalPortfolioValue) * 100)
+    : 0;
+
+  // Calculate each account's value properly: holdings at market price + cash
+  const accountsWithValues = useMemo(() => {
+    return accounts.map(portfolio => {
+      const account = portfolio.source_account;
+      const accountBalance = account?.balances?.current || 0;
+      const institution = account?.institutions;
+      const accountName = account?.name || 'Account';
+
+      // Calculate holdings value at current market prices
+      let holdingsValue = 0;
+      (portfolio.holdings || []).forEach(h => {
+        const ticker = (h.ticker || '').toUpperCase();
+        const quote = stockQuotes[ticker];
+        const price = quote?.price || h.avg_cost || 0;
+        holdingsValue += (h.shares || 0) * price;
+      });
+
+      // Cash = account balance - holdings value (clamped to 0)
+      const cashValue = Math.max(0, accountBalance - holdingsValue);
+
+      // Total = holdings at market price + cash
+      const totalValue = holdingsValue + cashValue;
+
+      return {
+        id: portfolio.id,
+        name: accountName,
+        institutionName: institution?.name || 'Brokerage',
+        institutionLogo: institution?.logo,
+        totalValue
+      };
+    });
+  }, [accounts, stockQuotes]);
+
+  const cashPercent = 100 - investedPercent;
+
+  return (
+    <Card variant="glass" padding="none">
+      {/* Allocation Bar */}
+      <div className="p-5 pb-4">
+        <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider mb-3">
+          Allocation
+        </div>
+        
+        <div className="h-1.5 rounded-full overflow-hidden bg-[var(--color-surface)] flex">
+          <div
+            className="h-full bg-[var(--color-accent)] transition-all duration-500"
+            style={{ width: `${investedPercent}%` }}
+          />
+        </div>
+
+        {/* Holdings & Cash - stacked */}
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+              <span className="text-xs text-[var(--color-muted)]">Holdings</span>
+            </div>
+            <span className="text-xs text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(portfolioMetrics.totalHoldingsValue)} <span className="text-[var(--color-muted)]">({investedPercent.toFixed(0)}%)</span>
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)]" />
+              <span className="text-xs text-[var(--color-muted)]">Cash</span>
+            </div>
+            <span className="text-xs text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(portfolioMetrics.cash)} <span className="text-[var(--color-muted)]">({cashPercent.toFixed(0)}%)</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Accounts */}
+      {accountsWithValues.length > 0 && (
+        <div className="px-5 pb-5">
+          <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider mb-3">
+            Linked Accounts
+          </div>
+          <div className="space-y-2">
+            {accountsWithValues.map((account) => (
+              <div
+                key={account.id}
+                className="flex items-center gap-3 p-2.5 rounded-lg bg-[var(--color-surface)]/40"
+              >
+                {account.institutionLogo ? (
+                  <img
+                    src={account.institutionLogo}
+                    alt=""
+                    className="w-6 h-6 rounded-md object-contain flex-shrink-0 bg-white p-0.5"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-[var(--color-surface)]">
+                    <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-[var(--color-fg)] truncate">
+                    {account.name}
+                  </div>
+                  <div className="text-[10px] text-[var(--color-muted)]">
+                    {account.institutionName}
+                  </div>
+                </div>
+                <div className="text-xs font-medium text-[var(--color-fg)] tabular-nums">
+                  {formatCurrency(account.totalValue)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
 
-// Paper Trading Card Component with Carousel
-function PaperTradingCard({ portfolios, onPortfolioClick, onCreateClick }) {
-  const scrollContainerRef = useRef(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+// ============================================================================
+// PAPER PORTFOLIOS LIST - Clean minimal design
+// ============================================================================
 
-  // Handle scroll to update active index
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const cardWidth = container.offsetWidth;
-    const newIndex = Math.round(scrollLeft / cardWidth);
-    setActiveIndex(Math.min(newIndex, portfolios.length - 1));
-  };
-
-  // Navigate to specific index
-  const scrollToIndex = (index) => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const cardWidth = container.offsetWidth;
-    container.scrollTo({ left: index * cardWidth, behavior: 'smooth' });
-    setActiveIndex(index);
-  };
-
-  // Navigate prev/next
-  const goToPrev = () => {
-    if (activeIndex > 0) scrollToIndex(activeIndex - 1);
-  };
-
-  const goToNext = () => {
-    if (activeIndex < portfolios.length - 1) scrollToIndex(activeIndex + 1);
-  };
-
+function PaperPortfoliosList({ portfolios, onPortfolioClick, onCreateClick }) {
   return (
     <Card variant="glass" padding="none">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+      <div className="p-5 flex items-center justify-between">
         <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider">
           Paper Trading
         </div>
         <button
           onClick={onCreateClick}
-          className="flex items-center gap-1 text-[11px] text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 font-medium transition-colors cursor-pointer"
+          className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer flex items-center gap-1"
         >
           <LuPlus className="w-3 h-3" />
           New
@@ -2254,143 +1921,52 @@ function PaperTradingCard({ portfolios, onPortfolioClick, onCreateClick }) {
       </div>
 
       {portfolios.length > 0 ? (
-        <div className="pb-3">
-          {/* Carousel with Side Arrows */}
-          <div className="flex items-center gap-1">
-            {/* Prev Arrow */}
-            {portfolios.length > 1 && (
-              <button
-                onClick={goToPrev}
-                disabled={activeIndex === 0}
-                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${activeIndex === 0
-                  ? 'text-[var(--color-muted)]/20 cursor-not-allowed'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                  }`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            )}
-
-            {/* Carousel Container */}
-            <div className="flex-1 overflow-hidden">
-              <div
-                ref={scrollContainerRef}
-                onScroll={handleScroll}
-                className="flex gap-0 overflow-x-auto snap-x snap-mandatory"
-                style={{
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-              >
-                {portfolios.map((portfolio) => (
-                  <MiniPortfolioCard
-                    key={portfolio.id}
-                    portfolio={portfolio}
-                    onClick={() => onPortfolioClick(portfolio)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Next Arrow */}
-            {portfolios.length > 1 && (
-              <button
-                onClick={goToNext}
-                disabled={activeIndex === portfolios.length - 1}
-                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${activeIndex === portfolios.length - 1
-                  ? 'text-[var(--color-muted)]/20 cursor-not-allowed'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                  }`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Dots */}
-          {portfolios.length > 1 && (
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              {portfolios.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => scrollToIndex(index)}
-                  className={`h-1 rounded-full transition-all cursor-pointer ${index === activeIndex
-                    ? 'bg-[var(--color-accent)] w-3'
-                    : 'bg-[var(--color-muted)]/25 w-1 hover:bg-[var(--color-muted)]/40'
-                    }`}
-                />
-              ))}
-            </div>
-          )}
+        <div className="px-3 pb-3 space-y-1">
+          {portfolios.slice(0, 5).map((portfolio) => (
+            <PortfolioRow
+              key={portfolio.id}
+              portfolio={portfolio}
+              onClick={() => onPortfolioClick(portfolio)}
+            />
+          ))}
         </div>
       ) : (
-        <div className="px-4 py-6 text-center">
-          <div className="text-[var(--color-muted)]/60 text-[13px] mb-2">
-            No paper trading portfolios yet
+        <div className="px-5 pb-5">
+          <div className="text-center py-6 rounded-lg border border-dashed border-[var(--color-border)]/50">
+            <p className="text-sm text-[var(--color-muted)] mb-2">No paper portfolios yet</p>
+            <button
+              onClick={onCreateClick}
+              className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer"
+            >
+              Create your first
+            </button>
           </div>
-          <button
-            onClick={onCreateClick}
-            className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer"
-          >
-            Create your first
-          </button>
         </div>
       )}
     </Card>
   );
 }
 
-// Mini Portfolio Card Component (for carousel)
-function MiniPortfolioCard({ portfolio, onClick }) {
-  const isAlpaca = portfolio.is_alpaca_connected === true;
+function PortfolioRow({ portfolio, onClick }) {
   const [totalValue, setTotalValue] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sparklineData, setSparklineData] = useState([]);
 
-  const AlpacaIcon = ({ className, style }) => (
-    <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-    </svg>
-  );
-
-  const model = isAlpaca ? {
-    name: 'Alpaca',
-    icon: AlpacaIcon,
-    color: '#4285F4',
-  } : (AI_MODELS[portfolio.ai_model] || {
-    name: portfolio.ai_model,
-    icon: LuBot,
-    color: '#8b5cf6',
-  });
-  const ModelIcon = model.icon;
-
-  // Fetch total value and sparkline data from snapshots
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Get recent snapshots for sparkline (last 14 days)
         const { data: snapshotData } = await supabase
           .from('portfolio_snapshots')
-          .select('total_value, snapshot_date')
+          .select('total_value')
           .eq('portfolio_id', portfolio.id)
-          .order('snapshot_date', { ascending: true })
-          .limit(14);
+          .order('snapshot_date', { ascending: false })
+          .limit(1);
 
         if (snapshotData && snapshotData.length > 0) {
-          setTotalValue(parseFloat(snapshotData[snapshotData.length - 1].total_value));
-          setSparklineData(snapshotData.map(s => parseFloat(s.total_value)));
+          setTotalValue(parseFloat(snapshotData[0].total_value));
         } else {
-          // Fallback to cash if no snapshots
           setTotalValue(parseFloat(portfolio.current_cash) || parseFloat(portfolio.starting_capital));
-          setSparklineData([]);
         }
       } catch (err) {
-        console.error('Error fetching portfolio value:', err);
         setTotalValue(parseFloat(portfolio.current_cash) || parseFloat(portfolio.starting_capital));
       } finally {
         setLoading(false);
@@ -2400,381 +1976,42 @@ function MiniPortfolioCard({ portfolio, onClick }) {
     fetchData();
   }, [portfolio.id, portfolio.current_cash, portfolio.starting_capital]);
 
-  // Calculate returns
   const startingCapital = parseFloat(portfolio.starting_capital) || 0;
   const currentValue = totalValue ?? startingCapital;
   const percentChange = startingCapital > 0
     ? ((currentValue - startingCapital) / startingCapital) * 100
     : 0;
 
-  // Generate sparkline path
-  const generateSparklinePath = () => {
-    if (sparklineData.length < 2) return null;
-    const min = Math.min(...sparklineData);
-    const max = Math.max(...sparklineData);
-    const range = max - min || 1;
-    const width = 60;
-    const height = 24;
-    const padding = 2;
-
-    const points = sparklineData.map((value, index) => {
-      const x = (index / (sparklineData.length - 1)) * width;
-      const y = height - padding - ((value - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    });
-
-    return `M${points.join(' L')}`;
-  };
-
-  const sparklinePath = generateSparklinePath();
+  const model = AI_MODELS[portfolio.ai_model] || { name: portfolio.ai_model, icon: LuBot };
+  const ModelIcon = model.icon;
 
   return (
     <div
-      className="flex-shrink-0 w-full px-2 py-1 snap-center cursor-pointer group"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--color-surface)]/50 cursor-pointer transition-colors group"
       onClick={onClick}
     >
       <div
-        className="relative rounded-xl p-4 transition-all duration-300 group-hover:scale-[1.02] overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.04) 50%, rgba(236, 72, 153, 0.02) 100%)',
-          border: '1px solid var(--color-border)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-        }}
+        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: 'var(--color-surface)' }}
       >
-        {/* Animated floating orbs */}
-        <div
-          className="absolute w-20 h-20 rounded-full blur-2xl pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%)',
-            top: '-20%',
-            right: '-10%',
-            animation: 'miniFloat1 6s ease-in-out infinite'
-          }}
-        />
-        <div
-          className="absolute w-16 h-16 rounded-full blur-xl pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)',
-            bottom: '-15%',
-            left: '-5%',
-            animation: 'miniFloat2 8s ease-in-out infinite'
-          }}
-        />
-
-        {/* Header with Icon and Name */}
-        <div className="relative flex items-center gap-3 mb-3">
-          <ModelIcon
-            className="w-5 h-5 flex-shrink-0"
-            style={{ color: '#8b5cf6' }}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</div>
-            <div className="text-[11px] text-[var(--color-muted)]">{model.name}</div>
-          </div>
-
-          {/* Mini Sparkline */}
-          {sparklinePath && (
-            <div className="flex-shrink-0">
-              <svg width="60" height="24" className="overflow-visible">
-                <path
-                  d={sparklinePath}
-                  fill="none"
-                  stroke={percentChange >= 0 ? '#10b981' : '#ef4444'}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ opacity: 0.8 }}
-                />
-              </svg>
-            </div>
-          )}
-        </div>
-
-        {/* Value and Returns */}
-        <div className="relative flex items-end justify-between">
-          <div>
-            <div className="text-lg font-normal text-[var(--color-fg)] tabular-nums">
-              {loading ? (
-                <span className="text-[var(--color-muted)]">...</span>
-              ) : (
-                formatCurrency(currentValue)
-              )}
-            </div>
-            <div className={`text-xs font-medium tabular-nums ${percentChange > 0 ? 'text-emerald-500' :
-              percentChange < 0 ? 'text-rose-500' :
-                'text-[var(--color-muted)]'
-              }`}>
-              {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
-            </div>
-          </div>
-          <div className="text-[11px] text-[var(--color-muted)]">
-            {formatCurrency(startingCapital)} initial
-          </div>
-        </div>
-
-        {/* CSS for floating animations */}
-        <style jsx>{`
-          @keyframes miniFloat1 {
-            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-            50% { transform: translate(-8px, 10px) scale(1.1); opacity: 0.7; }
-          }
-          @keyframes miniFloat2 {
-            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
-            50% { transform: translate(10px, -8px) scale(1.15); opacity: 0.6; }
-          }
-        `}</style>
-      </div>
-    </div>
-  );
-}
-
-// Portfolio Card Component
-function PortfolioCard({ portfolio, onCardClick }) {
-  const { profile } = useUser();
-  const isAlpaca = portfolio.is_alpaca_connected === true;
-
-  // Alpaca icon component
-  const AlpacaIcon = ({ className, style }) => (
-    <svg className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-    </svg>
-  );
-
-  const model = isAlpaca ? {
-    name: 'Alpaca Account',
-    icon: AlpacaIcon,
-    color: '#4285F4',
-  } : (AI_MODELS[portfolio.ai_model] || {
-    name: portfolio.ai_model,
-    icon: LuBot,
-    color: 'var(--color-accent)',
-  });
-  const ModelIcon = model.icon;
-
-  const [snapshots, setSnapshots] = useState([]);
-  const [holdings, setHoldings] = useState([]);
-  const [alpacaAccount, setAlpacaAccount] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Fetch portfolio snapshots and holdings
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // For Alpaca portfolios, fetch live account data
-        if (isAlpaca) {
-          try {
-            const response = await fetch(`/api/portfolios/${portfolio.id}/alpaca-account`);
-            if (response.ok) {
-              const accountData = await response.json();
-              setAlpacaAccount(accountData);
-            } else {
-              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-              console.error('Failed to fetch Alpaca account data:', response.status, errorData);
-            }
-          } catch (err) {
-            console.error('Error fetching Alpaca account:', err);
-          }
-        }
-
-        // Fetch snapshots (for both AI and crypto portfolios)
-        const { data: snapshotsData, error: snapshotsError } = await supabase
-          .from('portfolio_snapshots')
-          .select('*')
-          .eq('portfolio_id', portfolio.id)
-          .order('snapshot_date', { ascending: true });
-
-        if (snapshotsError) throw snapshotsError;
-        setSnapshots(snapshotsData || []);
-
-        // Fetch current holdings (for both AI and crypto portfolios)
-        const { data: holdingsData, error: holdingsError } = await supabase
-          .from('holdings')
-          .select('*')
-          .eq('portfolio_id', portfolio.id);
-
-        if (holdingsError) throw holdingsError;
-        setHoldings(holdingsData || []);
-      } catch (err) {
-        console.error('Error fetching portfolio data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [portfolio.id, isAlpaca]);
-
-  // Calculate current total value
-  const currentTotalValue = useMemo(() => {
-    // For Alpaca portfolios, use live account data from Alpaca API
-    if (isAlpaca && alpacaAccount) {
-      // Use equity or portfolio_value from Alpaca (they should be the same)
-      return alpacaAccount.equity || alpacaAccount.portfolio_value || 0;
-    }
-
-    // For AI portfolios, use snapshots or calculate from cash + holdings
-    if (snapshots.length > 0) {
-      const latestSnapshot = snapshots[snapshots.length - 1];
-      return parseFloat(latestSnapshot.total_value) || portfolio.current_cash;
-    }
-
-    // If no snapshots, calculate: cash + (sum of holdings value at current/market prices)
-    // For now, use avg_cost as proxy for current price (since we'd need to fetch live prices)
-    // This gives a reasonable estimate, though actual value may vary with market prices
-    let holdingsValue = 0;
-    if (holdings.length > 0) {
-      holdingsValue = holdings.reduce((sum, holding) => {
-        const shares = parseFloat(holding.shares) || 0;
-        const avgCost = parseFloat(holding.avg_cost) || 0;
-        return sum + (shares * avgCost);
-      }, 0);
-    }
-
-    const cash = parseFloat(portfolio.current_cash) || 0;
-    return cash + holdingsValue;
-  }, [snapshots, holdings, portfolio.current_cash, isAlpaca, alpacaAccount]);
-
-  // Process snapshot data for the chart - simple array of values
-  const chartData = useMemo(() => {
-    if (snapshots.length > 0) {
-      return snapshots.map((snapshot) => parseFloat(snapshot.total_value) || 0);
-    }
-
-    // If no snapshots, create a simple line from starting capital to current value
-    if (currentTotalValue !== portfolio.starting_capital) {
-      return [portfolio.starting_capital, currentTotalValue];
-    }
-
-    return [portfolio.starting_capital];
-  }, [snapshots, currentTotalValue, portfolio.starting_capital]);
-
-  // Calculate percentage change from starting capital
-  const percentChange = useMemo(() => {
-    const startValue = portfolio.starting_capital;
-    const currentValue = currentTotalValue;
-    if (startValue === 0) return 0;
-    return ((currentValue - startValue) / Math.abs(startValue)) * 100;
-  }, [currentTotalValue, portfolio.starting_capital]);
-
-  const returnAmount = currentTotalValue - portfolio.starting_capital;
-
-  // Calculate chart color based on performance
-  const chartColor = useMemo(() => {
-    return currentTotalValue >= portfolio.starting_capital ? 'var(--color-success)' : 'var(--color-danger)';
-  }, [currentTotalValue, portfolio.starting_capital]);
-
-  const createdDate = new Date(portfolio.created_at).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  // Generate smooth path for SVG chart
-  const generateSmoothPath = (points) => {
-    if (points.length < 2) return "";
-    return points.reduce((acc, point, i, a) => {
-      if (i === 0) return `M ${point[0]},${point[1]}`;
-      const [cpsX, cpsY] = a[i - 1];
-      const [cpeX, cpeY] = point;
-      const cp1x = cpsX + (cpeX - cpsX) / 3;
-      const cp1y = cpsY;
-      const cp2x = cpsX + (cpeX - cpsX) * 2 / 3;
-      const cp2y = cpeY;
-      return `${acc} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${cpeX},${cpeY}`;
-    }, "");
-  };
-
-  // Generate chart paths
-  const { areaPath, linePath } = useMemo(() => {
-    if (!chartData || chartData.length < 2) return { areaPath: "", linePath: "" };
-
-    const width = 100;
-    const height = 100;
-    const max = Math.max(...chartData);
-    const min = Math.min(...chartData);
-    const range = max - min || 1;
-    // Add padding to prevent flat lines at top/bottom
-    const padding = range * 0.2;
-    const adjustedMin = min - padding;
-    const adjustedRange = range + padding * 2;
-    const stepX = width / (chartData.length - 1);
-
-    const points = chartData.map((val, i) => {
-      const x = i * stepX;
-      // Invert Y because SVG 0 is top
-      const y = height - ((val - adjustedMin) / adjustedRange) * height;
-      return [x, y];
-    });
-
-    const smoothLine = generateSmoothPath(points);
-    const area = `${smoothLine} L ${width},${height} L 0,${height} Z`;
-
-    return { areaPath: area, linePath: smoothLine };
-  }, [chartData]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-surface)]/30 animate-pulse">
-        <div className="w-6 h-6 rounded bg-[var(--color-border)]" />
-        <div className="flex-1">
-          <div className="h-3 bg-[var(--color-border)] rounded w-24 mb-1" />
-          <div className="h-3 bg-[var(--color-border)] rounded w-16" />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-surface)]/40 hover:bg-[var(--color-surface)]/60 border border-[var(--color-border)]/30 cursor-pointer transition-all group"
-      onClick={onCardClick}
-    >
-      {/* AI Model Icon */}
-      <div
-        className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: `${model.color}15` }}
-      >
-        <ModelIcon
-          className="w-3.5 h-3.5"
-          style={{ color: model.color === '#000000' ? 'var(--color-fg)' : model.color }}
-        />
+        <ModelIcon className="w-4 h-4 text-[var(--color-muted)]" />
       </div>
 
-      {/* Portfolio Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</h3>
-          <span className="text-[10px] text-[var(--color-muted)]/60 hidden sm:inline">{model.name}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-          <span>{formatCurrency(portfolio.starting_capital)} initial</span>
-          <span className="text-[var(--color-border)]">•</span>
-          <span>{createdDate}</span>
-        </div>
+        <div className="text-sm font-medium text-[var(--color-fg)] truncate">{portfolio.name}</div>
+        <div className="text-xs text-[var(--color-muted)]">{model.name}</div>
       </div>
 
-      {/* Value & Returns */}
       <div className="text-right flex-shrink-0">
         <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-          {formatCurrency(currentTotalValue || 0)}
+          {loading ? '...' : formatCurrency(currentValue)}
         </div>
-        <div className={`text-xs tabular-nums ${percentChange > 0 ? 'text-emerald-500' :
-          percentChange < 0 ? 'text-rose-500' :
-            'text-[var(--color-muted)]'
-          }`}>
+        <div className={`text-xs tabular-nums ${percentChange > 0 ? 'text-emerald-500' : percentChange < 0 ? 'text-rose-500' : 'text-[var(--color-muted)]'}`}>
           {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}%
         </div>
       </div>
 
-      {/* Chevron */}
-      <svg
-        className="w-4 h-4 text-[var(--color-muted)]/50 group-hover:text-[var(--color-muted)] transition-colors flex-shrink-0"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-      </svg>
+      <LuChevronRight className="w-4 h-4 text-[var(--color-muted)]/50 group-hover:text-[var(--color-muted)] flex-shrink-0" />
     </div>
   );
 }

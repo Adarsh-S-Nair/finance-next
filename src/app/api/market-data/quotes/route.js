@@ -1,13 +1,15 @@
 /**
- * Stock Quotes API - Fetches current prices with in-memory caching only
+ * Stock & Crypto Quotes API - Fetches current prices with in-memory caching only
  *
- * GET /api/market-data/quotes?tickers=AAPL,MSFT,NVDA
+ * GET /api/market-data/quotes?tickers=AAPL,MSFT,NVDA,BTC,ETH
  *
  * Returns cached prices from an in-memory map if < 5 minutes old, otherwise fetches
- * fresh from Yahoo Finance. No database reads or writes are performed here.
+ * fresh from Yahoo Finance. Automatically detects crypto tickers and appends -USD suffix.
+ * No database reads or writes are performed here.
  */
 
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Cache TTL: 5 minutes (matches frontend refresh cadence)
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -17,10 +19,32 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // which is fine for our use case—it's only a performance optimization.
 const inMemoryCache = new Map();
 
-async function fetchQuoteFromYahoo(ticker) {
+// Lazy initialize supabase admin client
+let supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseAdmin;
+}
+
+/**
+ * Fetch quote from Yahoo Finance
+ * For crypto tickers, automatically appends -USD suffix
+ * @param {string} ticker - Original ticker symbol
+ * @param {boolean} isCrypto - Whether this is a cryptocurrency
+ * @returns {Promise<number|null>} Price or null if not found
+ */
+async function fetchQuoteFromYahoo(ticker, isCrypto = false) {
+  // For crypto, Yahoo Finance uses format like BTC-USD, ETH-USD
+  const yahooTicker = isCrypto ? `${ticker}-USD` : ticker;
+  
   try {
     // Try quote endpoint first (has postMarketPrice, regularMarketPrice, etc.)
-    const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}`;
+    const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yahooTicker}`;
     
     const quoteResponse = await fetch(quoteUrl, {
       headers: {
@@ -34,13 +58,15 @@ async function fetchQuoteFromYahoo(ticker) {
       
       if (quoteResult) {
         // Prefer postMarketPrice if available (after-hours), otherwise regularMarketPrice
+        // For crypto, regularMarketPrice is always current (24/7 trading)
         const price = quoteResult.postMarketPrice ?? quoteResult.regularMarketPrice;
         
         if (price !== null && price !== undefined) {
           const priceSource = quoteResult.postMarketPrice !== null && quoteResult.postMarketPrice !== undefined 
             ? 'postMarket' 
             : 'regularMarket';
-          console.log(`[Quote ${ticker}] Using ${priceSource} price: ${price}`);
+          const assetType = isCrypto ? '🪙 Crypto' : '📊 Stock';
+          console.log(`[Quote ${ticker}] ${assetType} Using ${priceSource} price: ${price}${isCrypto ? ` (fetched as ${yahooTicker})` : ''}`);
           return price;
         }
       }
@@ -50,7 +76,7 @@ async function fetchQuoteFromYahoo(ticker) {
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = endDate - (2 * 24 * 60 * 60); // 2 days for safety
 
-    const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&period1=${startDate}&period2=${endDate}`;
+    const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=1d&period1=${startDate}&period2=${endDate}`;
 
     const chartResponse = await fetch(chartUrl, {
       headers: {
@@ -59,7 +85,7 @@ async function fetchQuoteFromYahoo(ticker) {
     });
 
     if (!chartResponse.ok) {
-      console.log(`[Quote ${ticker}] Chart API returned ${chartResponse.status}`);
+      console.log(`[Quote ${ticker}] Chart API returned ${chartResponse.status}${isCrypto ? ` (tried ${yahooTicker})` : ''}`);
       return null;
     }
 
@@ -81,7 +107,8 @@ async function fetchQuoteFromYahoo(ticker) {
     }
 
     const currentPrice = validCloses[validCloses.length - 1];
-    console.log(`[Quote ${ticker}] Using chart close price: ${currentPrice}`);
+    const assetType = isCrypto ? '🪙 Crypto' : '📊 Stock';
+    console.log(`[Quote ${ticker}] ${assetType} Using chart close price: ${currentPrice}`);
     return currentPrice;
 
   } catch (error) {
@@ -118,6 +145,32 @@ export async function GET(request) {
       );
     }
 
+    // Look up asset types from tickers table to determine crypto vs stock
+    // This allows us to fetch crypto prices correctly (with -USD suffix for Yahoo)
+    const cryptoTickers = new Set();
+    try {
+      const supabase = getSupabaseAdmin();
+      const { data: tickerData } = await supabase
+        .from('tickers')
+        .select('symbol, asset_type')
+        .in('symbol', tickers);
+      
+      if (tickerData) {
+        tickerData.forEach(t => {
+          if (t.asset_type === 'crypto') {
+            cryptoTickers.add(t.symbol);
+          }
+        });
+      }
+      
+      if (cryptoTickers.size > 0) {
+        console.log(`[Quotes] Detected ${cryptoTickers.size} crypto tickers:`, Array.from(cryptoTickers));
+      }
+    } catch (dbError) {
+      // If DB lookup fails, continue without crypto detection
+      console.warn('[Quotes] Could not look up asset types from DB:', dbError.message);
+    }
+
     const now = new Date();
     const cacheThreshold = now.getTime() - CACHE_TTL_MS;
 
@@ -152,7 +205,8 @@ export async function GET(request) {
       // Fetch in parallel (Yahoo Finance can handle it)
       const freshPrices = await Promise.all(
         staleTickers.map(async (ticker) => {
-          const price = await fetchQuoteFromYahoo(ticker);
+          const isCrypto = cryptoTickers.has(ticker);
+          const price = await fetchQuoteFromYahoo(ticker, isCrypto);
           return { ticker, price };
         })
       );
@@ -180,6 +234,7 @@ export async function GET(request) {
       quotes,
       fromCache: cachedTickers.size,
       fetched: staleTickers.length,
+      cryptoCount: cryptoTickers.size,
       cacheTTL: CACHE_TTL_MS / 1000 / 60 + ' minutes'
     });
 

@@ -147,35 +147,26 @@ export default function LineChart({
     const effectiveWidth = Math.max(1, effectiveRight - effectiveLeft);
     const relativeX = Math.max(0, Math.min(effectiveWidth, x - effectiveLeft));
 
-    // For better UX with few data points, create larger hover zones
-    // Each data point gets a "zone" - for 2 points, left half = first, right half = second
+    // For better UX, create hover zones for each data point
     let index: number;
     
     if (data.length === 1) {
       index = 0;
     } else if (data.length === 2) {
       // Split chart into two halves for easier hovering
-      // Left 50% = first point, right 50% = second point
       const midpoint = effectiveWidth / 2;
       index = relativeX < midpoint ? 0 : 1;
     } else {
-      // For more points, use proportional calculation with better edge handling
+      // For more points, use proportional calculation
+      // Each data point gets an equal-width zone
       const normalizedX = relativeX / effectiveWidth;
-      // Use floor for left side, ceil for right side to make edges easier to hit
       const rawIndex = normalizedX * (data.length - 1);
-      if (normalizedX < 0.1) {
-        // Very left edge - always first point
-        index = 0;
-      } else if (normalizedX > 0.9) {
-        // Very right edge - always last point
-        index = data.length - 1;
-      } else {
-        // Middle area - round normally
-        index = Math.min(
-          Math.max(0, Math.round(rawIndex)),
-          data.length - 1
-        );
-      }
+      
+      // Round to nearest index, clamped to valid range
+      index = Math.min(
+        Math.max(0, Math.round(rawIndex)),
+        data.length - 1
+      );
     }
 
     setActiveIndex(index);

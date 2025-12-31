@@ -1,0 +1,26 @@
+{
+  "timeframes": {
+    "signalTimeframe": "5m",
+    "regimeTimeframe": "1h",
+    "executionTimeframe": "1m"
+  },
+  "risk": {
+    "riskPerTradePct": 0.0075,
+    "maxOpenPositions": 2,
+    "maxDailyNetOutflowPct": 1.0,
+    "cooldownBarsAfterStop": 6,
+    "requireStopLoss": true,
+    "feeBps": 5,
+    "slippageBps": 5
+  },
+  "strategy": {
+    "emaFast": 20,
+    "emaSlow": 200,
+    "rsiPeriod": 14,
+    "pullbackPct": 0.012,
+    "rsiMin": 30,
+    "rsiMax": 55,
+    "stopLossPct": 0.03,
+    "takeProfitRMultiple": 2.0
+  }
+}

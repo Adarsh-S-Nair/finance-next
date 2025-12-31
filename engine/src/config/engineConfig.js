@@ -1,37 +1,15 @@
 /**
  * Engine configuration and risk constraints
  * Provides default settings and utilities for merging portfolio-specific overrides
+ * 
+ * SINGLE SOURCE OF TRUTH: engine/src/core/config.json
+ * 
+ * Both this CommonJS wrapper (for Node.js/fly.io) and the ES module (for Next.js)
+ * import from the same config.json file - NO DUPLICATION.
  */
 
-/**
- * Default engine configuration
- */
-const ENGINE_CONFIG = {
-  timeframes: {
-    signalTimeframe: "5m",
-    regimeTimeframe: "1h",
-    executionTimeframe: "1m",
-  },
-  risk: {
-    riskPerTradePct: 0.0075,        // 0.75% risk per trade (was 0.5%)
-    maxOpenPositions: 2,            // Allow 2 concurrent positions (was 1)
-    maxDailyNetOutflowPct: 1.0,     // 100% max daily net cash outflow limit
-    cooldownBarsAfterStop: 6,
-    requireStopLoss: true,
-    feeBps: 5,                      // 5 basis points (0.05%)
-    slippageBps: 5,                 // 5 basis points (0.05%)
-  },
-  strategy: {
-    emaFast: 20,
-    emaSlow: 200,
-    rsiPeriod: 14,
-    pullbackPct: 0.008,             // 0.8% (was 0.3%) - catch more pullback entries
-    rsiMin: 30,                     // Was 40 - only filter oversold
-    rsiMax: 70,                     // Was 55 - only filter overbought
-    stopLossPct: 0.01,              // 1.0% (was 0.5%) - reduce noise stop-outs
-    takeProfitRMultiple: 2.5,       // 2.5R (was 2R) - higher reward for wider stop
-  },
-};
+// Import from JSON - the single source of truth
+const ENGINE_CONFIG = require('../core/config.json');
 
 /**
  * Get default engine configuration

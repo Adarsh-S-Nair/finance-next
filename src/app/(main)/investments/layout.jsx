@@ -21,8 +21,11 @@ export default function InvestmentsLayout({ children }) {
   });
 
   // Extract portfolio ID from pathname if we're on a detail page
-  const portfolioId = pathname?.match(/\/investments\/([^/]+)/)?.[1];
-  const isDetailPage = !!portfolioId;
+  // Exclude "backtest" route from being treated as a portfolio ID
+  const portfolioIdMatch = pathname?.match(/\/investments\/([^/]+)/)?.[1];
+  const portfolioId = portfolioIdMatch && portfolioIdMatch !== 'backtest' ? portfolioIdMatch : null;
+  const isBacktestPage = portfolioIdMatch === 'backtest';
+  const isDetailPage = !!portfolioId || isBacktestPage;
 
   // Fetch portfolio name for detail pages
   useEffect(() => {
@@ -66,7 +69,9 @@ export default function InvestmentsLayout({ children }) {
                   Portfolios
                 </button>
                 <LuChevronRight className="w-3.5 h-3.5 text-[var(--color-border)]" />
-                {portfolioName ? (
+                {isBacktestPage ? (
+                  <span className="text-[var(--color-fg)] font-medium">Backtest Results</span>
+                ) : portfolioName ? (
                   <span className="text-[var(--color-fg)] font-medium">{portfolioName}</span>
                 ) : (
                   <span className="text-[var(--color-muted)]">Loading...</span>

@@ -96,14 +96,35 @@ export async function POST(request) {
       account_ids: accounts?.map(a => a.account_id) || []
     });
 
-    // Create a map of security_id -> ticker for quick lookup
+    // Create a map of security_id -> security info for quick lookup
+    // Plaid's security.type can be: cash, cryptocurrency, derivative, equity, etf, fixed income, loan, mutual fund, other
     const securityMap = new Map();
     if (securities) {
       securities.forEach(security => {
         // Use ticker_symbol if available, otherwise use name or security_id
         const ticker = security.ticker_symbol || security.name || security.security_id;
-        securityMap.set(security.security_id, ticker);
+        
+        // Determine asset type from Plaid's security type
+        const isCrypto = security.type === 'cryptocurrency';
+        
+        securityMap.set(security.security_id, {
+          ticker,
+          type: security.type,
+          isCrypto,
+          name: security.name,
+          // For crypto, use the ticker as-is; for stocks, we might need exchange info
+          assetType: isCrypto ? 'crypto' : 'stock'
+        });
       });
+      
+      if (DEBUG) {
+        const cryptoSecurities = Array.from(securityMap.values()).filter(s => s.isCrypto);
+        const stockSecurities = Array.from(securityMap.values()).filter(s => !s.isCrypto);
+        console.log(`📊 Security types: ${stockSecurities.length} stocks/ETFs, ${cryptoSecurities.length} crypto`);
+        if (cryptoSecurities.length > 0) {
+          console.log(`🪙 Crypto holdings:`, cryptoSecurities.map(s => s.ticker));
+        }
+      }
     }
 
     // Create a map of account_id -> account for quick lookup
@@ -228,8 +249,13 @@ export async function POST(request) {
       // Use a Map to aggregate holdings by ticker (in case Plaid returns duplicates)
       const holdingsByTicker = new Map();
 
+      // Track which tickers are crypto for later ticker upserts
+      const cryptoTickers = new Set();
+      const tickerSecurityInfo = new Map(); // ticker -> security info from Plaid
+      
       accountHoldings.forEach(holding => {
-        const ticker = securityMap.get(holding.security_id) || holding.security_id;
+        const securityInfo = securityMap.get(holding.security_id) || { ticker: holding.security_id, isCrypto: false, assetType: 'stock' };
+        const ticker = securityInfo.ticker || holding.security_id;
         const tickerUpper = ticker.toUpperCase();
         const quantity = parseFloat(holding.quantity) || 0;
         const costBasis = parseFloat(holding.cost_basis) || 0;
@@ -245,10 +271,19 @@ export async function POST(request) {
           return; // Skip adding to holdings
         }
 
+        // Track crypto tickers
+        if (securityInfo.isCrypto) {
+          cryptoTickers.add(tickerUpper);
+          tickerSecurityInfo.set(tickerUpper, securityInfo);
+        } else {
+          tickerSecurityInfo.set(tickerUpper, securityInfo);
+        }
+
         totalHoldingsValue += institutionValue;
 
         if (DEBUG) {
-          console.log(`  📊 Holding: ${tickerUpper} - ${quantity} shares @ $${costBasis > 0 && quantity > 0 ? (costBasis / quantity).toFixed(2) : '0.00'} = $${institutionValue.toFixed(2)}`);
+          const assetLabel = securityInfo.isCrypto ? '🪙 Crypto' : '📊 Stock';
+          console.log(`  ${assetLabel}: ${tickerUpper} - ${quantity} shares @ $${costBasis > 0 && quantity > 0 ? (costBasis / quantity).toFixed(2) : '0.00'} = $${institutionValue.toFixed(2)}`);
         }
 
         // Aggregate holdings by ticker (sum shares, weighted average for cost)
@@ -272,6 +307,10 @@ export async function POST(request) {
           });
         }
       });
+      
+      if (DEBUG && cryptoTickers.size > 0) {
+        console.log(`  🪙 Found ${cryptoTickers.size} crypto holdings:`, Array.from(cryptoTickers));
+      }
 
       // Convert map to array
       holdingsToUpsert.push(...Array.from(holdingsByTicker.values()));
@@ -279,11 +318,18 @@ export async function POST(request) {
       // Get unique tickers to check/create in database
       const uniqueTickers = Array.from(holdingsByTicker.keys());
       
+      // Separate crypto and stock tickers
+      const stockTickers = uniqueTickers.filter(t => !cryptoTickers.has(t));
+      const cryptoTickersList = uniqueTickers.filter(t => cryptoTickers.has(t));
+      
+      if (DEBUG) {
+        console.log(`  📊 Processing ${stockTickers.length} stock tickers and ${cryptoTickersList.length} crypto tickers`);
+      }
+      
       // Check which tickers exist in database and which are missing data
-      // Query ALL tickers (not just the ones in holdings) to catch any that might have been inserted elsewhere
       const { data: existingTickers, error: tickerCheckError } = await supabaseAdmin
         .from('tickers')
-        .select('symbol, name, sector, logo')
+        .select('symbol, name, sector, logo, asset_type')
         .in('symbol', uniqueTickers);
 
       if (tickerCheckError) {
@@ -293,49 +339,54 @@ export async function POST(request) {
       const existingTickerSymbols = new Set((existingTickers || []).map(t => t.symbol));
       const newTickers = uniqueTickers.filter(t => !existingTickerSymbols.has(t));
       
-      // Also find existing tickers that are missing data (name, sector, or logo)
-      // Check for null, undefined, or empty string values
+      // Also find existing tickers that are missing data OR have wrong asset_type
       const existingTickersMissingData = (existingTickers || []).filter(t => {
         const hasName = t.name && t.name.trim() !== '';
         const hasSector = t.sector && t.sector.trim() !== '';
         const hasLogo = t.logo && t.logo.trim() !== '';
-        return !hasName || !hasSector || !hasLogo;
+        // Check if asset_type is wrong (e.g., crypto marked as stock)
+        const isCrypto = cryptoTickers.has(t.symbol);
+        const correctAssetType = isCrypto ? 'crypto' : 'stock';
+        const hasCorrectAssetType = t.asset_type === correctAssetType;
+        return !hasName || !hasSector || !hasLogo || !hasCorrectAssetType;
       }).map(t => t.symbol);
       
       // Combine new tickers and existing tickers missing data
       const tickersToProcess = [...new Set([...newTickers, ...existingTickersMissingData])];
+      
+      // Split into stock and crypto for processing
+      const stockTickersToProcess = tickersToProcess.filter(t => !cryptoTickers.has(t));
+      const cryptoTickersToProcess = tickersToProcess.filter(t => cryptoTickers.has(t));
 
-      // Fetch details and create/update tickers
-      if (tickersToProcess.length > 0) {
-        logger.info('Processing tickers', { 
-          new: newTickers.length, 
-          missingData: existingTickersMissingData.length,
-          total: tickersToProcess.length,
-          tickers: tickersToProcess 
+      // Build map of existing ticker data for preservation
+      const existingTickerMap = new Map();
+      if (existingTickers) {
+        existingTickers.forEach(t => {
+          existingTickerMap.set(t.symbol, t);
         });
-        if (DEBUG) console.log(`  🔍 Found ${tickersToProcess.length} tickers to process (${newTickers.length} new, ${existingTickersMissingData.length} missing data):`, tickersToProcess);
+      }
+      
+      const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
+      const allTickerInserts = [];
 
-        // Fetch ticker details from Finnhub
+      // Process STOCK tickers - fetch details from Finnhub
+      if (stockTickersToProcess.length > 0) {
+        logger.info('Processing stock tickers', { 
+          new: stockTickersToProcess.filter(t => !existingTickerSymbols.has(t)).length, 
+          missingData: stockTickersToProcess.filter(t => existingTickerSymbols.has(t)).length,
+          total: stockTickersToProcess.length,
+          tickers: stockTickersToProcess 
+        });
+        if (DEBUG) console.log(`  🔍 Processing ${stockTickersToProcess.length} stock tickers:`, stockTickersToProcess);
+
+        // Fetch ticker details from Finnhub (only for stocks)
         const { fetchBulkTickerDetails } = await import('../../../../../../lib/marketData');
-        const tickerDetails = await fetchBulkTickerDetails(tickersToProcess, 250); // 250ms delay between requests
+        const tickerDetails = await fetchBulkTickerDetails(stockTickersToProcess, 250);
 
-        // Prepare ticker upserts with logos (match pattern from ai-trading/initialize)
-        const logoDevPublicKey = process.env.LOGO_DEV_PUBLIC_KEY;
-        
-        // Build map of existing ticker data for preservation
-        const existingTickerMap = new Map();
-        if (existingTickers) {
-          existingTickers.forEach(t => {
-            existingTickerMap.set(t.symbol, t);
-          });
-        }
-
-        const tickerInserts = tickerDetails.map(detail => {
+        tickerDetails.forEach(detail => {
           const symbol = detail.ticker.toUpperCase();
           const existingTicker = existingTickerMap.get(symbol);
           
-          // Use existing data if available and valid, otherwise use fetched data
-          // This ensures we populate missing fields even if they were NULL before
           const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
             ? existingTicker.name 
             : (detail.name || null);
@@ -344,44 +395,68 @@ export async function POST(request) {
             : (detail.sector || null);
           const domain = detail.domain || null;
           
-          // Logo logic: preserve existing logo if valid, otherwise generate from domain
           let logo = null;
           if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
-            // Preserve existing logo (already has a valid logo)
             logo = existingTicker.logo;
           } else if (domain && logoDevPublicKey) {
-            // Generate logo URL from domain using logo.dev
             logo = `https://img.logo.dev/${domain}?token=${logoDevPublicKey}`;
           }
-          // If no domain available, logo remains null
 
-          // Log if we're updating a ticker that had NULL values
-          if (existingTicker && (!existingTicker.name || !existingTicker.sector || !existingTicker.logo)) {
-            const updatedFields = [];
-            if (!existingTicker.name && name) updatedFields.push('name');
-            if (!existingTicker.sector && sector) updatedFields.push('sector');
-            if (!existingTicker.logo && logo) updatedFields.push('logo');
-            if (updatedFields.length > 0) {
-              logger.info('Populating missing ticker data', { 
-                symbol, 
-                updatedFields 
-              });
-              if (DEBUG) console.log(`  📝 Populating missing data for ${symbol}: ${updatedFields.join(', ')}`);
-            }
-          }
-
-          return {
+          allTickerInserts.push({
             symbol: symbol,
             name: name,
             sector: sector,
             logo: logo,
-          };
+            asset_type: 'stock', // Explicitly set as stock
+          });
         });
+      }
 
-        // Upsert tickers (will update existing ones that are missing data)
+      // Process CRYPTO tickers - use Plaid's security info, no Finnhub
+      if (cryptoTickersToProcess.length > 0) {
+        logger.info('Processing crypto tickers', { 
+          count: cryptoTickersToProcess.length,
+          tickers: cryptoTickersToProcess 
+        });
+        if (DEBUG) console.log(`  🪙 Processing ${cryptoTickersToProcess.length} crypto tickers:`, cryptoTickersToProcess);
+
+        cryptoTickersToProcess.forEach(ticker => {
+          const existingTicker = existingTickerMap.get(ticker);
+          const securityInfo = tickerSecurityInfo.get(ticker);
+          
+          // Use Plaid's security name if available
+          const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
+            ? existingTicker.name 
+            : (securityInfo?.name || ticker);
+          
+          // Crypto doesn't have a "sector" in the traditional sense
+          const sector = (existingTicker?.sector && existingTicker.sector.trim() !== '') 
+            ? existingTicker.sector 
+            : 'Cryptocurrency';
+          
+          // For crypto logos, we could use a crypto-specific logo service
+          // For now, preserve existing logo or leave null
+          const logo = (existingTicker?.logo && existingTicker.logo.trim() !== '') 
+            ? existingTicker.logo 
+            : null;
+
+          allTickerInserts.push({
+            symbol: ticker,
+            name: name,
+            sector: sector,
+            logo: logo,
+            asset_type: 'crypto', // Explicitly set as crypto
+          });
+          
+          if (DEBUG) console.log(`  🪙 Crypto ticker: ${ticker} (name: ${name})`);
+        });
+      }
+
+      // Upsert all tickers (stocks and crypto)
+      if (allTickerInserts.length > 0) {
         const { error: tickerInsertError } = await supabaseAdmin
           .from('tickers')
-          .upsert(tickerInserts, {
+          .upsert(allTickerInserts, {
             onConflict: 'symbol',
             ignoreDuplicates: false, // Update if exists
           });
@@ -390,8 +465,10 @@ export async function POST(request) {
           logger.error('Error upserting tickers', null, { error: tickerInsertError });
           if (DEBUG) console.log(`  ⚠️ Error upserting tickers:`, tickerInsertError);
         } else {
-          logger.info('Successfully processed tickers', { count: tickerInserts.length });
-          if (DEBUG) console.log(`  ✅ Processed ${tickerInserts.length} tickers (created/updated)`);
+          const stockCount = allTickerInserts.filter(t => t.asset_type === 'stock').length;
+          const cryptoCount = allTickerInserts.filter(t => t.asset_type === 'crypto').length;
+          logger.info('Successfully processed tickers', { total: allTickerInserts.length, stocks: stockCount, crypto: cryptoCount });
+          if (DEBUG) console.log(`  ✅ Processed ${allTickerInserts.length} tickers (${stockCount} stocks, ${cryptoCount} crypto)`);
         }
       }
       

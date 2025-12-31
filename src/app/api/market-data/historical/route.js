@@ -66,11 +66,15 @@ export async function GET(request) {
     const closes = result.indicators?.quote?.[0]?.close || [];
 
     // Create a map of date string to price
+    // Use local date string based on market timezone (US/Eastern approximation)
     const priceMap = {};
     for (let i = 0; i < timestamps.length; i++) {
       if (closes[i] !== null && closes[i] !== undefined) {
         const date = new Date(timestamps[i] * 1000);
-        const dateString = date.toISOString().split('T')[0];
+        // Adjust for market timezone - Yahoo returns timestamps in local market time
+        // For US stocks, the close timestamp is typically around 4pm ET
+        // Using toLocaleDateString to get a consistent date representation
+        const dateString = date.toLocaleDateString('en-CA'); // YYYY-MM-DD format
         priceMap[dateString] = closes[i];
       }
     }
@@ -117,6 +121,11 @@ export async function GET(request) {
         console.log(`  ${date}: $${price.toFixed(2)}`);
       });
     }
+
+    // Log historical prices for debugging
+    const sortedPrices = Object.entries(prices).sort(([a], [b]) => a.localeCompare(b));
+    console.log(`[Historical ${ticker}] Returning prices for ${sortedPrices.length} dates:`, 
+      sortedPrices.map(([date, price]) => `${date}: $${price.toFixed(2)}`).join(', '));
 
     return NextResponse.json({
       ticker,
