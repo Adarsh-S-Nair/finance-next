@@ -983,12 +983,12 @@ export default function InvestmentsPage() {
         });
         setAllHoldings(combinedHoldings);
 
-        // Fetch AI portfolios
+        // Fetch AI portfolios (paper trading)
         const { data: aiPortfoliosData } = await supabase
           .from('portfolios')
           .select('*')
           .eq('user_id', profile.id)
-          .eq('type', 'ai_trading')
+          .eq('type', 'ai_simulation')
           .order('created_at', { ascending: false });
 
         setPortfolios(aiPortfoliosData || []);
@@ -1012,13 +1012,22 @@ export default function InvestmentsPage() {
         cash: 0,
         totalPortfolioValue: 0,
         cashPercentage: 0,
-        holdingsWithValues: []
+        holdingsWithValues: [],
+        assetTypeTotals: {
+          stock: 0,
+          crypto: 0,
+          cash: 0
+        }
       };
     }
 
     const holdingsWithValues = [];
     let totalHoldingsValue = 0;
-    let totalCash = 0;
+    const assetTypeTotals = {
+      stock: 0,
+      crypto: 0,
+      cash: 0
+    };
 
     investmentPortfolios.forEach(portfolio => {
       // Process each holding in this portfolio
@@ -1035,7 +1044,7 @@ export default function InvestmentsPage() {
         if (isCashHolding) {
           // Cash holdings: the value IS the cash amount (price is always 1.0)
           const cashValue = shares * 1.0; // shares represents the dollar amount
-          totalCash += cashValue;
+          assetTypeTotals.cash += cashValue;
         } else {
           // Non-cash holdings: calculate value at current market price
           const currentPrice = quote?.price || null;
@@ -1043,6 +1052,14 @@ export default function InvestmentsPage() {
           const value = shares * priceForCalc;
           
           totalHoldingsValue += value;
+          
+          // Add to asset type totals
+          if (assetType === 'crypto') {
+            assetTypeTotals.crypto += value;
+          } else {
+            // Default to stock for any non-crypto, non-cash asset
+            assetTypeTotals.stock += value;
+          }
 
           const existing = holdingsWithValues.find(hv => hv.ticker === ticker);
           if (existing) {
@@ -1068,8 +1085,8 @@ export default function InvestmentsPage() {
       });
     });
 
-    const cash = totalCash;
-    const totalPortfolioValue = totalHoldingsValue + cash;
+    const cash = assetTypeTotals.cash;
+    const totalPortfolioValue = assetTypeTotals.stock + assetTypeTotals.crypto + assetTypeTotals.cash;
     const cashPercentage = totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0;
 
     holdingsWithValues.sort((a, b) => b.value - a.value);
@@ -1079,7 +1096,8 @@ export default function InvestmentsPage() {
       cash,
       totalPortfolioValue,
       cashPercentage,
-      holdingsWithValues
+      holdingsWithValues,
+      assetTypeTotals
     };
   }, [investmentPortfolios, stockQuotes]);
 
@@ -1744,10 +1762,10 @@ function HoldingRow({ holding, sparkline, showBorder = true }) {
 
   return (
     <div
-      className={`flex items-center justify-between px-4 py-3 hover:bg-[var(--color-surface)]/20 transition-colors ${showBorder ? 'border-b border-white/5 dark:border-white/[0.02] last:border-b-0' : ''}`}
+      className={`grid grid-cols-[1fr_90px_140px] items-center gap-6 px-4 py-3 hover:bg-[var(--color-surface)]/20 transition-colors ${showBorder ? 'border-b border-white/5 dark:border-white/[0.02] last:border-b-0' : ''}`}
     >
       {/* Left section: Logo + ticker info */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex items-center gap-3 min-w-0">
         <div
           className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
           style={{
@@ -1776,18 +1794,18 @@ function HoldingRow({ holding, sparkline, showBorder = true }) {
         </div>
       </div>
 
-      {/* Mini sparkline */}
-      <div className="flex-shrink-0 mx-3 flex items-center justify-center" style={{ width: 70 }}>
+      {/* Sparkline column - fixed width, centered */}
+      <div className="flex items-center justify-center">
         <MiniSparkline data={sparkline} width={70} height={24} maxPoints={20} />
       </div>
 
-      {/* Right section: Value + gain */}
-      <div className="text-right flex-shrink-0" style={{ minWidth: 110 }}>
+      {/* Right section: Value + gain - fixed width, right-aligned */}
+      <div className="text-right">
         <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
           {formatCurrency(value)}
         </div>
         {gainPercent !== null ? (
-          <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' : gainPercent > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <div className={`text-xs tabular-nums whitespace-nowrap ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' : gainPercent > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {gainAmount >= 0 ? '+' : ''}{formatCurrency(gainAmount)} ({gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%)
           </div>
         ) : (
@@ -1872,8 +1890,10 @@ function HoldingsList({ holdings, sparklineData = {} }) {
 // ============================================================================
 
 function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
+  // Calculate invested percent (non-cash assets)
+  const nonCashValue = (portfolioMetrics.assetTypeTotals?.stock || 0) + (portfolioMetrics.assetTypeTotals?.crypto || 0);
   const investedPercent = portfolioMetrics.totalPortfolioValue > 0
-    ? ((portfolioMetrics.totalHoldingsValue / portfolioMetrics.totalPortfolioValue) * 100)
+    ? ((nonCashValue / portfolioMetrics.totalPortfolioValue) * 100)
     : 0;
 
   // Calculate each account's value and group by institution
@@ -1931,6 +1951,28 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
   }, [accounts, stockQuotes]);
 
   const cashPercent = 100 - investedPercent;
+  const totalValue = portfolioMetrics.totalPortfolioValue;
+  
+  // Create segments for the segmented bar grouped by asset type
+  const segments = [
+    {
+      label: 'Stocks',
+      amount: portfolioMetrics.assetTypeTotals?.stock || 0,
+      color: 'var(--color-neon-green)' // Use neon-green like Investments in accounts page
+    },
+    {
+      label: 'Crypto',
+      amount: portfolioMetrics.assetTypeTotals?.crypto || 0,
+      color: '#f59e0b' // Amber-500 for crypto
+    },
+    {
+      label: 'Cash',
+      amount: portfolioMetrics.assetTypeTotals?.cash || 0,
+      color: '#059669' // Emerald-600 like Cash in accounts page
+    }
+  ].filter(segment => segment.amount > 0);
+
+  const [hoveredSegment, setHoveredSegment] = useState(null);
 
   return (
     <Card variant="glass" padding="none">
@@ -1940,34 +1982,70 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
           Allocation
         </div>
         
-        <div className="h-1.5 rounded-full overflow-hidden bg-[var(--color-surface)] flex">
-          <div
-            className="h-full bg-[var(--color-accent)] transition-all duration-500"
-            style={{ width: `${investedPercent}%` }}
-          />
-        </div>
+        {/* Segmented Bar */}
+        {totalValue > 0 ? (
+          <div className="space-y-4">
+            {/* Bar */}
+            <div
+              className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface)]"
+              onMouseLeave={() => setHoveredSegment(null)}
+            >
+              {segments.map((segment) => {
+                const percentage = (segment.amount / totalValue) * 100;
+                const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
 
-        {/* Holdings & Cash - stacked */}
-        <div className="mt-3 space-y-1.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
-              <span className="text-xs text-[var(--color-muted)]">Holdings</span>
+                return (
+                  <div
+                    key={segment.label}
+                    className="h-full transition-all duration-200 cursor-pointer"
+                    style={{
+                      width: `${percentage}%`,
+                      backgroundColor: segment.color,
+                      opacity: isDimmed ? 0.3 : 1,
+                    }}
+                    onMouseEnter={() => setHoveredSegment(segment)}
+                  />
+                );
+              })}
             </div>
-            <span className="text-xs text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(portfolioMetrics.totalHoldingsValue)} <span className="text-[var(--color-muted)]">({investedPercent.toFixed(0)}%)</span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-muted)]">Cash</span>
+
+            {/* Vertical Legend */}
+            <div className="space-y-2 pt-1">
+              {segments.map((segment, index) => {
+                const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
+                const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+                const percentage = ((segment.amount / totalValue) * 100).toFixed(1);
+
+                return (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between text-xs transition-opacity duration-200 cursor-pointer ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+                    onMouseEnter={() => setHoveredSegment(segment)}
+                    onMouseLeave={() => setHoveredSegment(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: segment.color }}
+                      />
+                      <span className={`text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                        {segment.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[var(--color-fg)] font-medium tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                        {formatCurrency(segment.amount)}
+                      </span>
+                      <span className="text-[var(--color-muted)] font-mono text-[10px]">{percentage}%</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <span className="text-xs text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(portfolioMetrics.cash)} <span className="text-[var(--color-muted)]">({cashPercent.toFixed(0)}%)</span>
-            </span>
           </div>
-        </div>
+        ) : (
+          <div className="w-full h-3 bg-[var(--color-border)]/20 rounded-full overflow-hidden" />
+        )}
       </div>
 
       {/* Accounts grouped by institution */}
@@ -1991,9 +2069,9 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
                     ) : (
                       <PiBankFill className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
                     )}
-                    <span className="text-xs font-medium text-[var(--color-fg)]">{institution.name}</span>
+                    <span className="text-xs text-[var(--color-muted)]">{institution.name}</span>
                   </div>
-                  <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                  <span className="text-xs text-[var(--color-fg)] font-medium tabular-nums">
                     {formatCurrency(institution.totalValue)}
                   </span>
                 </div>
@@ -2008,7 +2086,7 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
                       <span className="text-xs text-[var(--color-muted)] truncate pr-2">
                         {account.name}
                       </span>
-                      <span className="text-xs text-[var(--color-fg)] tabular-nums flex-shrink-0">
+                      <span className="text-xs text-[var(--color-fg)] font-medium tabular-nums flex-shrink-0">
                         {formatCurrency(account.totalValue)}
                       </span>
                     </div>
