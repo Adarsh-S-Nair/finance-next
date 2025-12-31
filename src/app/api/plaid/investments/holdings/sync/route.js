@@ -77,6 +77,14 @@ function getCryptoLogoUrl(ticker) {
   return null;
 }
 
+/**
+ * Check if a ticker symbol is a known cryptocurrency
+ * Used as fallback when Plaid doesn't return security.type === 'cryptocurrency'
+ */
+function isKnownCryptoTicker(ticker) {
+  return CRYPTO_CHAIN_MAP.hasOwnProperty(ticker.toUpperCase());
+}
+
 export async function POST(request) {
   let plaidItemId = null;
 
@@ -170,15 +178,25 @@ export async function POST(request) {
 
     // Create a map of security_id -> security info for quick lookup
     // Plaid's security.type can be: cash, cryptocurrency, derivative, equity, etf, fixed income, loan, mutual fund, other
+    // NOTE: Some brokers (like Robinhood) may not correctly return 'cryptocurrency' type,
+    // so we also check against our known crypto symbols as a fallback
     const securityMap = new Map();
     if (securities) {
       securities.forEach(security => {
         // Use ticker_symbol if available, otherwise use name or security_id
         const ticker = security.ticker_symbol || security.name || security.security_id;
+        const tickerUpper = ticker.toUpperCase();
         
-        // Determine asset type from Plaid's security type
-        const isCrypto = security.type === 'cryptocurrency';
+        // Determine asset type from Plaid's security type, with fallback for crypto
+        // Some brokers return crypto as 'equity' instead of 'cryptocurrency'
+        const isCryptoFromPlaid = security.type === 'cryptocurrency';
+        const isCryptoFromKnownSymbol = isKnownCryptoTicker(tickerUpper);
+        const isCrypto = isCryptoFromPlaid || isCryptoFromKnownSymbol;
         const isCash = security.type === 'cash' || security.is_cash_equivalent === true;
+        
+        if (isCryptoFromKnownSymbol && !isCryptoFromPlaid && DEBUG) {
+          console.log(`⚠️ Plaid returned ${tickerUpper} as type '${security.type}' but we detected it as crypto by symbol`);
+        }
         
         // Determine the asset_type for our database
         let assetType = 'stock'; // default
@@ -186,7 +204,7 @@ export async function POST(request) {
         else if (isCash) assetType = 'cash';
         
         securityMap.set(security.security_id, {
-          ticker,
+          ticker: tickerUpper,
           type: security.type,
           isCrypto,
           isCash,
@@ -337,12 +355,38 @@ export async function POST(request) {
       const tickerSecurityInfo = new Map(); // ticker -> security info from Plaid
       
       accountHoldings.forEach(holding => {
-        const securityInfo = securityMap.get(holding.security_id) || { ticker: holding.security_id, isCrypto: false, isCash: false, assetType: 'stock' };
+        let securityInfo = securityMap.get(holding.security_id);
+        
+        // If security not found in map, create fallback with crypto detection
+        if (!securityInfo) {
+          const fallbackTicker = (holding.security_id || '').toUpperCase();
+          const isCryptoFallback = isKnownCryptoTicker(fallbackTicker);
+          securityInfo = { 
+            ticker: fallbackTicker, 
+            isCrypto: isCryptoFallback, 
+            isCash: false, 
+            assetType: isCryptoFallback ? 'crypto' : 'stock',
+            name: fallbackTicker
+          };
+          if (DEBUG && isCryptoFallback) {
+            console.log(`⚠️ Security not in map but detected ${fallbackTicker} as crypto by symbol`);
+          }
+        }
+        
         const ticker = securityInfo.ticker || holding.security_id;
         const tickerUpper = ticker.toUpperCase();
         const quantity = parseFloat(holding.quantity) || 0;
         const costBasis = parseFloat(holding.cost_basis) || 0;
         const institutionValue = parseFloat(holding.institution_value) || 0;
+        
+        // Also check if ticker itself is a known crypto (in case Plaid misclassified)
+        const isCryptoBySymbol = isKnownCryptoTicker(tickerUpper);
+        if (isCryptoBySymbol && !securityInfo.isCrypto) {
+          securityInfo = { ...securityInfo, isCrypto: true, assetType: 'crypto' };
+          if (DEBUG) {
+            console.log(`⚠️ Overriding ${tickerUpper} as crypto (was: ${securityInfo.assetType})`);
+          }
+        }
 
         // Check for legacy CUR: prefixed cash positions
         const isLegacyCashFormat = tickerUpper.startsWith('CUR:');
