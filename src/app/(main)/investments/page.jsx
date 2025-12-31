@@ -896,10 +896,10 @@ export default function InvestmentsPage() {
         const uniqueTickers = [...new Set(allTickers)];
 
         if (uniqueTickers.length > 0) {
-          // Fetch ticker metadata (logos, names, sectors) from our DB
+          // Fetch ticker metadata (logos, names, sectors, asset_type) from our DB
           const { data: tickersData } = await supabase
             .from('tickers')
-            .select('symbol, logo, name, sector')
+            .select('symbol, logo, name, sector, asset_type')
             .in('symbol', uniqueTickers);
 
           const tickerMap = {};
@@ -915,6 +915,7 @@ export default function InvestmentsPage() {
               logo: tickerMap[ticker]?.logo || null,
               name: tickerMap[ticker]?.name || null,
               sector: tickerMap[ticker]?.sector || null,
+              assetType: tickerMap[ticker]?.asset_type || 'stock',
             };
           });
 
@@ -937,14 +938,22 @@ export default function InvestmentsPage() {
           setStockQuotes(quotesMap);
         }
 
+        // Combine holdings from all portfolios, filtering out cash holdings
         const combinedHoldings = [];
         (plaidPortfoliosData || []).forEach(portfolio => {
           (portfolio.holdings || []).forEach(h => {
-            combinedHoldings.push({
-              ...h,
-              portfolioId: portfolio.id,
-              portfolioName: portfolio.name
-            });
+            const ticker = (h.ticker || '').toUpperCase();
+            const assetType = h.asset_type || quotesMap[ticker]?.assetType || 'stock';
+            // Filter out cash holdings - they belong in the allocation section, not holdings display
+            const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
+            if (!isCashHolding) {
+              combinedHoldings.push({
+                ...h,
+                portfolioId: portfolio.id,
+                portfolioName: portfolio.name,
+                assetType: assetType
+              });
+            }
           });
         });
         setAllHoldings(combinedHoldings);
@@ -987,51 +996,51 @@ export default function InvestmentsPage() {
     let totalCash = 0;
 
     investmentPortfolios.forEach(portfolio => {
-      const account = portfolio.source_account;
-      const accountBalance = account?.balances?.current || 0;
-
-      // Calculate holdings value for THIS account at current market prices
-      let accountHoldingsValue = 0;
+      // Process each holding in this portfolio
       (portfolio.holdings || []).forEach(h => {
         const ticker = (h.ticker || '').toUpperCase();
         const quote = stockQuotes[ticker];
         const shares = h.shares || 0;
         const avgCost = h.avg_cost || 0;
+        const assetType = h.asset_type || quote?.assetType || 'stock';
         
-        // Use current price if available, otherwise fall back to avg_cost
-        const currentPrice = quote?.price || null;
-        const priceForCalc = currentPrice !== null ? currentPrice : avgCost;
-        const value = shares * priceForCalc;
+        // Check if this is a cash holding
+        const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
         
-        totalHoldingsValue += value;
-        accountHoldingsValue += value;
-
-        const existing = holdingsWithValues.find(hv => hv.ticker === ticker);
-        if (existing) {
-          existing.shares += shares;
-          existing.value += value;
-          // Weight average cost when combining
-          const totalShares = existing.shares;
-          existing.avgCost = ((existing.avgCost * (totalShares - shares)) + (avgCost * shares)) / totalShares;
+        if (isCashHolding) {
+          // Cash holdings: the value IS the cash amount (price is always 1.0)
+          const cashValue = shares * 1.0; // shares represents the dollar amount
+          totalCash += cashValue;
         } else {
-          holdingsWithValues.push({
-            ticker,
-            shares,
-            avgCost,
-            currentPrice,
-            value,
-            logo: quote?.logo || null,
-            name: quote?.name || null,
-            sector: quote?.sector || null
-          });
+          // Non-cash holdings: calculate value at current market price
+          const currentPrice = quote?.price || null;
+          const priceForCalc = currentPrice !== null ? currentPrice : avgCost;
+          const value = shares * priceForCalc;
+          
+          totalHoldingsValue += value;
+
+          const existing = holdingsWithValues.find(hv => hv.ticker === ticker);
+          if (existing) {
+            existing.shares += shares;
+            existing.value += value;
+            // Weight average cost when combining
+            const totalShares = existing.shares;
+            existing.avgCost = ((existing.avgCost * (totalShares - shares)) + (avgCost * shares)) / totalShares;
+          } else {
+            holdingsWithValues.push({
+              ticker,
+              shares,
+              avgCost,
+              currentPrice,
+              value,
+              logo: quote?.logo || null,
+              name: quote?.name || null,
+              sector: quote?.sector || null,
+              assetType
+            });
+          }
         }
       });
-
-      // Cash for this account = account balance - holdings value in this account
-      // If account has no holdings, full balance is cash
-      // If holdings exceed balance (due to price increases), cash is 0
-      const accountCash = Math.max(0, accountBalance - accountHoldingsValue);
-      totalCash += accountCash;
     });
 
     const cash = totalCash;
@@ -1784,27 +1793,37 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
     ? ((portfolioMetrics.totalHoldingsValue / portfolioMetrics.totalPortfolioValue) * 100)
     : 0;
 
-  // Calculate each account's value properly: holdings at market price + cash
+  // Calculate each account's value properly: holdings at market price + cash from holdings
   const accountsWithValues = useMemo(() => {
     return accounts.map(portfolio => {
       const account = portfolio.source_account;
-      const accountBalance = account?.balances?.current || 0;
       const institution = account?.institutions;
       const accountName = account?.name || 'Account';
 
-      // Calculate holdings value at current market prices
+      // Calculate holdings value and cash from actual holdings
       let holdingsValue = 0;
+      let cashValue = 0;
+      
       (portfolio.holdings || []).forEach(h => {
         const ticker = (h.ticker || '').toUpperCase();
         const quote = stockQuotes[ticker];
-        const price = quote?.price || h.avg_cost || 0;
-        holdingsValue += (h.shares || 0) * price;
+        const shares = h.shares || 0;
+        const assetType = h.asset_type || quote?.assetType || 'stock';
+        
+        // Check if this is a cash holding
+        const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
+        
+        if (isCashHolding) {
+          // Cash holdings: value = shares (which is the dollar amount)
+          cashValue += shares * 1.0;
+        } else {
+          // Non-cash: use market price or avg cost
+          const price = quote?.price || h.avg_cost || 0;
+          holdingsValue += shares * price;
+        }
       });
 
-      // Cash = account balance - holdings value (clamped to 0)
-      const cashValue = Math.max(0, accountBalance - holdingsValue);
-
-      // Total = holdings at market price + cash
+      // Total = holdings at market price + cash from holdings
       const totalValue = holdingsValue + cashValue;
 
       return {

@@ -5,76 +5,119 @@ import { createLogger } from '../../../../../../lib/logger';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('holdings-sync');
 
-// Mapping of crypto ticker symbols to Trust Wallet blockchain chain names for logos
-// Trust Wallet assets repo: https://github.com/trustwallet/assets/tree/master/blockchains
-const CRYPTO_CHAIN_MAP = {
-  'BTC': 'bitcoin',
-  'ETH': 'ethereum',
-  'SOL': 'solana',
-  'DOGE': 'doge',
-  'XRP': 'xrp',
-  'ADA': 'cardano',
-  'DOT': 'polkadot',
-  'AVAX': 'avalanchec',
-  'MATIC': 'polygon',
-  'LINK': 'ethereum', // LINK is on Ethereum
-  'ATOM': 'cosmos',
-  'LTC': 'litecoin',
-  'UNI': 'ethereum', // UNI is on Ethereum
-  'SHIB': 'ethereum', // SHIB is on Ethereum
-  'PEPE': 'ethereum', // PEPE is on Ethereum
-  'TRX': 'tron',
-  'BCH': 'bitcoincash',
-  'XLM': 'stellar',
-  'ALGO': 'algorand',
-  'VET': 'vechain',
-  'FIL': 'filecoin',
-  'NEAR': 'near',
-  'APT': 'aptos',
-  'ARB': 'arbitrum',
-  'OP': 'optimism',
-  'INJ': 'injective',
-  'SUI': 'sui',
-  'SEI': 'sei',
-  'TON': 'ton',
-  'HBAR': 'hedera',
-  'ETC': 'classic',
-  'XMR': 'monero',
-  'ICP': 'internet-computer',
-  'FTM': 'fantom',
-  'EGLD': 'elrond',
-  'THETA': 'theta',
-  'XTZ': 'tezos',
-  'EOS': 'eos',
-  'AAVE': 'ethereum', // AAVE is on Ethereum
-  'MKR': 'ethereum', // MKR is on Ethereum
-  'GRT': 'ethereum', // GRT is on Ethereum
-  'CRO': 'cronos',
-  'QNT': 'ethereum', // QNT is on Ethereum
-  'SAND': 'ethereum', // SAND is on Ethereum
-  'MANA': 'ethereum', // MANA is on Ethereum
-  'AXS': 'ethereum', // AXS is on Ethereum
-  'APE': 'ethereum', // APE is on Ethereum
-  'LDO': 'ethereum', // LDO is on Ethereum
-  'CRV': 'ethereum', // CRV is on Ethereum
-  'SNX': 'ethereum', // SNX is on Ethereum
-  'COMP': 'ethereum', // COMP is on Ethereum
-  '1INCH': 'ethereum', // 1INCH is on Ethereum
-  'ENS': 'ethereum', // ENS is on Ethereum
-  'BAT': 'ethereum', // BAT is on Ethereum
-};
+// =============================================================================
+// CRYPTO DETECTION & LOGO RESOLUTION
+// =============================================================================
+// Uses CoinGecko's free API to dynamically fetch crypto logos
+// No hardcoded mappings - works for any cryptocurrency
+
+// Common crypto tickers for quick detection (fallback when Plaid doesn't identify as crypto)
+// This is just for DETECTION, not for logos - logos come from CoinGecko
+const KNOWN_CRYPTO_TICKERS = new Set([
+  'BTC', 'ETH', 'SOL', 'DOGE', 'XRP', 'ADA', 'DOT', 'AVAX', 'MATIC', 'ATOM',
+  'LTC', 'TRX', 'BCH', 'XLM', 'ALGO', 'VET', 'FIL', 'NEAR', 'APT', 'ARB',
+  'OP', 'INJ', 'SUI', 'SEI', 'TON', 'HBAR', 'ETC', 'XMR', 'ICP', 'FTM',
+  'EGLD', 'THETA', 'XTZ', 'EOS', 'CRO', 'PEPE', 'SHIB', 'UNI', 'LINK',
+  'AAVE', 'MKR', 'GRT', 'SAND', 'MANA', 'AXS', 'APE', 'LDO', 'CRV', 'SNX',
+  'COMP', '1INCH', 'ENS', 'BAT', 'USDT', 'USDC', 'DAI', 'WBTC', 'WETH',
+  'POL', 'BNB', 'LEO', 'OKB', 'FDUSD', 'RENDER', 'TAO', 'KAS', 'IMX',
+]);
+
+// In-memory cache for CoinGecko lookups during a single sync operation
+const coinGeckoCache = new Map();
 
 /**
- * Get Trust Wallet logo URL for a crypto ticker
- * @param {string} ticker - Crypto ticker symbol (e.g., 'BTC', 'ETH')
- * @returns {string|null} - Logo URL or null if chain not found
+ * Fetch crypto logo from CoinGecko API
+ * CoinGecko provides free API with comprehensive crypto coverage
+ * @param {string} ticker - Crypto ticker symbol (e.g., 'BTC', 'PEPE', 'XRP')
+ * @returns {Promise<{logo: string|null, name: string|null}>}
  */
-function getCryptoLogoUrl(ticker) {
-  const chain = CRYPTO_CHAIN_MAP[ticker.toUpperCase()];
-  if (chain) {
-    return `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${chain}/info/logo.png`;
+async function fetchCryptoInfoFromCoinGecko(ticker) {
+  const upperTicker = ticker.toUpperCase();
+  
+  // Check cache first
+  if (coinGeckoCache.has(upperTicker)) {
+    return coinGeckoCache.get(upperTicker);
   }
-  return null;
+  
+  try {
+    // CoinGecko search API - finds coins by symbol
+    const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`;
+    const response = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      if (DEBUG) console.log(`  ⚠️ CoinGecko search failed for ${ticker}: ${response.status}`);
+      coinGeckoCache.set(upperTicker, { logo: null, name: null });
+      return { logo: null, name: null };
+    }
+    
+    const data = await response.json();
+    const coins = data.coins || [];
+    
+    // Find the best match - prefer exact symbol match
+    const exactMatch = coins.find(c => c.symbol.toUpperCase() === upperTicker);
+    const coin = exactMatch || coins[0];
+    
+    if (coin) {
+      // CoinGecko returns 'thumb', 'small', and 'large' image URLs
+      // Use 'large' for best quality
+      const logo = coin.large || coin.small || coin.thumb || null;
+      const name = coin.name || null;
+      
+      if (DEBUG) console.log(`  🖼️ CoinGecko found ${ticker}: ${name} (logo: ${logo ? 'yes' : 'no'})`);
+      
+      const result = { logo, name };
+      coinGeckoCache.set(upperTicker, result);
+      return result;
+    }
+    
+    if (DEBUG) console.log(`  ⚠️ CoinGecko no results for ${ticker}`);
+    coinGeckoCache.set(upperTicker, { logo: null, name: null });
+    return { logo: null, name: null };
+  } catch (error) {
+    if (DEBUG) console.log(`  ⚠️ CoinGecko error for ${ticker}:`, error.message);
+    coinGeckoCache.set(upperTicker, { logo: null, name: null });
+    return { logo: null, name: null };
+  }
+}
+
+/**
+ * Fetch crypto info for multiple tickers with rate limiting
+ * CoinGecko free tier: 10-30 calls/minute
+ * @param {string[]} tickers - Array of crypto ticker symbols
+ * @returns {Promise<Map<string, {logo: string|null, name: string|null}>>}
+ */
+async function fetchBulkCryptoInfo(tickers) {
+  const results = new Map();
+  const uniqueTickers = [...new Set(tickers.map(t => t.toUpperCase()))];
+  
+  // Process in small batches with delay to respect rate limits
+  const BATCH_SIZE = 5;
+  const DELAY_MS = 200; // 200ms between batches = 25 calls/minute max
+  
+  for (let i = 0; i < uniqueTickers.length; i += BATCH_SIZE) {
+    const batch = uniqueTickers.slice(i, i + BATCH_SIZE);
+    
+    // Fetch batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(ticker => fetchCryptoInfoFromCoinGecko(ticker).then(info => ({ ticker, info })))
+    );
+    
+    batchResults.forEach(({ ticker, info }) => {
+      results.set(ticker, info);
+    });
+    
+    // Add delay between batches (skip delay on last batch)
+    if (i + BATCH_SIZE < uniqueTickers.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+    }
+  }
+  
+  return results;
 }
 
 /**
@@ -82,7 +125,7 @@ function getCryptoLogoUrl(ticker) {
  * Used as fallback when Plaid doesn't return security.type === 'cryptocurrency'
  */
 function isKnownCryptoTicker(ticker) {
-  return CRYPTO_CHAIN_MAP.hasOwnProperty(ticker.toUpperCase());
+  return KNOWN_CRYPTO_TICKERS.has(ticker.toUpperCase());
 }
 
 export async function POST(request) {
@@ -557,7 +600,7 @@ export async function POST(request) {
         });
       }
 
-      // Process CRYPTO tickers - use Plaid's security info and Trust Wallet logos
+      // Process CRYPTO tickers - use CoinGecko API for logos (dynamic, no hardcoding)
       if (cryptoTickersToProcess.length > 0) {
         logger.info('Processing crypto tickers', { 
           count: cryptoTickersToProcess.length,
@@ -565,30 +608,41 @@ export async function POST(request) {
         });
         if (DEBUG) console.log(`  🪙 Processing ${cryptoTickersToProcess.length} crypto tickers:`, cryptoTickersToProcess);
 
+        // Find tickers that need logo fetching (don't have logos yet)
+        const tickersNeedingLogos = cryptoTickersToProcess.filter(ticker => {
+          const existing = existingTickerMap.get(ticker);
+          return !existing?.logo || existing.logo.trim() === '';
+        });
+
+        // Fetch logos from CoinGecko for tickers that need them
+        let coinGeckoInfo = new Map();
+        if (tickersNeedingLogos.length > 0) {
+          if (DEBUG) console.log(`  🔍 Fetching logos from CoinGecko for ${tickersNeedingLogos.length} crypto tickers...`);
+          coinGeckoInfo = await fetchBulkCryptoInfo(tickersNeedingLogos);
+        }
+
         cryptoTickersToProcess.forEach(ticker => {
           const existingTicker = existingTickerMap.get(ticker);
           const securityInfo = tickerSecurityInfo.get(ticker);
+          const geckoInfo = coinGeckoInfo.get(ticker.toUpperCase());
           
-          // Use Plaid's security name if available
+          // Use Plaid's security name, then CoinGecko, then fallback to ticker
           const name = (existingTicker?.name && existingTicker.name.trim() !== '') 
             ? existingTicker.name 
-            : (securityInfo?.name || ticker);
+            : (geckoInfo?.name || securityInfo?.name || ticker);
           
           // Crypto doesn't have a "sector" in the traditional sense
           const sector = (existingTicker?.sector && existingTicker.sector.trim() !== '') 
             ? existingTicker.sector 
             : 'Cryptocurrency';
           
-          // Get crypto logo from Trust Wallet assets
+          // Get crypto logo - prefer existing, then CoinGecko
           let logo = null;
           if (existingTicker?.logo && existingTicker.logo.trim() !== '') {
             logo = existingTicker.logo;
-          } else {
-            // Try to get logo from Trust Wallet using our chain mapping
-            logo = getCryptoLogoUrl(ticker);
-            if (logo && DEBUG) {
-              console.log(`  🖼️ Got Trust Wallet logo for ${ticker}: ${logo}`);
-            }
+          } else if (geckoInfo?.logo) {
+            logo = geckoInfo.logo;
+            if (DEBUG) console.log(`  🖼️ Got CoinGecko logo for ${ticker}: ${logo}`);
           }
 
           allTickerInserts.push({
