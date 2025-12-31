@@ -83,14 +83,37 @@ AI_PROVIDERS.forEach(provider => {
   });
 });
 
-// Format currency with 2 decimal places
+// Format currency with appropriate decimal places
+// Uses more decimals for small amounts (crypto prices)
 const formatCurrency = (amount) => {
+  const absAmount = Math.abs(amount);
+  let maxDecimals = 2;
+  
+  // Use more decimals for small amounts
+  if (absAmount > 0 && absAmount < 0.01) {
+    maxDecimals = 6;
+  } else if (absAmount < 1) {
+    maxDecimals = 4;
+  }
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: maxDecimals,
   }).format(amount);
+};
+
+// Format shares/quantity with appropriate decimal places
+// Shows more decimals for small quantities (common in crypto)
+const formatShares = (shares) => {
+  const absShares = Math.abs(shares);
+  
+  if (absShares === 0) return '0';
+  if (absShares >= 1) return shares.toFixed(2);
+  if (absShares >= 0.01) return shares.toFixed(4);
+  if (absShares >= 0.0001) return shares.toFixed(6);
+  return shares.toFixed(8);
 };
 
 // Animated counter component for smooth number transitions
@@ -895,6 +918,9 @@ export default function InvestmentsPage() {
 
         const uniqueTickers = [...new Set(allTickers)];
 
+        // Initialize quotes map outside the if block so it's accessible later
+        const quotesMap = {};
+
         if (uniqueTickers.length > 0) {
           // Fetch ticker metadata (logos, names, sectors, asset_type) from our DB
           const { data: tickersData } = await supabase
@@ -907,8 +933,7 @@ export default function InvestmentsPage() {
             tickerMap[t.symbol] = t;
           });
 
-          // Initialize quotes map with ticker metadata
-          const quotesMap = {};
+          // Populate quotes map with ticker metadata
           uniqueTickers.forEach(ticker => {
             quotesMap[ticker] = {
               price: null,
@@ -1249,9 +1274,13 @@ function PortfolioChartCard({ portfolioMetrics, snapshots, holdings, timeRange, 
   const [historicalPrices, setHistoricalPrices] = useState({});
   const [isLoadingPrices, setIsLoadingPrices] = useState(false);
 
-  // Get the oldest snapshot date as portfolio creation date
+  // Get the oldest snapshot date as the starting point for charts
+  // This limits "ALL" to only go back to when we have data
   const oldestSnapshotDate = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) return new Date();
+    if (!snapshots || snapshots.length === 0) {
+      // If no snapshots, use today (charts will show flat line)
+      return new Date();
+    }
     const dates = snapshots.map(s => new Date(s.recorded_at));
     return new Date(Math.min(...dates));
   }, [snapshots]);
@@ -1695,11 +1724,90 @@ function MiniSparkline({ data, width = 80, height = 24, maxPoints = 20 }) {
   );
 }
 
+// Single holding row component
+function HoldingRow({ holding, sparkline, showBorder = true }) {
+  const currentPrice = holding.currentPrice;
+  const value = holding.value;
+  const isCrypto = holding.assetType === 'crypto';
+  
+  // Calculate gain/loss based on the time period (sparkline start vs current)
+  let gainPercent = null;
+  let gainAmount = null;
+  
+  if (sparkline && sparkline.length >= 2 && currentPrice !== null) {
+    const startPrice = sparkline[0];
+    if (startPrice > 0) {
+      gainPercent = ((currentPrice - startPrice) / startPrice) * 100;
+      gainAmount = (currentPrice - startPrice) * holding.shares;
+    }
+  }
+
+  return (
+    <div
+      className={`flex items-center justify-between px-4 py-3 hover:bg-[var(--color-surface)]/20 transition-colors ${showBorder ? 'border-b border-white/5 dark:border-white/[0.02] last:border-b-0' : ''}`}
+    >
+      {/* Left section: Logo + ticker info */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div
+          className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
+          style={{
+            background: holding.logo ? 'transparent' : 'var(--color-surface)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          {holding.logo ? (
+            <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[10px] font-medium text-[var(--color-muted)]">
+              {holding.ticker.slice(0, 2)}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium text-[var(--color-fg)]">{holding.ticker}</span>
+            {holding.name && (
+              <span className="text-xs text-[var(--color-muted)] truncate max-w-[100px]">{holding.name}</span>
+            )}
+          </div>
+          <div className="text-xs text-[var(--color-muted)]">
+            {formatShares(holding.shares)} {isCrypto ? 'coins' : 'shares'} {currentPrice !== null && `@ ${formatCurrency(currentPrice)}`}
+          </div>
+        </div>
+      </div>
+
+      {/* Mini sparkline */}
+      <div className="flex-shrink-0 mx-3 flex items-center justify-center" style={{ width: 70 }}>
+        <MiniSparkline data={sparkline} width={70} height={24} maxPoints={20} />
+      </div>
+
+      {/* Right section: Value + gain */}
+      <div className="text-right flex-shrink-0" style={{ minWidth: 110 }}>
+        <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+          {formatCurrency(value)}
+        </div>
+        {gainPercent !== null ? (
+          <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' : gainPercent > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {gainAmount >= 0 ? '+' : ''}{formatCurrency(gainAmount)} ({gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%)
+          </div>
+        ) : (
+          <div className="text-xs text-[var(--color-muted)]">-</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HoldingsList({ holdings, sparklineData = {} }) {
   if (!holdings || holdings.length === 0) return null;
 
+  // Separate stocks and crypto
+  const stocks = holdings.filter(h => h.assetType !== 'crypto');
+  const crypto = holdings.filter(h => h.assetType === 'crypto');
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="px-1 flex items-center justify-between">
         <h2 className="text-sm font-medium text-[var(--color-muted)] uppercase tracking-wider">
           Holdings
@@ -1709,76 +1817,51 @@ function HoldingsList({ holdings, sparklineData = {} }) {
         </span>
       </div>
 
-      <div className="space-y-1">
-        {holdings.map((holding) => {
-          // Use stored values from portfolioMetrics
-          const currentPrice = holding.currentPrice;
-          const avgCost = holding.avgCost;
-          const value = holding.value;
-          const sparkline = sparklineData[holding.ticker];
-
-          // Calculate gain/loss percentage and amount if we have current price and avg cost
-          let gainPercent = null;
-          let gainAmount = null;
-          if (currentPrice !== null && avgCost > 0) {
-            gainPercent = ((currentPrice - avgCost) / avgCost) * 100;
-            gainAmount = (currentPrice - avgCost) * holding.shares;
-          }
-
-          return (
-            <div
-              key={holding.ticker}
-              className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-[var(--color-surface)]/50 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div
-                  className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden"
-                  style={{
-                    background: holding.logo ? 'transparent' : 'var(--color-surface)',
-                    border: '1px solid var(--color-border)'
-                  }}
-                >
-                  {holding.logo ? (
-                    <img src={holding.logo} alt={holding.ticker} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-xs font-medium text-[var(--color-muted)]">
-                      {holding.ticker.slice(0, 2)}
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium text-[var(--color-fg)]">{holding.ticker}</span>
-                    {holding.name && (
-                      <span className="text-xs text-[var(--color-muted)] truncate max-w-[140px]">{holding.name}</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-[var(--color-muted)]">
-                    {holding.shares.toFixed(2)} shares {currentPrice !== null && `@ ${formatCurrency(currentPrice)}`}
-                  </div>
-                </div>
-              </div>
-
-              {/* Mini sparkline */}
-              <div className="flex-shrink-0 mx-4 flex items-center justify-center" style={{ width: 70 }}>
-                <MiniSparkline data={sparkline} width={70} height={24} maxPoints={20} />
-              </div>
-
-              <div className="text-right">
-                <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(value)}
-                </div>
-                {gainPercent !== null ? (
-                  <div className={`text-xs tabular-nums ${Math.abs(gainPercent) < 0.005 ? 'text-[var(--color-muted)]' : gainPercent > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {gainAmount >= 0 ? '+' : ''}{formatCurrency(gainAmount)} ({gainPercent > 0.005 ? '+' : ''}{gainPercent.toFixed(2)}%)
-                  </div>
-                ) : (
-                  <div className="text-xs text-[var(--color-muted)]">-</div>
-                )}
+      {/* Single container for all holdings */}
+      <div className="glass-panel rounded-xl overflow-hidden relative">
+        <div className="absolute inset-0 pointer-events-none border border-white/5 dark:border-white/[0.02] rounded-xl" />
+        {/* Stocks Section */}
+        {stocks.length > 0 && (
+          <>
+            <div className="px-4 py-2.5 border-b border-white/5 dark:border-white/[0.02] relative z-10">
+              <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                Stocks
               </div>
             </div>
-          );
-        })}
+            <div className="relative z-10">
+              {stocks.map((holding) => (
+                <HoldingRow 
+                  key={holding.ticker} 
+                  holding={holding} 
+                  sparkline={sparklineData[holding.ticker]}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Crypto Section */}
+        {crypto.length > 0 && (
+          <>
+            {stocks.length > 0 && (
+              <div className="border-t border-white/5 dark:border-white/[0.02] relative z-10" />
+            )}
+            <div className="px-4 py-2.5 border-b border-white/5 dark:border-white/[0.02] relative z-10">
+              <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                Crypto
+              </div>
+            </div>
+            <div className="relative z-10">
+              {crypto.map((holding) => (
+                <HoldingRow 
+                  key={holding.ticker} 
+                  holding={holding} 
+                  sparkline={sparklineData[holding.ticker]}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1793,11 +1876,15 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
     ? ((portfolioMetrics.totalHoldingsValue / portfolioMetrics.totalPortfolioValue) * 100)
     : 0;
 
-  // Calculate each account's value properly: holdings at market price + cash from holdings
-  const accountsWithValues = useMemo(() => {
-    return accounts.map(portfolio => {
+  // Calculate each account's value and group by institution
+  const accountsByInstitution = useMemo(() => {
+    const grouped = {};
+    
+    accounts.forEach(portfolio => {
       const account = portfolio.source_account;
       const institution = account?.institutions;
+      const institutionName = institution?.name || 'Other';
+      const institutionLogo = institution?.logo || null;
       const accountName = account?.name || 'Account';
 
       // Calculate holdings value and cash from actual holdings
@@ -1810,30 +1897,37 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
         const shares = h.shares || 0;
         const assetType = h.asset_type || quote?.assetType || 'stock';
         
-        // Check if this is a cash holding
         const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
         
         if (isCashHolding) {
-          // Cash holdings: value = shares (which is the dollar amount)
           cashValue += shares * 1.0;
         } else {
-          // Non-cash: use market price or avg cost
           const price = quote?.price || h.avg_cost || 0;
           holdingsValue += shares * price;
         }
       });
 
-      // Total = holdings at market price + cash from holdings
       const totalValue = holdingsValue + cashValue;
 
-      return {
+      if (!grouped[institutionName]) {
+        grouped[institutionName] = {
+          name: institutionName,
+          logo: institutionLogo,
+          accounts: [],
+          totalValue: 0
+        };
+      }
+      
+      grouped[institutionName].accounts.push({
         id: portfolio.id,
         name: accountName,
-        institutionName: institution?.name || 'Brokerage',
-        institutionLogo: institution?.logo,
         totalValue
-      };
+      });
+      grouped[institutionName].totalValue += totalValue;
     });
+
+    // Sort institutions by total value (descending)
+    return Object.values(grouped).sort((a, b) => b.totalValue - a.totalValue);
   }, [accounts, stockQuotes]);
 
   const cashPercent = 100 - investedPercent;
@@ -1876,40 +1970,55 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
         </div>
       </div>
 
-      {/* Accounts */}
-      {accountsWithValues.length > 0 && (
+      {/* Accounts grouped by institution */}
+      {accountsByInstitution.length > 0 && (
         <div className="px-5 pb-5">
           <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider mb-3">
             Linked Accounts
           </div>
-          <div className="space-y-2">
-            {accountsWithValues.map((account) => (
-              <div
-                key={account.id}
-                className="flex items-center gap-3 p-2.5 rounded-lg bg-[var(--color-surface)]/40"
-              >
-                {account.institutionLogo ? (
-                  <img
-                    src={account.institutionLogo}
-                    alt=""
-                    className="w-6 h-6 rounded-md object-contain flex-shrink-0 bg-white p-0.5"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-[var(--color-surface)]">
-                    <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+          <div className="space-y-4">
+            {accountsByInstitution.map((institution, instIndex) => (
+              <div key={institution.name}>
+                {/* Institution Header */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {institution.logo ? (
+                      <img
+                        src={institution.logo}
+                        alt=""
+                        className="w-4 h-4 rounded object-contain flex-shrink-0"
+                      />
+                    ) : (
+                      <PiBankFill className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
+                    )}
+                    <span className="text-xs font-medium text-[var(--color-fg)]">{institution.name}</span>
                   </div>
+                  <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                    {formatCurrency(institution.totalValue)}
+                  </span>
+                </div>
+                
+                {/* Accounts under this institution */}
+                <div className="ml-6 space-y-1.5">
+                  {institution.accounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between py-1"
+                    >
+                      <span className="text-xs text-[var(--color-muted)] truncate pr-2">
+                        {account.name}
+                      </span>
+                      <span className="text-xs text-[var(--color-fg)] tabular-nums flex-shrink-0">
+                        {formatCurrency(account.totalValue)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Divider between institutions */}
+                {instIndex < accountsByInstitution.length - 1 && (
+                  <div className="mt-4 border-t border-[var(--color-border)]/30" />
                 )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-[var(--color-fg)] truncate">
-                    {account.name}
-                  </div>
-                  <div className="text-[10px] text-[var(--color-muted)]">
-                    {account.institutionName}
-                  </div>
-                </div>
-                <div className="text-xs font-medium text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(account.totalValue)}
-                </div>
               </div>
             ))}
           </div>

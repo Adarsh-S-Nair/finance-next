@@ -4,7 +4,7 @@
  * GET /api/market-data/quotes?tickers=AAPL,MSFT,NVDA,BTC,ETH
  *
  * Returns cached prices from an in-memory map if < 5 minutes old, otherwise fetches
- * fresh from Yahoo Finance. Automatically detects crypto tickers and appends -USD suffix.
+ * fresh from Yahoo Finance. For crypto, falls back to CoinGecko if Yahoo fails.
  * No database reads or writes are performed here.
  */
 
@@ -18,6 +18,135 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // Note: This is per lambda/runtime instance and may be reset on cold starts,
 // which is fine for our use case—it's only a performance optimization.
 const inMemoryCache = new Map();
+
+// CoinGecko ID mapping for common crypto tickers
+// CoinGecko uses slugified names like "bitcoin" instead of "BTC"
+const COINGECKO_ID_MAP = {
+  'BTC': 'bitcoin',
+  'ETH': 'ethereum',
+  'SOL': 'solana',
+  'DOGE': 'dogecoin',
+  'XRP': 'ripple',
+  'ADA': 'cardano',
+  'DOT': 'polkadot',
+  'AVAX': 'avalanche-2',
+  'MATIC': 'matic-network',
+  'POL': 'matic-network',
+  'ATOM': 'cosmos',
+  'LTC': 'litecoin',
+  'LINK': 'chainlink',
+  'UNI': 'uniswap',
+  'SHIB': 'shiba-inu',
+  'PEPE': 'pepe',
+  'TRX': 'tron',
+  'BCH': 'bitcoin-cash',
+  'XLM': 'stellar',
+  'NEAR': 'near',
+  'APT': 'aptos',
+  'ARB': 'arbitrum',
+  'OP': 'optimism',
+  'SUI': 'sui',
+  'TON': 'the-open-network',
+  'FIL': 'filecoin',
+  'AAVE': 'aave',
+  'MKR': 'maker',
+  'CRV': 'curve-dao-token',
+  'SNX': 'synthetix-network-token',
+  'COMP': 'compound-coin',
+  'GRT': 'the-graph',
+  'SAND': 'the-sandbox',
+  'MANA': 'decentraland',
+  'AXS': 'axie-infinity',
+  'APE': 'apecoin',
+  'LDO': 'lido-dao',
+  'ENS': 'ethereum-name-service',
+  '1INCH': '1inch',
+  'BAT': 'basic-attention-token',
+  'FTM': 'fantom',
+  'ALGO': 'algorand',
+  'VET': 'vechain',
+  'HBAR': 'hedera-hashgraph',
+  'ETC': 'ethereum-classic',
+  'XMR': 'monero',
+  'ICP': 'internet-computer',
+  'XTZ': 'tezos',
+  'EOS': 'eos',
+  'THETA': 'theta-token',
+  'CRO': 'crypto-com-chain',
+  'INJ': 'injective-protocol',
+  'SEI': 'sei-network',
+  'RENDER': 'render-token',
+  'IMX': 'immutable-x',
+  'BNB': 'binancecoin',
+};
+
+/**
+ * Fetch price from CoinGecko API (fallback for crypto)
+ * @param {string} ticker - Crypto ticker symbol
+ * @returns {Promise<number|null>} Price in USD or null
+ */
+async function fetchPriceFromCoinGecko(ticker) {
+  const coinId = COINGECKO_ID_MAP[ticker.toUpperCase()];
+  
+  if (!coinId) {
+    // If we don't have a mapping, try searching CoinGecko
+    try {
+      const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`;
+      const searchResponse = await fetch(searchUrl, {
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        const coin = searchData.coins?.find(c => c.symbol.toUpperCase() === ticker.toUpperCase());
+        if (coin) {
+          // Now fetch the price for this coin
+          const priceUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coin.id}&vs_currencies=usd`;
+          const priceResponse = await fetch(priceUrl, {
+            headers: { 'Accept': 'application/json' }
+          });
+          
+          if (priceResponse.ok) {
+            const priceData = await priceResponse.json();
+            const price = priceData[coin.id]?.usd;
+            if (price !== undefined) {
+              console.log(`[CoinGecko] Found ${ticker} via search: $${price}`);
+              return price;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log(`[CoinGecko] Search failed for ${ticker}:`, e.message);
+    }
+    return null;
+  }
+  
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      console.log(`[CoinGecko] API returned ${response.status} for ${ticker}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    const price = data[coinId]?.usd;
+    
+    if (price !== undefined) {
+      console.log(`[CoinGecko] ${ticker}: $${price}`);
+      return price;
+    }
+    
+    return null;
+  } catch (error) {
+    console.log(`[CoinGecko] Error fetching ${ticker}:`, error.message);
+    return null;
+  }
+}
 
 /**
  * Fetch quote from Yahoo Finance
@@ -244,7 +373,16 @@ export async function GET(request) {
       const freshPrices = await Promise.all(
         staleTickers.map(async (ticker) => {
           const isCrypto = cryptoTickers.has(ticker);
-          const price = await fetchQuoteFromYahoo(ticker, isCrypto);
+          
+          // Try Yahoo Finance first
+          let price = await fetchQuoteFromYahoo(ticker, isCrypto);
+          
+          // If Yahoo fails for crypto, try CoinGecko as fallback
+          if (price === null && isCrypto) {
+            console.log(`[Quotes] Yahoo failed for ${ticker}, trying CoinGecko...`);
+            price = await fetchPriceFromCoinGecko(ticker);
+          }
+          
           return { ticker, price };
         })
       );
