@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "../lib/supabaseClient";
+import PublicRoute from "../components/PublicRoute";
 import {
   FiArrowRight,
   FiPieChart,
@@ -345,31 +344,24 @@ function DashboardPreview() {
 }
 
 export default function Home() {
-  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        router.replace("/dashboard");
-      }
-      // Force landing page to light mode
-      document.documentElement.classList.remove('dark');
-      try {
-        localStorage.setItem('theme.dark', '0');
-        localStorage.setItem('theme.accent', 'default');
-      } catch { }
-      const root = document.documentElement;
-      root.style.removeProperty('--color-accent');
-      root.style.removeProperty('--color-accent-hover');
-      root.style.removeProperty('--color-on-accent');
-    })();
+    // Force landing page to light mode
+    document.documentElement.classList.remove('dark');
+    try {
+      localStorage.setItem('theme.dark', '0');
+      localStorage.setItem('theme.accent', 'default');
+    } catch { }
+    const root = document.documentElement;
+    root.style.removeProperty('--color-accent');
+    root.style.removeProperty('--color-accent-hover');
+    root.style.removeProperty('--color-on-accent');
 
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [router]);
+  }, []);
 
   const features = [
     {
@@ -444,274 +436,276 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white overflow-x-hidden">
-      <AnimatedBackground />
-      <Navigation scrolled={scrolled} />
+    <PublicRoute>
+      <main className="min-h-screen bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white overflow-x-hidden">
+        <AnimatedBackground />
+        <Navigation scrolled={scrolled} />
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 lg:pt-44 lg:pb-32">
-        <div className="container mx-auto px-6 relative">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="max-w-5xl mx-auto text-center"
-          >
-            {/* Badge */}
+        {/* Hero Section */}
+        <section className="relative pt-32 pb-20 lg:pt-44 lg:pb-32">
+          <div className="container mx-auto px-6 relative">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-100 text-zinc-600 text-sm font-medium mb-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="max-w-5xl mx-auto text-center"
             >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              AI-powered investment insights
-            </motion.div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight text-zinc-900 mb-8 leading-[1.05]"
-            >
-              Your finances,
-              <br />
-              <span className="bg-gradient-to-r from-zinc-900 via-zinc-600 to-zinc-900 bg-clip-text text-transparent">
-                beautifully organized.
-              </span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-xl md:text-2xl text-zinc-500 mb-12 max-w-2xl mx-auto leading-relaxed font-light"
-            >
-              The modern way to track spending, manage budgets, and grow your wealth. All in one stunning dashboard.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <Link
-                href="/auth"
-                className="w-full sm:w-auto px-8 py-4 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 group shadow-xl shadow-zinc-900/20 hover:shadow-2xl hover:shadow-zinc-900/30"
+              {/* Badge */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-100 text-zinc-600 text-sm font-medium mb-8"
               >
-                Get started free
-                <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <a
-                href="#how-it-works"
-                className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-zinc-200 text-zinc-900 rounded-xl font-medium hover:bg-zinc-50 hover:border-zinc-300 transition-all flex items-center justify-center"
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                AI-powered investment insights
+              </motion.div>
+
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight text-zinc-900 mb-8 leading-[1.05]"
               >
-                See how it works
-              </a>
-            </motion.div>
-
-            {/* Dashboard Preview */}
-            <div className="mt-20 lg:mt-28">
-              <DashboardPreview />
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-24 lg:py-32 relative">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
-              Everything you need to
-              <br />
-              <span className="text-zinc-400">master your money</span>
-            </h2>
-            <p className="text-zinc-500 text-lg max-w-xl mx-auto">
-              Powerful features wrapped in a beautiful interface. No complexity, just clarity.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {features.map((feature, i) => (
-              <FeatureCard key={i} {...feature} delay={i * 0.1} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-24 lg:py-32 relative">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
-              Get started in minutes
-            </h2>
-            <p className="text-zinc-500 text-lg max-w-xl mx-auto">
-              Three simple steps to financial clarity
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto">
-            {steps.map((step, i) => (
-              <StepCard key={i} {...step} delay={i * 0.15} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-24 lg:py-32 relative">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
-              What users are saying
-            </h2>
-            <p className="text-zinc-500 text-lg max-w-xl mx-auto">
-              See why people love managing their finances with Zentari
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {testimonials.map((testimonial, i) => (
-              <TestimonialCard key={i} {...testimonial} delay={i * 0.1} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24 lg:py-32">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="max-w-5xl mx-auto bg-zinc-900 rounded-[2.5rem] p-12 md:p-20 text-center text-white overflow-hidden relative"
-          >
-            {/* Background Effects */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#3f3f46,transparent_50%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,#27272a,transparent_50%)]" />
-
-            <div className="relative z-10">
-              <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Ready to take control
+                Your finances,
                 <br />
-                of your finances?
-              </h2>
-              <p className="text-zinc-400 text-lg md:text-xl mb-10 max-w-xl mx-auto">
-                Start your journey to financial clarity today. It only takes a few minutes to get started.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <span className="bg-gradient-to-r from-zinc-900 via-zinc-600 to-zinc-900 bg-clip-text text-transparent">
+                  beautifully organized.
+                </span>
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-xl md:text-2xl text-zinc-500 mb-12 max-w-2xl mx-auto leading-relaxed font-light"
+              >
+                The modern way to track spending, manage budgets, and grow your wealth. All in one stunning dashboard.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-col sm:flex-row items-center justify-center gap-4"
+              >
                 <Link
                   href="/auth"
-                  className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-white text-zinc-900 rounded-xl font-medium hover:bg-zinc-100 transition-colors gap-2 group"
+                  className="w-full sm:w-auto px-8 py-4 bg-zinc-900 text-white rounded-xl font-medium hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 group shadow-xl shadow-zinc-900/20 hover:shadow-2xl hover:shadow-zinc-900/30"
                 >
                   Get started free
                   <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </Link>
+                <a
+                  href="#how-it-works"
+                  className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-zinc-200 text-zinc-900 rounded-xl font-medium hover:bg-zinc-50 hover:border-zinc-300 transition-all flex items-center justify-center"
+                >
+                  See how it works
+                </a>
+              </motion.div>
+
+              {/* Dashboard Preview */}
+              <div className="mt-20 lg:mt-28">
+                <DashboardPreview />
               </div>
-              <p className="text-zinc-500 text-sm mt-6">
-                No credit card required · Free for personal use
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section id="features" className="py-24 lg:py-32 relative">
+          <div className="container mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16"
+            >
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
+                Everything you need to
+                <br />
+                <span className="text-zinc-400">master your money</span>
+              </h2>
+              <p className="text-zinc-500 text-lg max-w-xl mx-auto">
+                Powerful features wrapped in a beautiful interface. No complexity, just clarity.
               </p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+            </motion.div>
 
-      {/* Footer */}
-      <footer className="py-16 border-t border-zinc-100 bg-white/80 backdrop-blur-sm relative">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12 mb-12">
-            {/* Brand Column */}
-            <div className="col-span-2 md:col-span-1">
-              <Link href="/" className="flex items-center mb-4">
-                <span
-                  aria-hidden
-                  className="block h-12 w-12 bg-zinc-900 flex-shrink-0"
-                  style={{
-                    WebkitMaskImage: "url(/logo.svg)",
-                    maskImage: "url(/logo.svg)",
-                    WebkitMaskSize: "contain",
-                    maskSize: "contain",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskPosition: "center",
-                    maskPosition: "center",
-                  }}
-                />
-              </Link>
-              <p className="text-sm text-zinc-500 leading-relaxed">
-                The modern way to manage your personal finances and build wealth.
-              </p>
-            </div>
-
-            {/* Product Links */}
-            <div>
-              <h4 className="font-semibold text-zinc-900 mb-4">Product</h4>
-              <ul className="space-y-3">
-                <li><a href="#features" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Features</a></li>
-                <li><a href="#how-it-works" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">How It Works</a></li>
-                <li><a href="#testimonials" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Testimonials</a></li>
-              </ul>
-            </div>
-
-            {/* Company Links */}
-            <div>
-              <h4 className="font-semibold text-zinc-900 mb-4">Company</h4>
-              <ul className="space-y-3">
-                <li><a href="#" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">About</a></li>
-                <li><a href="#" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Contact</a></li>
-              </ul>
-            </div>
-
-            {/* Legal Links */}
-            <div>
-              <h4 className="font-semibold text-zinc-900 mb-4">Legal</h4>
-              <ul className="space-y-3">
-                <li><Link href="/docs/privacy" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/docs/terms" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Terms of Use</Link></li>
-              </ul>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {features.map((feature, i) => (
+                <FeatureCard key={i} {...feature} delay={i * 0.1} />
+              ))}
             </div>
           </div>
+        </section>
 
-          {/* Bottom Bar */}
-          <div className="pt-8 border-t border-zinc-100 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-zinc-500">
-              © {new Date().getFullYear()} Zentari Finance. All rights reserved.
-            </p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
-                <FiTwitter size={20} />
-              </a>
-              <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
-                <FiGithub size={20} />
-              </a>
-              <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
-                <FiLinkedin size={20} />
-              </a>
+        {/* How It Works Section */}
+        <section id="how-it-works" className="py-24 lg:py-32 relative">
+          <div className="container mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16"
+            >
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
+                Get started in minutes
+              </h2>
+              <p className="text-zinc-500 text-lg max-w-xl mx-auto">
+                Three simple steps to financial clarity
+              </p>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto">
+              {steps.map((step, i) => (
+                <StepCard key={i} {...step} delay={i * 0.15} />
+              ))}
             </div>
           </div>
-        </div>
-      </footer>
-    </main>
+        </section>
+
+        {/* Testimonials Section */}
+        <section id="testimonials" className="py-24 lg:py-32 relative">
+          <div className="container mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16"
+            >
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">
+                What users are saying
+              </h2>
+              <p className="text-zinc-500 text-lg max-w-xl mx-auto">
+                See why people love managing their finances with Zentari
+              </p>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {testimonials.map((testimonial, i) => (
+                <TestimonialCard key={i} {...testimonial} delay={i * 0.1} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-24 lg:py-32">
+          <div className="container mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="max-w-5xl mx-auto bg-zinc-900 rounded-[2.5rem] p-12 md:p-20 text-center text-white overflow-hidden relative"
+            >
+              {/* Background Effects */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#3f3f46,transparent_50%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,#27272a,transparent_50%)]" />
+
+              <div className="relative z-10">
+                <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                  Ready to take control
+                  <br />
+                  of your finances?
+                </h2>
+                <p className="text-zinc-400 text-lg md:text-xl mb-10 max-w-xl mx-auto">
+                  Start your journey to financial clarity today. It only takes a few minutes to get started.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <Link
+                    href="/auth"
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 bg-white text-zinc-900 rounded-xl font-medium hover:bg-zinc-100 transition-colors gap-2 group"
+                  >
+                    Get started free
+                    <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+                <p className="text-zinc-500 text-sm mt-6">
+                  No credit card required · Free for personal use
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="py-16 border-t border-zinc-100 bg-white/80 backdrop-blur-sm relative">
+          <div className="container mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12 mb-12">
+              {/* Brand Column */}
+              <div className="col-span-2 md:col-span-1">
+                <Link href="/" className="flex items-center mb-4">
+                  <span
+                    aria-hidden
+                    className="block h-12 w-12 bg-zinc-900 flex-shrink-0"
+                    style={{
+                      WebkitMaskImage: "url(/logo.svg)",
+                      maskImage: "url(/logo.svg)",
+                      WebkitMaskSize: "contain",
+                      maskSize: "contain",
+                      WebkitMaskRepeat: "no-repeat",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskPosition: "center",
+                      maskPosition: "center",
+                    }}
+                  />
+                </Link>
+                <p className="text-sm text-zinc-500 leading-relaxed">
+                  The modern way to manage your personal finances and build wealth.
+                </p>
+              </div>
+
+              {/* Product Links */}
+              <div>
+                <h4 className="font-semibold text-zinc-900 mb-4">Product</h4>
+                <ul className="space-y-3">
+                  <li><a href="#features" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Features</a></li>
+                  <li><a href="#how-it-works" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">How It Works</a></li>
+                  <li><a href="#testimonials" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Testimonials</a></li>
+                </ul>
+              </div>
+
+              {/* Company Links */}
+              <div>
+                <h4 className="font-semibold text-zinc-900 mb-4">Company</h4>
+                <ul className="space-y-3">
+                  <li><a href="#" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">About</a></li>
+                  <li><a href="#" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Contact</a></li>
+                </ul>
+              </div>
+
+              {/* Legal Links */}
+              <div>
+                <h4 className="font-semibold text-zinc-900 mb-4">Legal</h4>
+                <ul className="space-y-3">
+                  <li><Link href="/docs/privacy" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Privacy Policy</Link></li>
+                  <li><Link href="/docs/terms" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">Terms of Use</Link></li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Bottom Bar */}
+            <div className="pt-8 border-t border-zinc-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              <p className="text-sm text-zinc-500">
+                © {new Date().getFullYear()} Zentari Finance. All rights reserved.
+              </p>
+              <div className="flex items-center gap-4">
+                <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
+                  <FiTwitter size={20} />
+                </a>
+                <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
+                  <FiGithub size={20} />
+                </a>
+                <a href="#" className="text-zinc-400 hover:text-zinc-900 transition-colors">
+                  <FiLinkedin size={20} />
+                </a>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </PublicRoute>
   );
 }
