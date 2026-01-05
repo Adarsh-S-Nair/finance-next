@@ -8,6 +8,7 @@ import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
 import DashboardNetWorthCard from "../../../components/dashboard/DashboardNetWorthCard";
 import RecurringTransactionsCard from "../../../components/dashboard/RecurringTransactionsCard";
+import RecentTransactionsCard from "../../../components/dashboard/RecentTransactionsCard";
 import PlaceholderCard from "../../../components/dashboard/PlaceholderCard";
 
 import IncomeCard from "../../../components/dashboard/IncomeCard";
@@ -22,6 +23,7 @@ const componentMap = {
   'SpendingVsEarningCard': SpendingVsEarningCard,
   'PlaceholderCard': PlaceholderCard,
   'RecurringTransactionsCard': RecurringTransactionsCard,
+  'RecentTransactionsCard': RecentTransactionsCard,
   'IncomeCard': IncomeCard,
   'SpendingCard': SpendingCard,
   'BudgetsCard': BudgetsCard,

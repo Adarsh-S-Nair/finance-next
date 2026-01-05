@@ -18,10 +18,22 @@ function roundedRectPath(x, y, w, h, r) {
   return `M ${x} ${y + h} L ${x} ${y + r2} Q ${x} ${y} ${x + r2} ${y} L ${x + w - r2} ${y} Q ${x + w} ${y} ${x + w} ${y + r2} L ${x + w} ${y + h} Z`;
 }
 
-function TooltipContent({ month, income, spending, position, containerSize }) {
+function TooltipContent({ month, income, spending, position, containerSize, monthIndex, totalMonths }) {
   const { left, top } = position;
   const { width, height } = containerSize;
-  
+
+  // Calculate percentage position
+  let leftPercent = (left / width) * 100;
+
+  // Clamp tooltip position to prevent edge clipping
+  // For first few months, shift right; for last few months, shift left
+  const tooltipHalfWidth = 8; // ~80px tooltip / 2, as percentage of typical container
+  if (monthIndex === 0) {
+    leftPercent = Math.max(leftPercent, tooltipHalfWidth);
+  } else if (monthIndex === totalMonths - 1) {
+    leftPercent = Math.min(leftPercent, 100 - tooltipHalfWidth);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 3 }}
@@ -29,12 +41,12 @@ function TooltipContent({ month, income, spending, position, containerSize }) {
       exit={{ opacity: 0, y: 3 }}
       transition={{ duration: 0.15, ease: "easeOut" }}
       style={{
-        left: `${(left / width) * 100}%`,
+        left: `${leftPercent}%`,
         top: `${(top / height) * 100}%`,
       }}
       className="absolute z-50 pointer-events-none transform -translate-x-1/2 -translate-y-full"
     >
-      <div className="bg-[var(--color-surface)]/98 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--color-border)]/50 text-xs shadow-sm">
+      <div className="bg-[var(--color-surface)]/98 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--color-border)]/50 text-xs shadow-sm whitespace-nowrap">
         <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
           {month}
         </div>
@@ -47,6 +59,9 @@ function TooltipContent({ month, income, spending, position, containerSize }) {
             <span className="text-[var(--color-muted)]">Spending</span>
             <span className="font-medium text-[var(--color-fg)]">{formatCurrency(spending)}</span>
           </div>
+        </div>
+        <div className="mt-2 pt-1.5 border-t border-[var(--color-border)]/30 text-[10px] text-[var(--color-accent)] text-center">
+          Click to view transactions
         </div>
       </div>
     </motion.div>
@@ -257,16 +272,16 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
           // Calculate the position of the tallest bar for this month
           const inc = incomeVals[activeMonthIndex] || 0
           const spd = spendingVals[activeMonthIndex] || 0
-          
+
           const incY = yFromValue(inc)
           const spdY = yFromValue(spd)
-          
+
           // The tallest bar has the smallest Y value (top of bar)
           const tallestBarTop = Math.min(incY, spdY)
-          
+
           // Position tooltip just above the tallest bar (with 8px gap)
           const tooltipY = tallestBarTop - 8
-          
+
           return (
             <TooltipContent
               month={months[activeMonthIndex]}
@@ -277,6 +292,8 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                 top: tooltipY
               }}
               containerSize={{ width, height }}
+              monthIndex={activeMonthIndex}
+              totalMonths={months.length}
             />
           );
         })()}

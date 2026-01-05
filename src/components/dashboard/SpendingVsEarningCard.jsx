@@ -9,9 +9,6 @@ import { useNetWorth } from "../NetWorthProvider";
 import { useRouter } from "next/navigation";
 import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
-import { AnimatePresence, motion } from "framer-motion";
-import MonthlyOverviewCard from "./MonthlyOverviewCard";
-
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -58,10 +55,6 @@ export default function SpendingVsEarningCard() {
   const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredData, setHoveredData] = useState(null);
-
-  // Drill-down state
-  const [viewMode, setViewMode] = useState('chart'); // 'chart' | 'overview'
-  const [drillDownMonth, setDrillDownMonth] = useState(null); // "YYYY-MM"
 
   // Period options
   const periodOptions = [
@@ -126,17 +119,22 @@ export default function SpendingVsEarningCard() {
     if (!data) return;
     const { year, monthNumber } = data;
 
-    // Format as YYYY-MM for the drill-down
+    // Format dates for URL params
     const monthStr = String(monthNumber).padStart(2, '0');
-    const monthKey = `${year}-${monthStr}`;
+    const startDate = `${year}-${monthStr}-01`;
 
-    setDrillDownMonth(monthKey);
-    setViewMode('overview');
-  };
+    // Get last day of month
+    const lastDay = new Date(year, monthNumber, 0).getDate();
+    const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
 
-  const handleBackToChart = () => {
-    setViewMode('chart');
-    setDrillDownMonth(null);
+    // Navigate to transactions page with date filter
+    const params = new URLSearchParams({
+      dateRange: 'custom',
+      startDate,
+      endDate
+    });
+
+    router.push(`/transactions?${params.toString()}`);
   };
 
   // Net Worth Calculations
@@ -161,91 +159,66 @@ export default function SpendingVsEarningCard() {
         <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
       )}
 
-      <AnimatePresence mode="wait" initial={false}>
-        {viewMode === 'overview' ? (
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ duration: 0.2 }}
-            className="h-full"
-          >
-            <MonthlyOverviewCard
-              initialMonth={drillDownMonth}
-              onBack={handleBackToChart}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="chart"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
-            className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}
-          >
-            {/* Custom Header */}
-            <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
-              <div className="flex items-start justify-between gap-2">
-                {/* Title and Values */}
-                <div className="min-w-0">
-                  <div className="text-sm sm:text-base font-normal text-[var(--color-fg)] mb-1">
-                    Net Worth
-                  </div>
+      <div className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}>
+        {/* Custom Header */}
+        <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
+          <div className="flex items-start justify-between gap-2">
+            {/* Title and Values */}
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-normal text-[var(--color-fg)] mb-1">
+                Net Worth
+              </div>
 
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
-                    <AnimatedCounter value={netWorthValue} />
-                  </div>
+              <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
+                <AnimatedCounter value={netWorthValue} />
+              </div>
 
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <span className={`flex items-center gap-0.5 font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {percentChange >= 0 ? (
-                        <FiChevronUp className="w-3 h-3" />
-                      ) : (
-                        <FiChevronDown className="w-3 h-3" />
-                      )}
-                      {Math.abs(percentChange).toFixed(1)}%
-                    </span>
-                    <span className="text-[var(--color-muted)] hidden sm:inline">vs last month</span>
-                  </div>
-                </div>
-
-                {/* Right Side Actions */}
-                <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
-                  <button
-                    onClick={() => router.push('/accounts')}
-                    className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium text-[var(--color-fg)] bg-transparent border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
-                  >
-                    View Accounts
-                  </button>
-
-                  {/* Legend - stacked on mobile, horizontal on desktop */}
-                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
-                      <span className="text-xs text-[var(--color-muted)]">Income</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
-                      <span className="text-xs text-[var(--color-muted)]">Spending</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm">
+                <span className={`flex items-center gap-0.5 font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {percentChange >= 0 ? (
+                    <FiChevronUp className="w-3 h-3" />
+                  ) : (
+                    <FiChevronDown className="w-3 h-3" />
+                  )}
+                  {Math.abs(percentChange).toFixed(1)}%
+                </span>
+                <span className="text-[var(--color-muted)] hidden sm:inline">vs last month</span>
               </div>
             </div>
 
-            {/* Chart - fills remaining space */}
-            <div className="flex-1 min-h-0 w-full">
-              <SpendingEarningChart
-                data={chartData}
-                onHover={(data) => setHoveredData(data)}
-                onSelectMonth={handleSelectMonth}
-              />
+            {/* Right Side Actions */}
+            <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
+              <button
+                onClick={() => router.push('/accounts')}
+                className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium text-[var(--color-fg)] bg-transparent border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
+              >
+                View Accounts
+              </button>
+
+              {/* Legend - stacked on mobile, horizontal on desktop */}
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Income</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
+                </div>
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Chart - fills remaining space */}
+        <div className="flex-1 min-h-0 w-full">
+          <SpendingEarningChart
+            data={chartData}
+            onHover={(data) => setHoveredData(data)}
+            onSelectMonth={handleSelectMonth}
+          />
+        </div>
+      </div>
     </Card>
   );
 }

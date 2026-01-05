@@ -14,6 +14,12 @@ export const dashboardLayout = {
 
   // Main content area (left side, wider)
   main: [
+    // Monthly Overview Chart
+    {
+      id: 'monthly-overview',
+      component: 'MonthlyOverviewCard',
+      height: 'h-[360px]'
+    },
     // Cashflow Chart
     {
       id: 'cashflow',

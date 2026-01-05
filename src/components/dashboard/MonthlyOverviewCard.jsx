@@ -1,10 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Card from "../ui/Card";
 import LineChart from "../ui/LineChart";
-import Button from "../ui/Button";
+import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
-import { useRouter } from "next/navigation";
-import { FiChevronRight } from "react-icons/fi";
 
 export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);
@@ -14,7 +12,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
 
   const { user } = useUser();
-  const router = useRouter();
 
   // Update selectedMonth if initialMonth changes (e.g. re-opening the card)
   useEffect(() => {
@@ -101,39 +98,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const showLoading = isFetching;
 
   // Dynamic Date Display
-  const displayDate = useMemo(() => {
-    if (activeIndex !== null && currentData?.dateString) {
-      // If hovering, show the specific date (e.g. "Nov 28")
-      // We might want to append the year if it's not in the string, but dateString usually comes from backend formatted.
-      // Let's assume dateString is "Mon DD" or similar.
-      // If we want full date, we might need the raw date.
-      // The backend returns `dateString` formatted.
-      return currentData.dateString;
-    }
-    // If not hovering, show the selected month label
-    return availableMonths.find(m => m.value === selectedMonth)?.label || "Select Month";
-  }, [activeIndex, currentData, selectedMonth, availableMonths]);
 
-  const handleViewTransactions = () => {
-    if (!selectedMonth) return;
-
-    const [year, month] = selectedMonth.split('-');
-    // Create dates in UTC to avoid timezone shifts when converting to string
-    // Actually, let's just construct the string directly since we have YYYY and MM
-    const startDate = `${year}-${month}-01`;
-
-    // Get last day of month
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${year}-${month}-${lastDay}`;
-
-    const params = new URLSearchParams({
-      dateRange: 'custom',
-      startDate,
-      endDate
-    });
-
-    router.push(`/transactions?${params.toString()}`);
-  };
 
   // Skeleton Loader Component
   const SkeletonLoader = () => (
@@ -203,21 +168,28 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 </div>
               </div>
 
-              {/* Right Side: Date and Actions */}
-              <div className="flex flex-col items-end gap-1">
-                <div className="text-sm font-medium text-[var(--color-fg)] h-6 flex items-center">
-                  {displayDate}
+              {/* Right Side: Month Selector and Legend */}
+              <div className="flex flex-col items-end gap-2">
+                {/* Date and Month Dropdown */}
+                <div className="flex items-center gap-3">
+                  {/* Dynamic Date Display */}
+                  {currentData?.dateString && (
+                    <span className="text-sm font-medium text-[var(--color-fg)]">
+                      {currentData.dateString}
+                    </span>
+                  )}
+                  {/* Month Dropdown */}
+                  <Dropdown
+                    label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
+                    items={availableMonths.map((month) => ({
+                      label: month.label,
+                      onClick: () => setSelectedMonth(month.value),
+                      selected: month.value === selectedMonth
+                    }))}
+                    size="sm"
+                    align="right"
+                  />
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleViewTransactions}
-                  className="text-xs h-7 px-2 -mr-2 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 gap-1"
-                >
-                  View Transactions
-                  <FiChevronRight className="w-3 h-3" />
-                </Button>
 
                 {/* Legend */}
                 <div className="flex items-center gap-4">

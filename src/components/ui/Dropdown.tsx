@@ -2,13 +2,15 @@
 
 import { ReactNode, useState, useRef, useEffect } from "react";
 import clsx from "clsx";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 
 export type DropdownItem = {
   label: string;
+  value?: string;
   onClick?: () => void;
   icon?: ReactNode;
   disabled?: boolean;
+  selected?: boolean;
 };
 
 type DropdownProps = {
@@ -18,11 +20,31 @@ type DropdownProps = {
   align?: "left" | "right";
   className?: string;
   size?: "sm" | "md";
+  maxHeight?: number;
+  matchTriggerWidth?: boolean;
 };
 
-export default function Dropdown({ trigger, label, items, align = "right", className, size = "md" }: DropdownProps) {
+export default function Dropdown({
+  trigger,
+  label,
+  items,
+  align = "right",
+  className,
+  size = "md",
+  maxHeight = 200,
+  matchTriggerWidth = true
+}: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [triggerWidth, setTriggerWidth] = useState<number>(0);
+
+  // Measure trigger width when it changes
+  useEffect(() => {
+    if (triggerRef.current && matchTriggerWidth) {
+      setTriggerWidth(triggerRef.current.offsetWidth);
+    }
+  }, [label, matchTriggerWidth, isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -61,9 +83,10 @@ export default function Dropdown({ trigger, label, items, align = "right", class
         </div>
       ) : (
         <button
+          ref={triggerRef}
           onClick={() => setIsOpen(!isOpen)}
           className={clsx(
-            "inline-flex items-center justify-center gap-2 rounded-lg font-medium",
+            "inline-flex items-center justify-between gap-2 rounded-lg font-medium whitespace-nowrap",
             "transition-all duration-200 ease-out",
             "bg-[var(--color-surface)] text-[var(--color-fg)]",
             "border border-[var(--color-border)]",
@@ -75,7 +98,7 @@ export default function Dropdown({ trigger, label, items, align = "right", class
           <span>{label || "Options"}</span>
           <ChevronDown
             className={clsx(
-              "transition-transform duration-200",
+              "transition-transform duration-200 flex-shrink-0",
               isOpen && "rotate-180"
             )}
             size={size === "sm" ? 14 : 16}
@@ -87,18 +110,22 @@ export default function Dropdown({ trigger, label, items, align = "right", class
       {isOpen && (
         <div
           className={clsx(
-            "absolute top-full mt-2 min-w-[180px] z-50",
+            "absolute top-full mt-1 z-50",
             "glass-panel backdrop-blur-md rounded-lg overflow-hidden",
             "border border-[var(--color-border)]",
             "shadow-lg shadow-black/5 dark:shadow-black/30",
-            "animate-fade-in",
             align === "right" ? "right-0" : "left-0"
           )}
           style={{
-            animation: "slideDown 0.2s ease-out",
+            animation: "slideDown 0.15s ease-out",
+            minWidth: matchTriggerWidth && triggerWidth > 0 ? `${triggerWidth}px` : undefined,
           }}
         >
-          <div className="py-1">
+          {/* Scrollable Options List */}
+          <div
+            className="py-1 overflow-y-auto"
+            style={{ maxHeight: `${maxHeight}px` }}
+          >
             {items.map((item, index) => (
               <button
                 key={index}
@@ -110,16 +137,22 @@ export default function Dropdown({ trigger, label, items, align = "right", class
                 }}
                 disabled={item.disabled}
                 className={clsx(
-                  "w-full px-3 py-2 text-left text-xs font-medium",
-                  "flex items-center gap-2",
+                  "w-full px-3 py-1.5 text-left text-xs font-medium",
+                  "flex items-center justify-between gap-2",
                   "transition-colors duration-150",
                   item.disabled
                     ? "opacity-40 cursor-not-allowed text-[var(--color-muted)]"
-                    : "cursor-pointer hover:bg-[var(--color-accent)]/8 active:bg-[var(--color-accent)]/12 text-[var(--color-fg)]"
+                    : "cursor-pointer hover:bg-[var(--color-accent)]/8 active:bg-[var(--color-accent)]/12 text-[var(--color-fg)]",
+                  item.selected && "bg-[var(--color-accent)]/5"
                 )}
               >
-                {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
-                <span>{item.label}</span>
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
+                  <span>{item.label}</span>
+                </span>
+                {item.selected && (
+                  <Check size={12} className="text-[var(--color-accent)] flex-shrink-0" />
+                )}
               </button>
             ))}
           </div>
@@ -131,7 +164,7 @@ export default function Dropdown({ trigger, label, items, align = "right", class
         @keyframes slideDown {
           from {
             opacity: 0;
-            transform: translateY(-8px);
+            transform: translateY(-4px);
           }
           to {
             opacity: 1;

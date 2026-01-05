@@ -66,7 +66,8 @@
 
   /* Cashflow Chart Colors - Light Mode */
   --color-cashflow-income: var(--color-accent);
-  --color-cashflow-spending: #d4d4d8; /* Zinc 300 - neutral gray */
+  --color-cashflow-spending: #d4d4d8;
+  /* Zinc 300 - neutral gray */
 
   /* Spending Bar Color - Light Mode (Lighter Gray) */
   --color-chart-spending-bar: #d4d4d8;
@@ -144,7 +145,8 @@
 
   /* Cashflow Chart Colors - Dark Mode */
   --color-cashflow-income: var(--color-accent);
-  --color-cashflow-spending: #52525b; /* Zinc 600 - neutral gray */
+  --color-cashflow-spending: #52525b;
+  /* Zinc 600 - neutral gray */
 
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;
@@ -173,13 +175,17 @@ body {
 /* Thin, minimal scrollbar styling */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
   scrollbar-color: var(--color-border) transparent;
 }
 
 /* Webkit scrollbar styling for Chrome, Safari, Edge */
 *::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
 }
 
 *::-webkit-scrollbar-track {
@@ -187,9 +193,14 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: var(--color-border);
+  background-color: transparent;
   border-radius: 2px;
   border: none;
+  transition: background-color 0.2s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
 }
 
 *::-webkit-scrollbar-thumb:hover {

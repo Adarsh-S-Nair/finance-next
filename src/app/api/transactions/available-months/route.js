@@ -9,11 +9,12 @@ export async function GET(request) {
       return Response.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // Get all transactions to extract unique months
+    // Get all transactions to extract unique months (only from 'transactions' source)
     const { data: transactions, error } = await supabaseAdmin
       .from('transactions')
       .select('date, accounts!inner(user_id)')
       .eq('accounts.user_id', userId)
+      .eq('transaction_source', 'transactions')
       .not('date', 'is', null)
       .order('date', { ascending: true });
 
