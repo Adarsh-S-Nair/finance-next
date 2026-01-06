@@ -100,21 +100,46 @@ export async function POST(request) {
         }
 
       } catch (itemError) {
+        // Log the full error for debugging
+        console.error('❌ Full error object:', itemError);
+        console.error('❌ Error response:', itemError.response?.data);
+
+        // Extract meaningful error message from Plaid API errors
+        const errorMessage = itemError.response?.data?.error_message
+          || itemError.response?.data?.error_code
+          || itemError.message
+          || String(itemError)
+          || 'Unknown error';
+
         logger.error('Error syncing recurring for item', {
           plaidItemId: item.id,
-          error: itemError.message
+          error: errorMessage,
+          errorCode: itemError.response?.data?.error_code,
+          errorType: itemError.response?.data?.error_type,
         });
-        errors.push({ plaidItemId: item.id, error: itemError.message });
+        errors.push({
+          plaidItemId: item.id,
+          error: errorMessage,
+          errorCode: itemError.response?.data?.error_code,
+        });
       }
     }
 
     await logger.flush();
 
+    // Separate consent errors from other errors
+    const consentErrors = errors.filter(e => e.errorCode === 'ADDITIONAL_CONSENT_REQUIRED');
+    const otherErrors = errors.filter(e => e.errorCode !== 'ADDITIONAL_CONSENT_REQUIRED');
+
     return Response.json({
-      success: errors.length === 0,
+      success: otherErrors.length === 0,
       synced: totalSynced,
       itemsProcessed: plaidItems.length,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: otherErrors.length > 0 ? otherErrors : undefined,
+      // Include items that need additional consent so frontend can prompt user
+      itemsNeedingConsent: consentErrors.length > 0
+        ? consentErrors.map(e => e.plaidItemId)
+        : undefined,
     });
 
   } catch (error) {

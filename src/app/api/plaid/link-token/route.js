@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
-    const { userId, accountType } = await request.json();
+    const { userId, accountType, plaidItemId, additionalProducts } = await request.json();
 
     if (!userId) {
       return Response.json(
@@ -14,7 +14,7 @@ export async function POST(request) {
 
     // Verify user exists
     const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    
+
     if (userError || !user) {
       return Response.json(
         { error: 'User not found' },
@@ -22,17 +22,44 @@ export async function POST(request) {
       );
     }
 
-    // Determine Plaid products and account filters based on account type
-    // Default to transactions for backward compatibility
+    // Update Mode: If plaidItemId is provided, we're requesting additional consent
+    let accessToken = null;
+    if (plaidItemId) {
+      const { data: plaidItem, error: itemError } = await supabaseAdmin
+        .from('plaid_items')
+        .select('access_token')
+        .eq('id', plaidItemId)
+        .eq('user_id', userId)
+        .single();
+
+      if (itemError || !plaidItem) {
+        return Response.json(
+          { error: 'Plaid item not found' },
+          { status: 404 }
+        );
+      }
+
+      accessToken = plaidItem.access_token;
+
+      // For update mode, request transactions product consent
+      // (recurring_transactions is an add-on to transactions, not a standalone product)
+      const products = additionalProducts || ['transactions'];
+      const linkTokenResponse = await createLinkToken(userId, products, null, accessToken);
+
+      return Response.json({
+        link_token: linkTokenResponse.link_token,
+        expiration: linkTokenResponse.expiration,
+        updateMode: true,
+      });
+    }
+
+    // Normal Mode: Determine Plaid products and account filters based on account type
     let products = ['transactions'];
     let accountFilters = null;
-    
+
     if (accountType) {
-      // Map account type to Plaid products and account filters
-      // Account filters restrict which account types are shown in Plaid Link
       if (accountType === 'investment') {
         products = ['investments'];
-        // Only show investment accounts when user selects brokerage/investment
         accountFilters = {
           investment: {
             account_subtypes: ['all']
@@ -40,7 +67,6 @@ export async function POST(request) {
         };
       } else if (accountType === 'credit_card') {
         products = ['transactions'];
-        // Only show credit accounts when user selects credit card
         accountFilters = {
           credit: {
             account_subtypes: ['credit card']
@@ -48,14 +74,12 @@ export async function POST(request) {
         };
       } else if (accountType === 'checking_savings') {
         products = ['transactions'];
-        // Only show depository accounts when user selects checking/savings
         accountFilters = {
           depository: {
             account_subtypes: ['checking', 'savings']
           }
         };
       } else {
-        // Default: show all account types for transactions
         products = ['transactions'];
       }
     }

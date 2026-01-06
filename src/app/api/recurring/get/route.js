@@ -23,7 +23,6 @@ export async function GET(request) {
       .select('*')
       .eq('user_id', userId)
       .eq('is_active', true)
-      .in('status', ['MATURE', 'EARLY_DETECTION']) // Only show active/detected streams
       .order('predicted_next_date', { ascending: true, nullsFirst: false });
 
     // Filter by stream type if specified

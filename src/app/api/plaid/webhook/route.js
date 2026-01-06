@@ -126,6 +126,9 @@ export async function POST(request) {
       case 'INVESTMENTS_TRANSACTIONS':
         await handleInvestmentTransactionsWebhook(webhookData);
         break;
+      case 'RECURRING_TRANSACTIONS':
+        await handleRecurringTransactionsWebhook(webhookData);
+        break;
       default:
         if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
     }
@@ -292,7 +295,7 @@ async function handleItemWebhook(webhookData) {
         // Get institution info (with fallback)
         let institutionData = null;
         const actualInstitutionId = institution_id || accountsResponse.item?.institution_id;
-        
+
         if (actualInstitutionId) {
           try {
             const institution = await getInstitution(actualInstitutionId);
@@ -559,5 +562,72 @@ async function handleInvestmentTransactionsWebhook(webhookData) {
 
     default:
       if (DEBUG) console.log('Unhandled investment transactions webhook code:', webhook_code);
+  }
+}
+
+async function handleRecurringTransactionsWebhook(webhookData) {
+  const { webhook_code, item_id } = webhookData;
+
+  logger.info('Processing RECURRING_TRANSACTIONS webhook', {
+    webhook_code,
+    item_id
+  });
+  if (DEBUG) {
+    console.log(`Processing RECURRING_TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
+  }
+
+  // Get the plaid item from database
+  const { data: plaidItem, error: itemError } = await supabaseAdmin
+    .from('plaid_items')
+    .select('*')
+    .eq('item_id', item_id)
+    .single();
+
+  if (itemError || !plaidItem) {
+    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    return;
+  }
+
+  switch (webhook_code) {
+    case 'RECURRING_TRANSACTIONS_UPDATE':
+      // Recurring transactions data is ready or has been updated
+      logger.info('Triggering recurring transactions sync', { item_id, webhook_code });
+      if (DEBUG) console.log(`Triggering recurring transactions sync for item: ${item_id}`);
+
+      try {
+        // Import and call the sync function directly
+        const { POST: syncEndpoint } = await import('../recurring/sync/route.js');
+
+        // Create a mock request object for the sync endpoint
+        const syncRequest = {
+          json: async () => ({
+            userId: plaidItem.user_id
+          })
+        };
+
+        const syncResponse = await syncEndpoint(syncRequest);
+
+        if (syncResponse.ok) {
+          const syncResult = await syncResponse.json();
+          logger.info('Recurring transactions sync completed', {
+            item_id,
+            synced: syncResult.synced
+          });
+          if (DEBUG) {
+            console.log(`Webhook-triggered recurring sync completed for item ${item_id}:`, {
+              synced: syncResult.synced
+            });
+          }
+        } else {
+          const errorData = await syncResponse.json();
+          logger.error('Recurring transactions sync failed', null, { item_id, error: errorData });
+        }
+      } catch (error) {
+        logger.error('Error in webhook-triggered recurring sync', error, { item_id });
+      }
+      break;
+
+    default:
+      if (DEBUG) console.log('Unhandled recurring transactions webhook code:', webhook_code);
   }
 }

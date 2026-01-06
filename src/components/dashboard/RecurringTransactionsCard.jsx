@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { usePlaidLink } from 'react-plaid-link';
 import Card from '../ui/Card';
 import { useUser } from '../UserProvider';
-import { FiRefreshCw, FiTag, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
+import { FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
 
 function formatCurrency(amount) {
@@ -87,11 +88,19 @@ export default function RecurringTransactionsCard() {
     fetchRecurring();
   }, [user?.id]);
 
+  // State for consent updates
+  const [itemsNeedingConsent, setItemsNeedingConsent] = useState([]);
+  const [consentLinkToken, setConsentLinkToken] = useState(null);
+  const [updatingConsent, setUpdatingConsent] = useState(false);
+  const [isConsentDrawerOpen, setIsConsentDrawerOpen] = useState(false);
+
   const handleSync = async () => {
     if (!user?.id || syncing) return;
 
     try {
       setSyncing(true);
+      setItemsNeedingConsent([]); // Clear previous consent prompts
+
       const response = await fetch('/api/plaid/recurring/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,14 +112,69 @@ export default function RecurringTransactionsCard() {
       if (result.success) {
         // Refresh the list after sync
         await fetchRecurring();
-      } else {
-        console.error('Sync failed:', result.error);
+      }
+
+      // Check if any items need consent
+      if (result.itemsNeedingConsent && result.itemsNeedingConsent.length > 0) {
+        setItemsNeedingConsent(result.itemsNeedingConsent);
+        setIsConsentDrawerOpen(true); // Auto-open drawer
+      }
+
+      if (result.errors) {
+        console.error('Sync errors:', result.errors);
       }
     } catch (err) {
       console.error('Error syncing:', err);
     } finally {
       setSyncing(false);
     }
+  };
+
+  // Handle granting consent for a specific item
+  const handleGrantConsent = async (plaidItemId) => {
+    try {
+      setUpdatingConsent(true);
+
+      // Get link token in update mode
+      const response = await fetch('/api/plaid/link-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          plaidItemId: plaidItemId,
+          additionalProducts: ['transactions']  // recurring is an add-on to transactions
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.link_token) {
+        // Open in new window since we can't easily integrate with usePlaidLink here
+        // The user will complete the consent flow and we'll refresh after
+        setConsentLinkToken({ token: data.link_token, plaidItemId });
+      }
+    } catch (err) {
+      console.error('Error getting consent link token:', err);
+    } finally {
+      setUpdatingConsent(false);
+    }
+  };
+
+  // Handle consent completion
+  const handleConsentComplete = async () => {
+    setConsentLinkToken(null);
+
+    // Remove the first item (the one we just processed)
+    const remainingItems = itemsNeedingConsent.slice(1);
+    setItemsNeedingConsent(remainingItems);
+
+    // If no more items need consent, close the drawer
+    if (remainingItems.length === 0) {
+      setIsConsentDrawerOpen(false);
+    }
+
+    // Re-sync to get the newly accessible data
+    await handleSync();
   };
 
   // Calculate total monthly recurring cost
@@ -164,6 +228,15 @@ export default function RecurringTransactionsCard() {
 
   return (
     <Card width="full" variant="glass" className="flex flex-col h-full">
+      {/* Plaid Link for consent update */}
+      {consentLinkToken && (
+        <ConsentPlaidLink
+          linkToken={consentLinkToken.token}
+          onSuccess={handleConsentComplete}
+          onExit={() => setConsentLinkToken(null)}
+        />
+      )}
+
       {/* Header with Total */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-medium text-[var(--color-muted)]">Upcoming Bills</h3>
@@ -203,6 +276,7 @@ export default function RecurringTransactionsCard() {
         </div>
       )}
 
+      {/* Bills Drawer */}
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -216,8 +290,81 @@ export default function RecurringTransactionsCard() {
           ))}
         </div>
       </Drawer>
+
+      {/* Consent Required Drawer */}
+      <Drawer
+        isOpen={isConsentDrawerOpen}
+        onClose={() => setIsConsentDrawerOpen(false)}
+        title="Additional Access Required"
+        description="Some accounts need permission to show recurring bills"
+        size="md"
+      >
+        <div className="space-y-6 pt-4">
+          <div className="p-4 bg-[var(--color-surface)] rounded-lg">
+            <div className="flex items-start gap-3">
+              <FiAlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-[var(--color-fg)]">
+                  {itemsNeedingConsent.length} connected account{itemsNeedingConsent.length > 1 ? 's' : ''} need{itemsNeedingConsent.length === 1 ? 's' : ''} additional access to detect recurring transactions like mortgage, utilities, and subscriptions.
+                </p>
+                <p className="text-xs text-[var(--color-muted)] mt-2">
+                  This will open a secure window to grant permission. Your login credentials are never shared.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              if (itemsNeedingConsent.length > 0) {
+                handleGrantConsent(itemsNeedingConsent[0]);
+              }
+            }}
+            disabled={updatingConsent}
+            className="w-full py-3 px-4 bg-[var(--color-accent)] text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {updatingConsent ? 'Loading...' : 'Grant Access'}
+          </button>
+
+          <button
+            onClick={() => setIsConsentDrawerOpen(false)}
+            className="w-full py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+          >
+            Maybe Later
+          </button>
+        </div>
+      </Drawer>
     </Card>
   );
+}
+
+// Component to handle Plaid Link for consent updates
+function ConsentPlaidLink({ linkToken, onSuccess, onExit }) {
+  const config = {
+    token: linkToken,
+    onSuccess: (publicToken, metadata) => {
+      // For update mode, we don't get a new public token
+      // Just call onSuccess to refresh the data
+      onSuccess();
+    },
+    onExit: (err, metadata) => {
+      if (err) {
+        console.error('Plaid Link error:', err);
+      }
+      onExit();
+    },
+  };
+
+  const { open, ready } = usePlaidLink(config);
+
+  // Auto-open when ready
+  useEffect(() => {
+    if (ready) {
+      open();
+    }
+  }, [ready, open]);
+
+  return null; // No UI needed, Link opens automatically
 }
 
 function RecurringStreamItem({ item, showDetails = false }) {

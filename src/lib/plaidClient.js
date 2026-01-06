@@ -34,14 +34,15 @@ function getPlaidClient() {
       globalForPlaid.plaidClient = plaidClient;
     }
   }
-  
+
   return plaidClient;
 }
 
 export { getPlaidClient };
 
 // Helper function to create link token
-export async function createLinkToken(userId, products = ['transactions'], accountFilters = null) {
+// If accessToken is provided, creates a Link token in update mode for additional consent
+export async function createLinkToken(userId, products = ['transactions'], accountFilters = null, accessToken = null) {
   try {
     // Check environment variables first
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
@@ -54,13 +55,26 @@ export async function createLinkToken(userId, products = ['transactions'], accou
         client_user_id: userId,
       },
       client_name: 'Finance Next',
-      products: products,
       country_codes: ['US'],
       language: 'en',
       webhook: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook` : undefined,
     };
 
-    // Add account filters if provided - restricts which account types are shown in Link
+    // Update mode: use access_token instead of products
+    // This allows requesting additional product consent without re-linking
+    if (accessToken) {
+      request.access_token = accessToken;
+      // When in update mode with access_token, we can specify additional products
+      // that weren't originally consented to
+      if (products && products.length > 0) {
+        request.additional_consented_products = products;
+      }
+    } else {
+      // Normal mode: specify products for new link
+      request.products = products;
+    }
+
+    // Add account filters if provided
     if (accountFilters) {
       request.account_filters = accountFilters;
     }
@@ -69,13 +83,13 @@ export async function createLinkToken(userId, products = ['transactions'], accou
     return response.data;
   } catch (error) {
     console.error('Error creating link token:', error);
-    
+
     // Provide more specific error messages
     if (error.response?.data) {
       console.error('Plaid API Error Details:', error.response.data);
       throw new Error(`Plaid API Error: ${error.response.data.error_message || error.response.data.error_code || 'Unknown error'}`);
     }
-    
+
     throw error;
   }
 }
@@ -125,13 +139,13 @@ export async function getInstitution(institutionId) {
     return response.data.institution;
   } catch (error) {
     console.error('Error getting institution:', error);
-    
+
     // Provide more specific error messages
     if (error.response?.data) {
       console.error('Plaid Institution API Error Details:', error.response.data);
       throw new Error(`Institution Error: ${error.response.data.error_message || error.response.data.error_code || 'Unknown error'}`);
     }
-    
+
     throw error;
   }
 }
@@ -159,13 +173,13 @@ export async function getTransactions(accessToken, startDate, endDate, accountId
 export async function syncTransactions(accessToken, cursor = null) {
   try {
     const client = getPlaidClient();
-    
+
     // Handle cursor according to Plaid docs: empty string for initial sync, omit for subsequent
     let requestCursor = cursor;
     if (cursor === null || cursor === undefined || cursor.trim() === '') {
       requestCursor = ''; // Empty string for initial sync
     }
-    
+
     const request = {
       access_token: accessToken,
       cursor: requestCursor,
@@ -179,7 +193,7 @@ export async function syncTransactions(accessToken, cursor = null) {
     });
 
     const response = await client.transactionsSync(request);
-    
+
     console.log(`[PLAID SYNC] Response details:`, {
       has_more: response.data.has_more,
       next_cursor: response.data.next_cursor,
@@ -187,7 +201,7 @@ export async function syncTransactions(accessToken, cursor = null) {
       modified_count: response.data.modified?.length || 0,
       removed_count: response.data.removed?.length || 0
     });
-    
+
     return response.data;
   } catch (error) {
     console.error('Error syncing transactions:', error);
