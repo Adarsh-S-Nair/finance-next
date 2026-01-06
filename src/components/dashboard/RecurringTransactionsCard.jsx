@@ -3,9 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../ui/Card';
 import { useUser } from '../UserProvider';
-import { FiRefreshCw, FiTag } from 'react-icons/fi';
-import DynamicIcon from '../DynamicIcon';
-
+import { FiRefreshCw, FiTag, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
 
 function formatCurrency(amount) {
@@ -19,7 +17,6 @@ function formatCurrency(amount) {
 
 function formatDate(dateString) {
   if (!dateString) return '';
-  // Parse YYYY-MM-DD as local time to avoid timezone shifts (e.g. UTC midnight -> previous day EST)
   const [year, month, day] = dateString.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   const now = new Date();
@@ -37,41 +34,88 @@ function formatDate(dateString) {
   });
 }
 
+function formatFrequency(frequency) {
+  const map = {
+    'WEEKLY': 'Weekly',
+    'BIWEEKLY': 'Bi-weekly',
+    'SEMI_MONTHLY': 'Twice monthly',
+    'MONTHLY': 'Monthly',
+    'ANNUALLY': 'Yearly',
+    'UNKNOWN': 'Variable',
+  };
+  return map[frequency] || frequency;
+}
+
+function getMonthlyAmount(amount, frequency) {
+  switch (frequency) {
+    case 'WEEKLY': return amount * 4.33;
+    case 'BIWEEKLY': return amount * 2.16;
+    case 'SEMI_MONTHLY': return amount * 2;
+    case 'MONTHLY': return amount;
+    case 'ANNUALLY': return amount / 12;
+    default: return amount;
+  }
+}
+
 export default function RecurringTransactionsCard() {
   const { user } = useUser();
   const [recurring, setRecurring] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  const fetchRecurring = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+      // Fetch only outflow (expenses/bills) by default
+      const response = await fetch(`/api/recurring/get?userId=${user.id}&streamType=outflow`);
+      if (!response.ok) throw new Error('Failed to fetch');
+      const result = await response.json();
+      setRecurring(result.recurring || []);
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchRecurring = async () => {
-      if (!user?.id) return;
-
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/recurring/get?userId=${user.id}`);
-        if (!response.ok) throw new Error('Failed to fetch');
-        const result = await response.json();
-        setRecurring(result.recurring || []);
-      } catch (err) {
-        console.error(err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchRecurring();
   }, [user?.id]);
 
+  const handleSync = async () => {
+    if (!user?.id || syncing) return;
+
+    try {
+      setSyncing(true);
+      const response = await fetch('/api/plaid/recurring/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Refresh the list after sync
+        await fetchRecurring();
+      } else {
+        console.error('Sync failed:', result.error);
+      }
+    } catch (err) {
+      console.error('Error syncing:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Calculate total monthly recurring cost
   const totalMonthly = recurring.reduce((acc, item) => {
-    let monthlyAmount = item.amount;
-    if (item.frequency === 'weekly') monthlyAmount = item.amount * 4.33;
-    if (item.frequency === 'bi-weekly') monthlyAmount = item.amount * 2.16;
-    if (item.frequency === 'yearly') monthlyAmount = item.amount / 12;
-    return acc + monthlyAmount;
+    return acc + getMonthlyAmount(item.last_amount, item.frequency);
   }, 0);
 
   if (loading) {
@@ -98,11 +142,21 @@ export default function RecurringTransactionsCard() {
   if (!recurring || recurring.length === 0) {
     return (
       <Card width="full" variant="glass">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex items-center justify-between">
           <div className="text-sm font-medium text-[var(--color-muted)]">Recurring Bills</div>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors flex items-center gap-1"
+          >
+            <FiRefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
         </div>
         <div className="text-center py-8 text-[var(--color-muted)] text-sm font-light">
           No recurring bills detected yet.
+          <br />
+          <span className="text-xs">Click sync to fetch from your accounts.</span>
         </div>
       </Card>
     );
@@ -113,18 +167,28 @@ export default function RecurringTransactionsCard() {
       {/* Header with Total */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-medium text-[var(--color-muted)]">Upcoming Bills</h3>
-        <div className="flex items-baseline gap-1">
-          <span className="text-sm font-semibold text-[var(--color-fg)]">
-            {formatCurrency(totalMonthly)}
-          </span>
-          <span className="text-xs text-[var(--color-muted)]">/mo</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-sm font-semibold text-[var(--color-fg)]">
+              {formatCurrency(totalMonthly)}
+            </span>
+            <span className="text-xs text-[var(--color-muted)]">/mo</span>
+          </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+            title="Sync recurring transactions"
+          >
+            <FiRefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
       {/* Minimal List */}
       <div className="flex-1 space-y-1 min-h-0 overflow-hidden">
         {recurring.slice(0, 4).map((item) => (
-          <RecurringTransactionItem key={item.id} item={item} />
+          <RecurringStreamItem key={item.id} item={item} />
         ))}
       </div>
 
@@ -148,103 +212,56 @@ export default function RecurringTransactionsCard() {
       >
         <div className="space-y-1 mt-4">
           {recurring.map((item) => (
-            <RecurringTransactionItem key={item.id} item={item} />
+            <RecurringStreamItem key={item.id} item={item} showDetails />
           ))}
-        </div>
-
-        <div className="mt-8 pt-4 border-t border-[var(--color-border)]">
-          <button
-            onClick={async () => {
-              if (window.confirm('This will delete all existing recurring transactions and re-scan your history. Are you sure?')) {
-                try {
-                  setLoading(true);
-                  const res = await fetch('/api/debug/detect-recurring', {
-                    method: 'POST',
-                    body: JSON.stringify({ userId: user.id, clearBeforeRun: true })
-                  });
-                  const json = await res.json();
-                  if (json.success) {
-                    // Refresh list
-                    const response = await fetch(`/api/recurring/get?userId=${user.id}`);
-                    const result = await response.json();
-                    setRecurring(result.recurring || []);
-                    alert('Detection complete!');
-                  } else {
-                    alert('Error: ' + json.error);
-                  }
-                } catch (e) {
-                  console.error(e);
-                  alert('Failed to run detection');
-                } finally {
-                  setLoading(false);
-                }
-              }
-            }}
-            className="w-full py-3 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            <FiRefreshCw className="w-3 h-3" />
-            Re-detect Recurring Transactions
-          </button>
         </div>
       </Drawer>
     </Card>
   );
 }
 
-function RecurringTransactionItem({ item }) {
+function RecurringStreamItem({ item, showDetails = false }) {
+  const displayName = item.merchant_name || item.description;
+  const displayDate = item.predicted_next_date || item.last_date;
+
   return (
     <div
       className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors gap-3 group cursor-pointer -mx-2"
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Minimal Icon */}
-        <div className="w-8 h-8 flex items-center justify-center text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-          {item.icon_url ? (
-            <img
-              src={item.icon_url}
-              alt={item.merchant_name}
-              className="w-6 h-6 object-contain opacity-70 group-hover:opacity-100 transition-opacity"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-          ) : null}
-
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{ display: item.icon_url ? 'none' : 'flex' }}
-          >
-            {item.category?.group?.icon_name ? (
-              <DynamicIcon
-                iconLib={item.category.group.icon_lib}
-                iconName={item.category.group.icon_name}
-                className="h-5 w-5"
-                fallback={FiTag}
-              />
-            ) : (
-              <span className="text-sm font-medium">
-                {item.merchant_name.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
+        {/* Icon placeholder - first letter of merchant */}
+        <div className="w-8 h-8 flex items-center justify-center text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors rounded-full bg-[var(--color-surface)]">
+          <span className="text-sm font-medium">
+            {displayName.charAt(0).toUpperCase()}
+          </span>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-            {item.merchant_name}
+            {displayName}
           </div>
-          <div className="text-xs text-[var(--color-muted)]">
-            {formatDate(item.next_date)}
+          <div className="text-xs text-[var(--color-muted)] flex items-center gap-2">
+            <span>{formatDate(displayDate)}</span>
+            {showDetails && (
+              <>
+                <span>•</span>
+                <span>{formatFrequency(item.frequency)}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       <div className="text-right">
         <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-          {formatCurrency(item.amount)}
+          {formatCurrency(item.last_amount)}
         </div>
+        {showDetails && item.average_amount !== item.last_amount && (
+          <div className="text-xs text-[var(--color-muted)]">
+            avg {formatCurrency(item.average_amount)}
+          </div>
+        )}
       </div>
-    </div >
+    </div>
   );
 }

@@ -3,7 +3,6 @@ import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 import { createLogger } from '../../../../../lib/logger';
-import { detectRecurringTransactions } from '../../../../../lib/recurring-detection';
 import { formatInTimeZone } from 'date-fns-tz';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
@@ -606,12 +605,11 @@ export async function POST(request) {
     });
     await logger.flush();
 
-    // Run recurring transaction detection
+    // Run unmatched transfer detection
     if (transactionsToUpsert.length > 0) {
-      if (DEBUG) console.log('🔄 Running recurring transaction detection...');
-      await detectRecurringTransactions(userId);
+      // Note: Recurring transaction detection now uses Plaid's /transactions/recurring/get API
+      // via the /api/plaid/recurring/sync endpoint (called separately or on user action)
 
-      // Run unmatched transfer detection
       if (DEBUG) console.log('🔄 Running unmatched transfer detection...');
       try {
         const { detectUnmatchedTransfers } = await import('../../../../../lib/transfer-detection');
