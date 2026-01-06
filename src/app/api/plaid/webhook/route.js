@@ -181,6 +181,20 @@ async function handleTransactionsWebhook(webhookData) {
       logger.info('Triggering transaction sync', { item_id, webhook_code });
       if (DEBUG) console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
 
+      // Mark item as ready for recurring transactions on HISTORICAL_UPDATE or SYNC_UPDATES_AVAILABLE
+      if (webhook_code === 'HISTORICAL_UPDATE' || webhook_code === 'SYNC_UPDATES_AVAILABLE') {
+        const { error: updateReadyError } = await supabaseAdmin
+          .from('plaid_items')
+          .update({ recurring_ready: true })
+          .eq('id', plaidItem.id);
+
+        if (updateReadyError) {
+          logger.error('Error updating recurring_ready', null, { error: updateReadyError });
+        } else {
+          logger.info('Marked item as recurring_ready', { item_id, webhook_code });
+        }
+      }
+
       try {
         // Import and call the sync function directly instead of making HTTP request
         const { POST: syncEndpoint } = await import('../transactions/sync/route.js');

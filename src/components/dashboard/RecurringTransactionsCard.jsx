@@ -94,7 +94,7 @@ export default function RecurringTransactionsCard() {
   const [updatingConsent, setUpdatingConsent] = useState(false);
   const [isConsentDrawerOpen, setIsConsentDrawerOpen] = useState(false);
 
-  const handleSync = async () => {
+  const handleSync = async (forceReset = false) => {
     if (!user?.id || syncing) return;
 
     try {
@@ -104,7 +104,7 @@ export default function RecurringTransactionsCard() {
       const response = await fetch('/api/plaid/recurring/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId: user.id, forceReset }),
       });
 
       const result = await response.json();
@@ -248,7 +248,7 @@ export default function RecurringTransactionsCard() {
             <span className="text-xs text-[var(--color-muted)]">/mo</span>
           </div>
           <button
-            onClick={handleSync}
+            onClick={() => handleSync()}
             disabled={syncing}
             className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
             title="Sync recurring transactions"

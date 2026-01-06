@@ -10,30 +10,66 @@ const logger = createLogger('plaid-recurring-sync');
  */
 export async function POST(request) {
   try {
-    const { userId } = await request.json();
+    const { userId, forceReset = false } = await request.json();
 
     if (!userId) {
       return Response.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    logger.info('Starting recurring transactions sync', { userId });
+    logger.info('Starting recurring transactions sync', { userId, forceReset });
 
-    // Get all plaid items for this user
-    const { data: plaidItems, error: itemsError } = await supabaseAdmin
-      .from('plaid_items')
-      .select('id, access_token')
-      .eq('user_id', userId);
+    // If forceReset, delete all existing recurring streams for this user
+    if (forceReset) {
+      logger.info('Force reset: deleting existing recurring streams', { userId });
+      const { error: deleteError } = await supabaseAdmin
+        .from('recurring_streams')
+        .delete()
+        .eq('user_id', userId);
 
-    if (itemsError) {
-      throw new Error(`Failed to fetch plaid items: ${itemsError.message}`);
+      if (deleteError) {
+        logger.error('Error deleting existing streams', { error: deleteError.message });
+      }
     }
 
-    if (!plaidItems || plaidItems.length === 0) {
+    // Get all plaid items for this user that are ready for recurring transactions
+    // Items are marked ready when they receive HISTORICAL_UPDATE or SYNC_UPDATES_AVAILABLE webhook
+    const { data: allItems, error: allItemsError } = await supabaseAdmin
+      .from('plaid_items')
+      .select('id, access_token, recurring_ready')
+      .eq('user_id', userId);
+
+    if (allItemsError) {
+      throw new Error(`Failed to fetch plaid items: ${allItemsError.message}`);
+    }
+
+    if (!allItems || allItems.length === 0) {
       logger.info('No plaid items found for user', { userId });
       return Response.json({
         success: true,
         message: 'No connected accounts',
         synced: 0
+      });
+    }
+
+    // Filter to only ready items
+    const plaidItems = allItems.filter(item => item.recurring_ready === true);
+    const notReadyCount = allItems.length - plaidItems.length;
+
+    if (notReadyCount > 0) {
+      logger.info('Some items not ready for recurring detection', {
+        userId,
+        readyCount: plaidItems.length,
+        notReadyCount
+      });
+    }
+
+    if (plaidItems.length === 0) {
+      logger.info('No items ready for recurring detection yet', { userId });
+      return Response.json({
+        success: true,
+        message: 'Accounts are still syncing transaction history. Please try again later.',
+        synced: 0,
+        itemsNotReady: notReadyCount
       });
     }
 
