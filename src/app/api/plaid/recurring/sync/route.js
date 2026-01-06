@@ -140,9 +140,27 @@ export async function POST(request) {
         console.error('❌ Full error object:', itemError);
         console.error('❌ Error response:', itemError.response?.data);
 
+        const errorCode = itemError.response?.data?.error_code;
+
+        // If PRODUCT_NOT_READY, mark item as not ready and skip silently
+        // This self-corrects items that were incorrectly marked as ready
+        if (errorCode === 'PRODUCT_NOT_READY') {
+          logger.info('Item not ready for recurring, marking as recurring_ready=false', {
+            plaidItemId: item.id
+          });
+
+          await supabaseAdmin
+            .from('plaid_items')
+            .update({ recurring_ready: false })
+            .eq('id', item.id);
+
+          // Don't add to errors - this is expected and self-correcting
+          continue;
+        }
+
         // Extract meaningful error message from Plaid API errors
         const errorMessage = itemError.response?.data?.error_message
-          || itemError.response?.data?.error_code
+          || errorCode
           || itemError.message
           || String(itemError)
           || 'Unknown error';
@@ -150,13 +168,13 @@ export async function POST(request) {
         logger.error('Error syncing recurring for item', {
           plaidItemId: item.id,
           error: errorMessage,
-          errorCode: itemError.response?.data?.error_code,
+          errorCode: errorCode,
           errorType: itemError.response?.data?.error_type,
         });
         errors.push({
           plaidItemId: item.id,
           error: errorMessage,
-          errorCode: itemError.response?.data?.error_code,
+          errorCode: errorCode,
         });
       }
     }

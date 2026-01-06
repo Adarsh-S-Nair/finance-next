@@ -31,7 +31,7 @@ export async function POST(request) {
     // This ensures we only store accounts that match the user's intent
     // (Plaid returns ALL accounts at an institution regardless of product requested)
     let accounts = allAccounts;
-    
+
     if (accountType) {
       accounts = allAccounts.filter(account => {
         if (isInvestmentProduct) {
@@ -47,13 +47,13 @@ export async function POST(request) {
         // Default: keep all accounts
         return true;
       });
-      
+
       console.log(`🔍 Filtered to ${accounts.length} accounts matching type "${accountType}" (from ${allAccounts.length} total)`);
-      
+
       // Log which accounts were filtered out for debugging
       const filteredOut = allAccounts.filter(a => !accounts.includes(a));
       if (filteredOut.length > 0) {
-        console.log(`⏭️ Skipped ${filteredOut.length} accounts that don't match selected type:`, 
+        console.log(`⏭️ Skipped ${filteredOut.length} accounts that don't match selected type:`,
           filteredOut.map(a => ({ name: a.name, type: a.type, subtype: a.subtype }))
         );
       }
@@ -63,14 +63,14 @@ export async function POST(request) {
     if (accounts.length === 0) {
       console.warn(`⚠️ No accounts match the selected type "${accountType}"`);
       return Response.json(
-        { 
-          error: 'No matching accounts found', 
+        {
+          error: 'No matching accounts found',
           details: `No ${accountType} accounts were found at this institution. The institution returned ${allAccounts.length} account(s) but none matched the selected account type.`
         },
         { status: 400 }
       );
     }
-    
+
     // Debug logging for account details
     console.log('🔍 DEBUG: Full accounts response from exchange-token:', JSON.stringify(accountsResponse, null, 2));
     console.log('🔍 DEBUG: Individual accounts from exchange-token:', accounts.map(acc => ({
@@ -80,14 +80,14 @@ export async function POST(request) {
       subtype: acc.subtype,
       mask: acc.mask
     })));
-    
+
     // Get institution info (with fallback)
     let institution = null;
     let institutionData = null;
-    
+
     // Try to get institution_id from different possible locations
     const actualInstitutionId = institution_id || accountsResponse.item?.institution_id;
-    
+
     if (actualInstitutionId) {
       try {
         institution = await getInstitution(actualInstitutionId);
@@ -119,6 +119,9 @@ export async function POST(request) {
       }
     }
 
+    // Determine products array based on account type
+    const products = isInvestmentProduct ? ['investments'] : ['transactions'];
+
     // First, create or update the plaid_item
     const { data: plaidItemData, error: plaidItemError } = await supabaseAdmin
       .from('plaid_items')
@@ -126,7 +129,10 @@ export async function POST(request) {
         user_id: userId,
         item_id: item_id,
         access_token: access_token,
-        sync_status: 'idle'
+        sync_status: 'idle',
+        products: products,
+        // Set recurring_ready only for transaction items (investments don't have recurring)
+        recurring_ready: !isInvestmentProduct
       }, {
         onConflict: 'user_id,item_id'
       })
@@ -170,7 +176,7 @@ export async function POST(request) {
             .eq('type', 'investment')
             .eq('user_id', userId)
             .maybeSingle();
-          
+
           existingAccount = matchedAccount;
         }
 
@@ -285,7 +291,7 @@ export async function POST(request) {
     try {
       console.log('📸 Creating account snapshots...');
       const snapshotResult = await createAccountSnapshots(accounts, accountsData.map(acc => acc.id));
-      
+
       if (snapshotResult.success) {
         console.log(`✅ Created ${snapshotResult.data.length} account snapshots successfully`);
       } else {
