@@ -212,7 +212,13 @@ export async function POST(request) {
             });
 
           if (customUpsertError) {
-            logger.error('Error upserting custom streams', { error: customUpsertError.message });
+            console.error('❌ Custom streams upsert error:', JSON.stringify(customUpsertError, null, 2));
+            logger.error('Error upserting custom streams', {
+              error: customUpsertError.message,
+              code: customUpsertError.code,
+              details: customUpsertError.details,
+              hint: customUpsertError.hint
+            });
           } else {
             customDetected += customStreams.length;
           }

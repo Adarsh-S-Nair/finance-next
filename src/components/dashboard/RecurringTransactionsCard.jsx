@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import Card from '../ui/Card';
 import { useUser } from '../UserProvider';
-import { FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { FiRefreshCw, FiAlertCircle, FiTag } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
+import DynamicIcon from '../DynamicIcon';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -15,6 +16,44 @@ function formatCurrency(amount) {
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+// Helper to calculate next due date if the current one is in the past
+const getNextDueDate = (dateStr, frequency) => {
+  if (!dateStr) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(dateStr);
+
+  // If date is in future or today, return it
+  if (date >= today) return dateStr;
+
+  // If date is in past, calculate next occurrence based on frequency
+  if (!frequency) return dateStr;
+
+  const nextDate = new Date(date);
+  while (nextDate < today) {
+    switch (frequency) {
+      case 'WEEKLY':
+        nextDate.setDate(nextDate.getDate() + 7);
+        break;
+      case 'BIWEEKLY':
+      case 'SEMI_MONTHLY':
+        nextDate.setDate(nextDate.getDate() + 14);
+        break;
+      case 'MONTHLY':
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        break;
+      case 'ANNUALLY':
+        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        break;
+      default:
+        return dateStr; // Can't calculate for unknown frequency
+    }
+  }
+
+  return nextDate.toISOString().split('T')[0];
+};
 
 function formatDate(dateString) {
   if (!dateString) return '';
@@ -87,6 +126,19 @@ export default function RecurringTransactionsCard() {
   useEffect(() => {
     fetchRecurring();
   }, [user?.id]);
+
+  // Sort recurring streams by next due date (handling past dates)
+  const sortedRecurring = React.useMemo(() => {
+    return recurring.map(item => ({
+      ...item,
+      smartNextDate: getNextDueDate(item.predicted_next_date || item.last_date, item.frequency)
+    })).sort((a, b) => {
+      // Sort by smartNextDate
+      if (!a.smartNextDate) return 1;
+      if (!b.smartNextDate) return -1;
+      return new Date(a.smartNextDate) - new Date(b.smartNextDate);
+    });
+  }, [recurring]);
 
   // State for consent updates
   const [itemsNeedingConsent, setItemsNeedingConsent] = useState([]);
@@ -178,7 +230,7 @@ export default function RecurringTransactionsCard() {
   };
 
   // Calculate total monthly recurring cost
-  const totalMonthly = recurring.reduce((acc, item) => {
+  const totalMonthly = sortedRecurring.reduce((acc, item) => {
     return acc + getMonthlyAmount(item.last_amount, item.frequency);
   }, 0);
 
@@ -203,7 +255,7 @@ export default function RecurringTransactionsCard() {
     );
   }
 
-  if (!recurring || recurring.length === 0) {
+  if (!sortedRecurring || sortedRecurring.length === 0) {
     return (
       <Card width="full" variant="glass">
         <div className="mb-4 flex items-center justify-between">
@@ -260,18 +312,18 @@ export default function RecurringTransactionsCard() {
 
       {/* Minimal List */}
       <div className="flex-1 space-y-1 min-h-0 overflow-hidden">
-        {recurring.slice(0, 4).map((item) => (
+        {sortedRecurring.slice(0, 4).map((item) => (
           <RecurringStreamItem key={item.id} item={item} />
         ))}
       </div>
 
-      {recurring.length > 4 && (
+      {sortedRecurring.length > 4 && (
         <div className="mt-4 pt-3 border-t border-[var(--color-border)]/50">
           <button
             onClick={() => setIsDrawerOpen(true)}
             className="w-full text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors font-medium"
           >
-            View all {recurring.length} bills
+            View all {sortedRecurring.length} bills
           </button>
         </div>
       )}
@@ -285,7 +337,7 @@ export default function RecurringTransactionsCard() {
         size="md"
       >
         <div className="space-y-1 mt-4">
-          {recurring.map((item) => (
+          {sortedRecurring.map((item) => (
             <RecurringStreamItem key={item.id} item={item} showDetails />
           ))}
         </div>
@@ -369,18 +421,60 @@ function ConsentPlaidLink({ linkToken, onSuccess, onExit }) {
 
 function RecurringStreamItem({ item, showDetails = false }) {
   const displayName = item.merchant_name || item.description;
-  const displayDate = item.predicted_next_date || item.last_date;
+  const displayDate = item.smartNextDate || getNextDueDate(item.predicted_next_date || item.last_date, item.frequency);
+  const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
   return (
     <div
       className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors gap-3 group cursor-pointer -mx-2"
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Icon placeholder - first letter of merchant */}
-        <div className="w-8 h-8 flex items-center justify-center text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors rounded-full bg-[var(--color-surface)]">
-          <span className="text-sm font-medium">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
+
+        {/* Icon: Logo -> Category Icon -> Letter Fallback */}
+        <div
+          className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)]"
+          style={{
+            backgroundColor: (!DISABLE_LOGOS && item.icon_url)
+              ? 'transparent'
+              : ((item.category_hex_color && !DISABLE_LOGOS) || 'var(--color-surface)') // Use hex color if available
+          }}
+        >
+          {(!DISABLE_LOGOS && item.icon_url) ? (
+            <img
+              src={item.icon_url}
+              alt={displayName}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const next = e.target.nextSibling;
+                if (next) next.style.display = 'flex';
+              }}
+            />
+          ) : null}
+
+          {/* Fallback Container (Category Icon or Letter) */}
+          <div
+            style={{
+              display: (!DISABLE_LOGOS && item.icon_url) ? 'none' : 'flex',
+              width: '100%',
+              height: '100%',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {item.category_icon_lib ? (
+              <DynamicIcon
+                iconLib={item.category_icon_lib}
+                iconName={item.category_icon_name}
+                className="h-4 w-4 text-white"
+                fallback={FiTag}
+              />
+            ) : (
+              <span className="text-sm font-medium text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="min-w-0 flex-1">

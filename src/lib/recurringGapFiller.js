@@ -46,6 +46,7 @@ export async function detectMissedRecurring(userId, plaidItemId, existingStreamM
     .from('transactions')
     .select(`
       id,
+      plaid_transaction_id,
       merchant_name,
       description,
       amount,
@@ -202,7 +203,8 @@ function detectMonthlyPattern(transactions) {
     lastAmount: amounts[0],
     lastDate: sorted[0].datetime,
     predictedNextDate: predictedNext.toISOString().split('T')[0],
-    transactionIds: sorted.map(t => t.id)
+    // Store plaid_transaction_id if available, otherwise fallback to id (but this might break API lookup)
+    transactionIds: sorted.map(t => t.plaid_transaction_id || t.id)
   };
 }
 
@@ -210,27 +212,37 @@ function detectMonthlyPattern(transactions) {
  * Convert detected pattern to recurring_streams record format
  */
 function convertToStreamRecord(detected, userId, plaidItemId) {
-  const { merchantName, pattern, category } = detected;
+  const { merchantName, pattern, transactions, category } = detected;
 
   // Generate a unique stream_id for custom-detected streams
   const streamId = `custom_${plaidItemId}_${merchantName?.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 30)}`;
 
+  // Get account_id from the first transaction
+  const accountId = transactions[0]?.account_id || 'unknown';
+
+  // Get first and last dates
+  const sortedTxns = [...transactions].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  const firstDate = sortedTxns[0]?.datetime?.split('T')[0] || pattern.lastDate;
+  const lastDate = pattern.lastDate?.split('T')[0] || pattern.lastDate;
+
   return {
     user_id: userId,
     plaid_item_id: plaidItemId,
+    account_id: accountId,
     stream_id: streamId,
     stream_type: 'outflow',
     status: pattern.occurrences >= 6 ? 'MATURE' : 'EARLY_DETECTION',
     description: merchantName,
     merchant_name: merchantName,
     frequency: pattern.frequency,
+    first_date: firstDate,
+    last_date: lastDate,
+    predicted_next_date: pattern.predictedNextDate,
     average_amount: pattern.averageAmount,
     last_amount: pattern.lastAmount,
-    last_date: pattern.lastDate,
-    predicted_next_date: pattern.predictedNextDate,
     is_active: true,
-    personal_finance_primary: category || 'LOAN_PAYMENTS',
-    personal_finance_detailed: null,
+    category_primary: category || 'LOAN_PAYMENTS',
+    category_detailed: null,
     transaction_ids: pattern.transactionIds,
     is_custom_detected: true // Flag to indicate this was detected by our system, not Plaid
   };

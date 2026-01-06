@@ -30,13 +30,55 @@ export async function GET(request) {
       query = query.eq('stream_type', streamType);
     }
 
-    const { data, error } = await query;
+    const { data: streams, error: streamsError } = await query;
 
-    if (error) {
-      throw error;
+    if (streamsError) {
+      throw streamsError;
     }
 
-    return Response.json({ recurring: data });
+    // Enhance streams with icon_url from the most recent transaction
+    const latestTransactionIds = streams
+      .map(s => s.transaction_ids && s.transaction_ids.length > 0 ? s.transaction_ids[0] : null)
+      .filter(Boolean);
+
+    if (latestTransactionIds.length > 0) {
+      // Query transactions using the Plaid transaction ID stored in transaction_ids array
+      const { data: transactions } = await supabase
+        .from('transactions')
+        .select(`
+          plaid_transaction_id, 
+          icon_url,
+          system_categories (
+            category_groups (
+              icon_lib,
+              icon_name,
+              hex_color
+            )
+          )
+        `)
+        .in('plaid_transaction_id', latestTransactionIds);
+
+      if (transactions) {
+        const txMap = new Map(transactions.map(t => [t.plaid_transaction_id, t]));
+
+        // Attach icon_url and category metadata to streams
+        streams.forEach(stream => {
+          if (stream.transaction_ids && stream.transaction_ids.length > 0) {
+            const latestId = stream.transaction_ids[0];
+            const tx = txMap.get(latestId);
+
+            if (tx) {
+              stream.icon_url = tx.icon_url || null;
+              stream.category_icon_lib = tx.system_categories?.category_groups?.icon_lib;
+              stream.category_icon_name = tx.system_categories?.category_groups?.icon_name;
+              stream.category_hex_color = tx.system_categories?.category_groups?.hex_color;
+            }
+          }
+        });
+      }
+    }
+
+    return Response.json({ recurring: streams });
   } catch (error) {
     console.error('Error fetching recurring streams:', error);
     return Response.json({ error: error.message }, { status: 500 });
