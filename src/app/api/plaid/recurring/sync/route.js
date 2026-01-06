@@ -1,6 +1,7 @@
 import { getPlaidClient } from '../../../../../lib/plaidClient';
 import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
 import { createLogger } from '../../../../../lib/logger';
+import { detectMissedRecurring } from '../../../../../lib/recurringGapFiller';
 
 const logger = createLogger('plaid-recurring-sync');
 
@@ -181,6 +182,46 @@ export async function POST(request) {
 
     await logger.flush();
 
+    // Collect all Plaid-detected merchant names for deduplication in gap filler
+    const { data: existingStreams } = await supabaseAdmin
+      .from('recurring_streams')
+      .select('merchant_name')
+      .eq('user_id', userId)
+      .eq('is_custom_detected', false);
+
+    const existingMerchants = (existingStreams || []).map(s => s.merchant_name).filter(Boolean);
+
+    // Run gap filler detection for each item to catch mortgages/utilities Plaid missed
+    let customDetected = 0;
+    for (const item of plaidItems) {
+      try {
+        const customStreams = await detectMissedRecurring(userId, item.id, existingMerchants);
+
+        if (customStreams.length > 0) {
+          logger.info('Gap filler detected missed patterns', {
+            plaidItemId: item.id,
+            count: customStreams.length,
+            merchants: customStreams.map(s => s.merchant_name)
+          });
+
+          // Upsert custom-detected streams
+          const { error: customUpsertError } = await supabaseAdmin
+            .from('recurring_streams')
+            .upsert(customStreams, {
+              onConflict: 'stream_id'
+            });
+
+          if (customUpsertError) {
+            logger.error('Error upserting custom streams', { error: customUpsertError.message });
+          } else {
+            customDetected += customStreams.length;
+          }
+        }
+      } catch (gapError) {
+        logger.error('Error in gap filler detection', { plaidItemId: item.id, error: gapError.message });
+      }
+    }
+
     // Separate consent errors from other errors
     const consentErrors = errors.filter(e => e.errorCode === 'ADDITIONAL_CONSENT_REQUIRED');
     const otherErrors = errors.filter(e => e.errorCode !== 'ADDITIONAL_CONSENT_REQUIRED');
@@ -188,6 +229,7 @@ export async function POST(request) {
     return Response.json({
       success: otherErrors.length === 0,
       synced: totalSynced,
+      customDetected,
       itemsProcessed: plaidItems.length,
       errors: otherErrors.length > 0 ? otherErrors : undefined,
       // Include items that need additional consent so frontend can prompt user
