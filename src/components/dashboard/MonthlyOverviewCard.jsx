@@ -130,77 +130,77 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
       ) : (
         <div className="flex flex-col h-full">
           {/* Custom Header */}
-          <div className="px-6 pt-6 pb-2">
-            <div className="flex items-start justify-between">
-              {/* Left Side: Title and Values */}
-              <div>
-                {/* Title */}
-                <div
-                  className={`flex items-center gap-2 mb-1 ${onBack ? 'cursor-pointer group' : ''}`}
-                  onClick={onBack}
-                >
-                  {onBack && (
-                    <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </div>
-                  )}
-                  <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
-                    Monthly Overview
+          {/* Custom Header */}
+          <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex justify-between items-start">
+            {/* Left Side: Title and Values */}
+            <div>
+              {/* Title */}
+              <div
+                className={`flex items-center gap-1 mb-2 sm:mb-3 ${onBack ? 'cursor-pointer group' : ''}`}
+                onClick={onBack}
+              >
+                {onBack && (
+                  <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
                   </div>
-                </div>
-
-                {/* Values Row */}
-                <div className="flex items-baseline gap-8">
-                  <div>
-                    <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
-                      {formatCurrency(currentData?.income || 0)}
-                    </div>
-                    <div className="text-xs font-medium text-[var(--color-muted)]">Income</div>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
-                      {formatCurrency(currentData?.spending || 0)}
-                    </div>
-                    <div className="text-xs font-medium text-[var(--color-muted)]">Spending</div>
-                  </div>
+                )}
+                <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
+                  Monthly Overview
                 </div>
               </div>
 
-              {/* Right Side: Month Selector and Legend */}
-              <div className="flex flex-col items-end gap-2">
-                {/* Date and Month Dropdown */}
-                <div className="flex items-center gap-3">
-                  {/* Dynamic Date Display */}
-                  {currentData?.dateString && (
-                    <span className="text-sm font-medium text-[var(--color-fg)]">
-                      {currentData.dateString}
-                    </span>
-                  )}
-                  {/* Month Dropdown */}
-                  <Dropdown
-                    label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
-                    items={availableMonths.map((month) => ({
-                      label: month.label,
-                      onClick: () => setSelectedMonth(month.value),
-                      selected: month.value === selectedMonth
-                    }))}
-                    size="sm"
-                    align="right"
-                  />
+              {/* Values Row */}
+              <div className="flex items-baseline gap-4 sm:gap-8">
+                <div>
+                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-0.5">
+                    {formatCurrency(currentData?.income || 0)}
+                  </div>
+                  <div className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">Income</div>
                 </div>
+                <div>
+                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-0.5">
+                    {formatCurrency(currentData?.spending || 0)}
+                  </div>
+                  <div className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">Spending</div>
+                </div>
+              </div>
+            </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
-                    <span className="text-xs text-[var(--color-muted)]">Income</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
-                    <span className="text-xs text-[var(--color-muted)]">Spending</span>
-                  </div>
+            {/* Right Side: Controls and Legend */}
+            <div className="flex flex-col items-end gap-2">
+              {/* Top Row: Date + Dropdown */}
+              <div className="flex items-center gap-2 sm:gap-4">
+                {/* Dynamic Date Display - hidden on very small screens */}
+                {currentData?.dateString && (
+                  <span className="hidden sm:inline text-sm font-medium text-[var(--color-fg)]">
+                    {currentData.dateString}
+                  </span>
+                )}
+
+                {/* Month Dropdown */}
+                <Dropdown
+                  label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
+                  items={availableMonths.map((month) => ({
+                    label: month.label,
+                    onClick: () => setSelectedMonth(month.value),
+                    selected: month.value === selectedMonth
+                  }))}
+                  size="sm"
+                  align="right"
+                />
+              </div>
+
+              {/* Legend - hidden on mobile, placed below dropdown */}
+              <div className="hidden sm:flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Income</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
+                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
                 </div>
               </div>
             </div>

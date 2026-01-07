@@ -63,12 +63,12 @@ export default function DashboardPage() {
 
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
-    // Handle row type (multiple cards side-by-side)
+    // Handle row type (multiple cards side-by-side on larger screens, stacked on small)
     if (item.type === 'row') {
       return (
         <div
           key={item.id}
-          className={`flex gap-6 ${item.height || ''}`}
+          className={item.className || `flex flex-col lg:flex-row gap-6 ${item.height || ''}`}
         >
           {item.items.map((subItem) => {
             const Component = componentMap[subItem.component];
@@ -76,7 +76,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={subItem.id}
-                className={`${subItem.width || 'flex-1'} min-w-0`}
+                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
                 <Component {...(subItem.props || {})} />
               </div>
