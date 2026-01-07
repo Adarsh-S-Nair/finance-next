@@ -146,7 +146,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                       </svg>
                     </div>
                   )}
-                  <div className={`text-base font-normal text-[var(--color-fg)] ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
+                  <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
                     Monthly Overview
                   </div>
                 </div>

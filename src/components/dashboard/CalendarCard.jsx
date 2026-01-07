@@ -395,7 +395,7 @@ export default function CalendarCard({ className = '' }) {
 
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-[var(--color-muted)]">Recurring Transactions</h3>
+        <h3 className="card-header">Recurring Transactions</h3>
         <button
           onClick={() => setIsDrawerOpen(true)}
           className="text-xs font-medium text-[var(--color-accent)] hover:underline"
@@ -511,25 +511,9 @@ export default function CalendarCard({ className = '' }) {
               {/* Hover Tooltip */}
               {isHovered && hasEvents && (
                 <div
-                  className="absolute z-50 bottom-full left-1/2 mb-2 pointer-events-none"
-                  style={{
-                    minWidth: '160px',
-                    transform: 'translateX(-50%)',
-                    animation: 'tooltipPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
-                  }}
+                  className="absolute z-50 bottom-full left-1/2 mb-2 pointer-events-none tooltip-pop"
+                  style={{ minWidth: '160px' }}
                 >
-                  <style jsx>{`
-                    @keyframes tooltipPop {
-                      0% {
-                        opacity: 0;
-                        transform: translateX(-50%) translateY(4px) scale(0.95);
-                      }
-                      100% {
-                        opacity: 1;
-                        transform: translateX(-50%) translateY(0) scale(1);
-                      }
-                    }
-                  `}</style>
                   <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-2.5">
                     {/* Date header */}
                     <div className="text-[10px] font-medium text-[var(--color-muted)] mb-2">

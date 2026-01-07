@@ -5,9 +5,7 @@ import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChartV2";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
-import { useNetWorth } from "../NetWorthProvider";
 import { useRouter } from "next/navigation";
-import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {
@@ -49,7 +47,6 @@ function AnimatedCounter({ value, duration = 1000 }) {
 
 export default function SpendingVsEarningCard() {
   const { user } = useUser();
-  const { netWorthHistory, currentNetWorth } = useNetWorth();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
   const [chartData, setChartData] = useState([]);
@@ -137,24 +134,22 @@ export default function SpendingVsEarningCard() {
     router.push(`/transactions?${params.toString()}`);
   };
 
-  // Net Worth Calculations
-  const netWorthChartData = useMemo(() => {
-    if (!netWorthHistory?.length) return [];
-    return netWorthHistory.map(item => item.netWorth);
-  }, [netWorthHistory]);
+  // Calculate average monthly cashflow (net gain/loss)
+  const { averageCashflow, monthCount } = useMemo(() => {
+    if (!chartData.length) return { averageCashflow: 0, monthCount: 0 };
+    const totalNet = chartData.reduce((acc, curr) => {
+      return acc + ((curr.earning || 0) - (curr.spending || 0));
+    }, 0);
+    return {
+      averageCashflow: totalNet / chartData.length,
+      monthCount: chartData.length
+    };
+  }, [chartData]);
 
-  const percentChange = useMemo(() => {
-    if (netWorthChartData.length < 2) return 0;
-    const current = netWorthChartData[netWorthChartData.length - 1];
-    const start = netWorthChartData[0];
-    if (start === 0) return 0;
-    return ((current - start) / Math.abs(start)) * 100;
-  }, [netWorthChartData]);
-
-  const netWorthValue = currentNetWorth?.netWorth || 0;
+  const isPositiveCashflow = averageCashflow >= 0;
 
   return (
-    <Card padding="none" className={`h-full relative overflow-hidden ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
+    <Card padding="none" allowOverflow className={`h-full relative ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
       {showLoading && (
         <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
       )}
@@ -165,24 +160,19 @@ export default function SpendingVsEarningCard() {
           <div className="flex items-start justify-between gap-2">
             {/* Title and Values */}
             <div className="min-w-0">
-              <div className="text-sm sm:text-base font-normal text-[var(--color-fg)] mb-1">
-                Net Worth
+              <div className="card-header mb-1">
+                Avg. Monthly Cashflow
               </div>
 
               <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
-                <AnimatedCounter value={netWorthValue} />
+                <span>{isPositiveCashflow ? '+' : ''}</span>
+                <AnimatedCounter value={averageCashflow} />
               </div>
 
-              <div className="flex items-center gap-2 text-xs sm:text-sm">
-                <span className={`flex items-center gap-0.5 font-medium ${percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {percentChange >= 0 ? (
-                    <FiChevronUp className="w-3 h-3" />
-                  ) : (
-                    <FiChevronDown className="w-3 h-3" />
-                  )}
-                  {Math.abs(percentChange).toFixed(1)}%
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-[var(--color-muted)]">
+                  Based on {monthCount} month{monthCount !== 1 ? 's' : ''}
                 </span>
-                <span className="text-[var(--color-muted)] hidden sm:inline">vs last month</span>
               </div>
             </div>
 

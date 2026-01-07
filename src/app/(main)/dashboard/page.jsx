@@ -61,8 +61,32 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Helper to render a single item
+  // Helper to render a single item (or row of items)
   const renderItem = (item) => {
+    // Handle row type (multiple cards side-by-side)
+    if (item.type === 'row') {
+      return (
+        <div
+          key={item.id}
+          className={`flex gap-6 ${item.height || ''}`}
+        >
+          {item.items.map((subItem) => {
+            const Component = componentMap[subItem.component];
+            if (!Component) return null;
+            return (
+              <div
+                key={subItem.id}
+                className={`${subItem.width || 'flex-1'} min-w-0`}
+              >
+                <Component {...(subItem.props || {})} />
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Standard single component
     const Component = componentMap[item.component];
     if (!Component) return null;
 

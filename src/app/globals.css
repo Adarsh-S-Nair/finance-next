@@ -199,6 +199,33 @@ body {
   font-weight: 300;
 }
 
+/* Card Header Typography - Standardized */
+.card-header {
+  font-size: 0.65rem;
+  /* ~10px */
+  font-weight: 500;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Standardized Tooltip Animation */
+@keyframes tooltipPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px) scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.tooltip-pop {
+  animation: tooltipPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* Neon Text Effect - Removed Glow for Matte Look */
 .text-neon-blue {
   color: var(--color-fg);

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../UserProvider';
 
 function formatCurrency(amount) {
@@ -35,16 +34,12 @@ function TooltipContent({ month, income, spending, position, containerSize, mont
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 3 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 3 }}
-      transition={{ duration: 0.15, ease: "easeOut" }}
+    <div
+      className="absolute z-50 pointer-events-none tooltip-pop"
       style={{
         left: `${leftPercent}%`,
         top: `${(top / height) * 100}%`,
       }}
-      className="absolute z-50 pointer-events-none transform -translate-x-1/2 -translate-y-full"
     >
       <div className="bg-[var(--color-surface)]/98 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--color-border)]/50 text-xs shadow-sm whitespace-nowrap">
         <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
@@ -64,7 +59,7 @@ function TooltipContent({ month, income, spending, position, containerSize, mont
           Click to view transactions
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -267,37 +262,36 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
       </svg>
 
       {/* Tooltip */}
-      <AnimatePresence>
-        {activeMonthIndex !== null && months[activeMonthIndex] && (() => {
-          // Calculate the position of the tallest bar for this month
-          const inc = incomeVals[activeMonthIndex] || 0
-          const spd = spendingVals[activeMonthIndex] || 0
+      {activeMonthIndex !== null && months[activeMonthIndex] && (() => {
+        // Calculate the position of the tallest bar for this month
+        const inc = incomeVals[activeMonthIndex] || 0
+        const spd = spendingVals[activeMonthIndex] || 0
 
-          const incY = yFromValue(inc)
-          const spdY = yFromValue(spd)
+        const incY = yFromValue(inc)
+        const spdY = yFromValue(spd)
 
-          // The tallest bar has the smallest Y value (top of bar)
-          const tallestBarTop = Math.min(incY, spdY)
+        // The tallest bar has the smallest Y value (top of bar)
+        const tallestBarTop = Math.min(incY, spdY)
 
-          // Position tooltip just above the tallest bar (with 8px gap)
-          const tooltipY = tallestBarTop - 8
+        // Position tooltip just above the tallest bar (with 8px gap)
+        const tooltipY = tallestBarTop - 8
 
-          return (
-            <TooltipContent
-              month={months[activeMonthIndex]}
-              income={inc}
-              spending={spd}
-              position={{
-                left: margin.left + stepX * activeMonthIndex + stepX / 2,
-                top: tooltipY
-              }}
-              containerSize={{ width, height }}
-              monthIndex={activeMonthIndex}
-              totalMonths={months.length}
-            />
-          );
-        })()}
-      </AnimatePresence>
+        return (
+          <TooltipContent
+            key={activeMonthIndex}
+            month={months[activeMonthIndex]}
+            income={inc}
+            spending={spd}
+            position={{
+              left: margin.left + stepX * activeMonthIndex + stepX / 2,
+              top: tooltipY
+            }}
+            containerSize={{ width, height }}
+            monthIndex={activeMonthIndex}
+            totalMonths={months.length}
+          />
+        );
+      })()}
     </div>
   )
 }

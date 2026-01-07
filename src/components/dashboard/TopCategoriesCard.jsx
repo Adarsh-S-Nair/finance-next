@@ -153,7 +153,7 @@ export default function TopCategoriesCard() {
       <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header - Minimalist */}
         <div className="px-6 pt-6 pb-2">
-          <div className="text-base font-normal text-[var(--color-fg)] mb-1">
+          <div className="card-header mb-1">
             Top Spending
           </div>
         </div>

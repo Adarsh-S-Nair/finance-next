@@ -14,41 +14,43 @@ export const dashboardLayout = {
 
   // Main content area (left side, wider)
   main: [
-    // Monthly Overview Chart
+    // Monthly Overview Chart (full width)
     {
       id: 'monthly-overview',
       component: 'MonthlyOverviewCard',
       height: 'h-[360px]'
     },
-    // Cashflow Chart
+    // Cashflow + Top Categories (2/3 - 1/3 row)
     {
-      id: 'cashflow',
-      component: 'SpendingVsEarningCard',
+      id: 'cashflow-row',
+      type: 'row',
+      items: [
+        {
+          id: 'cashflow',
+          component: 'SpendingVsEarningCard',
+          width: 'w-2/3'
+        },
+        {
+          id: 'top-categories',
+          component: 'TopCategoriesCard',
+          width: 'w-1/3'
+        }
+      ],
       height: 'h-[400px]'
     }
   ],
 
   // Sidebar (right side, narrower)
   sidebar: [
-    // Top Categories Chart
-    {
-      id: 'top-categories',
-      component: 'TopCategoriesCard'
-    },
-    // Calendar
-    {
-      id: 'calendar',
-      component: 'CalendarCard'
-    },
-    // Budgets Widget (Mock)
+    // Budgets Widget
     {
       id: 'budgets',
       component: 'BudgetsCard'
     },
-    // Recurring Transactions
+    // Calendar (Recurring Transactions)
     {
-      id: 'recurring-transactions',
-      component: 'RecurringTransactionsCard'
+      id: 'calendar',
+      component: 'CalendarCard'
     }
   ]
 };

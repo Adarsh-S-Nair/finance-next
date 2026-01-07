@@ -55,7 +55,7 @@ export default function BudgetsCard() {
     <Card className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-medium text-[var(--color-muted)]">Budgets</h3>
+        <h3 className="card-header">Budgets</h3>
       </div>
 
       {/* Hero Section - Focus on Remaining */}
