@@ -36,36 +36,109 @@ export async function GET(request) {
       throw streamsError;
     }
 
-    // Enhance streams with icon_url from the most recent transaction
-    const latestTransactionIds = streams
-      .map(s => s.transaction_ids && s.transaction_ids.length > 0 ? s.transaction_ids[0] : null)
+    // Enhance streams with icon_url and category data
+    const merchantNames = streams
+      .map(s => s.merchant_name)
       .filter(Boolean);
 
-    if (latestTransactionIds.length > 0) {
-      // Query transactions using the Plaid transaction ID stored in transaction_ids array
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select(`
-          plaid_transaction_id, 
-          icon_url,
-          system_categories (
-            category_groups (
-              icon_lib,
-              icon_name,
-              hex_color
-            )
-          )
-        `)
-        .in('plaid_transaction_id', latestTransactionIds);
+    // Identify streams that need fallback (no merchant name but have IDs)
+    const unnamedStreams = streams.filter(s => !s.merchant_name && s.transaction_ids && s.transaction_ids.length > 0);
+    const fallbackTransactionIds = unnamedStreams.map(s => s.transaction_ids[s.transaction_ids.length - 1]);
 
-      if (transactions) {
-        const txMap = new Map(transactions.map(t => [t.plaid_transaction_id, t]));
+    // Check if we have anything to enrich
+    if (merchantNames.length > 0 || fallbackTransactionIds.length > 0) {
+      // Get all user's accounts first (needed for transaction queries)
+      const { data: accounts } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('user_id', userId);
 
-        // Attach icon_url and category metadata to streams
-        streams.forEach(stream => {
-          if (stream.transaction_ids && stream.transaction_ids.length > 0) {
-            const latestId = stream.transaction_ids[0];
-            const tx = txMap.get(latestId);
+      const accountIds = accounts?.map(a => a.id) || [];
+
+      if (accountIds.length > 0) {
+        let transactionsByName = [];
+        let transactionsById = [];
+
+        // Fetch by Merchant Name
+        if (merchantNames.length > 0) {
+          const { data: txByName } = await supabase
+            .from('transactions')
+            .select(`
+              merchant_name, 
+              icon_url,
+              date,
+              category_id,
+              system_categories (
+                category_groups (
+                  icon_lib,
+                  icon_name,
+                  hex_color
+                )
+              )
+            `)
+            .in('account_id', accountIds)
+            .in('merchant_name', merchantNames)
+            .order('date', { ascending: false });
+
+          if (txByName) transactionsByName = txByName;
+        }
+
+        // Fetch by ID (for unnamed streams) - using PLAID transaction_id
+        if (fallbackTransactionIds.length > 0) {
+          const { data: txById } = await supabase
+            .from('transactions')
+            .select(`
+              id,
+              plaid_transaction_id,
+              merchant_name, 
+              icon_url,
+              date,
+              category_id,
+              system_categories (
+                category_groups (
+                  icon_lib,
+                  icon_name,
+                  hex_color
+                )
+              )
+            `)
+            // The IDs in recurring_streams.transaction_ids are PLAID transaction IDs
+            .in('plaid_transaction_id', fallbackTransactionIds);
+
+          if (txById) transactionsById = txById;
+        }
+
+        if (transactionsByName.length > 0 || transactionsById.length > 0) {
+          // Create maps
+          const merchantMap = new Map();
+          transactionsByName.forEach(tx => {
+            if (tx.merchant_name && !merchantMap.has(tx.merchant_name.toLowerCase())) {
+              merchantMap.set(tx.merchant_name.toLowerCase(), tx);
+            }
+          });
+
+          const idMap = new Map();
+          transactionsById.forEach(tx => {
+            // Map using the PLAID transaction ID
+            if (tx.plaid_transaction_id) {
+              idMap.set(tx.plaid_transaction_id, tx);
+            }
+          });
+
+          // Enrich streams
+          streams.forEach(stream => {
+            let tx = null;
+
+            // 1. Try merchant name
+            if (stream.merchant_name) {
+              tx = merchantMap.get(stream.merchant_name.toLowerCase());
+            }
+
+            // 2. Try ID fallback (using Plaid Transaction ID)
+            if (!tx && stream.transaction_ids && stream.transaction_ids.length > 0) {
+              const latestId = stream.transaction_ids[stream.transaction_ids.length - 1];
+              tx = idMap.get(latestId);
+            }
 
             if (tx) {
               stream.icon_url = tx.icon_url || null;
@@ -73,8 +146,8 @@ export async function GET(request) {
               stream.category_icon_name = tx.system_categories?.category_groups?.icon_name;
               stream.category_hex_color = tx.system_categories?.category_groups?.hex_color;
             }
-          }
-        });
+          });
+        }
       }
     }
 

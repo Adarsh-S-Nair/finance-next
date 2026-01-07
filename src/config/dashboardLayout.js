@@ -35,6 +35,11 @@ export const dashboardLayout = {
       id: 'top-categories',
       component: 'TopCategoriesCard'
     },
+    // Calendar
+    {
+      id: 'calendar',
+      component: 'CalendarCard'
+    },
     // Budgets Widget (Mock)
     {
       id: 'budgets',

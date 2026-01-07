@@ -432,49 +432,38 @@ function RecurringStreamItem({ item, showDetails = false }) {
 
         {/* Icon: Logo -> Category Icon -> Letter Fallback */}
         <div
-          className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)]"
+          className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
             backgroundColor: (!DISABLE_LOGOS && item.icon_url)
               ? 'transparent'
-              : ((item.category_hex_color && !DISABLE_LOGOS) || 'var(--color-surface)') // Use hex color if available
+              : (item.category_hex_color || 'var(--color-accent)')
           }}
         >
           {(!DISABLE_LOGOS && item.icon_url) ? (
             <img
               src={item.icon_url}
               alt={displayName}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover rounded-full"
+              loading="lazy"
+              decoding="async"
               onError={(e) => {
                 e.target.style.display = 'none';
-                const next = e.target.nextSibling;
-                if (next) next.style.display = 'flex';
+                const fallbackIcon = e.target.nextSibling;
+                if (fallbackIcon) {
+                  fallbackIcon.style.display = 'block';
+                }
               }}
             />
           ) : null}
-
-          {/* Fallback Container (Category Icon or Letter) */}
-          <div
+          <DynamicIcon
+            iconLib={item.category_icon_lib}
+            iconName={item.category_icon_name}
+            className="h-4 w-4 text-white"
+            fallback={FiTag}
             style={{
-              display: (!DISABLE_LOGOS && item.icon_url) ? 'none' : 'flex',
-              width: '100%',
-              height: '100%',
-              alignItems: 'center',
-              justifyContent: 'center'
+              display: (!DISABLE_LOGOS && item.icon_url) ? 'none' : 'block'
             }}
-          >
-            {item.category_icon_lib ? (
-              <DynamicIcon
-                iconLib={item.category_icon_lib}
-                iconName={item.category_icon_name}
-                className="h-4 w-4 text-white"
-                fallback={FiTag}
-              />
-            ) : (
-              <span className="text-sm font-medium text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-                {displayName.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
+          />
         </div>
 
         <div className="min-w-0 flex-1">

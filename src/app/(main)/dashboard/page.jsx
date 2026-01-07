@@ -15,6 +15,7 @@ import IncomeCard from "../../../components/dashboard/IncomeCard";
 import SpendingCard from "../../../components/dashboard/SpendingCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
+import CalendarCard from "../../../components/dashboard/CalendarCard";
 
 // Map string keys to actual components
 const componentMap = {
@@ -28,6 +29,7 @@ const componentMap = {
   'SpendingCard': SpendingCard,
   'BudgetsCard': BudgetsCard,
   'TopCategoriesCard': TopCategoriesCard,
+  'CalendarCard': CalendarCard,
 };
 
 export default function DashboardPage() {
