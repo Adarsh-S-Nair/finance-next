@@ -149,7 +149,7 @@ export default function SpendingVsEarningCard() {
   const isPositiveCashflow = averageCashflow >= 0;
 
   return (
-    <Card padding="none" allowOverflow className={`h-full relative ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`}>
+    <Card padding="none" allowOverflow className={`h-full relative ${showLoading ? 'bg-zinc-100 dark:bg-zinc-900/50' : ''}`} style={{ zIndex: hoveredData ? 100 : 'auto' }}>
       {showLoading && (
         <div className="absolute inset-0 z-20 shimmer pointer-events-none" />
       )}

@@ -10,6 +10,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [availableMonths, setAvailableMonths] = useState([]);
   // Use initialMonth if provided, otherwise null (will be set to default later)
   const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
+  const [previousMonthName, setPreviousMonthName] = useState("");
 
   const { user } = useUser();
 
@@ -65,6 +66,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         if (!response.ok) throw new Error('Failed to fetch monthly overview data');
         const result = await response.json();
         setChartData(result.data);
+        setPreviousMonthName(result.previousMonthName || "");
       } catch (error) {
         console.error("Error fetching monthly overview:", error);
       } finally {
@@ -94,7 +96,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }).format(value);
   };
 
-  const isIncomeHigher = (currentData?.income || 0) >= (currentData?.spending || 0);
   const showLoading = isFetching;
 
   // Dynamic Date Display
@@ -155,20 +156,26 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               <div className="flex items-baseline gap-4 sm:gap-8">
                 <div>
                   <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-0.5">
-                    {formatCurrency(currentData?.income || 0)}
-                  </div>
-                  <div className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">Income</div>
-                </div>
-                <div>
-                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-0.5">
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
-                  <div className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">Spending</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This Month</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-muted)] mb-0.5">
+                    {formatCurrency(currentData?.previousSpending || 0)}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-600" />
+                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{previousMonthName || "Previous"}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Side: Controls and Legend */}
+            {/* Right Side: Controls */}
             <div className="flex flex-col items-end gap-2">
               {/* Top Row: Date + Dropdown */}
               <div className="flex items-center gap-2 sm:gap-4">
@@ -191,18 +198,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   align="right"
                 />
               </div>
-
-              {/* Legend - hidden on mobile, placed below dropdown */}
-              <div className="hidden sm:flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
-                  <span className="text-xs text-[var(--color-muted)]">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
-                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -215,17 +210,17 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               margin={{ top: 10, right: 0, bottom: 0, left: 0 }}
               lines={[
                 {
-                  dataKey: "income",
-                  strokeColor: "var(--color-cashflow-income)",
+                  dataKey: "previousSpending",
+                  strokeColor: "var(--color-muted)",
                   strokeWidth: 2,
-                  strokeOpacity: 1,
+                  strokeOpacity: 0.4,
                   showArea: true,
-                  areaOpacity: 0.1,
-                  gradientId: "monthlyOverviewIncome"
+                  areaOpacity: 0.05,
+                  gradientId: "monthlyOverviewPrevious"
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-cashflow-spending)",
+                  strokeColor: "var(--color-accent)",
                   strokeWidth: 2,
                   strokeOpacity: 1,
                   showArea: true,

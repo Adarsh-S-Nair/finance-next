@@ -17,58 +17,13 @@ function roundedRectPath(x, y, w, h, r) {
   return `M ${x} ${y + h} L ${x} ${y + r2} Q ${x} ${y} ${x + r2} ${y} L ${x + w - r2} ${y} Q ${x + w} ${y} ${x + w} ${y + r2} L ${x + w} ${y + h} Z`;
 }
 
-function TooltipContent({ month, income, spending, position, containerSize, monthIndex, totalMonths }) {
-  const { left, top } = position;
-  const { width, height } = containerSize;
-
-  // Calculate percentage position
-  let leftPercent = (left / width) * 100;
-
-  // Clamp tooltip position to prevent edge clipping
-  // For first few months, shift right; for last few months, shift left
-  const tooltipHalfWidth = 8; // ~80px tooltip / 2, as percentage of typical container
-  if (monthIndex === 0) {
-    leftPercent = Math.max(leftPercent, tooltipHalfWidth);
-  } else if (monthIndex === totalMonths - 1) {
-    leftPercent = Math.min(leftPercent, 100 - tooltipHalfWidth);
-  }
-
-  return (
-    <div
-      className="absolute z-50 pointer-events-none tooltip-pop"
-      style={{
-        left: `${leftPercent}%`,
-        top: `${(top / height) * 100}%`,
-      }}
-    >
-      <div className="bg-[var(--color-surface)]/98 backdrop-blur-md px-3 py-2 rounded-lg border border-[var(--color-border)]/50 text-xs shadow-sm whitespace-nowrap">
-        <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
-          {month}
-        </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-[var(--color-muted)]">Income</span>
-            <span className="font-medium text-[var(--color-fg)]">{formatCurrency(income)}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-[var(--color-muted)]">Spending</span>
-            <span className="font-medium text-[var(--color-fg)]">{formatCurrency(spending)}</span>
-          </div>
-        </div>
-        <div className="mt-2 pt-1.5 border-t border-[var(--color-border)]/30 text-[10px] text-[var(--color-accent)] text-center">
-          Click to view transactions
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Fixed width per month group for consistent bar sizes
 const MONTH_GROUP_WIDTH = 80;
 
 export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = [] }) {
   const { user } = useUser();
   const [activeMonthIndex, setActiveMonthIndex] = useState(null)
+  const [tooltipInfo, setTooltipInfo] = useState(null); // { month, income, spending, left }
   const containerRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(280);
@@ -182,6 +137,20 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const onMove = (e, month, inc, spd, fullData, index) => {
     setActiveMonthIndex(index)
 
+    // Calculate tooltip position relative to container
+    if (scrollContainerRef.current) {
+      const scrollLeft = scrollContainerRef.current.scrollLeft;
+      const cx = margin.left + stepX * index + stepX / 2;
+      const tooltipLeft = cx - scrollLeft;
+
+      setTooltipInfo({
+        month,
+        income: inc,
+        spending: spd,
+        left: tooltipLeft
+      });
+    }
+
     if (onHover) {
       onHover({
         monthName: fullData.monthName,
@@ -193,6 +162,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
   const onLeave = () => {
     setActiveMonthIndex(null)
+    setTooltipInfo(null);
     if (onHover) {
       onHover(null)
     }
@@ -218,11 +188,49 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         }}
       />
 
+      {/* Tooltip - positioned outside scroll container so it can overflow */}
+      {tooltipInfo && (
+        <div
+          className="absolute pointer-events-none tooltip-pop"
+          style={{
+            left: tooltipInfo.left,
+            top: -8,
+            transform: 'translateX(-50%) translateY(-100%)',
+            zIndex: 1000,
+          }}
+        >
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs shadow-lg whitespace-nowrap">
+            <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
+              {tooltipInfo.month}
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--color-muted)]">Income</span>
+                <span className="font-medium text-[var(--color-fg)]">{formatCurrency(tooltipInfo.income)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--color-muted)]">Spending</span>
+                <span className="font-medium text-[var(--color-fg)]">{formatCurrency(tooltipInfo.spending)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         ref={scrollContainerRef}
         className="w-full h-full overflow-x-auto scrollbar-hide"
         style={{ scrollBehavior: 'smooth' }}
-        onScroll={updateFadeIndicators}
+        onScroll={() => {
+          updateFadeIndicators();
+          // Update tooltip position on scroll
+          if (activeMonthIndex !== null && scrollContainerRef.current) {
+            const scrollLeft = scrollContainerRef.current.scrollLeft;
+            const cx = margin.left + stepX * activeMonthIndex + stepX / 2;
+            const tooltipLeft = cx - scrollLeft;
+            setTooltipInfo(prev => prev ? { ...prev, left: tooltipLeft } : null);
+          }
+        }}
       >
         <svg
           width={width}
@@ -320,40 +328,11 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               )
             })}
           </g>
+
+
         </svg>
-
-        {/* Tooltip - inside scroll container so it scrolls with bars */}
-        {activeMonthIndex !== null && months[activeMonthIndex] && (() => {
-          // Calculate the position of the tallest bar for this month
-          const inc = incomeVals[activeMonthIndex] || 0
-          const spd = spendingVals[activeMonthIndex] || 0
-
-          const incY = yFromValue(inc)
-          const spdY = yFromValue(spd)
-
-          // The tallest bar has the smallest Y value (top of bar)
-          const tallestBarTop = Math.min(incY, spdY)
-
-          // Position tooltip just above the tallest bar (with 8px gap)
-          const tooltipY = tallestBarTop - 8
-
-          return (
-            <TooltipContent
-              key={activeMonthIndex}
-              month={months[activeMonthIndex]}
-              income={inc}
-              spending={spd}
-              position={{
-                left: margin.left + stepX * activeMonthIndex + stepX / 2,
-                top: tooltipY
-              }}
-              containerSize={{ width, height }}
-              monthIndex={activeMonthIndex}
-              totalMonths={months.length}
-            />
-          );
-        })()}
       </div>
     </div>
   )
 }
+
