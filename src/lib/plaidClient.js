@@ -158,6 +158,10 @@ export async function getTransactions(accessToken, startDate, endDate, accountId
       access_token: accessToken,
       start_date: startDate,
       end_date: endDate,
+      options: {
+        include_personal_finance_category: true,
+        personal_finance_category_version: 'v2'
+      },
       ...(accountIds && { account_ids: accountIds }),
     };
 
@@ -184,6 +188,10 @@ export async function syncTransactions(accessToken, cursor = null) {
       access_token: accessToken,
       cursor: requestCursor,
       count: 250, // Use same count as trading-api
+      options: {
+        include_personal_finance_category: true,
+        personal_finance_category_version: 'v2'
+      },
     };
 
     console.log(`[PLAID SYNC] Request details:`, {

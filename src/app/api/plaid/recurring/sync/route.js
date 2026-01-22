@@ -88,6 +88,10 @@ export async function POST(request) {
         // Call Plaid's recurring transactions API
         const response = await client.transactionsRecurringGet({
           access_token: item.access_token,
+          options: {
+            include_personal_finance_category: true,
+            personal_finance_category_version: 'v2'
+          }
         });
 
         const { inflow_streams, outflow_streams, updated_datetime } = response.data;

@@ -436,37 +436,46 @@ export async function POST(request) {
       // Get all system categories to build the mapping
       const { data: allSystemCategories, error: systemCategoriesError } = await supabaseAdmin
         .from('system_categories')
-        .select('id, label');
+        .select('id, label, plaid_category_key');
 
       if (systemCategoriesError) {
         console.error('❌ Failed to fetch system categories for linking:', systemCategoriesError);
         throw new Error(`Failed to fetch system categories: ${systemCategoriesError.message}`);
       }
 
-      // Build mapping from formatted label to system category ID
-      const systemCategoryMap = new Map();
+      // Build mapping from plaid_category_key to system category ID (primary method)
+      // Also keep label mapping as fallback for backward compatibility
+      const plaidKeyMap = new Map();
+      const labelMap = new Map();
       allSystemCategories.forEach(category => {
-        systemCategoryMap.set(category.label, category.id);
+        if (category.plaid_category_key) {
+          plaidKeyMap.set(category.plaid_category_key, category.id);
+        }
+        labelMap.set(category.label, category.id);
       });
 
       // Link each transaction to its system category
       let linkedCount = 0;
       for (const transactionData of transactionsToUpsert) {
         const pfc = transactionData.personal_finance_category;
-        if (pfc?.detailed && pfc?.primary) {
-          const detailed = pfc.detailed;
-          const primary = pfc.primary;
+        if (pfc?.detailed) {
+          // Primary method: Match by Plaid's detailed key (e.g., "RENT_AND_UTILITIES_RENT")
+          let categoryId = plaidKeyMap.get(pfc.detailed);
 
-          // Remove the primary key from the beginning of detailed string
-          if (detailed.startsWith(primary + '_')) {
-            const cleanedDetailed = detailed.substring(primary.length + 1);
-            const formattedLabel = formatCategoryName(cleanedDetailed);
-            const categoryId = systemCategoryMap.get(formattedLabel);
-
-            if (categoryId) {
-              transactionData.category_id = categoryId;
-              linkedCount++;
+          // Fallback: Match by formatted label (for backward compatibility)
+          if (!categoryId && pfc.primary) {
+            const detailed = pfc.detailed;
+            const primary = pfc.primary;
+            if (detailed.startsWith(primary + '_')) {
+              const cleanedDetailed = detailed.substring(primary.length + 1);
+              const formattedLabel = formatCategoryName(cleanedDetailed);
+              categoryId = labelMap.get(formattedLabel);
             }
+          }
+
+          if (categoryId) {
+            transactionData.category_id = categoryId;
+            linkedCount++;
           }
         }
 
