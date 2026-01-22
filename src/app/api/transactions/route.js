@@ -19,6 +19,9 @@ export async function GET(request) {
 
     if (DEBUG) console.log(`Transactions API: user=${userId} limit=${limit} offset=${offset} afterId=${afterId} beforeId=${beforeId}`);
 
+    const includeCategoryIdsParam = searchParams.get('includeCategoryIds');
+    const excludeCategoryIdsParam = searchParams.get('excludeCategoryIds');
+
     // Build the query
     let query = supabaseAdmin
       .from('transactions')
@@ -51,6 +54,21 @@ export async function GET(request) {
       .eq('accounts.user_id', userId)
       .order('datetime', { ascending: false })
       .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (includeCategoryIdsParam) {
+      const ids = includeCategoryIdsParam.split(',');
+      if (ids.length > 0) {
+        query = query.in('category_id', ids);
+      }
+    }
+
+    if (excludeCategoryIdsParam) {
+      const ids = excludeCategoryIdsParam.split(',');
+      if (ids.length > 0) {
+        query = query.not('category_id', 'in', ids);
+      }
+    }
 
     // If afterId is provided, get transactions after that ID (older transactions)
     if (afterId) {

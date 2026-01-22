@@ -27,6 +27,8 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   const [selectedScope, setSelectedScope] = useState(null); // { id, label, type: 'category', ... }
   const [amount, setAmount] = useState("");
   const [categorySpendingHistory, setCategorySpendingHistory] = useState([]); // Monthly spending for selected category
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [slideDirection, setSlideDirection] = useState(1); // 1 = forward, -1 = back
 
   // Fetch income data on open
@@ -45,26 +47,31 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   async function fetchIncomeData() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=3`);
+      const res = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=6`); // Fetch more months to ensure we have enough completed ones
       const data = await res.json();
 
       if (data.data && data.data.length > 0) {
-        // Use only the last 3 months for calculation
-        const last3Months = data.data.slice(-3);
+        // Filter out current month (incomplete) and unsupported months
+        const completedMonths = data.data.filter(m => !m.isCurrentMonth);
 
-        // Store the monthly breakdown for the chart
-        const breakdown = last3Months.map(month => ({
-          month: month.month, // e.g., "Jan", "Feb"
-          income: Math.round(month.earning || 0)
-        }));
-        setIncomeBreakdown(breakdown);
+        // Use only the last 3 COMPLETED months for calculation
+        const last3Months = completedMonths.slice(-3);
 
-        // Calculate average monthly income from the last 3 months
-        const totalIncome = last3Months.reduce((sum, month) => sum + (month.earning || 0), 0);
-        const avgIncome = Math.round(totalIncome / last3Months.length);
-        setCalculatedIncome(avgIncome);
-        setMonthlyIncome(avgIncome.toString());
-        setIncomeMonths(last3Months.length);
+        if (last3Months.length > 0) {
+          // Store the monthly breakdown for the chart
+          const breakdown = last3Months.map(month => ({
+            month: month.month, // e.g., "Jan", "Feb"
+            income: Math.round(month.earning || 0)
+          }));
+          setIncomeBreakdown(breakdown);
+
+          // Calculate average monthly income from the available completed months (up to 3)
+          const totalIncome = last3Months.reduce((sum, month) => sum + (month.earning || 0), 0);
+          const avgIncome = Math.round(totalIncome / last3Months.length);
+          setCalculatedIncome(avgIncome);
+          setMonthlyIncome(avgIncome.toString());
+          setIncomeMonths(last3Months.length);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -77,27 +84,29 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     setLoading(true);
     try {
       // Fetch individual categories (not groups) for more granular budgeting
-      const res = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=120`);
+      // Use forBudget=true to get complete months only for accurate averaging
+      const res = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=120&forBudget=true`);
       const data = await res.json();
 
       // Use actual complete months from API for accurate averaging
       const months = data.completeMonths || 1;
 
-      // Sort by spending amount (highest first), exclude Account Transfer, take top categories
-      const categoryOptions = data.categories
+      // Ensure data.categories exists before processing
+      const allCategories = (data.categories || [])
         .filter(c => c.total_spent > 0 && c.label !== 'Account Transfer')
-        .sort((a, b) => b.total_spent - a.total_spent)
-        .slice(0, 8) // Top 8 categories
-        .map(c => ({
-          id: c.id,
-          label: c.label,
-          type: 'category',
-          spent: c.total_spent,
-          monthlyAvg: Math.round(c.total_spent / months),
-          hexColor: c.hex_color || '#6B7280',
-          iconName: c.icon_name,
-          iconLib: c.icon_lib
-        }));
+        .sort((a, b) => b.total_spent - a.total_spent);
+
+      // Take all categories
+      const categoryOptions = allCategories.map(c => ({
+        id: c.id,
+        label: c.label,
+        type: 'category',
+        spent: c.total_spent,
+        monthlyAvg: Math.round(c.total_spent / months),
+        hexColor: c.hex_color || '#6B7280',
+        iconName: c.icon_name,
+        iconLib: c.icon_lib
+      }));
 
       setOptions(categoryOptions);
     } catch (e) {
@@ -108,35 +117,67 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   }
 
   // Fetch spending history for a specific category
-  async function fetchCategorySpendingHistory(categoryId) {
+  async function fetchCategorySpendingHistory(category) {
+    if (!category) return;
+
     try {
-      // Get spending by month for this category
-      const res = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=4`);
+      let queryParams = `userId=${user.id}&months=6&includeCategoryIds=${category.id}`; // Fetch last 6 months for history
+
+      const res = await fetch(`/api/transactions/spending-earning?${queryParams}`);
       const data = await res.json();
 
-      // We'll simulate category-specific data for now using the selected category's info
-      // In a real implementation, you'd have an API endpoint that filters by category
       if (data.data && data.data.length > 0) {
-        const last4Months = data.data.slice(-4);
+        // Filter out incomplete current month if needed, or keep it depending on desired UX
+        // Usually budget history looks better with complete months
+        const validMonths = data.data.filter(m => !m.isCurrentMonth);
+        const last4Months = validMonths.slice(-4); // Show last 4 complete months
+
         const history = last4Months.map(month => ({
           month: month.month,
           monthName: month.monthName?.slice(0, 3) || month.month,
-          // Use a portion of total spending as an approximation for this category
-          spending: Math.round((selectedScope?.monthlyAvg || 0) * (0.7 + Math.random() * 0.6))
+          spending: Math.round(month.spending || 0)
         }));
         setCategorySpendingHistory(history);
+      } else {
+        setCategorySpendingHistory([]);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Error fetching category history:", e);
+      setCategorySpendingHistory([]);
+    }
+  }
+
+  // Fetch recent transactions for context
+  async function fetchRecentTransactions(category) {
+    if (!category) return;
+    setLoadingTransactions(true);
+    try {
+      let queryParams = `userId=${user.id}&limit=50&includeCategoryIds=${category.id}`;
+
+      const res = await fetch(`/api/transactions?${queryParams}`);
+      const data = await res.json();
+
+      if (data.transactions) {
+        setRecentTransactions(data.transactions);
+      }
+    } catch (e) {
+      console.error("Error fetching transactions:", e);
+    } finally {
+      setLoadingTransactions(false);
     }
   }
 
   // When a category is selected, fetch its spending history
   const handleCategorySelect = async (opt) => {
-    setSelectedScope(opt);
     setSlideDirection(1);
     setStep(3);
+    setAmount(opt.monthlyAvg.toString()); // Initialize budget amount
     setCategorySpendingHistory([]); // Clear while loading
+    setRecentTransactions([]);
+
+    // Fetch data in parallel
+    fetchCategorySpendingHistory(opt);
+    fetchRecentTransactions(opt);
 
     try {
       const res = await fetch(`/api/transactions/category-history?userId=${user.id}&categoryId=${opt.id}&months=4`);
@@ -240,7 +281,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   };
 
   // Navigation component with back, pagination, and next
-  const StepNavigation = ({ onBack, onNext, nextDisabled, nextLabel = 'Next', showBack = true }) => {
+  const StepNavigation = ({ onBack, onNext, nextDisabled, nextLabel = 'Next', showBack = true, disabledTooltip }) => {
     const handleBack = () => {
       setSlideDirection(-1);
       onBack?.();
@@ -249,6 +290,12 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
       setSlideDirection(1);
       onNext?.();
     };
+
+    const NextButton = (
+      <Button size="sm" onClick={handleNext} disabled={nextDisabled} className="font-normal text-xs px-3 h-7">
+        {nextLabel}
+      </Button>
+    );
 
     return (
       <div className="flex items-center justify-between pt-4 mt-auto">
@@ -280,9 +327,11 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
         {/* Next button */}
         <div className="w-16 flex justify-end">
           {onNext && (
-            <Button size="sm" onClick={handleNext} disabled={nextDisabled} className="font-normal text-xs px-3 h-7">
-              {nextLabel}
-            </Button>
+            nextDisabled && disabledTooltip ? (
+              <div title={disabledTooltip} className="cursor-not-allowed">
+                {NextButton}
+              </div>
+            ) : NextButton
           )}
         </div>
       </div>
@@ -478,10 +527,9 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
 
               </div>
             ) : step === 3 ? (
-
-              <div className="flex flex-col">
+              <div className="flex flex-col h-full overflow-hidden">
                 {/* Header + Chart Row */}
-                <div className="flex items-center justify-between my-8">
+                <div className="flex items-center justify-between mb-6 shrink-0">
                   {/* Left: Category Info */}
                   <div className="flex flex-row items-center gap-4">
                     <div
@@ -504,39 +552,31 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                   </div>
 
                   {/* Right: History Chart */}
-                  <div className="flex items-end gap-2 h-24 pb-1">
+                  <div className="flex items-end gap-2 h-16 pb-1">
                     {categorySpendingHistory.length === 0 ? (
                       // Skeleton
                       [1, 2, 3, 4].map(i => (
                         <div key={i} className="flex flex-col items-center gap-1">
                           <div
-                            className="w-8 bg-[var(--color-border)] rounded-sm animate-pulse"
-                            style={{ height: `${30 + i * 10}px` }}
+                            className="w-6 bg-[var(--color-border)] rounded-sm animate-pulse"
+                            style={{ height: `${20 + i * 8}px` }}
                           />
                         </div>
                       ))
                     ) : (
                       categorySpendingHistory.map((item, idx) => {
                         const maxSpend = Math.max(...categorySpendingHistory.map(i => i.spending));
-                        // Taller bars: normalize to ~60px
-                        const heightPx = maxSpend > 0 ? Math.max((item.spending / maxSpend) * 60, 10) : 10;
-                        const formattedAmount = item.spending >= 1000
-                          ? `$${(item.spending / 1000).toFixed(1)}k`
-                          : `$${item.spending}`;
-
+                        const heightPx = maxSpend > 0 ? Math.max((item.spending / maxSpend) * 40, 8) : 8;
                         return (
                           <div key={idx} className="flex flex-col items-center gap-1 group relative">
-                            <span className="text-[10px] text-[var(--color-muted)] tabular-nums mb-0.5">
-                              {formattedAmount}
-                            </span>
                             <div
-                              className="w-8 rounded-sm transition-all"
+                              className="w-6 rounded-sm transition-all"
                               style={{
                                 height: `${heightPx}px`,
                                 backgroundColor: selectedScope?.hexColor,
                               }}
                             />
-                            <span className="text-[10px] text-[var(--color-muted)] mt-0.5">
+                            <span className="text-[9px] text-[var(--color-muted)] mt-0.5">
                               {item.monthName || item.month}
                             </span>
                           </div>
@@ -546,6 +586,85 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                   </div>
                 </div>
 
+                {/* Highest Transactions List */}
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+                  <h4 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--color-background)] py-1 z-10">
+                    Highest Transactions
+                  </h4>
+
+                  {loadingTransactions ? (
+                    <div className="space-y-1">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="flex items-center justify-between py-2 px-1">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-[var(--color-border)] animate-pulse" />
+                            <div className="space-y-1">
+                              <div className="h-3 w-24 bg-[var(--color-border)] rounded animate-pulse" />
+                              <div className="h-2 w-16 bg-[var(--color-border)] rounded animate-pulse" />
+                            </div>
+                          </div>
+                          <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : recentTransactions.length === 0 ? (
+                    <div className="text-center py-4 text-[var(--color-muted)] text-sm italic">
+                      No recent transactions
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {recentTransactions
+                        .filter(tx => parseFloat(tx.amount) < 0)
+                        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+                        .slice(0, 4)
+                        .map(tx => (
+                          <div key={tx.id} className="flex items-center justify-between py-2 px-2 hover:bg-[var(--color-surface)] rounded-lg transition-colors group">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              {/* Icon / Logo */}
+                              <div
+                                className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center overflow-hidden"
+                                style={{
+                                  backgroundColor: tx.icon_url ? 'transparent' : (tx.category_hex_color || 'var(--color-border)')
+                                }}
+                              >
+                                {tx.icon_url ? (
+                                  <img
+                                    src={tx.icon_url}
+                                    alt={tx.merchant_name || tx.description}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.nextSibling.style.display = 'block';
+                                      e.target.parentElement.style.backgroundColor = tx.category_hex_color || 'var(--color-border)';
+                                    }}
+                                  />
+                                ) : null}
+                                <DynamicIcon
+                                  iconLib={tx.category_icon_lib}
+                                  iconName={tx.category_icon_name}
+                                  className="w-4 h-4 text-white"
+                                  fallback={FiTag}
+                                  style={{ display: tx.icon_url ? 'none' : 'block' }}
+                                />
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-[var(--color-fg)] truncate group-hover:text-[var(--color-accent)] transition-colors">
+                                  {tx.merchant_name || tx.description || 'Unknown Transaction'}
+                                </div>
+                                <div className="text-xs text-[var(--color-muted)]">
+                                  {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </div>
+                              </div>
+                            </div>
+                            <span className={`text-sm font-medium whitespace-nowrap ml-2 ${parseFloat(tx.amount) > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+                              {parseFloat(tx.amount) < 0 ? '' : '+'}${Math.abs(parseFloat(tx.amount)).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
           </motion.div>
@@ -563,14 +682,28 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
               ? handleIncomeNext
               : step === 2
                 ? handleCreateAll
-                : undefined
+                : step === 3
+                  ? handleSubmit
+                  : undefined
           }
           nextDisabled={
-            step === 1 ? !monthlyIncome : step === 2 ? loading : false
+            step === 1
+              ? !monthlyIncome
+              : step === 2
+                ? loading
+                : step === 3
+                  // Block if amount exceeds income or is invalid
+                  ? !amount || parseFloat(amount) <= 0 || (monthlyIncome && parseFloat(amount) > parseFloat(monthlyIncome))
+                  : false
           }
-          nextLabel={step === 2 ? (loading ? "Creating..." : "Create") : "Next"}
+          disabledTooltip={
+            step === 3 && monthlyIncome && parseFloat(amount || 0) > parseFloat(monthlyIncome)
+              ? `Budget cannot exceed monthly income ($${parseFloat(monthlyIncome).toLocaleString()})`
+              : undefined
+          }
+          nextLabel={step === 2 ? (loading ? "Creating..." : "Create All") : step === 3 ? "Create Budget" : "Next"}
         />
       </div>
-    </Modal>
+    </Modal >
   );
 }

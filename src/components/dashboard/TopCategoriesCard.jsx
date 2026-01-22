@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Card from "../ui/Card";
+import Dropdown from "../ui/Dropdown";
 import { useUser } from "../UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
@@ -17,9 +18,9 @@ function generateAccentShades(accentColor, count) {
   const shades = [];
   for (let i = 0; i < count; i++) {
     // Create progressively lighter shades using opacity
-    // First slice: 100%, then 75%, 55%, 40%
-    const opacities = [1, 0.75, 0.55, 0.40, 0.30];
-    const opacity = opacities[i] ?? 0.30;
+    // Support up to 10 slices with smooth gradient
+    const opacities = [1, 0.85, 0.72, 0.60, 0.50, 0.42, 0.35, 0.30, 0.25, 0.22];
+    const opacity = opacities[i] ?? 0.20;
     shades.push({ color: accentColor, opacity });
   }
   return shades;
@@ -33,6 +34,13 @@ export default function TopCategoriesCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth'); // 'thisMonth' or 'last30'
+
+  // Period options for dropdown
+  const periodOptions = [
+    { label: 'This Month', value: 'thisMonth' },
+    { label: 'Last 30 Days', value: 'last30' },
+  ];
 
   // Get accent color from profile or CSS variable
   const accentColor = useMemo(() => {
@@ -56,13 +64,27 @@ export default function TopCategoriesCard() {
 
       try {
         setLoading(true);
-        // Default to 30 days, grouped by category group
-        const res = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=30&groupBy=group`);
+
+        // Calculate date range based on selected period
+        const now = new Date();
+        let apiUrl;
+
+        if (selectedPeriod === 'thisMonth') {
+          // Use exact month boundaries for consistency with monthly-overview
+          const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+          const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          apiUrl = `/api/transactions/spending-by-category?userId=${user.id}&startDate=${startDate}&endDate=${endDate}`;
+        } else {
+          // Last 30 days
+          apiUrl = `/api/transactions/spending-by-category?userId=${user.id}&days=30`;
+        }
+
+        const res = await fetch(apiUrl);
         if (!res.ok) throw new Error("Failed to fetch data");
         const data = await res.json();
 
-        // Take top 3-4 categories for cleaner look
-        const topCategories = data.categories.slice(0, 4);
+        // Take top 10 categories for comprehensive breakdown
+        const topCategories = data.categories.slice(0, 10);
         setCategories(topCategories);
         setTotalSpending(data.totalSpending || 0);
       } catch (err) {
@@ -74,7 +96,7 @@ export default function TopCategoriesCard() {
     }
 
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, selectedPeriod]);
 
   // Handle Mouse Leave Logic
   useEffect(() => {
@@ -109,7 +131,8 @@ export default function TopCategoriesCard() {
 
   const onPieClick = (data, index) => {
     if (!data || !data.id) return;
-    router.push(`/transactions?groupIds=${data.id}&dateRange=30days`);
+    // Navigate to transactions filtered by this specific category
+    router.push(`/transactions?categoryIds=${data.id}&dateRange=30days`);
   };
 
   const renderFormattedAmount = (value) => {
@@ -151,11 +174,21 @@ export default function TopCategoriesCard() {
   return (
     <Card padding="none" className="h-[400px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
-        {/* Custom Header - Minimalist */}
-        <div className="px-6 pt-6 pb-2">
-          <div className="card-header mb-1">
+        {/* Custom Header with Dropdown */}
+        <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+          <div className="card-header">
             Top Spending
           </div>
+          <Dropdown
+            label={periodOptions.find(p => p.value === selectedPeriod)?.label || 'This Month'}
+            items={periodOptions.map(option => ({
+              label: option.label,
+              onClick: () => setSelectedPeriod(option.value),
+              selected: option.value === selectedPeriod
+            }))}
+            size="sm"
+            align="right"
+          />
         </div>
 
         {/* Chart Section */}
@@ -226,7 +259,7 @@ export default function TopCategoriesCard() {
               })()}
             </div>
             <div className="text-xs text-[var(--color-muted)] font-medium text-center px-4">
-              {activeIndex !== null ? categories[activeIndex].label : "Last 30 Days"}
+              {activeIndex !== null ? categories[activeIndex].label : periodOptions.find(p => p.value === selectedPeriod)?.label}
             </div>
           </div>
         </div>

@@ -64,7 +64,16 @@ export async function GET(request) {
       .select('id')
       .in('label', alwaysExcludedCategories);
 
-    const excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
+    let excludedCategoryIds = excludedCategoryRows?.map(c => c.id) || [];
+
+    // Parse additional category filters from query params
+    const includeCategoryIdsParam = searchParams.get('includeCategoryIds');
+    const excludeCategoryIdsParam = searchParams.get('excludeCategoryIds');
+
+    if (excludeCategoryIdsParam) {
+      const additionalExcludedIds = excludeCategoryIdsParam.split(',');
+      excludedCategoryIds = [...excludedCategoryIds, ...additionalExcludedIds];
+    }
 
     // We need system_categories to identify "Transfer", "Credit Card Payment", etc.
     let query = supabaseAdmin
@@ -77,6 +86,7 @@ export async function GET(request) {
           user_id
         ),
         system_categories (
+          id,
           label
         ),
         transaction_splits (
@@ -92,9 +102,14 @@ export async function GET(request) {
       .gte('date', sinceDate.toISOString().split('T')[0])
       .order('date', { ascending: true });
 
-    // Apply exclusion filter for "Investment and Retirement Funds"
+    // Apply exclusion filter
     if (excludedCategoryIds.length > 0) {
       query = query.not('category_id', 'in', `(${excludedCategoryIds.join(',')})`);
+    }
+
+    // Apply inclusion filter if provided
+    if (includeCategoryIdsParam) {
+      query = query.in('category_id', includeCategoryIdsParam.split(','));
     }
 
     const { data: transactions, error } = await query;
@@ -174,12 +189,8 @@ export async function GET(request) {
 
     // Second pass: Aggregate data
     transactions.forEach(transaction => {
-      // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
+      // Exclude matched transfers (pairs like credit card payment out + payment in)
       if (matchedIds.has(transaction.id)) return;
-
-      // Exclude ALL transfers from income calculation (matched or unmatched)
-      // This ensures transfers are not counted as income
-      if (isTransfer(transaction)) return;
 
       // Exclude repayment transactions from counting as income (or spending)
       if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
@@ -250,33 +261,45 @@ export async function GET(request) {
       formattedMonth: `${monthNames[month.monthNumber - 1]} ${month.year}`
     }));
 
-    // Get current month to exclude it from calculation (incomplete month)
+    // Get current month to mark it as incomplete
     const nowForExclusion = new Date();
     const currentYearForExclusion = nowForExclusion.getFullYear();
     const currentMonthForExclusion = nowForExclusion.getMonth() + 1; // 1-12
 
-    // Filter out incomplete months:
-    // 1. Current month (always incomplete)
-    // 2. Months before we had complete transaction data
-    const completedMonths = result.filter(month => {
-      // Exclude current month
-      if (month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion) {
-        return false;
-      }
+    // Mark months as complete or incomplete and filter incomplete first months
+    const processedMonths = result
+      .map(month => {
+        const isCurrentMonth = month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion;
 
-      // Exclude months before we had complete data
-      if (firstCompleteMonthStart) {
-        const monthStart = new Date(month.year, month.monthNumber - 1, 1);
-        if (monthStart < firstCompleteMonthStart) {
-          return false;
+        // Check if month is before we had complete data
+        let isIncompleteFirstMonth = false;
+        if (firstCompleteMonthStart) {
+          const monthStart = new Date(month.year, month.monthNumber - 1, 1);
+          if (monthStart < firstCompleteMonthStart) {
+            isIncompleteFirstMonth = true;
+          }
         }
-      }
 
-      return true;
-    });
+        return {
+          ...month,
+          isCurrentMonth,
+          isComplete: !isCurrentMonth && !isIncompleteFirstMonth
+        };
+      })
+      // Still filter out incomplete first months (not useful for display)
+      .filter(month => !month.isIncompleteFirstMonth || month.isCurrentMonth);
 
-    // Limit to the last N completed months (most recent, excluding current)
-    const limitedResult = completedMonths.slice(-MAX_MONTHS);
+    // Get only completed months for average calculation
+    const completedMonths = processedMonths.filter(month => month.isComplete);
+
+    // Limit to the last N completed months + include current month if present
+    const limitedCompletedMonths = completedMonths.slice(-MAX_MONTHS);
+
+    // Build final result: completed months + current month (if it exists and we have room)
+    const currentMonth = processedMonths.find(m => m.isCurrentMonth);
+    const limitedResult = currentMonth
+      ? [...limitedCompletedMonths, currentMonth]
+      : limitedCompletedMonths;
 
     // Log calculation details for debugging
     console.log(`[spending-earning] Calculation for userId=${userId}, requested months=${MAX_MONTHS}`);
