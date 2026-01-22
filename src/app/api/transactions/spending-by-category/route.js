@@ -146,18 +146,20 @@ export async function GET(request) {
       const category = transaction.system_categories;
       if (!category) return;
 
-      let key, label, hex_color, icon_name;
+      let key, label, hex_color, icon_name, icon_lib;
 
       if (groupBy === 'group') {
         key = category.category_groups?.id || 'other';
         label = category.category_groups?.name || 'Other';
         hex_color = category.category_groups?.hex_color || '#6B7280';
         icon_name = category.category_groups?.icon_name;
+        icon_lib = category.category_groups?.icon_lib;
       } else {
         key = category.id;
         label = category.label;
         hex_color = category.category_groups?.hex_color || '#6B7280';
         icon_name = category.category_groups?.icon_name;
+        icon_lib = category.category_groups?.icon_lib;
       }
 
       const rawAmount = parseFloat(transaction.amount);
@@ -186,6 +188,7 @@ export async function GET(request) {
           label: label,
           hex_color: hex_color,
           icon_name: icon_name,
+          icon_lib: icon_lib,
           total_spent: 0,
           transaction_count: 0
         };

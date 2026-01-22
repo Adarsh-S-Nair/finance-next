@@ -85,8 +85,33 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     setActiveIndex(null);
   };
 
-  // Determine which data point to display (hovered or last)
-  const currentData = activeIndex !== null ? chartData[activeIndex] : chartData[chartData.length - 1];
+  // Determine which data point to display (hovered or last with valid spending data)
+  const lastValidDataPoint = useMemo(() => {
+    // Find the last data point that has a non-null spending value
+    for (let i = chartData.length - 1; i >= 0; i--) {
+      if (chartData[i]?.spending !== null && chartData[i]?.spending !== undefined) {
+        return chartData[i];
+      }
+    }
+    return chartData[chartData.length - 1] || null;
+  }, [chartData]);
+
+  // When hovering, use the hovered data point but fall back to lastValidDataPoint's spending
+  // if the hovered point has null spending (future dates in current month)
+  const currentData = useMemo(() => {
+    if (activeIndex !== null && chartData[activeIndex]) {
+      const hoveredPoint = chartData[activeIndex];
+      // If hovering over a future date with null spending, use last valid spending value
+      if (hoveredPoint.spending === null || hoveredPoint.spending === undefined) {
+        return {
+          ...hoveredPoint,
+          spending: lastValidDataPoint?.spending ?? 0,
+        };
+      }
+      return hoveredPoint;
+    }
+    return lastValidDataPoint;
+  }, [activeIndex, chartData, lastValidDataPoint]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {

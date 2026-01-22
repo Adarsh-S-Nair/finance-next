@@ -149,7 +149,7 @@ export default function LineChart({
 
     // For better UX, create hover zones for each data point
     let index: number;
-    
+
     if (data.length === 1) {
       index = 0;
     } else if (data.length === 2) {
@@ -161,7 +161,7 @@ export default function LineChart({
       // Each data point gets an equal-width zone
       const normalizedX = relativeX / effectiveWidth;
       const rawIndex = normalizedX * (data.length - 1);
-      
+
       // Round to nearest index, clamped to valid range
       index = Math.min(
         Math.max(0, Math.round(rawIndex)),
@@ -289,6 +289,7 @@ export default function LineChart({
               baseValue="dataMin"
               isAnimationActive={false}
               activeDot={false} // We handle active dot manually
+              connectNulls={false} // Stop rendering line at null values
               dot={showDots ? {
                 r: dotRadius,
                 fill: dotColor || line.strokeColor,

@@ -16,8 +16,10 @@ export async function GET(request) {
     }
 
     // Get all transactions for the user, grouped by month
+    // Start from the 1st of the month, MAX_MONTHS ago, to ensure we capture complete months
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
+    sinceDate.setDate(1); // Set to 1st of that month for complete month data
     const sinceDateStr = sinceDate.toISOString().split('T')[0];
 
     // Fetch IDs of categories to ALWAYS exclude
@@ -143,6 +145,10 @@ export async function GET(request) {
       // If it's a transfer and it WAS matched, we exclude it (it's an internal transfer).
       if (matchedIds.has(transaction.id)) return;
 
+      // Exclude ALL transfers from income calculation (matched or unmatched)
+      // This ensures transfers are not counted as income
+      if (isTransfer(transaction)) return;
+
       // Exclude repayment transactions from counting as income (or spending)
       if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
 
@@ -212,23 +218,60 @@ export async function GET(request) {
       formattedMonth: `${monthNames[month.monthNumber - 1]} ${month.year}`
     }));
 
-    if (DEBUG) console.log(`📊 Monthly Spending & Earning: months=${result.length} (cap=${MAX_MONTHS})`);
+    // Get current month to exclude it from calculation (incomplete month)
+    const nowForExclusion = new Date();
+    const currentYearForExclusion = nowForExclusion.getFullYear();
+    const currentMonthForExclusion = nowForExclusion.getMonth() + 1; // 1-12
+
+    // Filter out the current month (incomplete)
+    const completedMonths = result.filter(month => {
+      return !(month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion);
+    });
+
+    // Limit to the last N completed months (most recent, excluding current)
+    const limitedResult = completedMonths.slice(-MAX_MONTHS);
+
+    // Log calculation details for debugging
+    console.log(`[spending-earning] Calculation for userId=${userId}, requested months=${MAX_MONTHS}`);
+    console.log(`[spending-earning] Total transactions fetched: ${transactions.length}`);
+    console.log(`[spending-earning] Matched transfers (excluded): ${matchedIds.size}`);
+    const transferCount = transactions.filter(tx => isTransfer(tx) && !matchedIds.has(tx.id)).length;
+    console.log(`[spending-earning] Unmatched transfers (excluded): ${transferCount}`);
+    console.log(`[spending-earning] Total monthly data entries: ${result.length}`);
+    console.log(`[spending-earning] Current month (${monthNames[currentMonthForExclusion - 1]} ${currentYearForExclusion}) excluded from calculation`);
+    console.log(`[spending-earning] Completed months available: ${completedMonths.length}`);
+    result.forEach(month => {
+      const isCurrentMonth = month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion;
+      const status = isCurrentMonth ? '[CURRENT - EXCLUDED]' : '';
+      console.log(`[spending-earning] ${month.monthName} ${month.year} ${status}: earning=$${month.earning.toFixed(2)}, spending=$${month.spending.toFixed(2)}, transactions=${month.transactionCount}`);
+    });
+    console.log(`[spending-earning] Using last ${MAX_MONTHS} completed months: ${limitedResult.length} months`);
+    limitedResult.forEach(month => {
+      console.log(`[spending-earning]   - ${month.monthName} ${month.year}: earning=$${month.earning.toFixed(2)}`);
+    });
+    const totalEarning = limitedResult.reduce((sum, month) => sum + month.earning, 0);
+    const avgEarning = limitedResult.length > 0 ? totalEarning / limitedResult.length : 0;
+    console.log(`[spending-earning] Total earning (${limitedResult.length} months): $${totalEarning.toFixed(2)}`);
+    console.log(`[spending-earning] Average monthly earning: $${avgEarning.toFixed(2)}`);
+
+    if (DEBUG) console.log(`📊 Monthly Spending & Earning: months=${limitedResult.length} (cap=${MAX_MONTHS})`);
 
     // Calculate Month-over-Month (MoM) change for the current month vs same period last month
-    const now = new Date();
-    const currentMonth = now.getMonth(); // 0-11
-    const currentYear = now.getFullYear();
-    const currentDay = now.getDate();
+    // Reuse the date from exclusion check (or create new one for MoM calculation)
+    const nowForMoM = new Date();
+    const currentMonthForMoM = nowForMoM.getMonth(); // 0-11
+    const currentYearForMoM = nowForMoM.getFullYear();
+    const currentDayForMoM = nowForMoM.getDate();
 
     // Handle edge case for January (previous month is December of previous year)
-    const lastMonthDate = new Date(now);
-    lastMonthDate.setMonth(now.getMonth() - 1);
+    const lastMonthDate = new Date(nowForMoM);
+    lastMonthDate.setMonth(nowForMoM.getMonth() - 1);
     const lastMonth = lastMonthDate.getMonth();
     const lastMonthYear = lastMonthDate.getFullYear();
 
     // Get number of days in last month to handle edge cases (e.g. March 30 vs Feb 28)
     const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
-    const comparisonDay = Math.min(currentDay, daysInLastMonth);
+    const comparisonDay = Math.min(currentDayForMoM, daysInLastMonth);
 
     let currentMonthIncome = 0;
     let currentMonthSpending = 0;
@@ -237,6 +280,8 @@ export async function GET(request) {
 
     transactions.forEach(tx => {
       if (matchedIds.has(tx.id)) return;
+      // Exclude ALL transfers from income calculation (matched or unmatched)
+      if (isTransfer(tx)) return;
       // Exclude repayment transactions from counting as income (or spending)
       if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
       if (!tx.date) return;
@@ -254,7 +299,7 @@ export async function GET(request) {
       }, 0) || 0;
 
       // Current Month MTD
-      if (year === currentYear && month === currentMonth && day <= currentDay) {
+      if (year === currentYearForMoM && month === currentMonthForMoM && day <= currentDayForMoM) {
         if (amount > 0) currentMonthIncome += amount;
         else currentMonthSpending += Math.max(0, Math.abs(amount) - settledReimbursement);
       }
@@ -272,12 +317,12 @@ export async function GET(request) {
     if (DEBUG) console.log(`📊 MoM Comparison: Income ${incomeChange.toFixed(1)}%, Spending ${spendingChange.toFixed(1)}%`);
 
     return Response.json({
-      data: result,
+      data: limitedResult,
       summary: {
-        totalMonths: result.length,
-        totalSpending: result.reduce((sum, month) => sum + month.spending, 0),
-        totalEarning: result.reduce((sum, month) => sum + month.earning, 0),
-        totalTransactions: result.reduce((sum, month) => sum + month.transactionCount, 0)
+        totalMonths: limitedResult.length,
+        totalSpending: limitedResult.reduce((sum, month) => sum + month.spending, 0),
+        totalEarning: limitedResult.reduce((sum, month) => sum + month.earning, 0),
+        totalTransactions: limitedResult.reduce((sum, month) => sum + month.transactionCount, 0)
       },
       momComparison: {
         incomeChange,

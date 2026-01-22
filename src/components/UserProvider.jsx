@@ -30,6 +30,19 @@ export default function UserProvider({ children }) {
   const fetchedRef = useRef(false);
   const recoveringRef = useRef(false);
   const profileLoadingRef = useRef(false);
+
+  // Helper to clear stale Supabase auth data from localStorage
+  const clearStaleAuthData = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb-')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  }, []);
   const ensureUser = useCallback(async () => {
     if (recoveringRef.current) return user;
     recoveringRef.current = true;
@@ -164,8 +177,22 @@ export default function UserProvider({ children }) {
     window.addEventListener("online", onOnline);
     (async () => {
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getUser();
         if (!isMounted) return;
+
+        // Check for refresh token errors
+        if (error && error.message && error.message.includes('Refresh Token')) {
+          console.log("[UserProvider] Invalid refresh token detected, clearing stale data");
+          clearStaleAuthData();
+          setProfile(null);
+          setUser(null);
+          document.documentElement.classList.toggle("dark", false);
+          applyAccent(null);
+          setLoading(false);
+          setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+          return;
+        }
+
         setUser(data?.user ?? null);
         if (data?.user) {
           if (!fetchedRef.current) {
@@ -183,13 +210,40 @@ export default function UserProvider({ children }) {
           applyAccent(null);
           setLoading(false);
         }
-      } catch {
+      } catch (err) {
+        // Handle AuthApiError for invalid refresh tokens
+        if (err && err.message && err.message.includes('Refresh Token')) {
+          console.log("[UserProvider] Invalid refresh token error caught, clearing stale data");
+          clearStaleAuthData();
+          setProfile(null);
+          setUser(null);
+          document.documentElement.classList.toggle("dark", false);
+          applyAccent(null);
+          setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+        }
         if (isMounted) setLoading(false);
       }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const nextUser = session?.user ?? null;
+
+      // Handle token refresh failures gracefully
+      if (event === "TOKEN_REFRESHED" && !session) {
+        // Token refresh failed - session is invalid
+        console.log("[UserProvider] Session expired, clearing stale data");
+        clearStaleAuthData();
+        setProfile(null);
+        setUser(null);
+        document.documentElement.classList.toggle("dark", false);
+        applyAccent(null);
+        setAuthTransition(false);
+        setLoading(false);
+        setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+        router.replace("/");
+        return;
+      }
+
       setUser(nextUser);
       fetchedRef.current = false;
       profileLoadingRef.current = false;

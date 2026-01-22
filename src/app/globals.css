@@ -201,12 +201,11 @@ body {
 
 /* Card Header Typography - Standardized */
 .card-header {
-  font-size: 0.65rem;
-  /* ~10px */
-  font-weight: 500;
+  font-size: 0.8125rem;
+  /* ~13px */
+  font-weight: 400;
   color: var(--color-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: normal;
 }
 
 /* Standardized Tooltip Animation */

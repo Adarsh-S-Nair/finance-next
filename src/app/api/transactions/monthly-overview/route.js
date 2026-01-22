@@ -138,8 +138,15 @@ export async function GET(request) {
 
     // Get month and year from params or default to current
     const now = new Date();
-    const month = parseInt(searchParams.get('month')) || now.getMonth(); // 0-indexed
-    const year = parseInt(searchParams.get('year')) || now.getFullYear();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const month = parseInt(searchParams.get('month')) || currentMonth; // 0-indexed
+    const year = parseInt(searchParams.get('year')) || currentYear;
+
+    // Check if the requested month is the current month
+    const isCurrentMonth = (month === currentMonth && year === currentYear);
 
     // Calculate previous month
     let prevMonth = month - 1;
@@ -174,20 +181,66 @@ export async function GET(request) {
     // Create previous month name for display
     const prevMonthName = new Date(prevYear, prevMonth, 1).toLocaleDateString('en-US', { month: 'long' });
 
-    // Merge data: align by day number, add previousSpending field
-    const mergedData = currentMonthResult.data.map(dayData => {
-      // Find matching day in previous month (if exists)
-      const prevDayData = prevMonthResult?.data.find(d => d.day === dayData.day);
-      return {
-        ...dayData,
-        previousSpending: prevDayData?.spending || null // null if day doesn't exist in prev month
-      };
-    });
+    // Determine max days for x-axis (max of current month days and previous month days)
+    const maxDays = Math.max(
+      currentMonthResult.daysInMonth,
+      prevMonthResult?.daysInMonth || 0
+    );
+
+    // Build merged data array with length = maxDays
+    // Current month: only show spending up to currentDay if this is the current month
+    // Previous month: show all data (complete month)
+    const mergedData = [];
+    for (let day = 1; day <= maxDays; day++) {
+      const currentDayData = currentMonthResult.data.find(d => d.day === day);
+      const prevDayData = prevMonthResult?.data.find(d => d.day === day);
+
+      // For current month: only include spending data up to today's date
+      // After today, spending should be null (line won't render for those points)
+      let spending = null;
+      let income = null;
+      let dailySpending = null;
+      let dailyIncome = null;
+
+      if (currentDayData) {
+        if (isCurrentMonth) {
+          // Only show data up to and including today
+          if (day <= currentDay) {
+            spending = currentDayData.spending;
+            income = currentDayData.income;
+            dailySpending = currentDayData.dailySpending;
+            dailyIncome = currentDayData.dailyIncome;
+          }
+        } else {
+          // For past months, show all data
+          spending = currentDayData.spending;
+          income = currentDayData.income;
+          dailySpending = currentDayData.dailySpending;
+          dailyIncome = currentDayData.dailyIncome;
+        }
+      }
+
+      // Generate date string for this day in the current/selected month
+      const dateObj = new Date(year, month, day);
+      const dateString = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      mergedData.push({
+        day,
+        dateString,
+        spending,
+        income,
+        dailySpending,
+        dailyIncome,
+        previousSpending: prevDayData?.spending ?? null
+      });
+    }
 
     return Response.json({
       data: mergedData,
       previousMonthName: prevMonthName,
-      previousMonthDays: prevMonthResult?.daysInMonth || 0
+      previousMonthDays: prevMonthResult?.daysInMonth || 0,
+      isCurrentMonth,
+      currentDay: isCurrentMonth ? currentDay : null
     });
   } catch (error) {
     console.error('Error in monthly overview API:', error);

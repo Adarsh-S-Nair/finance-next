@@ -32,10 +32,7 @@ export default function PageContainer({ title, children, action, padding = "py-6
       {(displayTitle || action) && (
         <div className="hidden md:flex items-center justify-between mb-6 pb-3">
           {displayTitle && (
-            <h1
-              className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase"
-              style={{ fontFamily: 'var(--font-poppins)' }}
-            >
+            <h1 className="text-lg font-normal tracking-normal text-[var(--color-fg)]">
               {displayTitle}
             </h1>
           )}
