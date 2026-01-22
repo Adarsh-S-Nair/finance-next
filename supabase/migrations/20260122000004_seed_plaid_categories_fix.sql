@@ -1,7 +1,5 @@
--- Seed all Plaid Personal Finance Categories (PFCv2)
--- This migration pre-populates all categories so users can categorize transactions
--- even if they haven't encountered that category type yet.
--- Uses ON CONFLICT DO UPDATE to safely handle existing categories.
+-- Fix for seed migration - removes updated_at reference that doesn't exist on category_groups
+-- This migration should run after the failed 20260122000002 attempt
 
 -- ============================================================================
 -- STEP 1: Insert/Update all PRIMARY categories (category_groups)
@@ -29,8 +27,7 @@ VALUES
   ('Other', 'OTHER', 'https://plaid-category-icons.plaid.com/PFC_OTHER.png', '#6B7280')
 ON CONFLICT (plaid_category_key) WHERE plaid_category_key IS NOT NULL
 DO UPDATE SET
-  icon_url = EXCLUDED.icon_url,
-  updated_at = NOW();
+  icon_url = EXCLUDED.icon_url;
 
 -- ============================================================================
 -- STEP 2: Insert all DETAILED categories (system_categories)
