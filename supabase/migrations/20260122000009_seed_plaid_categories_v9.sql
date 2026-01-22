@@ -1,12 +1,8 @@
 -- Seed all Plaid Personal Finance Categories (PFCv2)
--- This migration is fully idempotent and handles all edge cases:
--- 1. Existing categories without plaid_category_key (dynamically created)
--- 2. Partial data from previous failed migration runs
--- 3. All unique constraint combinations
+-- This migration is fully idempotent and handles all edge cases
 
 -- ============================================================================
 -- STEP 1: Update existing category_groups with plaid_category_key and icon_url
--- Only update if the plaid_category_key is not already used by another row
 -- ============================================================================
 
 UPDATE public.category_groups SET plaid_category_key = 'INCOME', icon_url = 'https://plaid-category-icons.plaid.com/PFC_INCOME.png' 
@@ -109,7 +105,7 @@ SELECT * FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM public.category_groups WHERE plaid_category_key = v.plaid_category_key);
 
 -- ============================================================================
--- STEP 3: Helper function to get category group ID by plaid key
+-- STEP 3: Helper function
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_category_group_id(p_key VARCHAR) RETURNS UUID AS $$
@@ -118,127 +114,124 @@ $$ LANGUAGE SQL STABLE;
 
 -- ============================================================================
 -- STEP 4: Update existing system_categories with plaid_category_key
--- This sets the plaid_category_key on rows that were created dynamically (without it)
--- Only update if no row already has that plaid_category_key
+-- Using a temp table approach for the loop
 -- ============================================================================
 
-DO $$
-DECLARE
-  r RECORD;
-BEGIN
-  FOR r IN (VALUES
-    ('interest earned', 'INCOME_INTEREST_EARNED'),
-    ('dividends', 'INCOME_DIVIDENDS'),
-    ('retirement pension', 'INCOME_RETIREMENT_PENSION'),
-    ('salary', 'INCOME_SALARY'),
-    ('wages', 'INCOME_SALARY'),
-    ('tax refund', 'INCOME_TAX_REFUND'),
-    ('unemployment', 'INCOME_UNEMPLOYMENT'),
-    ('other income', 'INCOME_OTHER'),
-    ('car payment', 'LOAN_PAYMENTS_CAR_PAYMENT'),
-    ('credit card payment', 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT'),
-    ('mortgage payment', 'LOAN_PAYMENTS_MORTGAGE_PAYMENT'),
-    ('personal loan payment', 'LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT'),
-    ('student loan payment', 'LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT'),
-    ('other payment', 'LOAN_PAYMENTS_OTHER_PAYMENT'),
-    ('account transfer', 'TRANSFER_IN_ACCOUNT_TRANSFER'),
-    ('deposit', 'TRANSFER_IN_DEPOSIT'),
-    ('investment and retirement funds', 'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS'),
-    ('savings', 'TRANSFER_IN_SAVINGS'),
-    ('other transfer in', 'TRANSFER_IN_OTHER_TRANSFER_IN'),
-    ('withdrawal', 'TRANSFER_OUT_WITHDRAWAL'),
-    ('other transfer out', 'TRANSFER_OUT_OTHER_TRANSFER_OUT'),
-    ('atm fees', 'BANK_FEES_ATM_FEES'),
-    ('insufficient funds', 'BANK_FEES_INSUFFICIENT_FUNDS'),
-    ('interest charge', 'BANK_FEES_INTEREST_CHARGE'),
-    ('foreign transaction fees', 'BANK_FEES_FOREIGN_TRANSACTION_FEES'),
-    ('overdraft fees', 'BANK_FEES_OVERDRAFT_FEES'),
-    ('other bank fees', 'BANK_FEES_OTHER_BANK_FEES'),
-    ('casinos and gambling', 'ENTERTAINMENT_CASINOS_AND_GAMBLING'),
-    ('music and audio', 'ENTERTAINMENT_MUSIC_AND_AUDIO'),
-    ('sporting events amusement parks and museums', 'ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS'),
-    ('tv and movies', 'ENTERTAINMENT_TV_AND_MOVIES'),
-    ('video games', 'ENTERTAINMENT_VIDEO_GAMES'),
-    ('other entertainment', 'ENTERTAINMENT_OTHER_ENTERTAINMENT'),
-    ('beer wine and liquor', 'FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR'),
-    ('coffee', 'FOOD_AND_DRINK_COFFEE'),
-    ('fast food', 'FOOD_AND_DRINK_FAST_FOOD'),
-    ('groceries', 'FOOD_AND_DRINK_GROCERIES'),
-    ('restaurant', 'FOOD_AND_DRINK_RESTAURANT'),
-    ('vending machines', 'FOOD_AND_DRINK_VENDING_MACHINES'),
-    ('other food and drink', 'FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK'),
-    ('bookstores and newsstands', 'GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS'),
-    ('clothing and accessories', 'GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES'),
-    ('convenience stores', 'GENERAL_MERCHANDISE_CONVENIENCE_STORES'),
-    ('department stores', 'GENERAL_MERCHANDISE_DEPARTMENT_STORES'),
-    ('discount stores', 'GENERAL_MERCHANDISE_DISCOUNT_STORES'),
-    ('electronics', 'GENERAL_MERCHANDISE_ELECTRONICS'),
-    ('gifts and novelties', 'GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES'),
-    ('office supplies', 'GENERAL_MERCHANDISE_OFFICE_SUPPLIES'),
-    ('online marketplaces', 'GENERAL_MERCHANDISE_ONLINE_MARKETPLACES'),
-    ('pet supplies', 'GENERAL_MERCHANDISE_PET_SUPPLIES'),
-    ('sporting goods', 'GENERAL_MERCHANDISE_SPORTING_GOODS'),
-    ('superstores', 'GENERAL_MERCHANDISE_SUPERSTORES'),
-    ('tobacco and vape', 'GENERAL_MERCHANDISE_TOBACCO_AND_VAPE'),
-    ('other general merchandise', 'GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE'),
-    ('furniture', 'HOME_IMPROVEMENT_FURNITURE'),
-    ('hardware', 'HOME_IMPROVEMENT_HARDWARE'),
-    ('repair and maintenance', 'HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE'),
-    ('security', 'HOME_IMPROVEMENT_SECURITY'),
-    ('other home improvement', 'HOME_IMPROVEMENT_OTHER_HOME_IMPROVEMENT'),
-    ('dental care', 'MEDICAL_DENTAL_CARE'),
-    ('eye care', 'MEDICAL_EYE_CARE'),
-    ('nursing care', 'MEDICAL_NURSING_CARE'),
-    ('pharmacies and supplements', 'MEDICAL_PHARMACIES_AND_SUPPLEMENTS'),
-    ('primary care', 'MEDICAL_PRIMARY_CARE'),
-    ('veterinary services', 'MEDICAL_VETERINARY_SERVICES'),
-    ('other medical', 'MEDICAL_OTHER_MEDICAL'),
-    ('gyms and fitness centers', 'PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS'),
-    ('hair and beauty', 'PERSONAL_CARE_HAIR_AND_BEAUTY'),
-    ('laundry and dry cleaning', 'PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING'),
-    ('other personal care', 'PERSONAL_CARE_OTHER_PERSONAL_CARE'),
-    ('accounting and financial planning', 'GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING'),
-    ('automotive', 'GENERAL_SERVICES_AUTOMOTIVE'),
-    ('childcare', 'GENERAL_SERVICES_CHILDCARE'),
-    ('consulting and legal', 'GENERAL_SERVICES_CONSULTING_AND_LEGAL'),
-    ('education', 'GENERAL_SERVICES_EDUCATION'),
-    ('insurance', 'GENERAL_SERVICES_INSURANCE'),
-    ('postage and shipping', 'GENERAL_SERVICES_POSTAGE_AND_SHIPPING'),
-    ('storage', 'GENERAL_SERVICES_STORAGE'),
-    ('other general services', 'GENERAL_SERVICES_OTHER_GENERAL_SERVICES'),
-    ('donations', 'GOVERNMENT_AND_NON_PROFIT_DONATIONS'),
-    ('government departments and agencies', 'GOVERNMENT_AND_NON_PROFIT_GOVERNMENT_DEPARTMENTS_AND_AGENCIES'),
-    ('tax payment', 'GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT'),
-    ('other government and non profit', 'GOVERNMENT_AND_NON_PROFIT_OTHER_GOVERNMENT_AND_NON_PROFIT'),
-    ('bikes and scooters', 'TRANSPORTATION_BIKES_AND_SCOOTERS'),
-    ('gas', 'TRANSPORTATION_GAS'),
-    ('parking', 'TRANSPORTATION_PARKING'),
-    ('public transit', 'TRANSPORTATION_PUBLIC_TRANSIT'),
-    ('taxis and ride shares', 'TRANSPORTATION_TAXIS_AND_RIDE_SHARES'),
-    ('tolls', 'TRANSPORTATION_TOLLS'),
-    ('other transportation', 'TRANSPORTATION_OTHER_TRANSPORTATION'),
-    ('flights', 'TRAVEL_FLIGHTS'),
-    ('lodging', 'TRAVEL_LODGING'),
-    ('rental cars', 'TRAVEL_RENTAL_CARS'),
-    ('other travel', 'TRAVEL_OTHER_TRAVEL'),
-    ('gas and electricity', 'RENT_AND_UTILITIES_GAS_AND_ELECTRICITY'),
-    ('internet and cable', 'RENT_AND_UTILITIES_INTERNET_AND_CABLE'),
-    ('rent', 'RENT_AND_UTILITIES_RENT'),
-    ('sewage and waste management', 'RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT'),
-    ('telephone', 'RENT_AND_UTILITIES_TELEPHONE'),
-    ('water', 'RENT_AND_UTILITIES_WATER'),
-    ('other utilities', 'RENT_AND_UTILITIES_OTHER_UTILITIES'),
-    ('other', 'OTHER_OTHER')
-  ) AS t(label_match, plaid_key)
-  LOOP
-    -- Only update if: 1) matching label exists without plaid_key, 2) no row has this plaid_key yet
-    UPDATE public.system_categories 
-    SET plaid_category_key = r.plaid_key
-    WHERE LOWER(label) = r.label_match 
-      AND plaid_category_key IS NULL
-      AND NOT EXISTS (SELECT 1 FROM public.system_categories WHERE plaid_category_key = r.plaid_key);
-  END LOOP;
-END $$;
+CREATE TEMP TABLE category_mappings (label_match TEXT, plaid_key TEXT);
+
+INSERT INTO category_mappings VALUES
+  ('interest earned', 'INCOME_INTEREST_EARNED'),
+  ('dividends', 'INCOME_DIVIDENDS'),
+  ('retirement pension', 'INCOME_RETIREMENT_PENSION'),
+  ('salary', 'INCOME_SALARY'),
+  ('wages', 'INCOME_SALARY'),
+  ('tax refund', 'INCOME_TAX_REFUND'),
+  ('unemployment', 'INCOME_UNEMPLOYMENT'),
+  ('other income', 'INCOME_OTHER'),
+  ('car payment', 'LOAN_PAYMENTS_CAR_PAYMENT'),
+  ('credit card payment', 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT'),
+  ('mortgage payment', 'LOAN_PAYMENTS_MORTGAGE_PAYMENT'),
+  ('personal loan payment', 'LOAN_PAYMENTS_PERSONAL_LOAN_PAYMENT'),
+  ('student loan payment', 'LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT'),
+  ('other payment', 'LOAN_PAYMENTS_OTHER_PAYMENT'),
+  ('account transfer', 'TRANSFER_IN_ACCOUNT_TRANSFER'),
+  ('deposit', 'TRANSFER_IN_DEPOSIT'),
+  ('investment and retirement funds', 'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS'),
+  ('savings', 'TRANSFER_IN_SAVINGS'),
+  ('other transfer in', 'TRANSFER_IN_OTHER_TRANSFER_IN'),
+  ('withdrawal', 'TRANSFER_OUT_WITHDRAWAL'),
+  ('other transfer out', 'TRANSFER_OUT_OTHER_TRANSFER_OUT'),
+  ('atm fees', 'BANK_FEES_ATM_FEES'),
+  ('insufficient funds', 'BANK_FEES_INSUFFICIENT_FUNDS'),
+  ('interest charge', 'BANK_FEES_INTEREST_CHARGE'),
+  ('foreign transaction fees', 'BANK_FEES_FOREIGN_TRANSACTION_FEES'),
+  ('overdraft fees', 'BANK_FEES_OVERDRAFT_FEES'),
+  ('other bank fees', 'BANK_FEES_OTHER_BANK_FEES'),
+  ('casinos and gambling', 'ENTERTAINMENT_CASINOS_AND_GAMBLING'),
+  ('music and audio', 'ENTERTAINMENT_MUSIC_AND_AUDIO'),
+  ('sporting events amusement parks and museums', 'ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS'),
+  ('tv and movies', 'ENTERTAINMENT_TV_AND_MOVIES'),
+  ('video games', 'ENTERTAINMENT_VIDEO_GAMES'),
+  ('other entertainment', 'ENTERTAINMENT_OTHER_ENTERTAINMENT'),
+  ('beer wine and liquor', 'FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR'),
+  ('coffee', 'FOOD_AND_DRINK_COFFEE'),
+  ('fast food', 'FOOD_AND_DRINK_FAST_FOOD'),
+  ('groceries', 'FOOD_AND_DRINK_GROCERIES'),
+  ('restaurant', 'FOOD_AND_DRINK_RESTAURANT'),
+  ('vending machines', 'FOOD_AND_DRINK_VENDING_MACHINES'),
+  ('other food and drink', 'FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK'),
+  ('bookstores and newsstands', 'GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS'),
+  ('clothing and accessories', 'GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES'),
+  ('convenience stores', 'GENERAL_MERCHANDISE_CONVENIENCE_STORES'),
+  ('department stores', 'GENERAL_MERCHANDISE_DEPARTMENT_STORES'),
+  ('discount stores', 'GENERAL_MERCHANDISE_DISCOUNT_STORES'),
+  ('electronics', 'GENERAL_MERCHANDISE_ELECTRONICS'),
+  ('gifts and novelties', 'GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES'),
+  ('office supplies', 'GENERAL_MERCHANDISE_OFFICE_SUPPLIES'),
+  ('online marketplaces', 'GENERAL_MERCHANDISE_ONLINE_MARKETPLACES'),
+  ('pet supplies', 'GENERAL_MERCHANDISE_PET_SUPPLIES'),
+  ('sporting goods', 'GENERAL_MERCHANDISE_SPORTING_GOODS'),
+  ('superstores', 'GENERAL_MERCHANDISE_SUPERSTORES'),
+  ('tobacco and vape', 'GENERAL_MERCHANDISE_TOBACCO_AND_VAPE'),
+  ('other general merchandise', 'GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE'),
+  ('furniture', 'HOME_IMPROVEMENT_FURNITURE'),
+  ('hardware', 'HOME_IMPROVEMENT_HARDWARE'),
+  ('repair and maintenance', 'HOME_IMPROVEMENT_REPAIR_AND_MAINTENANCE'),
+  ('security', 'HOME_IMPROVEMENT_SECURITY'),
+  ('other home improvement', 'HOME_IMPROVEMENT_OTHER_HOME_IMPROVEMENT'),
+  ('dental care', 'MEDICAL_DENTAL_CARE'),
+  ('eye care', 'MEDICAL_EYE_CARE'),
+  ('nursing care', 'MEDICAL_NURSING_CARE'),
+  ('pharmacies and supplements', 'MEDICAL_PHARMACIES_AND_SUPPLEMENTS'),
+  ('primary care', 'MEDICAL_PRIMARY_CARE'),
+  ('veterinary services', 'MEDICAL_VETERINARY_SERVICES'),
+  ('other medical', 'MEDICAL_OTHER_MEDICAL'),
+  ('gyms and fitness centers', 'PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS'),
+  ('hair and beauty', 'PERSONAL_CARE_HAIR_AND_BEAUTY'),
+  ('laundry and dry cleaning', 'PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING'),
+  ('other personal care', 'PERSONAL_CARE_OTHER_PERSONAL_CARE'),
+  ('accounting and financial planning', 'GENERAL_SERVICES_ACCOUNTING_AND_FINANCIAL_PLANNING'),
+  ('automotive', 'GENERAL_SERVICES_AUTOMOTIVE'),
+  ('childcare', 'GENERAL_SERVICES_CHILDCARE'),
+  ('consulting and legal', 'GENERAL_SERVICES_CONSULTING_AND_LEGAL'),
+  ('education', 'GENERAL_SERVICES_EDUCATION'),
+  ('insurance', 'GENERAL_SERVICES_INSURANCE'),
+  ('postage and shipping', 'GENERAL_SERVICES_POSTAGE_AND_SHIPPING'),
+  ('storage', 'GENERAL_SERVICES_STORAGE'),
+  ('other general services', 'GENERAL_SERVICES_OTHER_GENERAL_SERVICES'),
+  ('donations', 'GOVERNMENT_AND_NON_PROFIT_DONATIONS'),
+  ('government departments and agencies', 'GOVERNMENT_AND_NON_PROFIT_GOVERNMENT_DEPARTMENTS_AND_AGENCIES'),
+  ('tax payment', 'GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT'),
+  ('other government and non profit', 'GOVERNMENT_AND_NON_PROFIT_OTHER_GOVERNMENT_AND_NON_PROFIT'),
+  ('bikes and scooters', 'TRANSPORTATION_BIKES_AND_SCOOTERS'),
+  ('gas', 'TRANSPORTATION_GAS'),
+  ('parking', 'TRANSPORTATION_PARKING'),
+  ('public transit', 'TRANSPORTATION_PUBLIC_TRANSIT'),
+  ('taxis and ride shares', 'TRANSPORTATION_TAXIS_AND_RIDE_SHARES'),
+  ('tolls', 'TRANSPORTATION_TOLLS'),
+  ('other transportation', 'TRANSPORTATION_OTHER_TRANSPORTATION'),
+  ('flights', 'TRAVEL_FLIGHTS'),
+  ('lodging', 'TRAVEL_LODGING'),
+  ('rental cars', 'TRAVEL_RENTAL_CARS'),
+  ('other travel', 'TRAVEL_OTHER_TRAVEL'),
+  ('gas and electricity', 'RENT_AND_UTILITIES_GAS_AND_ELECTRICITY'),
+  ('internet and cable', 'RENT_AND_UTILITIES_INTERNET_AND_CABLE'),
+  ('rent', 'RENT_AND_UTILITIES_RENT'),
+  ('sewage and waste management', 'RENT_AND_UTILITIES_SEWAGE_AND_WASTE_MANAGEMENT'),
+  ('telephone', 'RENT_AND_UTILITIES_TELEPHONE'),
+  ('water', 'RENT_AND_UTILITIES_WATER'),
+  ('other utilities', 'RENT_AND_UTILITIES_OTHER_UTILITIES'),
+  ('other', 'OTHER_OTHER');
+
+-- Update existing system_categories with their plaid keys (only if not already taken)
+UPDATE public.system_categories sc
+SET plaid_category_key = cm.plaid_key
+FROM category_mappings cm
+WHERE LOWER(sc.label) = cm.label_match
+  AND sc.plaid_category_key IS NULL
+  AND NOT EXISTS (SELECT 1 FROM public.system_categories WHERE plaid_category_key = cm.plaid_key);
+
+DROP TABLE category_mappings;
 
 -- ============================================================================
 -- STEP 5: Insert system_categories that don't exist yet
