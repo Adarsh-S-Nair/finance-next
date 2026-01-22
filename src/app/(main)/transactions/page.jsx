@@ -1067,14 +1067,21 @@ function TransactionsContent() {
     setIsDrawerOpen(false);
     setSelectedTransaction(null);
     setCurrentDrawerView('transaction-details');
+    setPendingCategory(null); // Reset pending category selection
   };
 
   const handleCategoryClick = () => {
+    // Reset pending category when opening select-category view fresh
+    setPendingCategory(null);
     setCurrentDrawerView('select-category');
   };
 
   const handleBackToTransaction = () => {
     if (currentDrawerView !== 'transaction-details') {
+      // If going back from select-category view, reset pending category
+      if (currentDrawerView === 'select-category') {
+        setPendingCategory(null);
+      }
       setCurrentDrawerView('transaction-details');
       return;
     }

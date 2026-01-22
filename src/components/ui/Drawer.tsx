@@ -194,7 +194,7 @@ export default function Drawer({
                 )}
                 {(displayTitle || displayDescription) && (
                   <div className="flex-1">
-                    {displayTitle && <h3 className="text-base font-semibold text-[var(--color-fg)]">{displayTitle}</h3>}
+                    {displayTitle && <h3 className="text-base font-normal text-[var(--color-fg)]">{displayTitle}</h3>}
                     {displayDescription && (
                       <p className="mt-1 text-sm text-[var(--color-muted)]">{displayDescription}</p>
                     )}

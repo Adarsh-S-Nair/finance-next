@@ -80,6 +80,9 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
       const res = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=120`);
       const data = await res.json();
 
+      // Use actual complete months from API for accurate averaging
+      const months = data.completeMonths || 1;
+
       // Sort by spending amount (highest first), exclude Account Transfer, take top categories
       const categoryOptions = data.categories
         .filter(c => c.total_spent > 0 && c.label !== 'Account Transfer')
@@ -90,7 +93,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
           label: c.label,
           type: 'category',
           spent: c.total_spent,
-          monthlyAvg: Math.round(c.total_spent / 4),
+          monthlyAvg: Math.round(c.total_spent / months),
           hexColor: c.hex_color || '#6B7280',
           iconName: c.icon_name,
           iconLib: c.icon_lib
@@ -145,6 +148,16 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
           spending: month.spending
         }));
         setCategorySpendingHistory(history);
+
+        // Recalculate monthly average based on actual complete months
+        const totalSpending = history.reduce((sum, month) => sum + month.spending, 0);
+        const actualMonthlyAvg = history.length > 0 ? Math.round(totalSpending / history.length) : 0;
+
+        // Update selectedScope with the recalculated average
+        setSelectedScope({
+          ...opt,
+          monthlyAvg: actualMonthlyAvg
+        });
       } else {
         // If no data, show empty state
         setCategorySpendingHistory([]);
@@ -368,11 +381,6 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                       </div>
                     </div>
 
-                    <StepNavigation
-                      showBack={false}
-                      onNext={handleIncomeNext}
-                      nextDisabled={!monthlyIncome}
-                    />
                   </>
                 )}
               </div>
@@ -468,12 +476,6 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                   )}
                 </div>
 
-                <StepNavigation
-                  onBack={() => setStep(1)}
-                  onNext={handleCreateAll}
-                  nextLabel={loading ? "Creating..." : "Create"}
-                  nextDisabled={loading}
-                />
               </div>
             ) : step === 3 ? (
 
@@ -544,13 +546,30 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                   </div>
                 </div>
 
-                <StepNavigation
-                  onBack={() => setStep(2)}
-                />
               </div>
             ) : null}
           </motion.div>
         </AnimatePresence>
+
+        {/* Navigation - fixed at bottom, outside AnimatePresence */}
+        <StepNavigation
+          showBack={step > 1}
+          onBack={() => {
+            setSlideDirection(-1);
+            setStep(step === 3 ? 2 : 1);
+          }}
+          onNext={
+            step === 1
+              ? handleIncomeNext
+              : step === 2
+                ? handleCreateAll
+                : undefined
+          }
+          nextDisabled={
+            step === 1 ? !monthlyIncome : step === 2 ? loading : false
+          }
+          nextLabel={step === 2 ? (loading ? "Creating..." : "Create") : "Next"}
+        />
       </div>
     </Modal>
   );

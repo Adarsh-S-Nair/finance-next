@@ -12,12 +12,24 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
   // Initialize rules from criteria
   useEffect(() => {
     if (criteria) {
-      setCurrentRules([{
+      const initialRules = [{
         id: Date.now(),
         field: criteria.field || 'merchant_name',
         operator: criteria.operator || 'is',
         value: criteria.value || '',
-      }]);
+      }];
+
+      // If matchType is 'exact', also add an amount condition
+      if (criteria.matchType === 'exact' && criteria.amount !== null) {
+        initialRules.push({
+          id: Date.now() + 1,
+          field: 'amount',
+          operator: 'equals',
+          value: String(Math.abs(criteria.amount)), // Use absolute value for display
+        });
+      }
+
+      setCurrentRules(initialRules);
     }
   }, [criteria]);
 
@@ -70,6 +82,7 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
 
         <RuleBuilder
           criteria={criteria}
+          initialConditions={currentRules}
           categoryName={categoryName}
           categoryGroups={categoryGroups}
           onEditCategory={onEditCategory}

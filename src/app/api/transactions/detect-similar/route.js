@@ -35,55 +35,73 @@ export async function POST(request) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // 3. Search for similar transactions
-    // Criteria:
-    // - Same merchant_name (if exists) OR same description (if merchant_name is null)
-    // - Different category_id than the new one
-    // - Same user_id (via accounts table)
-
-    let query = supabaseAdmin
-      .from('transactions')
-      .select(`
-        id,
-        date,
-        merchant_name,
-        description,
-        amount,
-        icon_url,
-        category_id,
-        accounts!inner (
-          user_id
-        ),
-        system_categories (
-          label,
-          category_groups (
-            icon_lib,
-            icon_name,
-            hex_color
+    // 3. Build base query for similar transactions
+    const buildQuery = (includeAmount = false) => {
+      let query = supabaseAdmin
+        .from('transactions')
+        .select(`
+          id,
+          date,
+          merchant_name,
+          description,
+          amount,
+          icon_url,
+          category_id,
+          accounts!inner (
+            user_id
+          ),
+          system_categories (
+            label,
+            category_groups (
+              icon_lib,
+              icon_name,
+              hex_color
+            )
           )
-        )
-      `)
-      .eq('accounts.user_id', userId)
-      .neq('id', transactionId)
-      .neq('category_id', categoryId); // Exclude ones that already have this category
+        `)
+        .eq('accounts.user_id', userId)
+        .neq('id', transactionId)
+        .neq('category_id', categoryId); // Exclude ones that already have this category
 
-    if (transaction.merchant_name) {
-      query = query.eq('merchant_name', transaction.merchant_name);
-    } else {
-      query = query.eq('description', transaction.description);
-    }
+      // Match by merchant_name or description
+      if (transaction.merchant_name) {
+        query = query.eq('merchant_name', transaction.merchant_name);
+      } else {
+        query = query.eq('description', transaction.description);
+      }
 
-    // Limit to recent 50 to avoid massive payloads
-    query = query.order('date', { ascending: false }).limit(50);
+      // Optionally also match exact amount
+      if (includeAmount) {
+        query = query.eq('amount', transaction.amount);
+      }
 
-    const { data: similarTransactions, error: searchError } = await query;
+      return query.order('date', { ascending: false }).limit(50);
+    };
+
+    // 4. First try: Match name + exact amount (most specific)
+    let { data: similarTransactions, error: searchError } = await buildQuery(true);
 
     if (searchError) {
-      logger.error('Error searching similar transactions', searchError);
+      logger.error('Error searching similar transactions (exact)', searchError);
       throw searchError;
     }
 
-    // Transform data to match frontend expectations (flatten category info)
+    let matchType = 'exact'; // name + amount match
+
+    // 5. If no exact matches, fall back to name-only matching
+    if (!similarTransactions || similarTransactions.length === 0) {
+      const { data: nameOnlyMatches, error: nameOnlyError } = await buildQuery(false);
+
+      if (nameOnlyError) {
+        logger.error('Error searching similar transactions (name only)', nameOnlyError);
+        throw nameOnlyError;
+      }
+
+      similarTransactions = nameOnlyMatches || [];
+      matchType = 'name'; // name-only match
+    }
+
+    // 6. Transform data to match frontend expectations (flatten category info)
     const transformedTransactions = similarTransactions.map(tx => ({
       ...tx,
       category_name: tx.system_categories?.label,
@@ -92,10 +110,17 @@ export async function POST(request) {
       category_hex_color: tx.system_categories?.category_groups?.hex_color,
     }));
 
-    // Determine match type for criteria
-    const criteria = transaction.merchant_name
-      ? { field: 'merchant_name', value: transaction.merchant_name, operator: 'is' }
-      : { field: 'description', value: transaction.description, operator: 'contains' };
+    // 7. Determine match criteria for display
+    // For merchant_name, we use exact match ('is')
+    // For description, we suggest 'contains' for more flexible rule matching
+    // even though we matched exactly in the query
+    const criteria = {
+      field: transaction.merchant_name ? 'merchant_name' : 'description',
+      value: transaction.merchant_name || transaction.description,
+      operator: transaction.merchant_name ? 'is' : 'contains', // 'is' for merchant_name, 'contains' for description
+      matchType, // 'exact' or 'name'
+      amount: matchType === 'exact' ? transaction.amount : null
+    };
 
     return Response.json({
       count: transformedTransactions.length,
@@ -108,3 +133,4 @@ export async function POST(request) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
+

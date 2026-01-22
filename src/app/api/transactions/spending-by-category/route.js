@@ -18,9 +18,62 @@ export async function GET(request) {
 
     if (true) console.log(`Fetching ${type} by category for user:`, userId, 'days:', daysParam);
 
+    // Determine the user's earliest transaction date to exclude incomplete months
+    const { data: earliestTxResult } = await supabaseAdmin
+      .from('transactions')
+      .select('date, accounts!inner(user_id)')
+      .eq('accounts.user_id', userId)
+      .order('date', { ascending: true })
+      .limit(1);
+
+    const earliestTransactionDate = earliestTxResult?.[0]?.date
+      ? new Date(earliestTxResult[0].date)
+      : null;
+
+    // Calculate the start of the first complete month
+    // If earliest transaction is after the 1st, skip that month entirely
+    let firstCompleteMonthStart = null;
+    if (earliestTransactionDate) {
+      if (earliestTransactionDate.getDate() > 1) {
+        // Skip to next month
+        firstCompleteMonthStart = new Date(
+          earliestTransactionDate.getFullYear(),
+          earliestTransactionDate.getMonth() + 1,
+          1
+        );
+      } else {
+        // Earliest is on the 1st, so that month is complete
+        firstCompleteMonthStart = new Date(
+          earliestTransactionDate.getFullYear(),
+          earliestTransactionDate.getMonth(),
+          1
+        );
+      }
+    }
+
     // Get transactions grouped by category
+    const now = new Date();
     const since = new Date();
     since.setDate(since.getDate() - MAX_DAYS);
+
+    // Use the later of: (1) MAX_DAYS ago, or (2) first complete month
+    let effectiveSinceDate = since;
+    if (firstCompleteMonthStart && firstCompleteMonthStart > since) {
+      effectiveSinceDate = firstCompleteMonthStart;
+    }
+
+    // Also exclude current month (incomplete)
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = currentMonthStart; // Exclude current month
+
+    // Calculate actual complete months for averaging
+    let completeMonths = 0;
+    if (firstCompleteMonthStart) {
+      const monthsDiff = (endDate.getFullYear() - effectiveSinceDate.getFullYear()) * 12
+        + (endDate.getMonth() - effectiveSinceDate.getMonth());
+      completeMonths = Math.max(0, monthsDiff);
+    }
+
 
     // Fetch IDs of categories to ALWAYS exclude (consistent with cashflow)
     const alwaysExcludedCategories = [
@@ -64,7 +117,8 @@ export async function GET(request) {
       `)
       .eq('accounts.user_id', userId)
       .not('system_categories', 'is', null)
-      .gte('datetime', since.toISOString());
+      .gte('date', effectiveSinceDate.toISOString().split('T')[0])
+      .lt('date', endDate.toISOString().split('T')[0]); // Exclude current month
 
     // Apply exclusion filter for "Investment and Retirement Funds"
     if (excludedCategoryIds.length > 0) {
@@ -213,13 +267,14 @@ export async function GET(request) {
       }))
       .filter(category => category.percentage >= 1.0); // Only include categories >= 1%
 
-    if (true) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} windowDays=${MAX_DAYS}`, filteredCategories.slice(0, 3));
+    if (true) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} completeMonths=${completeMonths}`, filteredCategories.slice(0, 3));
 
     return Response.json({
       categories: filteredCategories,
       totalSpending,
       totalCategories: categoriesArray.length,
-      filteredCount: filteredCategories.length
+      filteredCount: filteredCategories.length,
+      completeMonths: completeMonths || 1 // Default to 1 to avoid division by 0
     });
 
   } catch (error) {

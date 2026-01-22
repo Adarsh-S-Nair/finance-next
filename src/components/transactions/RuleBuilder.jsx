@@ -17,12 +17,12 @@ const STRING_OPERATORS = [
 ];
 
 const NUMBER_OPERATORS = [
-  { value: 'is', label: 'is' },
+  { value: 'equals', label: 'equals' },
   { value: 'is_greater_than', label: 'is greater than' },
   { value: 'is_less_than', label: 'is less than' }
 ];
 
-export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEditCategory }) {
+export default function RuleBuilder({ criteria, initialConditions, categoryName, onRuleChange, onEditCategory }) {
   const [conditions, setConditions] = useState([{
     id: Date.now(),
     field: 'merchant_name',
@@ -30,17 +30,23 @@ export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEd
     value: '',
   }]);
 
-  // Initialize state from props
+  // Initialize state from props - prioritize initialConditions if provided
   useEffect(() => {
-    if (criteria) {
-      setConditions([{
+    if (initialConditions && initialConditions.length > 0) {
+      setConditions(initialConditions);
+      onRuleChange?.(initialConditions);
+    } else if (criteria) {
+      const singleCondition = [{
         id: Date.now(),
         field: criteria.field || 'merchant_name',
         operator: criteria.operator || 'is',
         value: criteria.value || '',
-      }]);
+      }];
+      setConditions(singleCondition);
+      onRuleChange?.(singleCondition);
     }
-  }, [criteria]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criteria, initialConditions]);
 
   const handleConditionChange = (id, key, value) => {
     const newConditions = conditions.map(condition => {
@@ -54,7 +60,8 @@ export default function RuleBuilder({ criteria, categoryName, onRuleChange, onEd
         const currentFieldType = FIELD_OPTIONS.find(f => f.value === condition.field)?.type;
 
         if (fieldType !== currentFieldType) {
-          newCondition.operator = 'is';
+          // Reset to appropriate default operator for the new field type
+          newCondition.operator = fieldType === 'number' ? 'equals' : 'is';
         }
       }
 

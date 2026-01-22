@@ -15,12 +15,44 @@ export async function GET(request) {
       );
     }
 
+    // Determine the user's earliest transaction date to exclude incomplete months
+    const { data: earliestTxResult } = await supabaseAdmin
+      .from('transactions')
+      .select('date, accounts!inner(user_id)')
+      .eq('accounts.user_id', userId)
+      .order('date', { ascending: true })
+      .limit(1);
+
+    const earliestTransactionDate = earliestTxResult?.[0]?.date
+      ? new Date(earliestTxResult[0].date)
+      : null;
+
+    // Calculate the start of the first complete month
+    // If earliest transaction is after the 1st, skip that month entirely
+    let firstCompleteMonthStart = null;
+    if (earliestTransactionDate) {
+      if (earliestTransactionDate.getDate() > 1) {
+        // Skip to next month
+        firstCompleteMonthStart = new Date(
+          earliestTransactionDate.getFullYear(),
+          earliestTransactionDate.getMonth() + 1,
+          1
+        );
+      } else {
+        // Earliest is on the 1st, so that month is complete
+        firstCompleteMonthStart = new Date(
+          earliestTransactionDate.getFullYear(),
+          earliestTransactionDate.getMonth(),
+          1
+        );
+      }
+    }
+
     // Get all transactions for the user, grouped by month
     // Start from the 1st of the month, MAX_MONTHS ago, to ensure we capture complete months
     const sinceDate = new Date();
     sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
     sinceDate.setDate(1); // Set to 1st of that month for complete month data
-    const sinceDateStr = sinceDate.toISOString().split('T')[0];
 
     // Fetch IDs of categories to ALWAYS exclude
     const alwaysExcludedCategories = [
@@ -57,7 +89,7 @@ export async function GET(request) {
       `)
       .eq('accounts.user_id', userId)
       .not('date', 'is', null)
-      .gte('date', sinceDateStr)
+      .gte('date', sinceDate.toISOString().split('T')[0])
       .order('date', { ascending: true });
 
     // Apply exclusion filter for "Investment and Retirement Funds"
@@ -223,9 +255,24 @@ export async function GET(request) {
     const currentYearForExclusion = nowForExclusion.getFullYear();
     const currentMonthForExclusion = nowForExclusion.getMonth() + 1; // 1-12
 
-    // Filter out the current month (incomplete)
+    // Filter out incomplete months:
+    // 1. Current month (always incomplete)
+    // 2. Months before we had complete transaction data
     const completedMonths = result.filter(month => {
-      return !(month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion);
+      // Exclude current month
+      if (month.year === currentYearForExclusion && month.monthNumber === currentMonthForExclusion) {
+        return false;
+      }
+
+      // Exclude months before we had complete data
+      if (firstCompleteMonthStart) {
+        const monthStart = new Date(month.year, month.monthNumber - 1, 1);
+        if (monthStart < firstCompleteMonthStart) {
+          return false;
+        }
+      }
+
+      return true;
     });
 
     // Limit to the last N completed months (most recent, excluding current)

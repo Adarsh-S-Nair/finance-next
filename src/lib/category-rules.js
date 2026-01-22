@@ -49,6 +49,13 @@ export function matchesRule(transaction, rule) {
           return parseFloat(transactionValue) === parseFloat(value);
         }
         return normalizedTxValue === normalizedRuleValue;
+      case 'equals':
+        // 'equals' operator for amount field (same as 'is' for amounts)
+        if (field === 'amount') {
+          return parseFloat(transactionValue) === parseFloat(value);
+        }
+        // For non-amount fields, treat 'equals' same as 'is'
+        return normalizedTxValue === normalizedRuleValue;
       case 'contains':
         return normalizedTxValue.includes(normalizedRuleValue);
       case 'starts_with':

@@ -27,6 +27,19 @@ export async function GET(request) {
         sinceDate.setMonth(sinceDate.getMonth() - MAX_MONTHS);
         sinceDate.setDate(1); // Start from 1st of month for complete months
 
+        // Determine the user's earliest transaction date across all accounts
+        // This tells us when we have complete data from
+        const { data: earliestTxResult } = await supabaseAdmin
+            .from('transactions')
+            .select('date, accounts!inner(user_id)')
+            .eq('accounts.user_id', userId)
+            .order('date', { ascending: true })
+            .limit(1);
+
+        const earliestTransactionDate = earliestTxResult?.[0]?.date
+            ? new Date(earliestTxResult[0].date)
+            : null;
+
         const { data: transactions, error } = await supabaseAdmin
             .from('transactions')
             .select(`
@@ -62,9 +75,10 @@ export async function GET(request) {
         transactions.forEach(tx => {
             if (!tx.date) return;
 
-            const [yearStr, monthStr] = tx.date.split('-');
+            const [yearStr, monthStr, dayStr] = tx.date.split('-');
             const year = parseInt(yearStr);
             const month = parseInt(monthStr);
+            const day = parseInt(dayStr);
             const monthKey = `${yearStr}-${monthStr}`;
 
             const rawAmount = Math.abs(parseFloat(tx.amount));
@@ -84,12 +98,17 @@ export async function GET(request) {
                     year: year,
                     monthNumber: month,
                     spending: 0,
-                    transactionCount: 0
+                    transactionCount: 0,
+                    earliestDay: day,
+                    latestDay: day
                 };
             }
 
             monthlyData[monthKey].spending += adjustedAmount;
             monthlyData[monthKey].transactionCount += 1;
+            // Track earliest and latest transaction days in the month
+            monthlyData[monthKey].earliestDay = Math.min(monthlyData[monthKey].earliestDay, day);
+            monthlyData[monthKey].latestDay = Math.max(monthlyData[monthKey].latestDay, day);
         });
 
         // Convert to array and sort by date
@@ -104,13 +123,48 @@ export async function GET(request) {
             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
         ];
 
-        // Exclude current month (incomplete) and take last MAX_MONTHS completed months
+        // Exclude current month (incomplete) and months before we had complete account data
+        // A month is considered complete if:
+        // 1. It's not the current month
+        // 2. The month started after we began syncing transactions (earliestTransactionDate)
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
         const completedMonths = monthlyArray
-            .filter(m => !(m.year === currentYear && m.monthNumber === currentMonth))
+            .filter(m => {
+                // Exclude current month
+                if (m.year === currentYear && m.monthNumber === currentMonth) {
+                    return false;
+                }
+
+                // Exclude months that started before we had transaction data
+                // This handles newly synced accounts where we don't have complete months
+                if (earliestTransactionDate) {
+                    const monthStart = new Date(m.year, m.monthNumber - 1, 1);
+                    // Only include months that started on or after the 1st of the month
+                    // when we have earliest transaction data
+                    const earliestMonth = new Date(
+                        earliestTransactionDate.getFullYear(),
+                        earliestTransactionDate.getMonth(),
+                        1
+                    );
+                    // If earliest transaction is after the 1st of its month, that month is incomplete
+                    if (earliestTransactionDate.getDate() > 1) {
+                        // Skip the month containing the earliest transaction (it's incomplete)
+                        if (monthStart <= earliestMonth) {
+                            return false;
+                        }
+                    } else {
+                        // Earliest transaction is on the 1st, so that month is complete
+                        if (monthStart < earliestMonth) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            })
             .slice(-MAX_MONTHS);
 
         const result = completedMonths.map(m => ({
