@@ -1,4 +1,4 @@
--- Fix: Delete orphaned duplicate categories and link remaining orphans to groups
+-- Fix: Set plaid keys on groups, delete duplicate orphans, link remaining orphans
 
 -- ============================================================================
 -- STEP 1: Update existing category_groups with their plaid_category_key
@@ -24,32 +24,14 @@ UPDATE public.category_groups SET plaid_category_key = 'RENT_AND_UTILITIES' WHER
 UPDATE public.category_groups SET plaid_category_key = 'OTHER' WHERE LOWER(name) = 'other' AND plaid_category_key IS NULL;
 
 -- ============================================================================
--- STEP 2: Delete orphaned system_categories that would conflict
--- (where another row with same label already exists with a group_id)
+-- STEP 2: Delete orphaned system_categories (null group_id)
+-- These are duplicates or failed inserts from previous migrations
 -- ============================================================================
 
-DELETE FROM public.system_categories orphan
-WHERE orphan.group_id IS NULL
-  AND EXISTS (
-    SELECT 1 FROM public.system_categories existing
-    WHERE existing.label = orphan.label
-      AND existing.group_id IS NOT NULL
-  );
+DELETE FROM public.system_categories WHERE group_id IS NULL;
 
 -- ============================================================================
--- STEP 3: Update existing (non-orphaned) system_categories with plaid_category_key
--- ============================================================================
-
--- Set plaid_category_key on categories that have group_id but no plaid key
-UPDATE public.system_categories sc
-SET plaid_category_key = CONCAT(cg.plaid_category_key, '_', UPPER(REPLACE(sc.label, ' ', '_')))
-FROM public.category_groups cg
-WHERE sc.group_id = cg.id
-  AND sc.plaid_category_key IS NULL
-  AND cg.plaid_category_key IS NOT NULL;
-
--- ============================================================================
--- STEP 4: Link remaining orphaned categories (ones without conflicts)
+-- STEP 3: Link remaining orphaned categories (if any exist somehow)
 -- ============================================================================
 
 UPDATE public.system_categories sc
