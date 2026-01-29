@@ -9,6 +9,7 @@ import * as Icons from "lucide-react";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
+import Tooltip from "../ui/Tooltip";
 
 export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   const { user } = useUser();
@@ -209,6 +210,23 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     }
   };
 
+  // Update option logic
+  const handleSaveIndividual = () => {
+    if (!selectedScope) return;
+    const newAmount = parseFloat(amount || 0);
+
+    // Update local options state with new amount
+    setOptions(prev => prev.map(opt =>
+      opt.id === selectedScope.id
+        ? { ...opt, customAmount: newAmount, monthlyAvg: newAmount } // Use updated amount as the new average/default
+        : opt
+    ));
+
+    // Return to list
+    setSlideDirection(-1);
+    setStep(2);
+  };
+
   const filteredOptions = options.filter(opt =>
     opt.label.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -328,9 +346,11 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
         <div className="w-16 flex justify-end">
           {onNext && (
             nextDisabled && disabledTooltip ? (
-              <div title={disabledTooltip} className="cursor-not-allowed">
-                {NextButton}
-              </div>
+              <Tooltip content={disabledTooltip} side="top">
+                <div className="cursor-not-allowed">
+                  {NextButton}
+                </div>
+              </Tooltip>
             ) : NextButton
           )}
         </div>
@@ -438,7 +458,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                 {/* Income Summary Bar */}
                 {(() => {
                   const income = parseFloat(monthlyIncome || 0);
-                  const totalBudget = options.reduce((sum, opt) => sum + opt.monthlyAvg, 0);
+                  const totalBudget = options.reduce((sum, opt) => sum + (opt.customAmount !== undefined ? opt.customAmount : opt.monthlyAvg), 0);
                   const remaining = Math.max(0, income - totalBudget);
                   const usedPercent = income > 0 ? (totalBudget / income) * 100 : 0;
                   return (
@@ -482,7 +502,8 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                     </div>
                   ) : (
                     options.map(opt => {
-                      const incomePercent = monthlyIncome ? (opt.monthlyAvg / parseFloat(monthlyIncome)) * 100 : 0;
+                      const budgetAmount = opt.customAmount !== undefined ? opt.customAmount : opt.monthlyAvg;
+                      const incomePercent = monthlyIncome ? (budgetAmount / parseFloat(monthlyIncome)) * 100 : 0;
                       return (
                         <button
                           key={opt.id}
@@ -504,7 +525,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                             {opt.label}
                           </div>
                           <div className="text-xs text-[var(--color-muted)] tabular-nums mb-2">
-                            ${opt.monthlyAvg.toLocaleString()}/mo
+                            ${budgetAmount.toLocaleString()}/mo
                           </div>
                           {/* Income proportion bar */}
                           <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full overflow-hidden">
@@ -530,7 +551,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
               <div className="flex flex-col h-full overflow-hidden">
                 {/* Header + Chart Row */}
                 <div className="flex items-center justify-between mb-6 shrink-0">
-                  {/* Left: Category Info */}
+                  {/* Left: Category Info with Editable Amount */}
                   <div className="flex flex-row items-center gap-4">
                     <div
                       className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm shrink-0"
@@ -544,9 +565,22 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                       />
                     </div>
                     <div>
-                      <span className="text-3xl font-medium text-[var(--color-fg)] tracking-tight block">
-                        ${selectedScope?.monthlyAvg.toLocaleString()}
-                      </span>
+                      <div className="flex items-center gap-2 group cursor-pointer relative" onClick={() => document.getElementById('budget-amount-input')?.focus()}>
+                        <div className="relative">
+                          <span className="text-3xl font-medium text-[var(--color-fg)] tracking-tight block">
+                            $
+                            <input
+                              id="budget-amount-input"
+                              type="number"
+                              value={amount}
+                              onChange={(e) => setAmount(e.target.value)}
+                              className="bg-transparent border-none outline-none w-24 p-0 m-0 text-3xl font-medium text-[var(--color-fg)] tracking-tight focus:ring-0 appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ width: `${Math.max(amount.toString().length * 0.6 + 0.5, 2)}em` }}
+                            />
+                          </span>
+                          <Icons.PenLine className="w-4 h-4 text-[var(--color-muted)] absolute -right-6 top-1/2 -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
                       <p className="text-xs text-[var(--color-muted)] font-medium">average per month</p>
                     </div>
                   </div>
@@ -682,26 +716,23 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
               ? handleIncomeNext
               : step === 2
                 ? handleCreateAll
-                : step === 3
-                  ? handleSubmit
+                : step === 3 && parseFloat(amount || 0) !== (selectedScope?.monthlyAvg || 0)
+                  ? handleSaveIndividual
                   : undefined
           }
           nextDisabled={
             step === 1
               ? !monthlyIncome
               : step === 2
-                ? loading
-                : step === 3
-                  // Block if amount exceeds income or is invalid
-                  ? !amount || parseFloat(amount) <= 0 || (monthlyIncome && parseFloat(amount) > parseFloat(monthlyIncome))
-                  : false
+                ? (loading || (monthlyIncome && options.reduce((sum, opt) => sum + (opt.customAmount !== undefined ? opt.customAmount : opt.monthlyAvg), 0) > parseFloat(monthlyIncome)))
+                : false
           }
           disabledTooltip={
-            step === 3 && monthlyIncome && parseFloat(amount || 0) > parseFloat(monthlyIncome)
-              ? `Budget cannot exceed monthly income ($${parseFloat(monthlyIncome).toLocaleString()})`
+            step === 2 && monthlyIncome && options.reduce((sum, opt) => sum + (opt.customAmount !== undefined ? opt.customAmount : opt.monthlyAvg), 0) > parseFloat(monthlyIncome)
+              ? `Total budget ($${options.reduce((sum, opt) => sum + (opt.customAmount !== undefined ? opt.customAmount : opt.monthlyAvg), 0).toLocaleString()}) exceeds monthly income ($${parseFloat(monthlyIncome).toLocaleString()})`
               : undefined
           }
-          nextLabel={step === 2 ? (loading ? "Creating..." : "Create All") : step === 3 ? "Create Budget" : "Next"}
+          nextLabel={step === 2 ? (loading ? "Creating..." : "Create") : step === 3 ? "Save" : "Next"}
         />
       </div>
     </Modal >

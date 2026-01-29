@@ -27,6 +27,10 @@ export default function Tooltip({ content, children, side = "right", offset = 10
           top = rect.top + rect.height / 2;
           left = rect.right + offset;
           break;
+        case "top":
+          top = rect.top - offset;
+          left = rect.left + rect.width / 2;
+          break;
         // Add other cases if needed, defaulting to right for sidebar
         default:
           top = rect.top + rect.height / 2;
