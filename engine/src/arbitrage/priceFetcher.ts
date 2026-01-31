@@ -367,7 +367,7 @@ export class ArbitragePriceFetcher {
         };
 
         // Rate limit: small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error: any) {
         this.log(`Error fetching ${symbol} prices: ${error.message}`);
       }
