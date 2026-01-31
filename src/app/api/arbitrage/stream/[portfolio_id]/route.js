@@ -102,15 +102,19 @@ export async function GET(request, { params }) {
 
           const newPriceUpdate = updatedPortfolio?.metadata?.lastPriceUpdate;
 
-          // Check if prices have been updated since last poll
-          if (newPriceUpdate && newPriceUpdate !== lastPriceUpdate) {
-            console.log(`[SSE] New prices detected for ${portfolio_id}: ${newPriceUpdate}`);
-            lastPriceUpdate = newPriceUpdate;
+          // Always send prices if we have them (with current timestamp to force UI update)
+          if (updatedPortfolio?.metadata?.latestPrices) {
+            const hasChanged = newPriceUpdate !== lastPriceUpdate;
+            if (hasChanged) {
+              console.log(`[SSE] New prices for ${portfolio_id}: ${newPriceUpdate}`);
+              lastPriceUpdate = newPriceUpdate;
+            }
 
             const sent = sendEvent('prices', {
               prices: updatedPortfolio.metadata.latestPrices,
               opportunities: updatedPortfolio.metadata.latestOpportunities || [],
-              timestamp: newPriceUpdate,
+              timestamp: new Date().toISOString(), // Always use current time to force UI update
+              dbTimestamp: newPriceUpdate,
             });
 
             if (!sent) {
