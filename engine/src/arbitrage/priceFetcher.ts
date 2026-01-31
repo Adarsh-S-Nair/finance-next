@@ -57,6 +57,44 @@ export interface ArbitrageOpportunity {
   timestamp: string;
 }
 
+export interface DetectedOpportunity {
+  portfolioId: string;
+  crypto: string;
+  buyExchange: string;
+  sellExchange: string;
+  buyPrice: number;
+  sellPrice: number;
+  amount: number;
+  grossProfit: number;
+  fees: number;
+  profit: number;
+  profitPercent: number;
+  status: 'detected' | 'executed' | 'missed' | 'expired';
+  metadata?: {
+    buyVolume24h?: number;
+    sellVolume24h?: number;
+    buyBidAskSpread?: number;
+    sellBidAskSpread?: number;
+    capitalUsed?: number;
+  };
+}
+
+// Fee structure per exchange (maker/taker fees as decimal)
+const EXCHANGE_FEES: Record<string, { maker: number; taker: number }> = {
+  binance: { maker: 0.001, taker: 0.001 },   // 0.1%
+  coinbase: { maker: 0.004, taker: 0.006 },  // 0.4%/0.6%
+  kraken: { maker: 0.0016, taker: 0.0026 },  // 0.16%/0.26%
+  kucoin: { maker: 0.001, taker: 0.001 },    // 0.1%
+  bybit: { maker: 0.001, taker: 0.001 },     // 0.1%
+  okx: { maker: 0.0008, taker: 0.001 },      // 0.08%/0.1%
+};
+
+// Minimum profit threshold after fees (as percentage)
+const MIN_PROFIT_THRESHOLD = 0.1; // 0.1% minimum net profit to log an opportunity
+
+// Maximum capital to use per trade (as percentage of exchange balance)
+const MAX_TRADE_CAPITAL_PCT = 0.5; // Use at most 50% of exchange balance per trade
+
 export class ArbitragePriceFetcher {
   private supabase: SupabaseClient;
   private fetchInterval: NodeJS.Timeout | null = null;
@@ -198,28 +236,43 @@ export class ArbitragePriceFetcher {
               timestamp: new Date().toISOString(),
             };
 
-            // Check if this is a tradeable opportunity (spread > 0.5%)
-            if (spreadPercent && spreadPercent > 0.5 && lowestExchange && highestExchange) {
-              opportunities.push({
-                portfolioId: portfolio.id,
+            // Check if this is a tradeable opportunity (spread > fees threshold)
+            if (spreadPercent && spreadPercent > 0.3 && lowestExchange && highestExchange && lowestExchange !== highestExchange) {
+              // Calculate realistic opportunity with fees
+              const detectedOpp = this.calculateOpportunity(
+                portfolio.id,
                 crypto,
-                buyExchange: lowestExchange,
-                buyPrice: lowestPrice,
-                sellExchange: highestExchange,
-                sellPrice: highestPrice,
-                spreadPercent,
-                spreadUsd: spreadUsd!,
-                timestamp: new Date().toISOString(),
-              });
+                lowestExchange,
+                highestExchange,
+                lowestPrice,
+                highestPrice,
+                filteredPrices[lowestExchange],
+                filteredPrices[highestExchange],
+                portfolio.metadata?.capitalPerExchange || 0
+              );
+
+              if (detectedOpp && detectedOpp.profitPercent >= MIN_PROFIT_THRESHOLD) {
+                // Store opportunity for the terminal
+                await this.storeOpportunity(detectedOpp);
+
+                opportunities.push({
+                  portfolioId: portfolio.id,
+                  crypto,
+                  buyExchange: lowestExchange,
+                  buyPrice: lowestPrice,
+                  sellExchange: highestExchange,
+                  sellPrice: highestPrice,
+                  spreadPercent: detectedOpp.profitPercent,
+                  spreadUsd: detectedOpp.profit,
+                  timestamp: new Date().toISOString(),
+                });
+              }
             }
           }
         }
 
         // Store the latest prices in portfolio metadata for UI access
         await this.updatePortfolioPrices(portfolio.id, portfolioPrices, opportunities);
-
-        // Store price history for terminal feed
-        await this.storePriceHistory(portfolio.id, portfolioPrices);
       }
     } catch (error: any) {
       this.log(`Error in fetchAndStorePrices: ${error.message}`);
@@ -227,45 +280,113 @@ export class ArbitragePriceFetcher {
   }
 
   /**
-   * Store price history for terminal feed
+   * Calculate a realistic arbitrage opportunity with fees
    */
-  private async storePriceHistory(
+  private calculateOpportunity(
     portfolioId: string,
-    prices: Record<string, ArbitragePrice>
-  ): Promise<void> {
+    crypto: string,
+    buyExchange: string,
+    sellExchange: string,
+    buyPrice: number,
+    sellPrice: number,
+    buyExchangeData: ExchangePrice,
+    sellExchangeData: ExchangePrice,
+    capitalPerExchange: number
+  ): DetectedOpportunity | null {
     try {
-      const historyRecords: any[] = [];
+      // Get fee rates for each exchange (use taker fees for market orders)
+      const buyFeeRate = EXCHANGE_FEES[buyExchange]?.taker || 0.001;
+      const sellFeeRate = EXCHANGE_FEES[sellExchange]?.taker || 0.001;
 
-      for (const [crypto, priceData] of Object.entries(prices)) {
-        // Find lowest and highest prices
-        const lowestExchange = priceData.bestBuy?.exchange;
-        const highestExchange = priceData.bestSell?.exchange;
+      // Calculate available capital (use minimum of buy and sell exchange balances)
+      // In real arbitrage, you need capital on both exchanges
+      const availableCapital = Math.min(
+        capitalPerExchange * MAX_TRADE_CAPITAL_PCT,
+        10000 // Cap at $10k per trade for paper trading realism
+      );
 
-        for (const [exchange, exchangeData] of Object.entries(priceData.prices)) {
-          historyRecords.push({
-            portfolio_id: portfolioId,
-            crypto,
-            exchange,
-            price: exchangeData.price,
-            volume_24h: exchangeData.volume24h,
-            is_lowest: exchange === lowestExchange,
-            is_highest: exchange === highestExchange,
-            spread_percent: priceData.spreadPercent,
-          });
-        }
+      if (availableCapital < 100) {
+        return null; // Minimum $100 trade
       }
 
-      if (historyRecords.length > 0) {
-        const { error } = await this.supabase
-          .from('arbitrage_price_history')
-          .insert(historyRecords);
+      // Calculate amount of crypto we can buy with available capital
+      const buyFee = availableCapital * buyFeeRate;
+      const effectiveBuyCapital = availableCapital - buyFee;
+      const cryptoAmount = effectiveBuyCapital / buyPrice;
 
-        if (error) {
-          this.log(`Error storing price history: ${error.message}`);
-        }
+      // Calculate revenue from selling
+      const grossRevenue = cryptoAmount * sellPrice;
+      const sellFee = grossRevenue * sellFeeRate;
+      const netRevenue = grossRevenue - sellFee;
+
+      // Calculate profit
+      const totalFees = buyFee + sellFee;
+      const grossProfit = grossRevenue - availableCapital;
+      const netProfit = netRevenue - availableCapital;
+      const profitPercent = (netProfit / availableCapital) * 100;
+
+      // Only return if profitable after fees
+      if (netProfit <= 0) {
+        return null;
+      }
+
+      return {
+        portfolioId,
+        crypto,
+        buyExchange,
+        sellExchange,
+        buyPrice,
+        sellPrice,
+        amount: cryptoAmount,
+        grossProfit,
+        fees: totalFees,
+        profit: netProfit,
+        profitPercent,
+        status: 'detected',
+        metadata: {
+          buyVolume24h: buyExchangeData.volume24h,
+          sellVolume24h: sellExchangeData.volume24h,
+          buyBidAskSpread: buyExchangeData.bidAskSpread,
+          sellBidAskSpread: sellExchangeData.bidAskSpread,
+          capitalUsed: availableCapital,
+        },
+      };
+    } catch (error: any) {
+      this.log(`Error calculating opportunity: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Store a detected opportunity to the database
+   */
+  private async storeOpportunity(opportunity: DetectedOpportunity): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('arbitrage_opportunities')
+        .insert({
+          portfolio_id: opportunity.portfolioId,
+          crypto: opportunity.crypto,
+          buy_exchange: opportunity.buyExchange,
+          sell_exchange: opportunity.sellExchange,
+          buy_price: opportunity.buyPrice,
+          sell_price: opportunity.sellPrice,
+          amount: opportunity.amount,
+          gross_profit: opportunity.grossProfit,
+          fees: opportunity.fees,
+          profit: opportunity.profit,
+          profit_percent: opportunity.profitPercent,
+          status: opportunity.status,
+          metadata: opportunity.metadata,
+        });
+
+      if (error) {
+        this.log(`Error storing opportunity: ${error.message}`);
+      } else {
+        this.log(`📈 Opportunity detected: ${opportunity.crypto} | Buy ${opportunity.buyExchange} @ $${opportunity.buyPrice.toFixed(2)} → Sell ${opportunity.sellExchange} @ $${opportunity.sellPrice.toFixed(2)} | Profit: $${opportunity.profit.toFixed(2)} (${opportunity.profitPercent.toFixed(3)}%)`);
       }
     } catch (error: any) {
-      this.log(`Error in storePriceHistory: ${error.message}`);
+      this.log(`Error in storeOpportunity: ${error.message}`);
     }
   }
 

@@ -1,0 +1,30 @@
+name: Deploy Engine to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'engine/**'
+      - '.github/workflows/deploy-engine.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

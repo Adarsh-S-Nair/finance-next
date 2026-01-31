@@ -13,7 +13,7 @@ export default function Topbar() {
   const pathname = usePathname();
   const isAuth = pathname.startsWith("/auth");
   const isDashboard = pathname.startsWith("/dashboard");
-  const isAuthedRoute = isDashboard || pathname.startsWith("/accounts") || pathname.startsWith("/transactions") || pathname.startsWith("/budgets") || pathname.startsWith("/investments") || pathname.startsWith("/settings") || pathname.startsWith("/docs");
+  const isAuthedRoute = isDashboard || pathname.startsWith("/accounts") || pathname.startsWith("/transactions") || pathname.startsWith("/budgets") || pathname.startsWith("/investments") || pathname.startsWith("/paper-trading") || pathname.startsWith("/settings") || pathname.startsWith("/docs");
   const isLanding = pathname === "/";
   const { logout } = useUser();
   const [user, setUser] = useState(null);
