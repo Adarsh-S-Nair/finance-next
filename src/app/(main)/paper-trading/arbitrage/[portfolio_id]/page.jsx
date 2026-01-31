@@ -1,46 +1,108 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import Card from "../../../../../components/ui/Card";
-import Button from "../../../../../components/ui/Button";
 import {
-  LuRefreshCw,
   LuArrowRight,
   LuZap,
   LuTerminal,
+  LuCircle,
 } from "react-icons/lu";
 import { useUser } from "../../../../../components/UserProvider";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
 import { CardSkeleton } from "../../../../../components/ui/Skeleton";
 
-// Exchange info
+// Exchange info with logos
 const EXCHANGE_INFO = {
-  binance: { name: 'Binance', short: 'BIN' },
-  coinbase: { name: 'Coinbase', short: 'CB' },
-  kraken: { name: 'Kraken', short: 'KRK' },
-  kucoin: { name: 'KuCoin', short: 'KUC' },
-  bybit: { name: 'Bybit', short: 'BYB' },
-  okx: { name: 'OKX', short: 'OKX' },
+  binance: {
+    name: 'Binance',
+    short: 'BIN',
+    logo: 'https://assets.coingecko.com/markets/images/52/small/binance.jpg',
+    color: '#F0B90B'
+  },
+  coinbase: {
+    name: 'Coinbase',
+    short: 'CB',
+    logo: 'https://assets.coingecko.com/markets/images/23/small/Coinbase_Coin_Primary.png',
+    color: '#0052FF'
+  },
+  kraken: {
+    name: 'Kraken',
+    short: 'KRK',
+    logo: 'https://assets.coingecko.com/markets/images/29/small/kraken.jpg',
+    color: '#5741D9'
+  },
+  kucoin: {
+    name: 'KuCoin',
+    short: 'KUC',
+    logo: 'https://assets.coingecko.com/markets/images/61/small/kucoin.png',
+    color: '#23AF91'
+  },
+  bybit: {
+    name: 'Bybit',
+    short: 'BYB',
+    logo: 'https://assets.coingecko.com/markets/images/698/small/bybit_spot.png',
+    color: '#F7A600'
+  },
+  okx: {
+    name: 'OKX',
+    short: 'OKX',
+    logo: 'https://assets.coingecko.com/markets/images/96/small/WeChat_Image_20220117220452.png',
+    color: '#000000'
+  },
 };
 
-// Crypto info
+// Crypto info with logos
 const CRYPTO_INFO = {
-  BTC: { name: 'Bitcoin' },
-  ETH: { name: 'Ethereum' },
-  SOL: { name: 'Solana' },
-  XRP: { name: 'XRP' },
-  DOGE: { name: 'Dogecoin' },
-  ADA: { name: 'Cardano' },
-  AVAX: { name: 'Avalanche' },
-  LINK: { name: 'Chainlink' },
+  BTC: {
+    name: 'Bitcoin',
+    logo: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
+    color: '#F7931A'
+  },
+  ETH: {
+    name: 'Ethereum',
+    logo: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
+    color: '#627EEA'
+  },
+  SOL: {
+    name: 'Solana',
+    logo: 'https://assets.coingecko.com/coins/images/4128/small/solana.png',
+    color: '#00FFA3'
+  },
+  XRP: {
+    name: 'XRP',
+    logo: 'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png',
+    color: '#23292F'
+  },
+  DOGE: {
+    name: 'Dogecoin',
+    logo: 'https://assets.coingecko.com/coins/images/5/small/dogecoin.png',
+    color: '#C2A633'
+  },
+  ADA: {
+    name: 'Cardano',
+    logo: 'https://assets.coingecko.com/coins/images/975/small/cardano.png',
+    color: '#0033AD'
+  },
+  AVAX: {
+    name: 'Avalanche',
+    logo: 'https://assets.coingecko.com/coins/images/12559/small/Avalanche_Circle_RedWhite_Trans.png',
+    color: '#E84142'
+  },
+  LINK: {
+    name: 'Chainlink',
+    logo: 'https://assets.coingecko.com/coins/images/877/small/chainlink-new-logo.png',
+    color: '#375BD2'
+  },
 };
 
 // Format price
 const formatPrice = (amount, decimals = 2) => {
   if (amount === null || amount === undefined) return '—';
-  return amount.toLocaleString('en-US', {
+  return Number(amount).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -49,11 +111,11 @@ const formatPrice = (amount, decimals = 2) => {
 // Format percentage
 const formatPercent = (value) => {
   if (value === null || value === undefined) return '—';
-  return `${value >= 0 ? '+' : ''}${value.toFixed(3)}%`;
+  return `${value >= 0 ? '+' : ''}${Number(value).toFixed(3)}%`;
 };
 
-// Terminal log entry
-const TerminalEntry = ({ timestamp, crypto, exchange, price, type, spread }) => {
+// Terminal log entry with logos (theme-aware)
+const TerminalEntry = ({ timestamp, crypto, exchange, price, isLowest, isHighest, spreadPercent }) => {
   const timeStr = new Date(timestamp).toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -61,31 +123,33 @@ const TerminalEntry = ({ timestamp, crypto, exchange, price, type, spread }) => 
     second: '2-digit'
   });
 
-  const exchangeShort = EXCHANGE_INFO[exchange]?.short || exchange?.toUpperCase().slice(0, 3) || '???';
-
-  if (type === 'opportunity') {
-    return (
-      <div className="font-mono text-xs leading-relaxed flex items-center gap-2">
-        <span className="text-zinc-500">{timeStr}</span>
-        <span className="text-blue-400">[{crypto}]</span>
-        <span className="text-amber-400">OPPORTUNITY</span>
-        <span className="text-zinc-400">{exchange}</span>
-        <span className="text-emerald-400">Δ{formatPercent(spread)}</span>
-        <span className="text-zinc-500">${formatPrice(price)}/unit</span>
-      </div>
-    );
-  }
+  const cryptoInfo = CRYPTO_INFO[crypto];
+  const exchangeInfo = EXCHANGE_INFO[exchange];
+  const exchangeShort = exchangeInfo?.short || exchange?.toUpperCase().slice(0, 3) || '???';
 
   return (
-    <div className="font-mono text-xs leading-relaxed flex items-center gap-2">
-      <span className="text-zinc-500">{timeStr}</span>
-      <span className="text-blue-400">[{crypto}]</span>
-      <span className="text-zinc-400">{exchangeShort}</span>
-      <span className={type === 'low' ? 'text-emerald-400' : type === 'high' ? 'text-rose-400' : 'text-zinc-300'}>
+    <div className="font-mono text-xs leading-relaxed flex items-center gap-2 py-0.5">
+      <span className="text-[var(--color-muted)] opacity-60">{timeStr}</span>
+      {cryptoInfo?.logo && (
+        <img src={cryptoInfo.logo} alt={crypto} className="w-4 h-4 rounded-full" />
+      )}
+      <span className="text-blue-500 dark:text-blue-400">{crypto}</span>
+      {exchangeInfo?.logo && (
+        <img src={exchangeInfo.logo} alt={exchange} className="w-4 h-4 rounded" />
+      )}
+      <span className="text-[var(--color-muted)]">{exchangeShort}</span>
+      <span className={
+        isLowest ? 'text-emerald-600 dark:text-emerald-400' :
+        isHighest ? 'text-rose-600 dark:text-rose-400' :
+        'text-[var(--color-fg)]'
+      }>
         ${formatPrice(price)}
       </span>
-      {type === 'low' && <span className="text-emerald-500/60 text-[10px]">LOW</span>}
-      {type === 'high' && <span className="text-rose-500/60 text-[10px]">HIGH</span>}
+      {isLowest && <span className="text-emerald-600 dark:text-emerald-500 text-[10px] opacity-70">LOW</span>}
+      {isHighest && <span className="text-rose-600 dark:text-rose-500 text-[10px] opacity-70">HIGH</span>}
+      {spreadPercent > 0.3 && isLowest && (
+        <span className="text-amber-600 dark:text-amber-400 text-[10px]">Δ{formatPercent(spreadPercent)}</span>
+      )}
     </div>
   );
 };
@@ -102,136 +166,134 @@ export default function ArbitragePortfolioPage() {
   const [pricesData, setPricesData] = useState(null);
   const [opportunities, setOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [terminalLogs, setTerminalLogs] = useState([]);
+  const [isLive, setIsLive] = useState(true);
 
-  // Fetch portfolio data
+  // Fetch portfolio and set up realtime subscription
   useEffect(() => {
+    if (!portfolioId || !profile?.id) return;
+
     const fetchPortfolio = async () => {
-      if (!portfolioId || !profile?.id) return;
+      const { data, error } = await supabase
+        .from('portfolios')
+        .select('*')
+        .eq('id', portfolioId)
+        .eq('user_id', profile.id)
+        .single();
 
-      try {
-        const { data, error } = await supabase
-          .from('portfolios')
-          .select('*')
-          .eq('id', portfolioId)
-          .eq('user_id', profile.id)
-          .single();
-
-        if (error) throw error;
-        setPortfolio(data);
-      } catch (err) {
-        console.error('Error fetching portfolio:', err);
+      if (error) {
+        console.error('Error fetching portfolio:', error);
         router.push('/paper-trading');
+        return;
       }
+
+      setPortfolio(data);
+
+      // Extract prices from metadata (stored by the engine)
+      if (data?.metadata?.latestPrices) {
+        setPricesData(data.metadata.latestPrices);
+        setOpportunities(data.metadata.latestOpportunities || []);
+        if (data.metadata.lastPriceUpdate) {
+          setLastUpdated(new Date(data.metadata.lastPriceUpdate));
+        }
+      }
+
+      setLoading(false);
     };
 
     fetchPortfolio();
+
+    // Subscribe to portfolio updates (for price data from engine)
+    const portfolioChannel = supabase
+      .channel(`portfolio-${portfolioId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'portfolios',
+          filter: `id=eq.${portfolioId}`,
+        },
+        (payload) => {
+          const newData = payload.new;
+          setPortfolio(newData);
+
+          if (newData?.metadata?.latestPrices) {
+            setPricesData(newData.metadata.latestPrices);
+            setOpportunities(newData.metadata.latestOpportunities || []);
+            if (newData.metadata.lastPriceUpdate) {
+              setLastUpdated(new Date(newData.metadata.lastPriceUpdate));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(portfolioChannel);
+    };
   }, [portfolioId, profile?.id, router]);
 
-  // Generate terminal logs from price data
-  const generateTerminalLogs = useCallback((prices) => {
-    const logs = [];
-    const now = new Date();
+  // Fetch historical price logs and subscribe to new ones
+  useEffect(() => {
+    if (!portfolioId) return;
 
-    Object.entries(prices || {}).forEach(([crypto, cryptoData]) => {
-      const exchanges = Object.entries(cryptoData.exchanges || {});
+    const fetchHistory = async () => {
+      const { data, error } = await supabase
+        .from('arbitrage_price_history')
+        .select('*')
+        .eq('portfolio_id', portfolioId)
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-      // Find lowest and highest for this crypto
-      let lowest = { price: Infinity, exchange: null };
-      let highest = { price: 0, exchange: null };
-
-      exchanges.forEach(([exchange, data]) => {
-        if (data.price) {
-          if (data.price < lowest.price) {
-            lowest = { price: data.price, exchange };
-          }
-          if (data.price > highest.price) {
-            highest = { price: data.price, exchange };
-          }
-        }
-      });
-
-      // Add log entries for each exchange price
-      exchanges.forEach(([exchange, data]) => {
-        if (data.price) {
-          const type = data.price === lowest.price ? 'low' :
-                       data.price === highest.price ? 'high' : 'normal';
-          logs.push({
-            id: `${crypto}-${exchange}-${now.getTime()}`,
-            timestamp: now,
-            crypto,
-            exchange,
-            price: data.price,
-            type,
-          });
-        }
-      });
-
-      // Add spread opportunity log if significant
-      if (cryptoData.spread?.percent > 0.3 && lowest.exchange && highest.exchange) {
-        logs.push({
-          id: `${crypto}-spread-${now.getTime()}`,
-          timestamp: now,
-          crypto,
-          exchange: `${EXCHANGE_INFO[lowest.exchange]?.short}→${EXCHANGE_INFO[highest.exchange]?.short}`,
-          price: cryptoData.spread.usd,
-          type: 'opportunity',
-          spread: cryptoData.spread.percent,
-        });
+      if (!error && data) {
+        setTerminalLogs(data.map(row => ({
+          id: row.id,
+          timestamp: row.created_at,
+          crypto: row.crypto,
+          exchange: row.exchange,
+          price: row.price,
+          isLowest: row.is_lowest,
+          isHighest: row.is_highest,
+          spreadPercent: row.spread_percent,
+        })));
       }
-    });
+    };
 
-    return logs;
-  }, []);
+    fetchHistory();
 
-  // Fetch prices
-  const fetchPrices = useCallback(async () => {
-    if (!portfolio?.crypto_assets || !portfolio?.metadata?.exchanges) return;
+    // Subscribe to new price history entries
+    const historyChannel = supabase
+      .channel(`price-history-${portfolioId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'arbitrage_price_history',
+          filter: `portfolio_id=eq.${portfolioId}`,
+        },
+        (payload) => {
+          const row = payload.new;
+          setTerminalLogs(prev => [{
+            id: row.id,
+            timestamp: row.created_at,
+            crypto: row.crypto,
+            exchange: row.exchange,
+            price: row.price,
+            isLowest: row.is_lowest,
+            isHighest: row.is_highest,
+            spreadPercent: row.spread_percent,
+          }, ...prev].slice(0, 100));
+        }
+      )
+      .subscribe();
 
-    setRefreshing(true);
-    try {
-      const cryptos = portfolio.crypto_assets.join(',');
-      const exchanges = portfolio.metadata.exchanges.join(',');
-
-      const response = await fetch(
-        `/api/arbitrage/prices?cryptos=${cryptos}&exchanges=${exchanges}`
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch prices');
-
-      const data = await response.json();
-      setPricesData(data.prices);
-      setOpportunities(data.opportunities || []);
-      setLastUpdated(new Date());
-
-      // Generate and append terminal logs
-      const newLogs = generateTerminalLogs(data.prices);
-      setTerminalLogs(prev => [...newLogs, ...prev].slice(0, 100)); // Keep last 100 entries
-    } catch (err) {
-      console.error('Error fetching prices:', err);
-    } finally {
-      setRefreshing(false);
-      setLoading(false);
-    }
-  }, [portfolio, generateTerminalLogs]);
-
-  // Initial fetch
-  useEffect(() => {
-    if (portfolio) {
-      fetchPrices();
-    }
-  }, [portfolio, fetchPrices]);
-
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    if (!autoRefresh || !portfolio) return;
-
-    const interval = setInterval(fetchPrices, 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, portfolio, fetchPrices]);
+    return () => {
+      supabase.removeChannel(historyChannel);
+    };
+  }, [portfolioId]);
 
   // Register header actions
   useEffect(() => {
@@ -258,8 +320,8 @@ export default function ArbitragePortfolioPage() {
 
   return (
     <div className="space-y-6">
-      {/* Compact Stats Row */}
-      <div className="flex items-center gap-6 text-sm">
+      {/* Stats Row */}
+      <div className="flex items-center gap-6 text-sm flex-wrap">
         <div>
           <span className="text-[var(--color-muted)]">Capital</span>
           <span className="ml-2 text-[var(--color-fg)] tabular-nums">${formatPrice(portfolio.current_cash)}</span>
@@ -279,25 +341,15 @@ export default function ArbitragePortfolioPage() {
           </div>
         )}
         <div className="flex-1" />
-        <button
-          onClick={() => setAutoRefresh(!autoRefresh)}
-          className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
-            autoRefresh
-              ? 'bg-emerald-500/10 text-emerald-500'
-              : 'bg-[var(--color-surface)] text-[var(--color-muted)]'
-          }`}
-        >
-          {autoRefresh ? 'Live' : 'Paused'}
-        </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchPrices}
-          disabled={refreshing}
-          className="gap-1.5"
-        >
-          <LuRefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-        </Button>
+        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+          <LuCircle className={`w-2 h-2 ${isLive ? 'text-emerald-500 fill-emerald-500 animate-pulse' : 'text-zinc-400'}`} />
+          <span>{isLive ? 'Live from server' : 'Disconnected'}</span>
+        </div>
+        {lastUpdated && (
+          <span className="text-xs text-[var(--color-muted)]">
+            {lastUpdated.toLocaleTimeString()}
+          </span>
+        )}
       </div>
 
       {/* Active Opportunities */}
@@ -314,10 +366,33 @@ export default function ArbitragePortfolioPage() {
                 className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--color-surface)]/50"
               >
                 <div className="flex items-center gap-3">
+                  {CRYPTO_INFO[opp.crypto]?.logo && (
+                    <img
+                      src={CRYPTO_INFO[opp.crypto].logo}
+                      alt={opp.crypto}
+                      className="w-6 h-6 rounded-full"
+                    />
+                  )}
                   <span className="text-sm text-[var(--color-fg)]">{opp.crypto}</span>
-                  <span className="text-xs text-[var(--color-muted)]">
-                    {EXCHANGE_INFO[opp.buyExchange]?.name} → {EXCHANGE_INFO[opp.sellExchange]?.name}
-                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+                    {EXCHANGE_INFO[opp.buyExchange]?.logo && (
+                      <img
+                        src={EXCHANGE_INFO[opp.buyExchange].logo}
+                        alt={opp.buyExchange}
+                        className="w-4 h-4 rounded"
+                      />
+                    )}
+                    <span>{EXCHANGE_INFO[opp.buyExchange]?.name}</span>
+                    <LuArrowRight className="w-3 h-3" />
+                    {EXCHANGE_INFO[opp.sellExchange]?.logo && (
+                      <img
+                        src={EXCHANGE_INFO[opp.sellExchange].logo}
+                        alt={opp.sellExchange}
+                        className="w-4 h-4 rounded"
+                      />
+                    )}
+                    <span>{EXCHANGE_INFO[opp.sellExchange]?.name}</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4 text-sm tabular-nums">
                   <span className="text-emerald-500">{formatPercent(opp.spreadPercent)}</span>
@@ -333,33 +408,47 @@ export default function ArbitragePortfolioPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {cryptos.map((crypto) => {
           const cryptoData = pricesData?.[crypto];
+          const cryptoInfo = CRYPTO_INFO[crypto];
 
           if (!cryptoData) {
             return (
               <Card key={crypto} variant="glass" padding="none" className="p-4">
-                <div className="text-[var(--color-muted)] text-sm">Loading {crypto}...</div>
+                <div className="flex items-center gap-2 text-[var(--color-muted)] text-sm">
+                  {cryptoInfo?.logo && (
+                    <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full opacity-50" />
+                  )}
+                  Waiting for {crypto} data...
+                </div>
               </Card>
             );
           }
 
-          const exchangePrices = Object.entries(cryptoData.exchanges || {})
+          const exchangePrices = Object.entries(cryptoData.prices || {})
             .map(([key, data]) => ({ key, ...data }))
             .filter(e => e.price)
             .sort((a, b) => a.price - b.price);
 
           const lowestPrice = exchangePrices[0]?.price;
           const highestPrice = exchangePrices[exchangePrices.length - 1]?.price;
-          const spread = cryptoData.spread;
+          const spread = {
+            percent: cryptoData.spreadPercent,
+            usd: cryptoData.spreadUsd,
+          };
 
           return (
             <Card key={crypto} variant="glass" padding="none" className="overflow-hidden">
               {/* Header */}
               <div className="px-4 py-3 border-b border-[var(--color-border)]/20 flex items-center justify-between">
-                <div>
-                  <span className="text-sm text-[var(--color-fg)]">{crypto}</span>
-                  <span className="text-xs text-[var(--color-muted)] ml-2">{CRYPTO_INFO[crypto]?.name}</span>
+                <div className="flex items-center gap-2">
+                  {cryptoInfo?.logo && (
+                    <img src={cryptoInfo.logo} alt={crypto} className="w-6 h-6 rounded-full" />
+                  )}
+                  <div>
+                    <span className="text-sm text-[var(--color-fg)]">{crypto}</span>
+                    <span className="text-xs text-[var(--color-muted)] ml-2">{cryptoInfo?.name}</span>
+                  </div>
                 </div>
-                {spread && (
+                {spread.percent && (
                   <span className={`text-sm tabular-nums ${spread.percent > 0.5 ? 'text-emerald-500' : 'text-[var(--color-muted)]'}`}>
                     {formatPercent(spread.percent)}
                   </span>
@@ -369,6 +458,7 @@ export default function ArbitragePortfolioPage() {
               {/* Exchange Prices */}
               <div className="divide-y divide-[var(--color-border)]/10">
                 {exchangePrices.map((exchangeData) => {
+                  const exchangeInfo = EXCHANGE_INFO[exchangeData.key];
                   const isLowest = exchangeData.price === lowestPrice;
                   const isHighest = exchangeData.price === highestPrice;
 
@@ -380,8 +470,11 @@ export default function ArbitragePortfolioPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
+                        {exchangeInfo?.logo && (
+                          <img src={exchangeInfo.logo} alt={exchangeData.key} className="w-5 h-5 rounded" />
+                        )}
                         <span className="text-sm text-[var(--color-fg)]">
-                          {EXCHANGE_INFO[exchangeData.key]?.name}
+                          {exchangeInfo?.name}
                         </span>
                         {isLowest && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
@@ -411,7 +504,7 @@ export default function ArbitragePortfolioPage() {
               </div>
 
               {/* Arbitrage Summary */}
-              {spread && spread.percent > 0.1 && cryptoData.bestBuy && cryptoData.bestSell && (
+              {spread.percent > 0.1 && cryptoData.bestBuy && cryptoData.bestSell && (
                 <div className="px-4 py-2.5 border-t border-[var(--color-border)]/20 bg-[var(--color-surface)]/30">
                   <div className="flex items-center justify-center gap-2 text-xs">
                     <span className="text-emerald-500 tabular-nums">
@@ -433,27 +526,23 @@ export default function ArbitragePortfolioPage() {
         })}
       </div>
 
-      {/* Terminal Feed */}
+      {/* Terminal Feed - Theme Aware */}
       <Card variant="glass" padding="none" className="overflow-hidden">
         <div className="px-4 py-2.5 border-b border-[var(--color-border)]/20 flex items-center gap-2">
           <LuTerminal className="w-3.5 h-3.5 text-[var(--color-muted)]" />
           <span className="text-sm text-[var(--color-fg)]">Price Feed</span>
-          {lastUpdated && (
-            <span className="text-xs text-[var(--color-muted)]">
-              updated {lastUpdated.toLocaleTimeString()}
-            </span>
-          )}
+          <span className="text-xs text-[var(--color-muted)]">— live from server</span>
         </div>
         <div
           ref={terminalRef}
-          className="p-4 bg-zinc-950 h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800"
+          className="p-4 bg-zinc-100 dark:bg-zinc-950 h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-800"
         >
           {terminalLogs.length === 0 ? (
-            <div className="text-xs text-zinc-500 font-mono">
-              $ waiting for price data...
+            <div className="text-xs text-[var(--color-muted)] font-mono">
+              $ connecting to price feed...
             </div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-0">
               {terminalLogs.map((log) => (
                 <TerminalEntry key={log.id} {...log} />
               ))}
@@ -470,8 +559,11 @@ export default function ArbitragePortfolioPage() {
 
           return (
             <Card key={exchangeKey} variant="glass" padding="none" className="p-3">
-              <div className="text-xs text-[var(--color-muted)] mb-1">
-                {exchange?.name}
+              <div className="flex items-center gap-2 mb-1">
+                {exchange?.logo && (
+                  <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
+                )}
+                <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
               </div>
               <div className="text-sm text-[var(--color-fg)] tabular-nums">
                 ${formatPrice(balance)}

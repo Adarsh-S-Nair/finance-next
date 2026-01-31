@@ -217,9 +217,55 @@ export class ArbitragePriceFetcher {
 
         // Store the latest prices in portfolio metadata for UI access
         await this.updatePortfolioPrices(portfolio.id, portfolioPrices, opportunities);
+
+        // Store price history for terminal feed
+        await this.storePriceHistory(portfolio.id, portfolioPrices);
       }
     } catch (error: any) {
       this.log(`Error in fetchAndStorePrices: ${error.message}`);
+    }
+  }
+
+  /**
+   * Store price history for terminal feed
+   */
+  private async storePriceHistory(
+    portfolioId: string,
+    prices: Record<string, ArbitragePrice>
+  ): Promise<void> {
+    try {
+      const historyRecords: any[] = [];
+
+      for (const [crypto, priceData] of Object.entries(prices)) {
+        // Find lowest and highest prices
+        const lowestExchange = priceData.bestBuy?.exchange;
+        const highestExchange = priceData.bestSell?.exchange;
+
+        for (const [exchange, exchangeData] of Object.entries(priceData.prices)) {
+          historyRecords.push({
+            portfolio_id: portfolioId,
+            crypto,
+            exchange,
+            price: exchangeData.price,
+            volume_24h: exchangeData.volume24h,
+            is_lowest: exchange === lowestExchange,
+            is_highest: exchange === highestExchange,
+            spread_percent: priceData.spreadPercent,
+          });
+        }
+      }
+
+      if (historyRecords.length > 0) {
+        const { error } = await this.supabase
+          .from('arbitrage_price_history')
+          .insert(historyRecords);
+
+        if (error) {
+          this.log(`Error storing price history: ${error.message}`);
+        }
+      }
+    } catch (error: any) {
+      this.log(`Error in storePriceHistory: ${error.message}`);
     }
   }
 
