@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Card from "../../../../../components/ui/Card";
 import {
-  LuArrowRight,
   LuZap,
   LuTerminal,
   LuCircle,
@@ -314,8 +313,8 @@ export default function ArbitragePortfolioPage() {
     // Fetch immediately
     fetchPrices();
 
-    // Then poll every 15 seconds
-    const interval = setInterval(fetchPrices, 15000);
+    // Then poll every 5 seconds for near real-time updates
+    const interval = setInterval(fetchPrices, 5000);
 
     return () => clearInterval(interval);
   }, [portfolio]);
@@ -445,74 +444,44 @@ export default function ArbitragePortfolioPage() {
         )}
       </div>
 
-      {/* Active Opportunities */}
+      {/* Active Opportunities - Minimal */}
       {opportunities.length > 0 && (
-        <Card variant="glass" padding="none" className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <LuZap className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm text-[var(--color-fg)]">Active Opportunities</span>
+        <div className="border-b border-[var(--color-border)]/10 pb-4">
+          <div className="flex items-center gap-2 mb-2 text-xs text-[var(--color-muted)]">
+            <LuZap className="w-3 h-3 text-emerald-500" />
+            <span>Opportunities</span>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-wrap gap-4">
             {opportunities.map((opp, idx) => (
-              <div
-                key={`${opp.crypto}-${idx}`}
-                className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--color-surface)]/50"
-              >
-                <div className="flex items-center gap-3">
-                  {CRYPTO_INFO[opp.crypto]?.logo && (
-                    <img
-                      src={CRYPTO_INFO[opp.crypto].logo}
-                      alt={opp.crypto}
-                      className="w-6 h-6 rounded-full"
-                    />
-                  )}
-                  <span className="text-sm text-[var(--color-fg)]">{opp.crypto}</span>
-                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                    {EXCHANGE_INFO[opp.buyExchange]?.logo && (
-                      <img
-                        src={EXCHANGE_INFO[opp.buyExchange].logo}
-                        alt={opp.buyExchange}
-                        className="w-4 h-4 rounded"
-                      />
-                    )}
-                    <span>{EXCHANGE_INFO[opp.buyExchange]?.name}</span>
-                    <LuArrowRight className="w-3 h-3" />
-                    {EXCHANGE_INFO[opp.sellExchange]?.logo && (
-                      <img
-                        src={EXCHANGE_INFO[opp.sellExchange].logo}
-                        alt={opp.sellExchange}
-                        className="w-4 h-4 rounded"
-                      />
-                    )}
-                    <span>{EXCHANGE_INFO[opp.sellExchange]?.name}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-sm tabular-nums">
-                  <span className="text-emerald-500">{formatPercent(opp.spreadPercent)}</span>
-                  <span className="text-[var(--color-fg)]">${formatPrice(opp.spreadUsd)}</span>
-                </div>
+              <div key={`${opp.crypto}-${idx}`} className="flex items-center gap-2 text-sm">
+                {CRYPTO_INFO[opp.crypto]?.logo && (
+                  <img src={CRYPTO_INFO[opp.crypto].logo} alt={opp.crypto} className="w-4 h-4 rounded-full" />
+                )}
+                <span className="text-[var(--color-fg)]">{opp.crypto}</span>
+                <span className="text-emerald-500 tabular-nums">{formatPercent(opp.spreadPercent)}</span>
+                <span className="text-[var(--color-muted)] text-xs">
+                  {EXCHANGE_INFO[opp.buyExchange]?.short} → {EXCHANGE_INFO[opp.sellExchange]?.short}
+                </span>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Price Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Price Table - Clean & Minimal */}
+      <div className="space-y-4">
         {cryptos.map((crypto) => {
           const cryptoData = pricesData?.[crypto];
           const cryptoInfo = CRYPTO_INFO[crypto];
 
           if (!cryptoData) {
             return (
-              <Card key={crypto} variant="glass" padding="none" className="p-4">
-                <div className="flex items-center gap-2 text-[var(--color-muted)] text-sm">
-                  {cryptoInfo?.logo && (
-                    <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full opacity-50" />
-                  )}
-                  Waiting for {crypto} data...
-                </div>
-              </Card>
+              <div key={crypto} className="flex items-center gap-3 py-2 text-[var(--color-muted)] text-sm">
+                {cryptoInfo?.logo && (
+                  <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full opacity-50" />
+                )}
+                Loading {crypto}...
+              </div>
             );
           }
 
@@ -523,64 +492,37 @@ export default function ArbitragePortfolioPage() {
 
           const lowestPrice = exchangePrices[0]?.price;
           const highestPrice = exchangePrices[exchangePrices.length - 1]?.price;
-          const spread = {
-            percent: cryptoData.spreadPercent,
-            usd: cryptoData.spreadUsd,
-          };
+          const spread = cryptoData.spreadPercent;
 
           return (
-            <Card key={crypto} variant="glass" padding="none" className="overflow-hidden">
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-[var(--color-border)]/20 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {cryptoInfo?.logo && (
-                    <img src={cryptoInfo.logo} alt={crypto} className="w-6 h-6 rounded-full" />
-                  )}
-                  <div>
-                    <span className="text-sm text-[var(--color-fg)]">{crypto}</span>
-                    <span className="text-xs text-[var(--color-muted)] ml-2">{cryptoInfo?.name}</span>
-                  </div>
-                </div>
-                {spread.percent && (
-                  <span className={`text-sm tabular-nums ${spread.percent > 0.5 ? 'text-emerald-500' : 'text-[var(--color-muted)]'}`}>
-                    {formatPercent(spread.percent)}
+            <div key={crypto} className="border-b border-[var(--color-border)]/10 pb-4 last:border-0">
+              {/* Crypto Header */}
+              <div className="flex items-center gap-2 mb-2">
+                {cryptoInfo?.logo && (
+                  <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full" />
+                )}
+                <span className="text-sm font-medium text-[var(--color-fg)]">{crypto}</span>
+                {spread > 0 && (
+                  <span className={`text-xs tabular-nums ${spread > 0.3 ? 'text-emerald-500' : 'text-[var(--color-muted)]'}`}>
+                    {formatPercent(spread)} spread
                   </span>
                 )}
               </div>
 
-              {/* Exchange Prices */}
-              <div className="divide-y divide-[var(--color-border)]/10">
+              {/* Exchange Prices - Inline */}
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
                 {exchangePrices.map((exchangeData) => {
                   const exchangeInfo = EXCHANGE_INFO[exchangeData.key];
                   const isLowest = exchangeData.price === lowestPrice;
-                  const isHighest = exchangeData.price === highestPrice;
+                  const isHighest = exchangeData.price === highestPrice && exchangePrices.length > 1;
 
                   return (
-                    <div
-                      key={exchangeData.key}
-                      className={`px-4 py-2 flex items-center justify-between ${
-                        isLowest ? 'bg-emerald-500/5' : isHighest ? 'bg-rose-500/5' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {exchangeInfo?.logo && (
-                          <img src={exchangeInfo.logo} alt={exchangeData.key} className="w-5 h-5 rounded" />
-                        )}
-                        <span className="text-sm text-[var(--color-fg)]">
-                          {exchangeInfo?.name}
-                        </span>
-                        {isLowest && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
-                            BUY
-                          </span>
-                        )}
-                        {isHighest && exchangePrices.length > 1 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500">
-                            SELL
-                          </span>
-                        )}
-                      </div>
-                      <span className={`text-sm tabular-nums ${
+                    <div key={exchangeData.key} className="flex items-center gap-2">
+                      {exchangeInfo?.logo && (
+                        <img src={exchangeInfo.logo} alt={exchangeData.key} className="w-4 h-4 rounded" />
+                      )}
+                      <span className="text-[var(--color-muted)] text-xs">{exchangeInfo?.name}</span>
+                      <span className={`tabular-nums ${
                         isLowest ? 'text-emerald-500' : isHighest ? 'text-rose-500' : 'text-[var(--color-fg)]'
                       }`}>
                         ${formatPrice(exchangeData.price)}
@@ -588,33 +530,8 @@ export default function ArbitragePortfolioPage() {
                     </div>
                   );
                 })}
-
-                {exchangePrices.length === 0 && (
-                  <div className="p-4 text-center text-[var(--color-muted)] text-sm">
-                    No price data
-                  </div>
-                )}
               </div>
-
-              {/* Arbitrage Summary */}
-              {spread.percent > 0.1 && cryptoData.bestBuy && cryptoData.bestSell && (
-                <div className="px-4 py-2.5 border-t border-[var(--color-border)]/20 bg-[var(--color-surface)]/30">
-                  <div className="flex items-center justify-center gap-2 text-xs">
-                    <span className="text-emerald-500 tabular-nums">
-                      ${formatPrice(cryptoData.bestBuy.price)}
-                    </span>
-                    <LuArrowRight className="w-3 h-3 text-[var(--color-muted)]" />
-                    <span className="text-rose-500 tabular-nums">
-                      ${formatPrice(cryptoData.bestSell.price)}
-                    </span>
-                    <span className="text-[var(--color-muted)]">=</span>
-                    <span className="text-[var(--color-fg)] tabular-nums">
-                      ${formatPrice(spread.usd)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -646,24 +563,20 @@ export default function ArbitragePortfolioPage() {
         </div>
       </Card>
 
-      {/* Exchange Balances */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      {/* Exchange Balances - Inline */}
+      <div className="flex flex-wrap gap-4 text-sm pt-2 border-t border-[var(--color-border)]/10">
         {exchanges.map((exchangeKey) => {
           const exchange = EXCHANGE_INFO[exchangeKey];
           const balance = portfolio.metadata?.capitalPerExchange || 0;
 
           return (
-            <Card key={exchangeKey} variant="glass" padding="none" className="p-3">
-              <div className="flex items-center gap-2 mb-1">
-                {exchange?.logo && (
-                  <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
-                )}
-                <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
-              </div>
-              <div className="text-sm text-[var(--color-fg)] tabular-nums">
-                ${formatPrice(balance)}
-              </div>
-            </Card>
+            <div key={exchangeKey} className="flex items-center gap-2">
+              {exchange?.logo && (
+                <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
+              )}
+              <span className="text-[var(--color-muted)] text-xs">{exchange?.name}</span>
+              <span className="text-[var(--color-fg)] tabular-nums">${formatPrice(balance)}</span>
+            </div>
           );
         })}
       </div>
