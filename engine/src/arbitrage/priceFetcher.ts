@@ -75,6 +75,9 @@ export class ArbitragePriceFetcher {
 
     this.log('Starting arbitrage price fetcher...');
 
+    // Delay initial fetch to avoid rate limits during rapid restarts
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     // Initial fetch
     await this.fetchAndStorePrices();
 
@@ -288,19 +291,38 @@ export class ArbitragePriceFetcher {
           .filter(Boolean)
           .join(',');
 
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/coins/${crypto.id}/tickers?exchange_ids=${exchangeIds}&include_exchange_logo=true`,
-          {
-            headers: { 'Accept': 'application/json' },
-          }
-        );
+        // Fetch with retry logic for rate limits
+        let data: any = null;
+        let retries = 0;
+        const maxRetries = 3;
 
-        if (!response.ok) {
-          this.log(`CoinGecko API error for ${symbol}: ${response.status}`);
-          continue;
+        while (retries < maxRetries) {
+          const response = await fetch(
+            `https://api.coingecko.com/api/v3/coins/${crypto.id}/tickers?exchange_ids=${exchangeIds}&include_exchange_logo=true`,
+            {
+              headers: { 'Accept': 'application/json' },
+            }
+          );
+
+          if (response.ok) {
+            data = await response.json();
+            break;
+          } else if (response.status === 429) {
+            retries++;
+            if (retries < maxRetries) {
+              const backoffMs = Math.min(1000 * Math.pow(2, retries), 10000);
+              this.log(`Rate limited for ${symbol}, retrying in ${backoffMs}ms (attempt ${retries}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, backoffMs));
+            } else {
+              this.log(`CoinGecko rate limit exceeded for ${symbol} after ${maxRetries} retries`);
+            }
+          } else {
+            this.log(`CoinGecko API error for ${symbol}: ${response.status}`);
+            break;
+          }
         }
 
-        const data: any = await response.json();
+        if (!data) continue;
         const prices: Record<string, ExchangePrice> = {};
 
         let lowestPrice = Infinity;
