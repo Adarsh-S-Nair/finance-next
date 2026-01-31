@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import Card from "../../../../../components/ui/Card";
 import {
+  LuArrowRight,
   LuZap,
   LuTerminal,
   LuCircle,
@@ -12,6 +14,54 @@ import { useUser } from "../../../../../components/UserProvider";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
 import { CardSkeleton } from "../../../../../components/ui/Skeleton";
+
+// Animated price component with flash effect
+const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [flash, setFlash] = useState(null); // 'up' | 'down' | null
+  const prevValueRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== prevValueRef.current && prevValueRef.current !== null) {
+      const isUp = value > prevValueRef.current;
+      setFlash(isUp ? 'up' : 'down');
+      setDisplayValue(value);
+
+      const timer = setTimeout(() => setFlash(null), 600);
+      prevValueRef.current = value;
+      return () => clearTimeout(timer);
+    }
+    prevValueRef.current = value;
+    setDisplayValue(value);
+  }, [value]);
+
+  const formatted = displayValue !== null && displayValue !== undefined
+    ? `${prefix}${Number(displayValue).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}`
+    : '—';
+
+  return (
+    <span
+      className={`
+        ${className}
+        transition-all duration-300 ease-out
+        ${flash === 'up' ? 'text-emerald-500 scale-105' : ''}
+        ${flash === 'down' ? 'text-rose-500 scale-105' : ''}
+      `}
+      style={{
+        textShadow: flash === 'up'
+          ? '0 0 8px rgba(16, 185, 129, 0.5)'
+          : flash === 'down'
+          ? '0 0 8px rgba(244, 63, 94, 0.5)'
+          : 'none',
+      }}
+    >
+      {formatted}
+    </span>
+  );
+};
 
 // Exchange info with logos
 const EXCHANGE_INFO = {
@@ -112,8 +162,8 @@ const formatPercent = (value) => {
   return `${value >= 0 ? '+' : ''}${Number(value).toFixed(3)}%`;
 };
 
-// Arbitrage opportunity entry for terminal (theme-aware)
-const OpportunityEntry = ({ timestamp, crypto, buyExchange, sellExchange, buyPrice, sellPrice, amount, profit, profitPercent, fees, status }) => {
+// Terminal log entry with logos (theme-aware)
+const TerminalEntry = ({ timestamp, crypto, exchange, price, isLowest, isHighest, spreadPercent }) => {
   const timeStr = new Date(timestamp).toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -122,54 +172,32 @@ const OpportunityEntry = ({ timestamp, crypto, buyExchange, sellExchange, buyPri
   });
 
   const cryptoInfo = CRYPTO_INFO[crypto];
-  const buyExchangeInfo = EXCHANGE_INFO[buyExchange];
-  const sellExchangeInfo = EXCHANGE_INFO[sellExchange];
-
-  const statusColors = {
-    detected: 'text-amber-500',
-    executed: 'text-emerald-500',
-    missed: 'text-[var(--color-muted)]',
-  };
+  const exchangeInfo = EXCHANGE_INFO[exchange];
+  const exchangeShort = exchangeInfo?.short || exchange?.toUpperCase().slice(0, 3) || '???';
 
   return (
-    <div className="font-mono text-xs leading-relaxed py-1.5 border-b border-[var(--color-border)]/10 last:border-0">
-      <div className="flex items-center gap-2">
-        <span className="text-[var(--color-muted)] opacity-60 w-16">{timeStr}</span>
-        <span className={`text-[10px] uppercase font-medium ${statusColors[status] || statusColors.detected}`}>
-          {status || 'detected'}
-        </span>
-        {cryptoInfo?.logo && (
-          <img src={cryptoInfo.logo} alt={crypto} className="w-4 h-4 rounded-full" />
-        )}
-        <span className="text-[var(--color-accent)]">{crypto}</span>
-        <span className="text-emerald-500">+{formatPercent(profitPercent)}</span>
-      </div>
-      <div className="flex items-center gap-2 mt-1 ml-16 text-[11px]">
-        <span className="text-emerald-500">BUY</span>
-        {buyExchangeInfo?.logo && (
-          <img src={buyExchangeInfo.logo} alt={buyExchange} className="w-3.5 h-3.5 rounded" />
-        )}
-        <span className="text-[var(--color-muted)]">{buyExchangeInfo?.name}</span>
-        <span className="text-[var(--color-fg)] tabular-nums">${formatPrice(buyPrice)}</span>
-        <span className="text-[var(--color-muted)]">×</span>
-        <span className="text-[var(--color-fg)] tabular-nums">{amount?.toFixed(6)} {crypto}</span>
-      </div>
-      <div className="flex items-center gap-2 mt-0.5 ml-16 text-[11px]">
-        <span className="text-rose-500">SELL</span>
-        {sellExchangeInfo?.logo && (
-          <img src={sellExchangeInfo.logo} alt={sellExchange} className="w-3.5 h-3.5 rounded" />
-        )}
-        <span className="text-[var(--color-muted)]">{sellExchangeInfo?.name}</span>
-        <span className="text-[var(--color-fg)] tabular-nums">${formatPrice(sellPrice)}</span>
-        <span className="text-[var(--color-muted)]">→</span>
-        <span className="text-emerald-500 tabular-nums">${formatPrice(profit)}</span>
-        <span className="text-[var(--color-muted)]">profit</span>
-        {fees > 0 && (
-          <>
-            <span className="text-[var(--color-muted)]">(fees: ${formatPrice(fees)})</span>
-          </>
-        )}
-      </div>
+    <div className="font-mono text-xs leading-relaxed flex items-center gap-2 py-0.5">
+      <span className="text-[var(--color-muted)] opacity-60">{timeStr}</span>
+      {cryptoInfo?.logo && (
+        <img src={cryptoInfo.logo} alt={crypto} className="w-4 h-4 rounded-full" />
+      )}
+      <span className="text-blue-500 dark:text-blue-400">{crypto}</span>
+      {exchangeInfo?.logo && (
+        <img src={exchangeInfo.logo} alt={exchange} className="w-4 h-4 rounded" />
+      )}
+      <span className="text-[var(--color-muted)]">{exchangeShort}</span>
+      <span className={
+        isLowest ? 'text-emerald-600 dark:text-emerald-400' :
+        isHighest ? 'text-rose-600 dark:text-rose-400' :
+        'text-[var(--color-fg)]'
+      }>
+        ${formatPrice(price)}
+      </span>
+      {isLowest && <span className="text-emerald-600 dark:text-emerald-500 text-[10px] opacity-70">LOW</span>}
+      {isHighest && <span className="text-rose-600 dark:text-rose-500 text-[10px] opacity-70">HIGH</span>}
+      {spreadPercent > 0.3 && isLowest && (
+        <span className="text-amber-600 dark:text-amber-400 text-[10px]">Δ{formatPercent(spreadPercent)}</span>
+      )}
     </div>
   );
 };
@@ -188,7 +216,9 @@ export default function ArbitragePortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [terminalLogs, setTerminalLogs] = useState([]);
-  const [isLive] = useState(true);
+  const [isLive, setIsLive] = useState(true);
+  // Track live prices from feed (crypto -> exchange -> price)
+  const [livePrices, setLivePrices] = useState({});
 
   // Fetch portfolio and set up realtime subscription
   useEffect(() => {
@@ -255,111 +285,56 @@ export default function ArbitragePortfolioPage() {
     };
   }, [portfolioId, profile?.id, router]);
 
-  // Poll prices directly from API for real-time updates (every 15 seconds)
-  useEffect(() => {
-    if (!portfolio) return;
-
-    const exchanges = portfolio.metadata?.exchanges || [];
-    const cryptos = portfolio.crypto_assets || [];
-
-    if (exchanges.length === 0 || cryptos.length === 0) return;
-
-    const fetchPrices = async () => {
-      try {
-        const response = await fetch(
-          `/api/arbitrage/prices?cryptos=${cryptos.join(',')}&exchanges=${exchanges.join(',')}`
-        );
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-
-        if (data.success && data.prices) {
-          // Transform API response to match expected format
-          const transformedPrices = {};
-          for (const [crypto, priceInfo] of Object.entries(data.prices)) {
-            const exchangePrices = {};
-            for (const [exchange, exchangeData] of Object.entries(priceInfo.exchanges || {})) {
-              if (exchangeData.price) {
-                exchangePrices[exchange] = {
-                  exchange,
-                  price: exchangeData.price,
-                  volume24h: exchangeData.volume24h,
-                  bidAskSpread: exchangeData.bidAskSpread,
-                  lastUpdated: exchangeData.lastUpdated,
-                };
-              }
-            }
-            transformedPrices[crypto] = {
-              crypto,
-              prices: exchangePrices,
-              bestBuy: priceInfo.bestBuy,
-              bestSell: priceInfo.bestSell,
-              spreadPercent: priceInfo.spread?.percent,
-              spreadUsd: priceInfo.spread?.usd,
-              timestamp: data.timestamp,
-            };
-          }
-
-          setPricesData(transformedPrices);
-          setOpportunities(data.opportunities || []);
-          setLastUpdated(new Date(data.timestamp));
-        }
-      } catch (error) {
-        console.error('Error fetching prices:', error);
-      }
-    };
-
-    // Fetch immediately
-    fetchPrices();
-
-    // Then poll every 5 seconds for near real-time updates
-    const interval = setInterval(fetchPrices, 5000);
-
-    return () => clearInterval(interval);
-  }, [portfolio]);
-
-  // Fetch historical opportunities and subscribe to new ones
+  // Fetch historical price logs and subscribe to new ones
   useEffect(() => {
     if (!portfolioId) return;
 
     const fetchHistory = async () => {
       const { data, error } = await supabase
-        .from('arbitrage_opportunities')
+        .from('arbitrage_price_history')
         .select('*')
         .eq('portfolio_id', portfolioId)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (!error && data) {
         setTerminalLogs(data.map(row => ({
           id: row.id,
           timestamp: row.created_at,
           crypto: row.crypto,
-          buyExchange: row.buy_exchange,
-          sellExchange: row.sell_exchange,
-          buyPrice: row.buy_price,
-          sellPrice: row.sell_price,
-          amount: row.amount,
-          profit: row.profit,
-          profitPercent: row.profit_percent,
-          fees: row.fees,
-          status: row.status,
+          exchange: row.exchange,
+          price: row.price,
+          isLowest: row.is_lowest,
+          isHighest: row.is_highest,
+          spreadPercent: row.spread_percent,
         })));
+
+        // Build initial live prices from history (most recent per crypto/exchange)
+        const initialLivePrices = {};
+        data.forEach(row => {
+          if (!initialLivePrices[row.crypto]) {
+            initialLivePrices[row.crypto] = {};
+          }
+          // Only set if not already set (first occurrence is most recent due to ordering)
+          if (!initialLivePrices[row.crypto][row.exchange]) {
+            initialLivePrices[row.crypto][row.exchange] = row.price;
+          }
+        });
+        setLivePrices(initialLivePrices);
       }
     };
 
     fetchHistory();
 
-    // Subscribe to new opportunities
-    const opportunitiesChannel = supabase
-      .channel(`opportunities-${portfolioId}`)
+    // Subscribe to new price history entries
+    const historyChannel = supabase
+      .channel(`price-history-${portfolioId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'arbitrage_opportunities',
+          table: 'arbitrage_price_history',
           filter: `portfolio_id=eq.${portfolioId}`,
         },
         (payload) => {
@@ -368,22 +343,27 @@ export default function ArbitragePortfolioPage() {
             id: row.id,
             timestamp: row.created_at,
             crypto: row.crypto,
-            buyExchange: row.buy_exchange,
-            sellExchange: row.sell_exchange,
-            buyPrice: row.buy_price,
-            sellPrice: row.sell_price,
-            amount: row.amount,
-            profit: row.profit,
-            profitPercent: row.profit_percent,
-            fees: row.fees,
-            status: row.status,
-          }, ...prev].slice(0, 50));
+            exchange: row.exchange,
+            price: row.price,
+            isLowest: row.is_lowest,
+            isHighest: row.is_highest,
+            spreadPercent: row.spread_percent,
+          }, ...prev].slice(0, 100));
+
+          // Update live prices with this new price
+          setLivePrices(prev => ({
+            ...prev,
+            [row.crypto]: {
+              ...prev[row.crypto],
+              [row.exchange]: row.price,
+            },
+          }));
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(opportunitiesChannel);
+      supabase.removeChannel(historyChannel);
     };
   }, [portfolioId]);
 
@@ -444,139 +424,231 @@ export default function ArbitragePortfolioPage() {
         )}
       </div>
 
-      {/* Active Opportunities - Minimal */}
+      {/* Active Opportunities */}
       {opportunities.length > 0 && (
-        <div className="border-b border-[var(--color-border)]/10 pb-4">
-          <div className="flex items-center gap-2 mb-2 text-xs text-[var(--color-muted)]">
-            <LuZap className="w-3 h-3 text-emerald-500" />
-            <span>Opportunities</span>
+        <Card variant="glass" padding="none" className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <LuZap className="w-4 h-4 text-emerald-500" />
+            <span className="text-sm text-[var(--color-fg)]">Active Opportunities</span>
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="space-y-2">
             {opportunities.map((opp, idx) => (
-              <div key={`${opp.crypto}-${idx}`} className="flex items-center gap-2 text-sm">
-                {CRYPTO_INFO[opp.crypto]?.logo && (
-                  <img src={CRYPTO_INFO[opp.crypto].logo} alt={opp.crypto} className="w-4 h-4 rounded-full" />
-                )}
-                <span className="text-[var(--color-fg)]">{opp.crypto}</span>
-                <span className="text-emerald-500 tabular-nums">{formatPercent(opp.spreadPercent)}</span>
-                <span className="text-[var(--color-muted)] text-xs">
-                  {EXCHANGE_INFO[opp.buyExchange]?.short} → {EXCHANGE_INFO[opp.sellExchange]?.short}
-                </span>
+              <div
+                key={`${opp.crypto}-${idx}`}
+                className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--color-surface)]/50"
+              >
+                <div className="flex items-center gap-3">
+                  {CRYPTO_INFO[opp.crypto]?.logo && (
+                    <img
+                      src={CRYPTO_INFO[opp.crypto].logo}
+                      alt={opp.crypto}
+                      className="w-6 h-6 rounded-full"
+                    />
+                  )}
+                  <span className="text-sm text-[var(--color-fg)]">{opp.crypto}</span>
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+                    {EXCHANGE_INFO[opp.buyExchange]?.logo && (
+                      <img
+                        src={EXCHANGE_INFO[opp.buyExchange].logo}
+                        alt={opp.buyExchange}
+                        className="w-4 h-4 rounded"
+                      />
+                    )}
+                    <span>{EXCHANGE_INFO[opp.buyExchange]?.name}</span>
+                    <LuArrowRight className="w-3 h-3" />
+                    {EXCHANGE_INFO[opp.sellExchange]?.logo && (
+                      <img
+                        src={EXCHANGE_INFO[opp.sellExchange].logo}
+                        alt={opp.sellExchange}
+                        className="w-4 h-4 rounded"
+                      />
+                    )}
+                    <span>{EXCHANGE_INFO[opp.sellExchange]?.name}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-sm tabular-nums">
+                  <span className="text-emerald-500">{formatPercent(opp.spreadPercent)}</span>
+                  <span className="text-[var(--color-fg)]">${formatPrice(opp.spreadUsd)}</span>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Price Table - Clean & Minimal */}
-      <div className="space-y-4">
+      {/* Price Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {cryptos.map((crypto) => {
           const cryptoData = pricesData?.[crypto];
           const cryptoInfo = CRYPTO_INFO[crypto];
 
           if (!cryptoData) {
             return (
-              <div key={crypto} className="flex items-center gap-3 py-2 text-[var(--color-muted)] text-sm">
-                {cryptoInfo?.logo && (
-                  <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full opacity-50" />
-                )}
-                Loading {crypto}...
-              </div>
+              <Card key={crypto} variant="glass" padding="none" className="p-4">
+                <div className="flex items-center gap-2 text-[var(--color-muted)] text-sm">
+                  {cryptoInfo?.logo && (
+                    <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full opacity-50" />
+                  )}
+                  Waiting for {crypto} data...
+                </div>
+              </Card>
             );
           }
 
+          // Merge metadata prices with live prices (live takes precedence)
+          const cryptoLivePrices = livePrices[crypto] || {};
           const exchangePrices = Object.entries(cryptoData.prices || {})
-            .map(([key, data]) => ({ key, ...data }))
+            .map(([key, data]) => ({
+              key,
+              ...data,
+              // Use live price if available, otherwise fall back to metadata price
+              price: cryptoLivePrices[key] !== undefined ? cryptoLivePrices[key] : data.price,
+            }))
             .filter(e => e.price)
             .sort((a, b) => a.price - b.price);
 
           const lowestPrice = exchangePrices[0]?.price;
           const highestPrice = exchangePrices[exchangePrices.length - 1]?.price;
-          const spread = cryptoData.spreadPercent;
+          const spread = {
+            percent: cryptoData.spreadPercent,
+            usd: cryptoData.spreadUsd,
+          };
 
           return (
-            <div key={crypto} className="border-b border-[var(--color-border)]/10 pb-4 last:border-0">
-              {/* Crypto Header */}
-              <div className="flex items-center gap-2 mb-2">
-                {cryptoInfo?.logo && (
-                  <img src={cryptoInfo.logo} alt={crypto} className="w-5 h-5 rounded-full" />
-                )}
-                <span className="text-sm font-medium text-[var(--color-fg)]">{crypto}</span>
-                {spread > 0 && (
-                  <span className={`text-xs tabular-nums ${spread > 0.3 ? 'text-emerald-500' : 'text-[var(--color-muted)]'}`}>
-                    {formatPercent(spread)} spread
+            <Card key={crypto} variant="glass" padding="none" className="overflow-hidden">
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-[var(--color-border)]/20 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {cryptoInfo?.logo && (
+                    <img src={cryptoInfo.logo} alt={crypto} className="w-6 h-6 rounded-full" />
+                  )}
+                  <div>
+                    <span className="text-sm text-[var(--color-fg)]">{crypto}</span>
+                    <span className="text-xs text-[var(--color-muted)] ml-2">{cryptoInfo?.name}</span>
+                  </div>
+                </div>
+                {spread.percent && (
+                  <span className={`text-sm tabular-nums ${spread.percent > 0.5 ? 'text-emerald-500' : 'text-[var(--color-muted)]'}`}>
+                    {formatPercent(spread.percent)}
                   </span>
                 )}
               </div>
 
-              {/* Exchange Prices - Inline */}
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              {/* Exchange Prices */}
+              <div className="divide-y divide-[var(--color-border)]/10">
                 {exchangePrices.map((exchangeData) => {
                   const exchangeInfo = EXCHANGE_INFO[exchangeData.key];
                   const isLowest = exchangeData.price === lowestPrice;
-                  const isHighest = exchangeData.price === highestPrice && exchangePrices.length > 1;
+                  const isHighest = exchangeData.price === highestPrice;
 
                   return (
-                    <div key={exchangeData.key} className="flex items-center gap-2">
-                      {exchangeInfo?.logo && (
-                        <img src={exchangeInfo.logo} alt={exchangeData.key} className="w-4 h-4 rounded" />
-                      )}
-                      <span className="text-[var(--color-muted)] text-xs">{exchangeInfo?.name}</span>
-                      <span className={`tabular-nums ${
-                        isLowest ? 'text-emerald-500' : isHighest ? 'text-rose-500' : 'text-[var(--color-fg)]'
-                      }`}>
-                        ${formatPrice(exchangeData.price)}
-                      </span>
+                    <div
+                      key={exchangeData.key}
+                      className={`px-4 py-2 flex items-center justify-between ${
+                        isLowest ? 'bg-emerald-500/5' : isHighest ? 'bg-rose-500/5' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {exchangeInfo?.logo && (
+                          <img src={exchangeInfo.logo} alt={exchangeData.key} className="w-5 h-5 rounded" />
+                        )}
+                        <span className="text-sm text-[var(--color-fg)]">
+                          {exchangeInfo?.name}
+                        </span>
+                        {isLowest && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
+                            BUY
+                          </span>
+                        )}
+                        {isHighest && exchangePrices.length > 1 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500">
+                            SELL
+                          </span>
+                        )}
+                      </div>
+                      <AnimatedPrice
+                        value={exchangeData.price}
+                        className={`text-sm tabular-nums ${
+                          isLowest ? 'text-emerald-500' : isHighest ? 'text-rose-500' : 'text-[var(--color-fg)]'
+                        }`}
+                      />
                     </div>
                   );
                 })}
+
+                {exchangePrices.length === 0 && (
+                  <div className="p-4 text-center text-[var(--color-muted)] text-sm">
+                    No price data
+                  </div>
+                )}
               </div>
-            </div>
+
+              {/* Arbitrage Summary */}
+              {spread.percent > 0.1 && cryptoData.bestBuy && cryptoData.bestSell && (
+                <div className="px-4 py-2.5 border-t border-[var(--color-border)]/20 bg-[var(--color-surface)]/30">
+                  <div className="flex items-center justify-center gap-2 text-xs">
+                    <span className="text-emerald-500 tabular-nums">
+                      ${formatPrice(cryptoData.bestBuy.price)}
+                    </span>
+                    <LuArrowRight className="w-3 h-3 text-[var(--color-muted)]" />
+                    <span className="text-rose-500 tabular-nums">
+                      ${formatPrice(cryptoData.bestSell.price)}
+                    </span>
+                    <span className="text-[var(--color-muted)]">=</span>
+                    <span className="text-[var(--color-fg)] tabular-nums">
+                      ${formatPrice(spread.usd)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Card>
           );
         })}
       </div>
 
-      {/* Arbitrage Opportunities Terminal - Theme Aware */}
+      {/* Terminal Feed - Theme Aware */}
       <Card variant="glass" padding="none" className="overflow-hidden">
         <div className="px-4 py-2.5 border-b border-[var(--color-border)]/20 flex items-center gap-2">
           <LuTerminal className="w-3.5 h-3.5 text-[var(--color-muted)]" />
-          <span className="text-sm text-[var(--color-fg)]">Opportunity Feed</span>
-          <span className="text-xs text-[var(--color-muted)]">— detected arbitrage opportunities</span>
+          <span className="text-sm text-[var(--color-fg)]">Price Feed</span>
+          <span className="text-xs text-[var(--color-muted)]">— live from server</span>
         </div>
         <div
           ref={terminalRef}
-          className="p-4 bg-[var(--color-surface)] h-64 overflow-y-auto"
-          style={{ backgroundColor: 'var(--color-surface)' }}
+          className="p-4 bg-[var(--color-surface)] h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--color-border)]"
         >
           {terminalLogs.length === 0 ? (
-            <div className="text-xs text-[var(--color-muted)] font-mono flex items-center gap-2">
-              <span className="animate-pulse">●</span>
-              <span>Scanning exchanges for arbitrage opportunities...</span>
+            <div className="text-xs text-[var(--color-muted)] font-mono">
+              $ connecting to price feed...
             </div>
           ) : (
-            <div>
+            <div className="space-y-0">
               {terminalLogs.map((log) => (
-                <OpportunityEntry key={log.id} {...log} />
+                <TerminalEntry key={log.id} {...log} />
               ))}
             </div>
           )}
         </div>
       </Card>
 
-      {/* Exchange Balances - Inline */}
-      <div className="flex flex-wrap gap-4 text-sm pt-2 border-t border-[var(--color-border)]/10">
+      {/* Exchange Balances */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         {exchanges.map((exchangeKey) => {
           const exchange = EXCHANGE_INFO[exchangeKey];
           const balance = portfolio.metadata?.capitalPerExchange || 0;
 
           return (
-            <div key={exchangeKey} className="flex items-center gap-2">
-              {exchange?.logo && (
-                <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
-              )}
-              <span className="text-[var(--color-muted)] text-xs">{exchange?.name}</span>
-              <span className="text-[var(--color-fg)] tabular-nums">${formatPrice(balance)}</span>
-            </div>
+            <Card key={exchangeKey} variant="glass" padding="none" className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                {exchange?.logo && (
+                  <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
+                )}
+                <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
+              </div>
+              <div className="text-sm text-[var(--color-fg)] tabular-nums">
+                ${formatPrice(balance)}
+              </div>
+            </Card>
           );
         })}
       </div>

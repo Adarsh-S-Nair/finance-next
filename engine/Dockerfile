@@ -24,6 +24,13 @@ RUN find src -name "*.js" -type f ! -name "test-*.js" | while read file; do \
       cp "$file" "dist/$rel_path"; \
     done
 
+# Copy JSON config files to dist (required by engineConfig.js)
+RUN find src -name "*.json" -type f | while read file; do \
+      rel_path=$(echo "$file" | sed 's|^src/||'); \
+      mkdir -p "dist/$(dirname "$rel_path")"; \
+      cp "$file" "dist/$rel_path"; \
+    done
+
 # Remove dev dependencies and source files
 RUN npm prune --production
 RUN rm -rf src tsconfig.json
