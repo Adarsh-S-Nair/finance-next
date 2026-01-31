@@ -300,7 +300,7 @@ export class ArbitragePriceFetcher {
           continue;
         }
 
-        const data = await response.json();
+        const data: any = await response.json();
         const prices: Record<string, ExchangePrice> = {};
 
         let lowestPrice = Infinity;
