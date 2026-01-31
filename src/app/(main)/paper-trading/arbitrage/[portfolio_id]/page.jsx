@@ -297,13 +297,15 @@ export default function ArbitragePortfolioPage() {
 
     eventSource.addEventListener('prices', (e) => {
       const data = JSON.parse(e.data);
+      console.log('[SSE] Received prices update:', data.timestamp, Object.keys(data.prices || {}));
+
       setPricesData(data.prices);
       setOpportunities(data.opportunities || []);
       setLastUpdated(new Date(data.timestamp));
 
       // Update live prices from the full price update
       const newLivePrices = {};
-      Object.entries(data.prices).forEach(([crypto, cryptoData]) => {
+      Object.entries(data.prices || {}).forEach(([crypto, cryptoData]) => {
         newLivePrices[crypto] = {};
         Object.entries(cryptoData.prices || {}).forEach(([exchange, exchangeData]) => {
           newLivePrices[crypto][exchange] = exchangeData.price;
@@ -337,8 +339,8 @@ export default function ArbitragePortfolioPage() {
       }));
     });
 
-    eventSource.addEventListener('heartbeat', () => {
-      // Keep-alive, no action needed
+    eventSource.addEventListener('heartbeat', (e) => {
+      console.log('[SSE] Heartbeat received');
     });
 
     eventSource.onerror = (e) => {

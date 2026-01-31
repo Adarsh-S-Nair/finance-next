@@ -87,10 +87,9 @@ class MarketDataEngine {
     // Set up trading interval (every 5 minutes, when 5m candles close)
     this.startTradingInterval();
 
-    // Start arbitrage price fetcher (fetches multi-exchange prices every 30 seconds)
-    // CoinGecko free tier has strict rate limits (~10-30 calls/min)
+    // Start arbitrage price fetcher (fetches multi-exchange prices every 5 seconds)
     this.arbitrageFetcher = new ArbitragePriceFetcher(this.storage.getClient());
-    await this.arbitrageFetcher.start(30000);
+    await this.arbitrageFetcher.start(5000);
 
     // Set up WebSocket feed
     this.feed = new CoinbaseFeed(this.config, {
