@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import Card from "../../../../../components/ui/Card";
 import {
   LuArrowRight,
@@ -15,19 +14,24 @@ import { supabase } from "../../../../../lib/supabaseClient";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
 import { CardSkeleton } from "../../../../../components/ui/Skeleton";
 
-// Animated price component with flash effect
+// Animated price component with shake effect on update
 const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) => {
   const [displayValue, setDisplayValue] = useState(value);
-  const [flash, setFlash] = useState(null); // 'up' | 'down' | null
+  const [animate, setAnimate] = useState(false);
+  const [direction, setDirection] = useState(null); // 'up' | 'down' | null
   const prevValueRef = useRef(value);
 
   useEffect(() => {
     if (value !== prevValueRef.current && prevValueRef.current !== null) {
       const isUp = value > prevValueRef.current;
-      setFlash(isUp ? 'up' : 'down');
+      setDirection(isUp ? 'up' : 'down');
+      setAnimate(true);
       setDisplayValue(value);
 
-      const timer = setTimeout(() => setFlash(null), 600);
+      const timer = setTimeout(() => {
+        setAnimate(false);
+        setDirection(null);
+      }, 500);
       prevValueRef.current = value;
       return () => clearTimeout(timer);
     }
@@ -46,15 +50,16 @@ const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) =>
     <span
       className={`
         ${className}
-        transition-all duration-300 ease-out
-        ${flash === 'up' ? 'text-emerald-500 scale-105' : ''}
-        ${flash === 'down' ? 'text-rose-500 scale-105' : ''}
+        inline-block
+        ${animate ? 'animate-price-shake' : ''}
+        ${direction === 'up' ? 'text-emerald-500' : ''}
+        ${direction === 'down' ? 'text-rose-500' : ''}
       `}
       style={{
-        textShadow: flash === 'up'
-          ? '0 0 8px rgba(16, 185, 129, 0.5)'
-          : flash === 'down'
-          ? '0 0 8px rgba(244, 63, 94, 0.5)'
+        textShadow: direction === 'up'
+          ? '0 0 12px rgba(16, 185, 129, 0.6)'
+          : direction === 'down'
+          ? '0 0 12px rgba(244, 63, 94, 0.6)'
           : 'none',
       }}
     >
@@ -209,6 +214,7 @@ export default function ArbitragePortfolioPage() {
   const { setHeaderActions } = usePaperTradingHeader();
   const portfolioId = params.portfolio_id;
   const terminalRef = useRef(null);
+  const eventSourceRef = useRef(null);
 
   const [portfolio, setPortfolio] = useState(null);
   const [pricesData, setPricesData] = useState(null);
@@ -216,11 +222,11 @@ export default function ArbitragePortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [terminalLogs, setTerminalLogs] = useState([]);
-  const [isLive, setIsLive] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting' | 'connected' | 'disconnected'
   // Track live prices from feed (crypto -> exchange -> price)
   const [livePrices, setLivePrices] = useState({});
 
-  // Fetch portfolio and set up realtime subscription
+  // Fetch initial portfolio data
   useEffect(() => {
     if (!portfolioId || !profile?.id) return;
 
@@ -240,52 +246,124 @@ export default function ArbitragePortfolioPage() {
 
       setPortfolio(data);
 
-      // Extract prices from metadata (stored by the engine)
+      // Extract initial prices from metadata
       if (data?.metadata?.latestPrices) {
         setPricesData(data.metadata.latestPrices);
         setOpportunities(data.metadata.latestOpportunities || []);
         if (data.metadata.lastPriceUpdate) {
           setLastUpdated(new Date(data.metadata.lastPriceUpdate));
         }
+
+        // Build initial live prices from metadata
+        const initialLivePrices = {};
+        Object.entries(data.metadata.latestPrices).forEach(([crypto, cryptoData]) => {
+          initialLivePrices[crypto] = {};
+          Object.entries(cryptoData.prices || {}).forEach(([exchange, exchangeData]) => {
+            initialLivePrices[crypto][exchange] = exchangeData.price;
+          });
+        });
+        setLivePrices(initialLivePrices);
       }
 
       setLoading(false);
     };
 
     fetchPortfolio();
-
-    // Subscribe to portfolio updates (for price data from engine)
-    const portfolioChannel = supabase
-      .channel(`portfolio-${portfolioId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'portfolios',
-          filter: `id=eq.${portfolioId}`,
-        },
-        (payload) => {
-          const newData = payload.new;
-          setPortfolio(newData);
-
-          if (newData?.metadata?.latestPrices) {
-            setPricesData(newData.metadata.latestPrices);
-            setOpportunities(newData.metadata.latestOpportunities || []);
-            if (newData.metadata.lastPriceUpdate) {
-              setLastUpdated(new Date(newData.metadata.lastPriceUpdate));
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(portfolioChannel);
-    };
   }, [portfolioId, profile?.id, router]);
 
-  // Fetch historical price logs and subscribe to new ones
+  // Connect to SSE stream for live price updates
+  useEffect(() => {
+    if (!portfolioId || loading) return;
+
+    // Close any existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    setConnectionStatus('connecting');
+
+    // Create EventSource connection to our streaming endpoint
+    const eventSource = new EventSource(`/api/arbitrage/stream/${portfolioId}`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.addEventListener('connected', (e) => {
+      console.log('SSE connected:', JSON.parse(e.data));
+      setConnectionStatus('connected');
+    });
+
+    eventSource.addEventListener('subscribed', (e) => {
+      console.log('SSE subscribed to real-time:', JSON.parse(e.data));
+    });
+
+    eventSource.addEventListener('prices', (e) => {
+      const data = JSON.parse(e.data);
+      setPricesData(data.prices);
+      setOpportunities(data.opportunities || []);
+      setLastUpdated(new Date(data.timestamp));
+
+      // Update live prices from the full price update
+      const newLivePrices = {};
+      Object.entries(data.prices).forEach(([crypto, cryptoData]) => {
+        newLivePrices[crypto] = {};
+        Object.entries(cryptoData.prices || {}).forEach(([exchange, exchangeData]) => {
+          newLivePrices[crypto][exchange] = exchangeData.price;
+        });
+      });
+      setLivePrices(newLivePrices);
+    });
+
+    eventSource.addEventListener('price_tick', (e) => {
+      const tick = JSON.parse(e.data);
+
+      // Add to terminal logs
+      setTerminalLogs(prev => [{
+        id: `${tick.crypto}-${tick.exchange}-${Date.now()}`,
+        timestamp: tick.timestamp,
+        crypto: tick.crypto,
+        exchange: tick.exchange,
+        price: tick.price,
+        isLowest: tick.isLowest,
+        isHighest: tick.isHighest,
+        spreadPercent: tick.spreadPercent,
+      }, ...prev].slice(0, 100));
+
+      // Update live prices with this tick
+      setLivePrices(prev => ({
+        ...prev,
+        [tick.crypto]: {
+          ...prev[tick.crypto],
+          [tick.exchange]: tick.price,
+        },
+      }));
+    });
+
+    eventSource.addEventListener('heartbeat', () => {
+      // Keep-alive, no action needed
+    });
+
+    eventSource.onerror = (e) => {
+      console.error('SSE error:', e);
+      setConnectionStatus('disconnected');
+
+      // Attempt to reconnect after 3 seconds
+      setTimeout(() => {
+        if (eventSourceRef.current === eventSource) {
+          eventSource.close();
+          // The useEffect will trigger a reconnection
+        }
+      }, 3000);
+    };
+
+    // Cleanup on unmount or when portfolioId changes
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [portfolioId, loading]);
+
+  // Fetch historical price logs on mount
   useEffect(() => {
     if (!portfolioId) return;
 
@@ -295,7 +373,7 @@ export default function ArbitragePortfolioPage() {
         .select('*')
         .eq('portfolio_id', portfolioId)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(50);
 
       if (!error && data) {
         setTerminalLogs(data.map(row => ({
@@ -308,63 +386,10 @@ export default function ArbitragePortfolioPage() {
           isHighest: row.is_highest,
           spreadPercent: row.spread_percent,
         })));
-
-        // Build initial live prices from history (most recent per crypto/exchange)
-        const initialLivePrices = {};
-        data.forEach(row => {
-          if (!initialLivePrices[row.crypto]) {
-            initialLivePrices[row.crypto] = {};
-          }
-          // Only set if not already set (first occurrence is most recent due to ordering)
-          if (!initialLivePrices[row.crypto][row.exchange]) {
-            initialLivePrices[row.crypto][row.exchange] = row.price;
-          }
-        });
-        setLivePrices(initialLivePrices);
       }
     };
 
     fetchHistory();
-
-    // Subscribe to new price history entries
-    const historyChannel = supabase
-      .channel(`price-history-${portfolioId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'arbitrage_price_history',
-          filter: `portfolio_id=eq.${portfolioId}`,
-        },
-        (payload) => {
-          const row = payload.new;
-          setTerminalLogs(prev => [{
-            id: row.id,
-            timestamp: row.created_at,
-            crypto: row.crypto,
-            exchange: row.exchange,
-            price: row.price,
-            isLowest: row.is_lowest,
-            isHighest: row.is_highest,
-            spreadPercent: row.spread_percent,
-          }, ...prev].slice(0, 100));
-
-          // Update live prices with this new price
-          setLivePrices(prev => ({
-            ...prev,
-            [row.crypto]: {
-              ...prev[row.crypto],
-              [row.exchange]: row.price,
-            },
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(historyChannel);
-    };
   }, [portfolioId]);
 
   // Register header actions
@@ -392,6 +417,18 @@ export default function ArbitragePortfolioPage() {
 
   return (
     <div className="space-y-6">
+      {/* CSS for shake animation */}
+      <style jsx global>{`
+        @keyframes price-shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+          20%, 40%, 60%, 80% { transform: translateX(2px); }
+        }
+        .animate-price-shake {
+          animation: price-shake 0.4s ease-in-out;
+        }
+      `}</style>
+
       {/* Stats Row */}
       <div className="flex items-center gap-6 text-sm flex-wrap">
         <div>
@@ -414,8 +451,18 @@ export default function ArbitragePortfolioPage() {
         )}
         <div className="flex-1" />
         <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-          <LuCircle className={`w-2 h-2 ${isLive ? 'text-emerald-500 fill-emerald-500 animate-pulse' : 'text-zinc-400'}`} />
-          <span>{isLive ? 'Live from server' : 'Disconnected'}</span>
+          <LuCircle className={`w-2 h-2 ${
+            connectionStatus === 'connected'
+              ? 'text-emerald-500 fill-emerald-500 animate-pulse'
+              : connectionStatus === 'connecting'
+              ? 'text-amber-500 fill-amber-500 animate-pulse'
+              : 'text-zinc-400'
+          }`} />
+          <span>
+            {connectionStatus === 'connected' ? 'Live' :
+             connectionStatus === 'connecting' ? 'Connecting...' :
+             'Disconnected'}
+          </span>
         </div>
         {lastUpdated && (
           <span className="text-xs text-[var(--color-muted)]">
@@ -534,7 +581,7 @@ export default function ArbitragePortfolioPage() {
                 )}
               </div>
 
-              {/* Exchange Prices */}
+              {/* Exchange Prices - No row backgrounds */}
               <div className="divide-y divide-[var(--color-border)]/10">
                 {exchangePrices.map((exchangeData) => {
                   const exchangeInfo = EXCHANGE_INFO[exchangeData.key];
@@ -544,9 +591,7 @@ export default function ArbitragePortfolioPage() {
                   return (
                     <div
                       key={exchangeData.key}
-                      className={`px-4 py-2 flex items-center justify-between ${
-                        isLowest ? 'bg-emerald-500/5' : isHighest ? 'bg-rose-500/5' : ''
-                      }`}
+                      className="px-4 py-2 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-2">
                         {exchangeInfo?.logo && (
@@ -611,7 +656,7 @@ export default function ArbitragePortfolioPage() {
         <div className="px-4 py-2.5 border-b border-[var(--color-border)]/20 flex items-center gap-2">
           <LuTerminal className="w-3.5 h-3.5 text-[var(--color-muted)]" />
           <span className="text-sm text-[var(--color-fg)]">Price Feed</span>
-          <span className="text-xs text-[var(--color-muted)]">— live from server</span>
+          <span className="text-xs text-[var(--color-muted)]">— streaming live</span>
         </div>
         <div
           ref={terminalRef}
@@ -619,7 +664,9 @@ export default function ArbitragePortfolioPage() {
         >
           {terminalLogs.length === 0 ? (
             <div className="text-xs text-[var(--color-muted)] font-mono">
-              $ connecting to price feed...
+              $ {connectionStatus === 'connecting' ? 'connecting to price stream...' :
+                 connectionStatus === 'connected' ? 'waiting for price updates...' :
+                 'stream disconnected, reconnecting...'}
             </div>
           ) : (
             <div className="space-y-0">
