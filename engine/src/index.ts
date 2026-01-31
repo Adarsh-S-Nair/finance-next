@@ -11,6 +11,7 @@ import { SupabaseStorage } from './storage/supabase';
 import { Tick, Candle } from './types';
 import { executeBuyTrade } from './trading/tradeExecutor';
 import { backfillIfNeeded } from './data/backfill';
+import { ArbitragePriceFetcher } from './arbitrage/priceFetcher';
 
 interface CandleBuffer {
   ticker: string;
@@ -37,6 +38,7 @@ class MarketDataEngine {
   private flushInterval: NodeJS.Timeout | null = null;
   private refreshInterval: NodeJS.Timeout | null = null;
   private tradingInterval: NodeJS.Timeout | null = null;
+  private arbitrageFetcher: ArbitragePriceFetcher | null = null;
   private currentProducts: string[] = [];
   private isShuttingDown = false;
 
@@ -84,6 +86,10 @@ class MarketDataEngine {
 
     // Set up trading interval (every 5 minutes, when 5m candles close)
     this.startTradingInterval();
+
+    // Start arbitrage price fetcher (fetches multi-exchange prices every 30 seconds)
+    this.arbitrageFetcher = new ArbitragePriceFetcher(this.storage.getClient());
+    await this.arbitrageFetcher.start(30000);
 
     // Set up WebSocket feed
     this.feed = new CoinbaseFeed(this.config, {
@@ -557,6 +563,9 @@ class MarketDataEngine {
     }
     if (this.tradingInterval) {
       clearInterval(this.tradingInterval);
+    }
+    if (this.arbitrageFetcher) {
+      this.arbitrageFetcher.stop();
     }
 
     // Flush any remaining candles (1m and higher timeframes)

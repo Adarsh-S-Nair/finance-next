@@ -8,23 +8,46 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { useUser } from "../../../components/UserProvider";
 import { LuPlus } from "react-icons/lu";
-import { InvestmentsHeaderContext } from "./InvestmentsHeaderContext";
+import { PaperTradingHeaderContext } from "./PaperTradingHeaderContext";
 
-export default function InvestmentsLayout({ children }) {
+export default function PaperTradingLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile } = useUser();
   const [portfolioName, setPortfolioName] = useState(null);
   const [headerActions, setHeaderActions] = useState({
-    onConnectClick: null,
+    onCreateClick: null,
     onSettingsClick: null,
   });
 
   // Extract portfolio ID from pathname if we're on a detail page
-  // Exclude "backtest" route from being treated as a portfolio ID
-  const portfolioIdMatch = pathname?.match(/\/investments\/([^/]+)/)?.[1];
-  const portfolioId = portfolioIdMatch && portfolioIdMatch !== 'backtest' ? portfolioIdMatch : null;
-  const isBacktestPage = portfolioIdMatch === 'backtest';
+  // Handle both /paper-trading/[portfolio_id] and /paper-trading/arbitrage/[portfolio_id]
+  // Exclude "backtest" and "arbitrage" from being treated as portfolio IDs
+  const pathSegments = pathname?.split('/').filter(Boolean) || [];
+  const paperTradingIdx = pathSegments.indexOf('paper-trading');
+
+  let portfolioId = null;
+  let isBacktestPage = false;
+  let isArbitragePage = false;
+
+  if (paperTradingIdx !== -1) {
+    const nextSegment = pathSegments[paperTradingIdx + 1];
+
+    if (nextSegment === 'backtest') {
+      isBacktestPage = true;
+    } else if (nextSegment === 'arbitrage') {
+      isArbitragePage = true;
+      // Portfolio ID is the segment after 'arbitrage'
+      const arbitragePortfolioId = pathSegments[paperTradingIdx + 2];
+      if (arbitragePortfolioId) {
+        portfolioId = arbitragePortfolioId;
+      }
+    } else if (nextSegment && nextSegment !== 'paper-trading') {
+      // Regular portfolio ID (UUID format)
+      portfolioId = nextSegment;
+    }
+  }
+
   const isDetailPage = !!portfolioId || isBacktestPage;
 
   // Fetch portfolio name for detail pages
@@ -55,7 +78,7 @@ export default function InvestmentsLayout({ children }) {
   }, [portfolioId, profile?.id]);
 
   return (
-    <InvestmentsHeaderContext.Provider value={{ setHeaderActions }}>
+    <PaperTradingHeaderContext.Provider value={{ setHeaderActions }}>
       <PageContainer padding="pb-6">
         {/* Persistent Header */}
         <div className="flex items-center justify-between mb-6">
@@ -63,10 +86,10 @@ export default function InvestmentsLayout({ children }) {
             {isDetailPage ? (
               <>
                 <button
-                  onClick={() => router.push('/investments')}
+                  onClick={() => router.push('/paper-trading')}
                   className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
                 >
-                  Portfolios
+                  Paper Trading
                 </button>
                 <LuChevronRight className="w-3.5 h-3.5 text-[var(--color-border)]" />
                 {isBacktestPage ? (
@@ -79,7 +102,7 @@ export default function InvestmentsLayout({ children }) {
               </>
             ) : (
               <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
-                Portfolio
+                Paper Trading
               </h1>
             )}
           </div>
@@ -93,15 +116,15 @@ export default function InvestmentsLayout({ children }) {
                 <LuSettings className="w-4 h-4" />
               </button>
             )}
-            {!isDetailPage && headerActions.onConnectClick && (
+            {!isDetailPage && headerActions.onCreateClick && (
               <Button
                 size="sm"
                 variant="matte"
-                onClick={headerActions.onConnectClick}
+                onClick={headerActions.onCreateClick}
                 className="gap-1.5 !rounded-full pl-3 pr-4"
               >
                 <LuPlus className="w-3.5 h-3.5" />
-                Connect
+                New Portfolio
               </Button>
             )}
           </div>
@@ -110,6 +133,6 @@ export default function InvestmentsLayout({ children }) {
         {/* Content */}
         {children}
       </PageContainer>
-    </InvestmentsHeaderContext.Provider>
+    </PaperTradingHeaderContext.Provider>
   );
 }
