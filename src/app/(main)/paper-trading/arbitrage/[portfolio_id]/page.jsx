@@ -8,14 +8,16 @@ import {
   LuZap,
   LuTerminal,
   LuCircle,
+  LuTrendingUp,
+  LuTrendingDown,
 } from "react-icons/lu";
 import { useUser } from "../../../../../components/UserProvider";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
 import { CardSkeleton } from "../../../../../components/ui/Skeleton";
 
-// Coinbase WebSocket URL
-const COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com";
+// Polling interval (5 seconds)
+const POLL_INTERVAL = 5000;
 
 // Animated price component with shake effect on update
 const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) => {
@@ -72,25 +74,65 @@ const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) =>
   );
 };
 
-// Exchange info with logos
+// Exchange info with logos and API endpoints
 const EXCHANGE_INFO = {
   coinbase: {
     name: 'Coinbase',
     short: 'CB',
     logo: 'https://assets.coingecko.com/markets/images/23/small/Coinbase_Coin_Primary.png',
-    color: '#0052FF'
+    color: '#0052FF',
+    // Coinbase API: /v2/prices/{symbol}-USD/spot
+    fetchPrice: async (symbol) => {
+      try {
+        const res = await fetch(`https://api.coinbase.com/v2/prices/${symbol}-USD/spot`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return parseFloat(data.data.amount);
+      } catch {
+        return null;
+      }
+    },
   },
   binance: {
     name: 'Binance',
     short: 'BIN',
     logo: 'https://assets.coingecko.com/markets/images/52/small/binance.jpg',
-    color: '#F0B90B'
+    color: '#F0B90B',
+    // Binance API: /api/v3/ticker/price?symbol={symbol}USDT
+    fetchPrice: async (symbol) => {
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return parseFloat(data.price);
+      } catch {
+        return null;
+      }
+    },
   },
   kraken: {
     name: 'Kraken',
     short: 'KRK',
     logo: 'https://assets.coingecko.com/markets/images/29/small/kraken.jpg',
-    color: '#5741D9'
+    color: '#5741D9',
+    // Kraken API: /0/public/Ticker?pair={symbol}USD
+    fetchPrice: async (symbol) => {
+      try {
+        // Kraken uses different symbols for some cryptos
+        const krakenSymbol = symbol === 'BTC' ? 'XBT' : symbol;
+        const pair = `${krakenSymbol}USD`;
+        const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.error && data.error.length > 0) return null;
+        // Kraken returns prices in result object with pair as key
+        const resultKey = Object.keys(data.result)[0];
+        if (!resultKey) return null;
+        return parseFloat(data.result[resultKey].c[0]); // 'c' is last trade closed [price, volume]
+      } catch {
+        return null;
+      }
+    },
   },
 };
 
@@ -147,8 +189,8 @@ const formatPrice = (amount, decimals = 2) => {
   });
 };
 
-// Terminal log entry
-const TerminalEntry = ({ timestamp, crypto, price, direction }) => {
+// Terminal log entry - shows arbitrage opportunity
+const TerminalEntry = ({ timestamp, crypto, exchanges, spread, spreadPercent }) => {
   const timeStr = new Date(timestamp).toLocaleTimeString('en-US', {
     hour12: false,
     hour: '2-digit',
@@ -157,22 +199,24 @@ const TerminalEntry = ({ timestamp, crypto, price, direction }) => {
   });
 
   const cryptoInfo = CRYPTO_INFO[crypto];
+  const lowExchange = EXCHANGE_INFO[exchanges.low];
+  const highExchange = EXCHANGE_INFO[exchanges.high];
 
   return (
-    <div className="font-mono text-xs leading-relaxed flex items-center gap-2 py-0.5">
+    <div className="font-mono text-xs leading-relaxed flex items-center gap-2 py-0.5 flex-wrap">
       <span className="text-[var(--color-muted)] opacity-60">{timeStr}</span>
       {cryptoInfo?.logo && (
         <img src={cryptoInfo.logo} alt={crypto} className="w-4 h-4 rounded-full" />
       )}
       <span className="text-blue-500 dark:text-blue-400 w-12">{crypto}</span>
-      <span className={direction === 'up' ? 'text-emerald-500' : direction === 'down' ? 'text-rose-500' : 'text-[var(--color-fg)]'}>
-        ${formatPrice(price)}
+      <span className="text-[var(--color-muted)]">buy</span>
+      <span style={{ color: lowExchange?.color }}>{lowExchange?.short}</span>
+      <span className="text-[var(--color-muted)]">→</span>
+      <span className="text-[var(--color-muted)]">sell</span>
+      <span style={{ color: highExchange?.color }}>{highExchange?.short}</span>
+      <span className={spreadPercent >= 0.5 ? 'text-emerald-500' : spreadPercent >= 0.1 ? 'text-amber-500' : 'text-[var(--color-muted)]'}>
+        +{spreadPercent.toFixed(3)}%
       </span>
-      {direction && (
-        <span className={direction === 'up' ? 'text-emerald-500' : 'text-rose-500'}>
-          {direction === 'up' ? '▲' : '▼'}
-        </span>
-      )}
     </div>
   );
 };
@@ -184,15 +228,16 @@ export default function ArbitragePortfolioPage() {
   const { setHeaderActions } = usePaperTradingHeader();
   const portfolioId = params.portfolio_id;
   const terminalRef = useRef(null);
-  const wsRef = useRef(null);
   const prevPricesRef = useRef({});
+  const pollIntervalRef = useRef(null);
 
   const [portfolio, setPortfolio] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
-  const [prices, setPrices] = useState({});
+  const [prices, setPrices] = useState({}); // { BTC: { coinbase: 100000, binance: 100050, kraken: 99980 }, ... }
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [tickCount, setTickCount] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   // Fetch initial portfolio data
   useEffect(() => {
@@ -219,91 +264,87 @@ export default function ArbitragePortfolioPage() {
     fetchPortfolio();
   }, [portfolioId, profile?.id, router]);
 
-  // Connect to Coinbase WebSocket for live prices
+  // Poll prices from multiple exchanges
   useEffect(() => {
     if (!portfolio) return;
 
     const cryptos = portfolio.crypto_assets || [];
-    if (cryptos.length === 0) return;
+    const exchanges = portfolio.metadata?.exchanges || [];
+    if (cryptos.length === 0 || exchanges.length === 0) return;
 
-    // Map crypto symbols to Coinbase product IDs
-    const productIds = cryptos
-      .map(crypto => CRYPTO_INFO[crypto]?.productId)
-      .filter(Boolean);
-
-    if (productIds.length === 0) return;
-
-    console.log('[WS] Connecting to Coinbase WebSocket...');
-    setConnectionStatus('connecting');
-
-    const ws = new WebSocket(COINBASE_WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('[WS] Connected! Subscribing to:', productIds);
+    const fetchAllPrices = async () => {
+      console.log('[POLL] Fetching prices from exchanges...');
       setConnectionStatus('connected');
 
-      const subscribeMsg = {
-        type: 'subscribe',
-        product_ids: productIds,
-        channels: ['ticker'],
-      };
-      ws.send(JSON.stringify(subscribeMsg));
-    };
+      const newPrices = {};
+      const opportunities = [];
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      // Fetch prices for each crypto from each exchange
+      await Promise.all(
+        cryptos.map(async (crypto) => {
+          newPrices[crypto] = {};
 
-      if (data.type === 'ticker') {
-        const { product_id, price } = data;
-        const numPrice = parseFloat(price);
-        const crypto = product_id.replace('-USD', '');
+          await Promise.all(
+            exchanges.map(async (exchangeKey) => {
+              const exchange = EXCHANGE_INFO[exchangeKey];
+              if (exchange?.fetchPrice) {
+                const price = await exchange.fetchPrice(crypto);
+                if (price !== null) {
+                  newPrices[crypto][exchangeKey] = price;
+                }
+              }
+            })
+          );
 
-        // Determine price direction
-        const prevPrice = prevPricesRef.current[crypto];
-        const direction = prevPrice ? (numPrice > prevPrice ? 'up' : numPrice < prevPrice ? 'down' : null) : null;
-        prevPricesRef.current[crypto] = numPrice;
+          // Calculate arbitrage opportunity for this crypto
+          const exchangePrices = Object.entries(newPrices[crypto]).filter(([_, p]) => p !== null);
+          if (exchangePrices.length >= 2) {
+            const sorted = exchangePrices.sort((a, b) => a[1] - b[1]);
+            const [lowExchange, lowPrice] = sorted[0];
+            const [highExchange, highPrice] = sorted[sorted.length - 1];
+            const spread = highPrice - lowPrice;
+            const spreadPercent = (spread / lowPrice) * 100;
 
-        console.log(`[PRICE] ${crypto}: $${numPrice.toLocaleString()}`);
+            if (spreadPercent > 0) {
+              opportunities.push({
+                id: `${crypto}-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                crypto,
+                exchanges: { low: lowExchange, high: highExchange },
+                lowPrice,
+                highPrice,
+                spread,
+                spreadPercent,
+              });
+            }
+          }
+        })
+      );
 
-        // Update prices state
-        setPrices(prev => ({
-          ...prev,
-          [crypto]: numPrice,
-        }));
+      console.log('[POLL] Prices fetched:', newPrices);
+      console.log('[POLL] Opportunities:', opportunities);
 
-        // Add to terminal logs
-        setTerminalLogs(prev => [{
-          id: `${crypto}-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          crypto,
-          price: numPrice,
-          direction,
-        }, ...prev].slice(0, 50));
+      setPrices(newPrices);
+      setLastUpdate(new Date());
+      setTickCount(c => c + 1);
 
-        setTickCount(c => c + 1);
-      } else if (data.type === 'subscriptions') {
-        console.log('[WS] Subscribed to channels:', data.channels);
-      } else if (data.type === 'error') {
-        console.error('[WS] Error:', data.message);
+      // Add opportunities to terminal log
+      if (opportunities.length > 0) {
+        setTerminalLogs(prev => [...opportunities, ...prev].slice(0, 50));
       }
     };
 
-    ws.onerror = (error) => {
-      console.error('[WS] WebSocket error:', error);
-      setConnectionStatus('error');
-    };
+    // Fetch immediately
+    fetchAllPrices();
 
-    ws.onclose = (event) => {
-      console.log('[WS] Disconnected. Code:', event.code);
-      setConnectionStatus('disconnected');
-    };
+    // Set up polling interval
+    pollIntervalRef.current = setInterval(fetchAllPrices, POLL_INTERVAL);
 
     // Cleanup on unmount
     return () => {
-      console.log('[WS] Cleaning up WebSocket connection');
-      if (wsRef.current) {
-        wsRef.current.close();
+      console.log('[POLL] Cleaning up polling interval');
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
     };
   }, [portfolio]);
@@ -356,35 +397,49 @@ export default function ArbitragePortfolioPage() {
           <span className="ml-2 text-[var(--color-fg)]">{cryptos.length}</span>
         </div>
         <div>
-          <span className="text-[var(--color-muted)]">Ticks</span>
+          <span className="text-[var(--color-muted)]">Updates</span>
           <span className="ml-2 text-[var(--color-fg)] tabular-nums">{tickCount}</span>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
           <LuCircle className={`w-2 h-2 ${
             connectionStatus === 'connected'
-              ? 'text-emerald-500 fill-emerald-500 animate-pulse'
+              ? 'text-emerald-500 fill-emerald-500'
               : connectionStatus === 'connecting'
               ? 'text-amber-500 fill-amber-500 animate-pulse'
               : 'text-zinc-400'
           }`} />
           <span>
-            {connectionStatus === 'connected' ? 'Live' :
-             connectionStatus === 'connecting' ? 'Connecting...' :
-             'Disconnected'}
+            {connectionStatus === 'connected'
+              ? `Live • ${lastUpdate ? lastUpdate.toLocaleTimeString() : '...'}`
+              : connectionStatus === 'connecting'
+              ? 'Fetching...'
+              : 'Disconnected'}
           </span>
         </div>
       </div>
 
-      {/* Price Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Price Grid - Multi-Exchange */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {cryptos.map((crypto) => {
           const cryptoInfo = CRYPTO_INFO[crypto];
-          const price = prices[crypto];
+          const cryptoPrices = prices[crypto] || {};
+          const exchangePrices = exchanges
+            .map(ex => ({ exchange: ex, price: cryptoPrices[ex] }))
+            .filter(ep => ep.price !== null && ep.price !== undefined);
+
+          // Find min/max for highlighting
+          const priceValues = exchangePrices.map(ep => ep.price);
+          const minPrice = Math.min(...priceValues);
+          const maxPrice = Math.max(...priceValues);
+          const spread = maxPrice - minPrice;
+          const spreadPercent = minPrice > 0 ? (spread / minPrice) * 100 : 0;
+          const decimals = crypto === 'DOGE' || crypto === 'XRP' || crypto === 'ADA' ? 4 : 2;
 
           return (
             <Card key={crypto} variant="glass" padding="none" className="overflow-hidden">
-              <div className="px-4 py-3 flex items-center justify-between">
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-[var(--color-border)]/20 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {cryptoInfo?.logo && (
                     <img src={cryptoInfo.logo} alt={crypto} className="w-8 h-8 rounded-full" />
@@ -394,23 +449,58 @@ export default function ArbitragePortfolioPage() {
                     <div className="text-xs text-[var(--color-muted)]">{cryptoInfo?.name}</div>
                   </div>
                 </div>
-                <AnimatedPrice
-                  value={price}
-                  className="text-lg font-mono tabular-nums text-[var(--color-fg)]"
-                  decimals={crypto === 'DOGE' || crypto === 'XRP' || crypto === 'ADA' ? 4 : 2}
-                />
+                {spreadPercent > 0 && (
+                  <div className={`text-xs font-mono px-2 py-1 rounded ${
+                    spreadPercent >= 0.5 ? 'bg-emerald-500/20 text-emerald-500' :
+                    spreadPercent >= 0.1 ? 'bg-amber-500/20 text-amber-500' :
+                    'bg-zinc-500/20 text-[var(--color-muted)]'
+                  }`}>
+                    {spreadPercent >= 0.1 ? <LuTrendingUp className="inline w-3 h-3 mr-1" /> : null}
+                    {spreadPercent.toFixed(3)}% spread
+                  </div>
+                )}
+              </div>
+
+              {/* Exchange Prices */}
+              <div className="px-4 py-2 space-y-1">
+                {exchanges.map((exchangeKey) => {
+                  const exchange = EXCHANGE_INFO[exchangeKey];
+                  const price = cryptoPrices[exchangeKey];
+                  const isMin = price === minPrice && exchangePrices.length > 1;
+                  const isMax = price === maxPrice && exchangePrices.length > 1;
+
+                  return (
+                    <div key={exchangeKey} className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-2">
+                        {exchange?.logo && (
+                          <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
+                        )}
+                        <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
+                        {isMin && <span className="text-[10px] px-1 rounded bg-emerald-500/20 text-emerald-500">BUY</span>}
+                        {isMax && <span className="text-[10px] px-1 rounded bg-rose-500/20 text-rose-500">SELL</span>}
+                      </div>
+                      <AnimatedPrice
+                        value={price}
+                        className={`text-sm font-mono tabular-nums ${
+                          isMin ? 'text-emerald-500' : isMax ? 'text-rose-500' : 'text-[var(--color-fg)]'
+                        }`}
+                        decimals={decimals}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           );
         })}
       </div>
 
-      {/* Terminal Feed */}
+      {/* Terminal Feed - Arbitrage Opportunities */}
       <Card variant="glass" padding="none" className="overflow-hidden">
         <div className="px-4 py-2.5 border-b border-[var(--color-border)]/20 flex items-center gap-2">
           <LuTerminal className="w-3.5 h-3.5 text-[var(--color-muted)]" />
-          <span className="text-sm text-[var(--color-fg)]">Live Price Feed</span>
-          <span className="text-xs text-[var(--color-muted)]">— Coinbase WebSocket</span>
+          <span className="text-sm text-[var(--color-fg)]">Arbitrage Opportunities</span>
+          <span className="text-xs text-[var(--color-muted)]">— polling every {POLL_INTERVAL / 1000}s</span>
         </div>
         <div
           ref={terminalRef}
@@ -418,8 +508,8 @@ export default function ArbitragePortfolioPage() {
         >
           {terminalLogs.length === 0 ? (
             <div className="text-xs text-[var(--color-muted)] font-mono">
-              $ {connectionStatus === 'connecting' ? 'connecting to price stream...' :
-                 connectionStatus === 'connected' ? 'waiting for price updates...' :
+              $ {connectionStatus === 'connecting' ? 'fetching prices from exchanges...' :
+                 connectionStatus === 'connected' ? 'waiting for arbitrage opportunities...' :
                  'disconnected'}
             </div>
           ) : (
