@@ -87,9 +87,9 @@ class MarketDataEngine {
     // Set up trading interval (every 5 minutes, when 5m candles close)
     this.startTradingInterval();
 
-    // Start arbitrage price fetcher (fetches multi-exchange prices every 10 seconds)
+    // Start arbitrage price fetcher (fetches multi-exchange prices every 15 seconds)
     this.arbitrageFetcher = new ArbitragePriceFetcher(this.storage.getClient());
-    await this.arbitrageFetcher.start(10000);
+    await this.arbitrageFetcher.start(15000);
 
     // Set up WebSocket feed
     this.feed = new CoinbaseFeed(this.config, {
