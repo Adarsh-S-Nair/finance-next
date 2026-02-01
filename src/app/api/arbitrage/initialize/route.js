@@ -147,7 +147,7 @@ export async function POST(request) {
     }
 
     // Create initial snapshot
-    const { error: snapshotError } = await supabase
+    const { data: snapshotData, error: snapshotError } = await supabase
       .from('portfolio_snapshots')
       .insert({
         portfolio_id: portfolio.id,
@@ -155,10 +155,14 @@ export async function POST(request) {
         cash: startingCapital,
         holdings_value: 0,
         snapshot_date: new Date().toISOString().split('T')[0],
-      });
+      })
+      .select()
+      .single();
 
     if (snapshotError) {
-      console.warn('Could not create snapshot:', snapshotError.message);
+      console.error('❌ Failed to create initial snapshot:', snapshotError.message);
+    } else {
+      console.log(`✅ Created initial snapshot: $${startingCapital.toLocaleString()} on ${snapshotData.snapshot_date}`);
     }
 
     console.log('========================================');

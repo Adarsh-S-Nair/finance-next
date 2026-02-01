@@ -418,9 +418,26 @@ export async function POST(request) {
         
         const ticker = securityInfo.ticker || holding.security_id;
         const tickerUpper = ticker.toUpperCase();
-        const quantity = parseFloat(holding.quantity) || 0;
+
+        // Prefer vested_quantity for equities (RSUs) - falls back to quantity if not available
+        // E*TRADE and other brokers may provide vested_quantity for equity compensation
+        const quantity = holding.vested_quantity != null
+          ? parseFloat(holding.vested_quantity)
+          : (parseFloat(holding.quantity) || 0);
+
+        if (DEBUG && holding.vested_quantity != null) {
+          console.log(`  📊 ${tickerUpper}: Using vested_quantity (${holding.vested_quantity}) instead of total quantity (${holding.quantity})`);
+        }
+
         const costBasis = parseFloat(holding.cost_basis) || 0;
-        const institutionValue = parseFloat(holding.institution_value) || 0;
+        // Prefer vested_value for equities (RSUs) when available
+        const institutionValue = holding.vested_value != null
+          ? parseFloat(holding.vested_value)
+          : (parseFloat(holding.institution_value) || 0);
+
+        if (DEBUG && holding.vested_value != null) {
+          console.log(`  💰 ${tickerUpper}: Using vested_value ($${holding.vested_value}) instead of total value ($${holding.institution_value})`);
+        }
         
         // Also check if ticker itself is a known crypto (in case Plaid misclassified)
         const isCryptoBySymbol = isKnownCryptoTicker(tickerUpper);

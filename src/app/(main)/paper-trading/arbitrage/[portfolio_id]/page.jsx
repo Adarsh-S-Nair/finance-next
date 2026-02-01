@@ -1,42 +1,35 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Card from "../../../../../components/ui/Card";
+import LineChart from "../../../../../components/ui/LineChart";
 import {
   LuArrowRight,
-  LuZap,
-  LuTerminal,
   LuCircle,
   LuTrendingUp,
-  LuTrendingDown,
+  LuRefreshCw,
 } from "react-icons/lu";
 import { useUser } from "../../../../../components/UserProvider";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
-import { CardSkeleton } from "../../../../../components/ui/Skeleton";
+import { CardSkeleton, ChartSkeleton } from "../../../../../components/ui/Skeleton";
 
 // Polling interval (5 seconds)
 const POLL_INTERVAL = 5000;
 
-// Animated price component with shake effect on update
+// Animated price component with smooth transitions
 const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) => {
   const [displayValue, setDisplayValue] = useState(value);
-  const [animate, setAnimate] = useState(false);
   const [direction, setDirection] = useState(null);
   const prevValueRef = useRef(value);
 
   useEffect(() => {
     if (value !== prevValueRef.current && prevValueRef.current !== null && value !== null) {
-      const isUp = value > prevValueRef.current;
-      setDirection(isUp ? 'up' : 'down');
-      setAnimate(true);
+      setDirection(value > prevValueRef.current ? 'up' : 'down');
       setDisplayValue(value);
 
-      const timer = setTimeout(() => {
-        setAnimate(false);
-        setDirection(null);
-      }, 500);
+      const timer = setTimeout(() => setDirection(null), 600);
       prevValueRef.current = value;
       return () => clearTimeout(timer);
     }
@@ -55,129 +48,72 @@ const AnimatedPrice = ({ value, prefix = "$", decimals = 2, className = "" }) =>
     <span
       className={`
         ${className}
-        inline-block
-        transition-all duration-150
-        ${animate ? 'animate-price-shake' : ''}
+        inline-block transition-all duration-200
         ${direction === 'up' ? 'text-emerald-500' : ''}
         ${direction === 'down' ? 'text-rose-500' : ''}
       `}
-      style={{
-        textShadow: direction === 'up'
-          ? '0 0 12px rgba(16, 185, 129, 0.6)'
-          : direction === 'down'
-          ? '0 0 12px rgba(244, 63, 94, 0.6)'
-          : 'none',
-      }}
     >
       {formatted}
     </span>
   );
 };
 
-// Exchange info with logos and API endpoints
+// Exchange info with logos and colors
 const EXCHANGE_INFO = {
   coinbase: {
     name: 'Coinbase',
     short: 'CB',
     logo: 'https://assets.coingecko.com/markets/images/23/small/Coinbase_Coin_Primary.png',
     color: '#0052FF',
-    // Coinbase API: /v2/prices/{symbol}-USD/spot
-    fetchPrice: async (symbol) => {
-      try {
-        const res = await fetch(`https://api.coinbase.com/v2/prices/${symbol}-USD/spot`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return parseFloat(data.data.amount);
-      } catch {
-        return null;
-      }
-    },
+    bgColor: 'rgba(0, 82, 255, 0.1)',
   },
   binance: {
     name: 'Binance',
     short: 'BIN',
     logo: 'https://assets.coingecko.com/markets/images/52/small/binance.jpg',
     color: '#F0B90B',
-    // Binance API: /api/v3/ticker/price?symbol={symbol}USDT
-    fetchPrice: async (symbol) => {
-      try {
-        const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return parseFloat(data.price);
-      } catch {
-        return null;
-      }
-    },
+    bgColor: 'rgba(240, 185, 11, 0.1)',
   },
   kraken: {
     name: 'Kraken',
     short: 'KRK',
     logo: 'https://assets.coingecko.com/markets/images/29/small/kraken.jpg',
     color: '#5741D9',
-    // Kraken API: /0/public/Ticker?pair={symbol}USD
-    fetchPrice: async (symbol) => {
-      try {
-        // Kraken uses different symbols for some cryptos
-        const krakenSymbol = symbol === 'BTC' ? 'XBT' : symbol;
-        const pair = `${krakenSymbol}USD`;
-        const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.error && data.error.length > 0) return null;
-        // Kraken returns prices in result object with pair as key
-        const resultKey = Object.keys(data.result)[0];
-        if (!resultKey) return null;
-        return parseFloat(data.result[resultKey].c[0]); // 'c' is last trade closed [price, volume]
-      } catch {
-        return null;
-      }
-    },
+    bgColor: 'rgba(87, 65, 217, 0.1)',
+  },
+  kucoin: {
+    name: 'KuCoin',
+    short: 'KC',
+    logo: 'https://assets.coingecko.com/markets/images/61/small/kucoin.png',
+    color: '#23AF91',
+    bgColor: 'rgba(35, 175, 145, 0.1)',
+  },
+  bybit: {
+    name: 'Bybit',
+    short: 'BB',
+    logo: 'https://assets.coingecko.com/markets/images/698/small/bybit_spot.png',
+    color: '#F7A600',
+    bgColor: 'rgba(247, 166, 0, 0.1)',
+  },
+  okx: {
+    name: 'OKX',
+    short: 'OKX',
+    logo: 'https://assets.coingecko.com/markets/images/96/small/WeChat_Image_20220117220452.png',
+    color: '#FFFFFF',
+    bgColor: 'rgba(255, 255, 255, 0.1)',
   },
 };
 
 // Crypto info with logos
 const CRYPTO_INFO = {
-  BTC: {
-    name: 'Bitcoin',
-    logo: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
-    productId: 'BTC-USD',
-  },
-  ETH: {
-    name: 'Ethereum',
-    logo: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
-    productId: 'ETH-USD',
-  },
-  SOL: {
-    name: 'Solana',
-    logo: 'https://assets.coingecko.com/coins/images/4128/small/solana.png',
-    productId: 'SOL-USD',
-  },
-  XRP: {
-    name: 'XRP',
-    logo: 'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png',
-    productId: 'XRP-USD',
-  },
-  DOGE: {
-    name: 'Dogecoin',
-    logo: 'https://assets.coingecko.com/coins/images/5/small/dogecoin.png',
-    productId: 'DOGE-USD',
-  },
-  ADA: {
-    name: 'Cardano',
-    logo: 'https://assets.coingecko.com/coins/images/975/small/cardano.png',
-    productId: 'ADA-USD',
-  },
-  AVAX: {
-    name: 'Avalanche',
-    logo: 'https://assets.coingecko.com/coins/images/12559/small/Avalanche_Circle_RedWhite_Trans.png',
-    productId: 'AVAX-USD',
-  },
-  LINK: {
-    name: 'Chainlink',
-    logo: 'https://assets.coingecko.com/coins/images/877/small/chainlink-new-logo.png',
-    productId: 'LINK-USD',
-  },
+  BTC: { name: 'Bitcoin', logo: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png' },
+  ETH: { name: 'Ethereum', logo: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png' },
+  SOL: { name: 'Solana', logo: 'https://assets.coingecko.com/coins/images/4128/small/solana.png' },
+  XRP: { name: 'XRP', logo: 'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png' },
+  DOGE: { name: 'Dogecoin', logo: 'https://assets.coingecko.com/coins/images/5/small/dogecoin.png' },
+  ADA: { name: 'Cardano', logo: 'https://assets.coingecko.com/coins/images/975/small/cardano.png' },
+  AVAX: { name: 'Avalanche', logo: 'https://assets.coingecko.com/coins/images/12559/small/Avalanche_Circle_RedWhite_Trans.png' },
+  LINK: { name: 'Chainlink', logo: 'https://assets.coingecko.com/coins/images/877/small/chainlink-new-logo.png' },
 };
 
 // Format price
@@ -189,38 +125,6 @@ const formatPrice = (amount, decimals = 2) => {
   });
 };
 
-// Terminal log entry - shows arbitrage opportunity
-const TerminalEntry = ({ timestamp, crypto, exchanges, spread, spreadPercent }) => {
-  const timeStr = new Date(timestamp).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const cryptoInfo = CRYPTO_INFO[crypto];
-  const lowExchange = EXCHANGE_INFO[exchanges.low];
-  const highExchange = EXCHANGE_INFO[exchanges.high];
-
-  return (
-    <div className="font-mono text-xs leading-relaxed flex items-center gap-2 py-0.5 flex-wrap">
-      <span className="text-[var(--color-muted)] opacity-60">{timeStr}</span>
-      {cryptoInfo?.logo && (
-        <img src={cryptoInfo.logo} alt={crypto} className="w-4 h-4 rounded-full" />
-      )}
-      <span className="text-blue-500 dark:text-blue-400 w-12">{crypto}</span>
-      <span className="text-[var(--color-muted)]">buy</span>
-      <span style={{ color: lowExchange?.color }}>{lowExchange?.short}</span>
-      <span className="text-[var(--color-muted)]">→</span>
-      <span className="text-[var(--color-muted)]">sell</span>
-      <span style={{ color: highExchange?.color }}>{highExchange?.short}</span>
-      <span className={spreadPercent >= 0.5 ? 'text-emerald-500' : spreadPercent >= 0.1 ? 'text-amber-500' : 'text-[var(--color-muted)]'}>
-        +{spreadPercent.toFixed(3)}%
-      </span>
-    </div>
-  );
-};
-
 export default function ArbitragePortfolioPage() {
   const params = useParams();
   const router = useRouter();
@@ -228,43 +132,128 @@ export default function ArbitragePortfolioPage() {
   const { setHeaderActions } = usePaperTradingHeader();
   const portfolioId = params.portfolio_id;
   const terminalRef = useRef(null);
-  const prevPricesRef = useRef({});
   const pollIntervalRef = useRef(null);
 
   const [portfolio, setPortfolio] = useState(null);
+  const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
-  const [prices, setPrices] = useState({}); // { BTC: { coinbase: 100000, binance: 100050, kraken: 99980 }, ... }
+  const [prices, setPrices] = useState({});
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [tickCount, setTickCount] = useState(0);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [activeChartIndex, setActiveChartIndex] = useState(null);
+  const [timeRange, setTimeRange] = useState('ALL');
 
-  // Fetch initial portfolio data
+  // Check if user prefers dark mode
+  const isDarkMode = profile?.theme === 'dark';
+
+  // Fetch initial portfolio data and snapshots
   useEffect(() => {
     if (!portfolioId || !profile?.id) return;
 
-    const fetchPortfolio = async () => {
-      const { data, error } = await supabase
+    const fetchPortfolioData = async () => {
+      // Fetch portfolio
+      const { data: portfolioData, error: portfolioError } = await supabase
         .from('portfolios')
         .select('*')
         .eq('id', portfolioId)
         .eq('user_id', profile.id)
         .single();
 
-      if (error) {
-        console.error('Error fetching portfolio:', error);
+      if (portfolioError) {
+        console.error('Error fetching portfolio:', portfolioError);
         router.push('/paper-trading');
         return;
       }
 
-      setPortfolio(data);
+      setPortfolio(portfolioData);
+
+      // Fetch snapshots
+      const { data: snapshotsData, error: snapshotsError } = await supabase
+        .from('portfolio_snapshots')
+        .select('*')
+        .eq('portfolio_id', portfolioId)
+        .order('snapshot_date', { ascending: true });
+
+      if (!snapshotsError && snapshotsData) {
+        setSnapshots(snapshotsData);
+      }
+
       setLoading(false);
     };
 
-    fetchPortfolio();
+    fetchPortfolioData();
   }, [portfolioId, profile?.id, router]);
 
-  // Poll prices from multiple exchanges
+  // Prepare chart data from snapshots
+  const chartData = useMemo(() => {
+    if (!snapshots || snapshots.length === 0) return [];
+
+    return snapshots.map((snapshot) => ({
+      dateString: snapshot.snapshot_date,
+      value: parseFloat(snapshot.total_value) || 0,
+      date: new Date(snapshot.snapshot_date),
+    }));
+  }, [snapshots]);
+
+  // Filter chart data based on time range
+  const filteredChartData = useMemo(() => {
+    if (chartData.length === 0) return [];
+    if (timeRange === 'ALL') return chartData;
+
+    const now = new Date();
+    let startDate = new Date(now);
+
+    switch (timeRange) {
+      case '1W':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '1M':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '3M':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      default:
+        return chartData;
+    }
+
+    return chartData.filter((point) => point.date >= startDate);
+  }, [chartData, timeRange]);
+
+  // Calculate chart color based on performance
+  const chartColor = useMemo(() => {
+    if (filteredChartData.length < 2) return 'var(--color-accent)';
+    const first = filteredChartData[0].value;
+    const last = filteredChartData[filteredChartData.length - 1].value;
+    return last >= first ? '#10b981' : '#ef4444';
+  }, [filteredChartData]);
+
+  // Calculate performance metrics
+  const performanceMetrics = useMemo(() => {
+    if (!portfolio) {
+      return { currentValue: 0, change: 0, changePercent: 0 };
+    }
+
+    const startValue = parseFloat(portfolio.starting_capital) || 0;
+
+    // If no chart data, use current_cash as the current value
+    if (filteredChartData.length === 0) {
+      const currentValue = parseFloat(portfolio.current_cash) || startValue;
+      const change = currentValue - startValue;
+      const changePercent = startValue > 0 ? (change / startValue) * 100 : 0;
+      return { currentValue, change, changePercent };
+    }
+
+    const currentValue = filteredChartData[filteredChartData.length - 1]?.value || startValue;
+    const firstValue = filteredChartData[0]?.value || startValue;
+    const change = currentValue - firstValue;
+    const changePercent = firstValue > 0 ? (change / firstValue) * 100 : 0;
+    return { currentValue, change, changePercent };
+  }, [portfolio, filteredChartData]);
+
+  // Poll prices via server-side API (avoids CORS issues)
   useEffect(() => {
     if (!portfolio) return;
 
@@ -273,31 +262,27 @@ export default function ArbitragePortfolioPage() {
     if (cryptos.length === 0 || exchanges.length === 0) return;
 
     const fetchAllPrices = async () => {
-      console.log('[POLL] Fetching prices from exchanges...');
-      setConnectionStatus('connected');
+      try {
+        const res = await fetch(
+          `/api/arbitrage/exchange-prices?cryptos=${cryptos.join(',')}&exchanges=${exchanges.join(',')}`
+        );
 
-      const newPrices = {};
-      const opportunities = [];
+        if (!res.ok) {
+          setConnectionStatus('disconnected');
+          return;
+        }
 
-      // Fetch prices for each crypto from each exchange
-      await Promise.all(
-        cryptos.map(async (crypto) => {
-          newPrices[crypto] = {};
+        const data = await res.json();
+        setConnectionStatus('connected');
 
-          await Promise.all(
-            exchanges.map(async (exchangeKey) => {
-              const exchange = EXCHANGE_INFO[exchangeKey];
-              if (exchange?.fetchPrice) {
-                const price = await exchange.fetchPrice(crypto);
-                if (price !== null) {
-                  newPrices[crypto][exchangeKey] = price;
-                }
-              }
-            })
-          );
+        const newPrices = data.prices;
+        const opportunities = [];
 
-          // Calculate arbitrage opportunity for this crypto
-          const exchangePrices = Object.entries(newPrices[crypto]).filter(([_, p]) => p !== null);
+        // Calculate arbitrage opportunities
+        cryptos.forEach((crypto) => {
+          const cryptoPrices = newPrices[crypto] || {};
+          const exchangePrices = Object.entries(cryptoPrices).filter(([_, p]) => p !== null);
+
           if (exchangePrices.length >= 2) {
             const sorted = exchangePrices.sort((a, b) => a[1] - b[1]);
             const [lowExchange, lowPrice] = sorted[0];
@@ -307,42 +292,36 @@ export default function ArbitragePortfolioPage() {
 
             if (spreadPercent > 0) {
               opportunities.push({
-                id: `${crypto}-${Date.now()}`,
+                id: `${crypto}-${Date.now()}-${Math.random()}`,
                 timestamp: new Date().toISOString(),
                 crypto,
-                exchanges: { low: lowExchange, high: highExchange },
+                lowExchange,
+                highExchange,
                 lowPrice,
                 highPrice,
-                spread,
                 spreadPercent,
               });
             }
           }
-        })
-      );
+        });
 
-      console.log('[POLL] Prices fetched:', newPrices);
-      console.log('[POLL] Opportunities:', opportunities);
+        setPrices(newPrices);
+        setLastUpdate(new Date());
+        setTickCount(c => c + 1);
 
-      setPrices(newPrices);
-      setLastUpdate(new Date());
-      setTickCount(c => c + 1);
-
-      // Add opportunities to terminal log
-      if (opportunities.length > 0) {
-        setTerminalLogs(prev => [...opportunities, ...prev].slice(0, 50));
+        if (opportunities.length > 0) {
+          setTerminalLogs(prev => [...opportunities, ...prev].slice(0, 100));
+        }
+      } catch (error) {
+        console.error('Price fetch error:', error);
+        setConnectionStatus('disconnected');
       }
     };
 
-    // Fetch immediately
     fetchAllPrices();
-
-    // Set up polling interval
     pollIntervalRef.current = setInterval(fetchAllPrices, POLL_INTERVAL);
 
-    // Cleanup on unmount
     return () => {
-      console.log('[POLL] Cleaning up polling interval');
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
@@ -359,8 +338,16 @@ export default function ArbitragePortfolioPage() {
   if (loading || !portfolio) {
     return (
       <div className="space-y-6">
-        <CardSkeleton className="h-24" />
-        <CardSkeleton className="h-48" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
+            <ChartSkeleton className="h-80" />
+            <CardSkeleton className="h-64" />
+          </div>
+          <div className="space-y-3">
+            <CardSkeleton className="h-40" />
+            <CardSkeleton className="h-40" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -368,181 +355,356 @@ export default function ArbitragePortfolioPage() {
   const exchanges = portfolio.metadata?.exchanges || [];
   const cryptos = portfolio.crypto_assets || [];
 
+  // Format currency for display
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  // Time range options
+  const timeRanges = ['1W', '1M', '3M', 'ALL'];
+
   return (
     <div className="space-y-6">
-      {/* CSS for shake animation */}
-      <style jsx global>{`
-        @keyframes price-shake {
-          0%, 100% { transform: translateX(0); }
-          15%, 45%, 75% { transform: translateX(-3px); }
-          30%, 60%, 90% { transform: translateX(3px); }
-        }
-        .animate-price-shake {
-          animation: price-shake 0.3s ease-in-out;
-        }
-      `}</style>
-
-      {/* Stats Row */}
-      <div className="flex items-center gap-6 text-sm flex-wrap">
-        <div>
-          <span className="text-[var(--color-muted)]">Capital</span>
-          <span className="ml-2 text-[var(--color-fg)] tabular-nums">${formatPrice(portfolio.current_cash)}</span>
-        </div>
-        <div>
-          <span className="text-[var(--color-muted)]">Exchanges</span>
-          <span className="ml-2 text-[var(--color-fg)]">{exchanges.length}</span>
-        </div>
-        <div>
-          <span className="text-[var(--color-muted)]">Assets</span>
-          <span className="ml-2 text-[var(--color-fg)]">{cryptos.length}</span>
-        </div>
-        <div>
-          <span className="text-[var(--color-muted)]">Updates</span>
-          <span className="ml-2 text-[var(--color-fg)] tabular-nums">{tickCount}</span>
-        </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-          <LuCircle className={`w-2 h-2 ${
-            connectionStatus === 'connected'
-              ? 'text-emerald-500 fill-emerald-500'
-              : connectionStatus === 'connecting'
-              ? 'text-amber-500 fill-amber-500 animate-pulse'
-              : 'text-zinc-400'
-          }`} />
-          <span>
-            {connectionStatus === 'connected'
-              ? `Live • ${lastUpdate ? lastUpdate.toLocaleTimeString() : '...'}`
-              : connectionStatus === 'connecting'
-              ? 'Fetching...'
-              : 'Disconnected'}
-          </span>
-        </div>
-      </div>
-
-      {/* Price Grid - Multi-Exchange */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {cryptos.map((crypto) => {
-          const cryptoInfo = CRYPTO_INFO[crypto];
-          const cryptoPrices = prices[crypto] || {};
-          const exchangePrices = exchanges
-            .map(ex => ({ exchange: ex, price: cryptoPrices[ex] }))
-            .filter(ep => ep.price !== null && ep.price !== undefined);
-
-          // Find min/max for highlighting
-          const priceValues = exchangePrices.map(ep => ep.price);
-          const minPrice = Math.min(...priceValues);
-          const maxPrice = Math.max(...priceValues);
-          const spread = maxPrice - minPrice;
-          const spreadPercent = minPrice > 0 ? (spread / minPrice) * 100 : 0;
-          const decimals = crypto === 'DOGE' || crypto === 'XRP' || crypto === 'ADA' ? 4 : 2;
-
-          return (
-            <Card key={crypto} variant="glass" padding="none" className="overflow-hidden">
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-[var(--color-border)]/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {cryptoInfo?.logo && (
-                    <img src={cryptoInfo.logo} alt={crypto} className="w-8 h-8 rounded-full" />
-                  )}
-                  <div>
-                    <div className="text-sm font-medium text-[var(--color-fg)]">{crypto}</div>
-                    <div className="text-xs text-[var(--color-muted)]">{cryptoInfo?.name}</div>
+      {/* Main Grid Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left Column - Chart and Terminal */}
+        <div className="xl:col-span-2 space-y-6">
+          {/* Portfolio Value Chart */}
+          <Card className="p-0 overflow-hidden">
+            {/* Chart Header */}
+            <div className="px-6 pt-5 pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-2xl font-semibold tabular-nums">
+                    {formatCurrency(performanceMetrics.currentValue)}
+                  </div>
+                  <div className={`text-sm font-medium ${
+                    performanceMetrics.change >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                  }`}>
+                    {performanceMetrics.change >= 0 ? '+' : ''}
+                    {formatCurrency(performanceMetrics.change)}
+                    {' '}
+                    ({performanceMetrics.changePercent >= 0 ? '+' : ''}
+                    {performanceMetrics.changePercent.toFixed(2)}%)
                   </div>
                 </div>
-                {spreadPercent > 0 && (
-                  <div className={`text-xs font-mono px-2 py-1 rounded ${
-                    spreadPercent >= 0.5 ? 'bg-emerald-500/20 text-emerald-500' :
-                    spreadPercent >= 0.1 ? 'bg-amber-500/20 text-amber-500' :
-                    'bg-zinc-500/20 text-[var(--color-muted)]'
-                  }`}>
-                    {spreadPercent >= 0.1 ? <LuTrendingUp className="inline w-3 h-3 mr-1" /> : null}
-                    {spreadPercent.toFixed(3)}% spread
+                <div className="flex items-center gap-4">
+                  {/* Connection Status */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <LuCircle className={`w-2 h-2 ${
+                      connectionStatus === 'connected'
+                        ? 'text-emerald-500 fill-emerald-500'
+                        : connectionStatus === 'connecting'
+                        ? 'text-amber-500 fill-amber-500 animate-pulse'
+                        : 'text-zinc-400 fill-zinc-400'
+                    }`} />
+                    <span className="text-[var(--color-muted)]">
+                      {connectionStatus === 'connected'
+                        ? 'Live'
+                        : connectionStatus === 'connecting'
+                        ? 'Connecting...'
+                        : 'Offline'}
+                    </span>
                   </div>
-                )}
-              </div>
-
-              {/* Exchange Prices */}
-              <div className="px-4 py-2 space-y-1">
-                {exchanges.map((exchangeKey) => {
-                  const exchange = EXCHANGE_INFO[exchangeKey];
-                  const price = cryptoPrices[exchangeKey];
-                  const isMin = price === minPrice && exchangePrices.length > 1;
-                  const isMax = price === maxPrice && exchangePrices.length > 1;
-
-                  return (
-                    <div key={exchangeKey} className="flex items-center justify-between py-1">
-                      <div className="flex items-center gap-2">
-                        {exchange?.logo && (
-                          <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
-                        )}
-                        <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
-                        {isMin && <span className="text-[10px] px-1 rounded bg-emerald-500/20 text-emerald-500">BUY</span>}
-                        {isMax && <span className="text-[10px] px-1 rounded bg-rose-500/20 text-rose-500">SELL</span>}
-                      </div>
-                      <AnimatedPrice
-                        value={price}
-                        className={`text-sm font-mono tabular-nums ${
-                          isMin ? 'text-emerald-500' : isMax ? 'text-rose-500' : 'text-[var(--color-fg)]'
+                  {/* Time Range Selector */}
+                  <div className="flex items-center gap-1 p-1 bg-[var(--color-border)]/20 rounded-lg">
+                    {timeRanges.map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setTimeRange(range)}
+                        className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                          timeRange === range
+                            ? 'bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm'
+                            : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
                         }`}
-                        decimals={decimals}
-                      />
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div className="px-2 pb-4" style={{ height: '240px' }}>
+              {filteredChartData.length > 1 ? (
+                <LineChart
+                  data={filteredChartData}
+                  dataKey="value"
+                  width="100%"
+                  height={240}
+                  margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  strokeColor={chartColor}
+                  strokeWidth={2}
+                  showArea={true}
+                  areaOpacity={0.15}
+                  showDots={false}
+                  dotRadius={4}
+                  onMouseMove={(data, index) => setActiveChartIndex(index)}
+                  onMouseLeave={() => setActiveChartIndex(null)}
+                  showTooltip={false}
+                  gradientId={`arbitrageChartGradient-${portfolio.id}`}
+                  curveType="monotone"
+                  xAxisDataKey="dateString"
+                />
+              ) : filteredChartData.length === 1 ? (
+                <div className="h-full flex flex-col items-center justify-center">
+                  <div className="w-3 h-3 rounded-full bg-[var(--color-accent)] mb-3"></div>
+                  <div className="text-sm text-[var(--color-muted)]">
+                    Started {new Date(filteredChartData[0].dateString).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] opacity-60 mt-1">
+                    Chart will populate as daily snapshots are recorded
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[var(--color-muted)] text-sm">
+                  No historical data available yet
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Terminal - Theme Aware */}
+          <div className={`rounded-xl border overflow-hidden ${
+            isDarkMode
+              ? 'bg-zinc-950 border-zinc-800/50'
+              : 'bg-zinc-100 border-zinc-200'
+          }`}>
+            {/* Terminal Header */}
+            <div className={`px-4 py-2 border-b flex items-center justify-between ${
+              isDarkMode
+                ? 'bg-zinc-900/50 border-zinc-800/50'
+                : 'bg-zinc-200/50 border-zinc-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></div>
+                </div>
+                <span className={`text-xs font-medium ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>
+                  arbitrage-monitor
+                </span>
+              </div>
+              <div className={`flex items-center gap-2 text-xs ${isDarkMode ? 'text-zinc-600' : 'text-zinc-500'}`}>
+                <LuRefreshCw className={`w-3 h-3 ${connectionStatus === 'connected' ? 'animate-spin-slow' : ''}`} />
+                <span>{POLL_INTERVAL / 1000}s</span>
+              </div>
+            </div>
+
+            {/* Terminal Content */}
+            <div
+              ref={terminalRef}
+              className={`p-4 h-64 overflow-y-auto font-mono text-sm scrollbar-thin ${
+                isDarkMode
+                  ? 'scrollbar-thumb-zinc-700 scrollbar-track-transparent'
+                  : 'scrollbar-thumb-zinc-300 scrollbar-track-transparent'
+              }`}
+            >
+              {terminalLogs.length === 0 ? (
+                <div className={isDarkMode ? 'text-zinc-600' : 'text-zinc-500'}>
+                  <span className="text-emerald-500">$</span>
+                  <span className="ml-2">
+                    {connectionStatus === 'connecting'
+                      ? 'Connecting to exchanges...'
+                      : connectionStatus === 'connected'
+                      ? 'Monitoring for arbitrage opportunities...'
+                      : 'Connection lost. Retrying...'}
+                  </span>
+                  <span className="animate-pulse ml-1">_</span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {terminalLogs.map((log) => {
+                    const lowEx = EXCHANGE_INFO[log.lowExchange];
+                    const highEx = EXCHANGE_INFO[log.highExchange];
+                    const timeStr = new Date(log.timestamp).toLocaleTimeString('en-US', {
+                      hour12: false,
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    });
+
+                    return (
+                      <div key={log.id} className={`flex items-center gap-3 py-0.5 ${
+                        isDarkMode ? 'text-zinc-400' : 'text-zinc-600'
+                      }`}>
+                        <span className={`w-16 shrink-0 ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                          {timeStr}
+                        </span>
+                        <span className="text-blue-500 w-12 shrink-0">{log.crypto}</span>
+                        <span className={isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}>
+                          <span style={{ color: lowEx?.color }}>{lowEx?.short}</span>
+                          <LuArrowRight className={`inline w-3 h-3 mx-1.5 ${
+                            isDarkMode ? 'text-zinc-700' : 'text-zinc-400'
+                          }`} />
+                          <span style={{ color: highEx?.color }}>{highEx?.short}</span>
+                        </span>
+                        <span className={`font-medium ${
+                          log.spreadPercent >= 0.5
+                            ? 'text-emerald-500'
+                            : log.spreadPercent >= 0.1
+                            ? 'text-amber-500'
+                            : isDarkMode ? 'text-zinc-500' : 'text-zinc-400'
+                        }`}>
+                          +{log.spreadPercent.toFixed(3)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Exchange Balances - Compact Row */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {exchanges.map((exchangeKey) => {
+              const exchange = EXCHANGE_INFO[exchangeKey];
+              const balance = portfolio.metadata?.capitalPerExchange || 0;
+
+              return (
+                <div
+                  key={exchangeKey}
+                  className="flex items-center gap-2 px-3 py-2 bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)]/30"
+                >
+                  {exchange?.logo && (
+                    <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
+                  )}
+                  <span className="text-xs text-[var(--color-muted)]">{exchange?.name}</span>
+                  <span className="text-sm font-medium tabular-nums">${formatPrice(balance)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Column - Crypto Price Tracker Cards */}
+        <div className="space-y-3">
+          {/* Section Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-[var(--color-muted)]">Exchange Prices</h3>
+            {lastUpdate && connectionStatus === 'connected' && (
+              <span className="text-xs text-[var(--color-muted)] opacity-60">
+                {lastUpdate.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+
+          {/* Crypto Price Cards */}
+          {cryptos.map((crypto) => {
+            const cryptoInfo = CRYPTO_INFO[crypto];
+            const cryptoPrices = prices[crypto] || {};
+            const exchangePrices = exchanges
+              .map(ex => ({ exchange: ex, price: cryptoPrices[ex] }))
+              .filter(ep => ep.price !== null && ep.price !== undefined);
+
+            const priceValues = exchangePrices.map(ep => ep.price);
+            const minPrice = priceValues.length ? Math.min(...priceValues) : null;
+            const maxPrice = priceValues.length ? Math.max(...priceValues) : null;
+            const spread = minPrice && maxPrice ? maxPrice - minPrice : 0;
+            const spreadPercent = minPrice > 0 ? (spread / minPrice) * 100 : 0;
+            const decimals = ['DOGE', 'XRP', 'ADA'].includes(crypto) ? 4 : 2;
+
+            return (
+              <div
+                key={crypto}
+                className="relative bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)]/40 overflow-hidden"
+              >
+                {/* Card Header */}
+                <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--color-border)]/20">
+                  <div className="flex items-center gap-2.5">
+                    {cryptoInfo?.logo && (
+                      <img src={cryptoInfo.logo} alt={crypto} className="w-7 h-7" />
+                    )}
+                    <div>
+                      <div className="text-sm font-semibold">{crypto}</div>
+                      <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wide">
+                        {cryptoInfo?.name}
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                  {spreadPercent > 0.05 && (
+                    <div className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                      spreadPercent >= 0.5
+                        ? 'bg-emerald-500/15 text-emerald-500'
+                        : spreadPercent >= 0.1
+                        ? 'bg-amber-500/15 text-amber-500'
+                        : 'bg-[var(--color-border)]/30 text-[var(--color-muted)]'
+                    }`}>
+                      <LuTrendingUp className="w-3 h-3" />
+                      <span>{spreadPercent.toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Exchange Prices */}
+                <div className="p-3 space-y-1.5">
+                  {exchanges.map((exchangeKey) => {
+                    const exchange = EXCHANGE_INFO[exchangeKey];
+                    const price = cryptoPrices[exchangeKey];
+                    const isMin = price === minPrice && exchangePrices.length > 1 && spreadPercent > 0.01;
+                    const isMax = price === maxPrice && exchangePrices.length > 1 && spreadPercent > 0.01;
+
+                    return (
+                      <div
+                        key={exchangeKey}
+                        className={`flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors ${
+                          isMin ? 'bg-emerald-500/8' : isMax ? 'bg-rose-500/8' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {exchange?.logo && (
+                            <img src={exchange.logo} alt={exchangeKey} className="w-5 h-5 rounded" />
+                          )}
+                          <span className="text-xs font-medium text-[var(--color-muted)]">
+                            {exchange?.name}
+                          </span>
+                          {isMin && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 uppercase tracking-wider">
+                              Buy
+                            </span>
+                          )}
+                          {isMax && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-500 uppercase tracking-wider">
+                              Sell
+                            </span>
+                          )}
+                        </div>
+                        <AnimatedPrice
+                          value={price}
+                          className={`text-sm font-mono tabular-nums font-medium ${
+                            isMin ? 'text-emerald-500' : isMax ? 'text-rose-500' : ''
+                          }`}
+                          decimals={decimals}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </Card>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Terminal Feed - Arbitrage Opportunities */}
-      <Card variant="glass" padding="none" className="overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-[var(--color-border)]/20 flex items-center gap-2">
-          <LuTerminal className="w-3.5 h-3.5 text-[var(--color-muted)]" />
-          <span className="text-sm text-[var(--color-fg)]">Arbitrage Opportunities</span>
-          <span className="text-xs text-[var(--color-muted)]">— polling every {POLL_INTERVAL / 1000}s</span>
-        </div>
-        <div
-          ref={terminalRef}
-          className="p-4 bg-[var(--color-surface)] h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--color-border)]"
-        >
-          {terminalLogs.length === 0 ? (
-            <div className="text-xs text-[var(--color-muted)] font-mono">
-              $ {connectionStatus === 'connecting' ? 'fetching prices from exchanges...' :
-                 connectionStatus === 'connected' ? 'waiting for arbitrage opportunities...' :
-                 'disconnected'}
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {terminalLogs.map((log) => (
-                <TerminalEntry key={log.id} {...log} />
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Exchange Balances */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        {exchanges.map((exchangeKey) => {
-          const exchange = EXCHANGE_INFO[exchangeKey];
-          const balance = portfolio.metadata?.capitalPerExchange || 0;
-
-          return (
-            <Card key={exchangeKey} variant="glass" padding="none" className="p-3">
-              <div className="flex items-center gap-2 mb-1">
-                {exchange?.logo && (
-                  <img src={exchange.logo} alt={exchangeKey} className="w-4 h-4 rounded" />
-                )}
-                <span className="text-xs text-[var(--color-muted)]">{exchange?.name || exchangeKey}</span>
-              </div>
-              <div className="text-sm text-[var(--color-fg)] tabular-nums">
-                ${formatPrice(balance)}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Slow spin animation for refresh icon */}
+      <style jsx global>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }
