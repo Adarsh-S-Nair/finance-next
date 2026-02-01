@@ -5,7 +5,9 @@ import { motion } from "framer-motion";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import EmptyState from "../../../components/ui/EmptyState";
 import { PiBankFill } from "react-icons/pi";
+import { LuPlus } from "react-icons/lu";
 import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 import LineChart from "../../../components/ui/LineChart";
@@ -44,6 +46,81 @@ const formatShares = (shares) => {
   if (absShares >= 0.0001) return shares.toFixed(6);
   return shares.toFixed(8);
 };
+
+// ============================================================================
+// EMPTY STATE PREVIEW MOCKUP
+// ============================================================================
+
+function InvestmentsPreviewMockup() {
+  return (
+    <div className="relative">
+      {/* Fade overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--color-bg)] pointer-events-none z-10" />
+
+      <div className="space-y-4 opacity-60">
+        {/* Mock Portfolio Chart Card */}
+        <div className="bg-[var(--color-surface)] rounded-xl p-5 border border-[var(--color-border)]">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-xs text-[var(--color-muted)] mb-1">Portfolio Value</div>
+              <div className="h-6 w-32 bg-[var(--color-muted)]/20 rounded" />
+            </div>
+            <div className="h-5 w-16 bg-emerald-500/20 rounded-full" />
+          </div>
+
+          {/* Mock line chart */}
+          <div className="h-24 relative">
+            <svg className="w-full h-full" viewBox="0 0 200 80" preserveAspectRatio="none">
+              {/* Area fill */}
+              <path
+                d="M0,65 L10,58 L25,62 L40,52 L55,48 L70,42 L85,45 L100,38 L115,35 L130,28 L145,32 L160,22 L175,18 L190,12 L200,8 L200,80 L0,80 Z"
+                fill="var(--color-accent)"
+                fillOpacity="0.15"
+              />
+              {/* Line */}
+              <path
+                d="M0,65 L10,58 L25,62 L40,52 L55,48 L70,42 L85,45 L100,38 L115,35 L130,28 L145,32 L160,22 L175,18 L190,12 L200,8"
+                fill="none"
+                stroke="var(--color-accent)"
+                strokeWidth="2"
+                strokeOpacity="0.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Mock Holdings List */}
+        <div className="bg-[var(--color-surface)] rounded-xl p-4 border border-[var(--color-border)]">
+          <div className="text-xs text-[var(--color-muted)] mb-3">Holdings</div>
+          <div className="space-y-3">
+            {[
+              { color: "var(--color-accent)", nameW: "w-20", valueW: "w-24" },
+              { color: "#10b981", nameW: "w-16", valueW: "w-20" },
+              { color: "#f59e0b", nameW: "w-24", valueW: "w-16" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div
+                  className="w-8 h-8 rounded-full opacity-30"
+                  style={{ backgroundColor: item.color }}
+                />
+                <div className="flex-1">
+                  <div className={`h-3 ${item.nameW} bg-[var(--color-muted)]/20 rounded mb-1`} />
+                  <div className="h-2 w-12 bg-[var(--color-muted)]/15 rounded" />
+                </div>
+                <div className="text-right">
+                  <div className={`h-3 ${item.valueW} bg-[var(--color-muted)]/20 rounded mb-1`} />
+                  <div className="h-2 w-10 bg-emerald-500/20 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }) {
@@ -112,14 +189,17 @@ export default function InvestmentsPage() {
   const [chartTimeRange, setChartTimeRange] = useState('ALL');
   const [sparklineData, setSparklineData] = useState({});
 
-  // Register header actions with layout
+  // Register header actions with layout (only show connect button when accounts exist)
   useEffect(() => {
     if (setHeaderActions) {
+      // Hide the header connect button when in empty state (no accounts)
+      // The empty state has its own CTA button
+      const hasAccounts = !loading && investmentPortfolios.length > 0;
       setHeaderActions({
-        onConnectClick: () => setShowLinkModal(true),
+        onConnectClick: hasAccounts ? () => setShowLinkModal(true) : null,
       });
     }
-  }, [setHeaderActions]);
+  }, [setHeaderActions, loading, investmentPortfolios.length]);
 
   // Fetch investment portfolios and holdings
   useEffect(() => {
@@ -429,18 +509,20 @@ export default function InvestmentsPage() {
           </div>
         </div>
       ) : (
-        <div className="text-center py-16 bg-[var(--color-surface)]/30 rounded-xl border border-[var(--color-border)]/50 border-dashed">
-          <div className="mx-auto w-16 h-16 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-4 border border-[var(--color-border)]">
-            <PiBankFill className="h-8 w-8 text-[var(--color-muted)]" />
-          </div>
-          <p className="text-[var(--color-fg)] font-medium mb-2">No investment accounts connected</p>
-          <p className="text-sm text-[var(--color-muted)] mb-6 max-w-sm mx-auto">
-            Connect your brokerage accounts to see your portfolio and holdings here.
-          </p>
-          <Button onClick={() => setShowLinkModal(true)}>
-            Connect Account
-          </Button>
-        </div>
+        <EmptyState>
+          <EmptyState.Hero
+            layout="split"
+            title="Track Your Investments"
+            description="Connect your brokerage accounts to see real-time portfolio values, track holdings, and monitor performance across all your investments."
+            action={
+              <Button size="lg" onClick={() => setShowLinkModal(true)} className="gap-2">
+                <LuPlus className="w-4 h-4" />
+                Connect Account
+              </Button>
+            }
+            preview={<InvestmentsPreviewMockup />}
+          />
+        </EmptyState>
       )}
 
       <PlaidLinkModal
