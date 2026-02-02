@@ -6,13 +6,33 @@ import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
 // No auth required - this is a temporary debug endpoint
 export async function GET(request) {
   try {
+    // Check if supabaseAdmin is properly configured
+    if (!supabaseAdmin) {
+      return Response.json({
+        error: 'Supabase admin client not configured',
+        hint: 'Check SUPABASE_SERVICE_ROLE_KEY environment variable'
+      }, { status: 500 });
+    }
+
     // Get ALL plaid items (personal app, should be just one user)
     const { data: plaidItems, error: itemsError } = await supabaseAdmin
       .from('plaid_items')
       .select('id, item_id, access_token, institution_id, user_id');
 
     if (itemsError) {
-      return Response.json({ error: 'Failed to fetch plaid items' }, { status: 500 });
+      return Response.json({
+        error: 'Failed to fetch plaid items',
+        details: itemsError.message,
+        code: itemsError.code,
+        hint: itemsError.hint
+      }, { status: 500 });
+    }
+
+    if (!plaidItems || plaidItems.length === 0) {
+      return Response.json({
+        error: 'No plaid items found',
+        message: 'No investment accounts are connected'
+      }, { status: 404 });
     }
 
     const results = [];
