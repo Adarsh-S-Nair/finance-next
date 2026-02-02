@@ -65,13 +65,16 @@ export async function GET() {
 
               return {
                 account_id: h.account_id,
+                security_id: h.security_id,
                 security_name: sec?.name,
+                security_type: sec?.type,
                 quantity: h.quantity,
-                vested_quantity: h.vested_quantity,
-                unvested_quantity: h.unvested_quantity,
+                vested_quantity: h.vested_quantity ?? 'NOT_PROVIDED',
+                unvested_quantity: h.unvested_quantity ?? 'NOT_PROVIDED',
                 institution_value: h.institution_value,
-                vested_value: h.vested_value,
+                vested_value: h.vested_value ?? 'NOT_PROVIDED',
                 cost_basis: h.cost_basis,
+                avg_cost_per_share: h.quantity > 0 ? (h.cost_basis / h.quantity).toFixed(2) : 0,
                 current_sync: h.vested_quantity != null ? h.vested_quantity : h.quantity,
                 correct_vested: correctVested,
                 reason: reason
