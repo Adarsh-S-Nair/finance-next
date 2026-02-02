@@ -86,9 +86,30 @@ export async function GET() {
               };
             });
 
+          // Get account info to understand what type of accounts we're dealing with
+          const accountMap = new Map();
+          (holdingsResponse.accounts || []).forEach(a => {
+            accountMap.set(a.account_id, {
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              mask: a.mask
+            });
+          });
+
           plaidCrmData.push({
             item_id: item.item_id,
-            crm_holdings: crmFromPlaid,
+            accounts: holdingsResponse.accounts?.map(a => ({
+              account_id: a.account_id,
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              mask: a.mask
+            })),
+            crm_holdings: crmFromPlaid.map(h => ({
+              ...h,
+              account_info: accountMap.get(h.account_id)
+            })),
             total_quantity: crmFromPlaid.reduce((s, h) => s + (h.quantity || 0), 0),
             current_sync_total: crmFromPlaid.reduce((s, h) => s + (h.current_sync || 0), 0),
             correct_vested_total: crmFromPlaid.reduce((s, h) => s + (h.correct_vested || 0), 0)
