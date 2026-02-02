@@ -1,0 +1,122 @@
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+
+// Debug endpoint to see raw Plaid holdings data
+// This helps diagnose issues with vested_quantity handling for RSUs
+export async function GET(request) {
+  try {
+    const cookieStore = await cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    });
+
+    // Get the current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Get all plaid items for this user
+    const { data: plaidItems, error: itemsError } = await supabaseAdmin
+      .from('plaid_items')
+      .select('id, item_id, access_token, institution_id')
+      .eq('user_id', user.id);
+
+    if (itemsError) {
+      return Response.json({ error: 'Failed to fetch plaid items' }, { status: 500 });
+    }
+
+    const results = [];
+
+    for (const item of plaidItems) {
+      try {
+        // Get raw holdings from Plaid
+        const holdingsResponse = await getInvestmentsHoldings(item.access_token);
+        const { accounts, holdings, securities } = holdingsResponse;
+
+        // Create security map for lookup
+        const securityMap = new Map();
+        if (securities) {
+          securities.forEach(s => {
+            securityMap.set(s.security_id, s);
+          });
+        }
+
+        // Map holdings with security info and vested details
+        const enrichedHoldings = holdings?.map(h => {
+          const security = securityMap.get(h.security_id);
+          return {
+            account_id: h.account_id,
+            security_id: h.security_id,
+            ticker: security?.ticker_symbol || 'Unknown',
+            security_name: security?.name,
+            security_type: security?.type,
+            quantity: h.quantity,
+            vested_quantity: h.vested_quantity,
+            unvested_quantity: h.unvested_quantity,
+            institution_value: h.institution_value,
+            vested_value: h.vested_value,
+            cost_basis: h.cost_basis,
+            institution_price: h.institution_price,
+            // Analysis
+            will_use_quantity: h.vested_quantity != null ? h.vested_quantity : h.quantity,
+            reason: h.vested_quantity != null ? 'Using vested_quantity' : 'No vested_quantity, using quantity'
+          };
+        }) || [];
+
+        // Group by ticker for analysis
+        const byTicker = {};
+        enrichedHoldings.forEach(h => {
+          const ticker = h.ticker?.toUpperCase() || 'Unknown';
+          if (!byTicker[ticker]) {
+            byTicker[ticker] = {
+              holdings: [],
+              total_quantity: 0,
+              total_will_use: 0
+            };
+          }
+          byTicker[ticker].holdings.push(h);
+          byTicker[ticker].total_quantity += h.quantity || 0;
+          byTicker[ticker].total_will_use += h.will_use_quantity || 0;
+        });
+
+        results.push({
+          item_id: item.item_id,
+          institution_id: item.institution_id,
+          accounts: accounts?.map(a => ({
+            account_id: a.account_id,
+            name: a.name,
+            type: a.type,
+            subtype: a.subtype
+          })),
+          holdings_count: holdings?.length || 0,
+          holdings: enrichedHoldings,
+          by_ticker: byTicker
+        });
+      } catch (err) {
+        results.push({
+          item_id: item.item_id,
+          error: err.message
+        });
+      }
+    }
+
+    return Response.json({
+      user_id: user.id,
+      plaid_items_count: plaidItems.length,
+      results
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
