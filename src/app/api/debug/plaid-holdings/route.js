@@ -110,10 +110,55 @@ export async function GET(request) {
       }
     }
 
+    // Also fetch what's stored in the database for comparison
+    const { data: dbPortfolios, error: dbError } = await supabaseAdmin
+      .from('portfolios')
+      .select(`
+        id,
+        name,
+        type,
+        holdings(id, ticker, shares, avg_cost, asset_type)
+      `)
+      .eq('user_id', user.id)
+      .eq('type', 'plaid_investment');
+
+    // Group database holdings by ticker for easy comparison
+    const dbByTicker = {};
+    if (dbPortfolios) {
+      dbPortfolios.forEach(p => {
+        (p.holdings || []).forEach(h => {
+          const ticker = h.ticker?.toUpperCase() || 'Unknown';
+          if (!dbByTicker[ticker]) {
+            dbByTicker[ticker] = {
+              holdings: [],
+              total_shares: 0
+            };
+          }
+          dbByTicker[ticker].holdings.push({
+            portfolio_id: p.id,
+            portfolio_name: p.name,
+            shares: h.shares,
+            avg_cost: h.avg_cost,
+            asset_type: h.asset_type
+          });
+          dbByTicker[ticker].total_shares += parseFloat(h.shares) || 0;
+        });
+      });
+    }
+
     return Response.json({
       user_id: user.id,
       plaid_items_count: plaidItems.length,
-      results
+      results,
+      database: {
+        portfolios_count: dbPortfolios?.length || 0,
+        portfolios: dbPortfolios?.map(p => ({
+          id: p.id,
+          name: p.name,
+          holdings_count: p.holdings?.length || 0
+        })),
+        by_ticker: dbByTicker
+      }
     });
   } catch (error) {
     console.error('Debug endpoint error:', error);
