@@ -109,6 +109,59 @@ Example: `src/app/api/budgets/route.js:4-56`
 
 ---
 
+## Logging & Debugging
+
+Logs are stored in Axiom and can be queried via the `/api/logs/query` endpoint.
+
+### Quick Log Queries
+
+```bash
+# Find errors in the last hour
+GET /api/logs/query?level=error&hours=1
+
+# Search for specific text
+GET /api/logs/query?q=sync%20failed&hours=24
+
+# Filter by context (e.g., plaid webhooks)
+GET /api/logs/query?context=plaid-webhook&level=error&hours=24
+
+# Trace a request by correlation ID
+GET /api/logs/query?requestId=a1b2c3d4
+```
+
+### Logging Contexts
+
+| Context | Description |
+|---------|-------------|
+| `plaid-webhook` | Plaid webhook handler |
+| `plaid-webhook:transactions` | Transaction sync |
+| `plaid-webhook:holdings` | Holdings sync |
+| `plaid-webhook:item` | Item status changes |
+
+### Using the Logger in Code
+
+```javascript
+import { createLogger, withLogging } from '@/lib/logger';
+
+// Create a logger with context
+const logger = createLogger('my-feature');
+logger.info('Operation started', { userId: '123' });
+logger.error('Operation failed', error, { context: 'data' });
+
+// Time an operation
+const opId = logger.startOperation('sync-data');
+// ... do work ...
+logger.endOperation(opId, { recordsProcessed: 50 });
+
+// Wrap an API route for automatic logging
+export const POST = withLogging('my-api', async (request, { logger }) => {
+  logger.info('Processing request');
+  return Response.json({ success: true });
+});
+```
+
+---
+
 ## Additional Documentation
 
 When working on specific areas, consult these files:
@@ -116,3 +169,4 @@ When working on specific areas, consult these files:
 | Topic | File |
 |-------|------|
 | Architecture & Patterns | `.claude/docs/architectural_patterns.md` |
+| Log Debugging Guide | `.claude/docs/debugging_logs.md` |

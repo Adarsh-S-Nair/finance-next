@@ -1,21 +1,16 @@
-import { getPlaidClient } from '../../../../lib/plaidClient';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
 import { createLogger } from '../../../../lib/logger';
 
-const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const DISABLE_WEBHOOKS = process.env.NODE_ENV !== 'production' && process.env.DISABLE_WEBHOOKS === '1';
 
-// Initialize logger for webhook
-const logger = createLogger('plaid-webhook');
-
 // Verify webhook using Plaid's JWT verification
-async function verifyWebhookSignature(payload, signature) {
+async function verifyWebhookSignature(payload, signature, logger) {
   try {
     if (!signature) {
-      console.warn('No Plaid-Verification header found, skipping verification in development');
+      logger.warn('No Plaid-Verification header found, skipping verification in development');
       return true; // Allow in development
     }
 
@@ -23,7 +18,7 @@ async function verifyWebhookSignature(payload, signature) {
     const header = JSON.parse(Buffer.from(signature.split('.')[0], 'base64url').toString());
 
     if (header.alg !== 'ES256') {
-      console.error('Invalid algorithm:', header.alg);
+      logger.error('Invalid algorithm in webhook signature', null, { algorithm: header.alg });
       return false;
     }
 
@@ -41,7 +36,8 @@ async function verifyWebhookSignature(payload, signature) {
     });
 
     if (!response.ok) {
-      console.error('Failed to get verification key:', response.status, await response.text());
+      const errorText = await response.text();
+      logger.error('Failed to get verification key', null, { status: response.status, error: errorText });
       return false;
     }
 
@@ -64,30 +60,37 @@ async function verifyWebhookSignature(payload, signature) {
     // Verify the payload hash
     const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
     if (decoded.request_body_sha256 !== payloadHash) {
-      console.error('Payload hash mismatch');
+      logger.error('Payload hash mismatch in webhook verification');
       return false;
     }
 
     // Verify the webhook is recent (within 5 minutes)
     const now = Math.floor(Date.now() / 1000);
     if (now - decoded.iat > 300) {
-      console.error('Webhook is too old');
+      logger.error('Webhook is too old', null, { age: now - decoded.iat });
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Webhook verification failed:', error);
+    logger.error('Webhook verification failed', error);
     return false;
   }
 }
 
 export async function POST(request) {
+  // Create a request-specific logger with unique correlation ID
+  const logger = createLogger('plaid-webhook');
+  const opId = logger.startOperation('webhook-processing');
+
   try {
     if (DISABLE_WEBHOOKS) {
       logger.info('Webhook disabled in development mode');
+      logger.endOperation(opId, { status: 'disabled' });
+      await logger.flush();
       return Response.json({ received: true, disabled: true });
     }
+
     const payload = await request.text();
     // Handle case-insensitive header name
     const signature = request.headers.get('plaid-verification') || request.headers.get('Plaid-Verification');
@@ -98,8 +101,9 @@ export async function POST(request) {
     });
 
     // Verify webhook signature using Plaid's JWT verification
-    if (!(await verifyWebhookSignature(payload, signature))) {
+    if (!(await verifyWebhookSignature(payload, signature, logger))) {
       logger.error('Invalid webhook signature');
+      logger.endOperation(opId, { status: 'invalid_signature' });
       await logger.flush();
       return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }
@@ -110,37 +114,35 @@ export async function POST(request) {
       webhook_code: webhookData.webhook_code,
       item_id: webhookData.item_id
     });
-    if (DEBUG) console.log('Received Plaid webhook:', webhookData.webhook_type, webhookData.webhook_code);
 
     // Handle different webhook types
     switch (webhookData.webhook_type) {
       case 'TRANSACTIONS':
-        await handleTransactionsWebhook(webhookData);
+        await handleTransactionsWebhook(webhookData, logger);
         break;
       case 'ITEM':
-        await handleItemWebhook(webhookData);
+        await handleItemWebhook(webhookData, logger);
         break;
       case 'HOLDINGS':
-        await handleHoldingsWebhook(webhookData);
+        await handleHoldingsWebhook(webhookData, logger);
         break;
       case 'INVESTMENTS_TRANSACTIONS':
-        await handleInvestmentTransactionsWebhook(webhookData);
+        await handleInvestmentTransactionsWebhook(webhookData, logger);
         break;
       case 'RECURRING_TRANSACTIONS':
-        await handleRecurringTransactionsWebhook(webhookData);
+        await handleRecurringTransactionsWebhook(webhookData, logger);
         break;
       default:
-        if (DEBUG) console.log('Unhandled webhook type:', webhookData.webhook_type);
+        logger.warn('Unhandled webhook type', { webhook_type: webhookData.webhook_type });
     }
 
     logger.info('Webhook processed successfully');
+    logger.endOperation(opId, { status: 'success', webhook_type: webhookData.webhook_type });
     await logger.flush();
     return Response.json({ received: true });
   } catch (error) {
-    logger.error('Error processing webhook', error, {
-      errorMessage: error.message,
-      errorStack: error.stack
-    });
+    logger.error('Error processing webhook', error);
+    logger.endOperation(opId, { status: 'error' });
     await logger.flush();
     return Response.json(
       { error: 'Webhook processing failed' },
@@ -149,16 +151,16 @@ export async function POST(request) {
   }
 }
 
-async function handleTransactionsWebhook(webhookData) {
+async function handleTransactionsWebhook(webhookData, logger) {
   const { webhook_code, item_id, new_transactions, removed_transactions } = webhookData;
+  const txLogger = logger.child('transactions');
 
-  logger.info('Processing TRANSACTIONS webhook', {
+  txLogger.info('Processing TRANSACTIONS webhook', {
     webhook_code,
     item_id,
     new_transactions_count: new_transactions || 0,
     removed_transactions_count: removed_transactions?.length || 0
   });
-  if (DEBUG) console.log(`Processing TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
 
   // Get the plaid item from database
   const { data: plaidItem, error: itemError } = await supabaseAdmin
@@ -168,7 +170,7 @@ async function handleTransactionsWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    txLogger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
@@ -178,8 +180,7 @@ async function handleTransactionsWebhook(webhookData) {
     case 'DEFAULT_UPDATE':
     case 'SYNC_UPDATES_AVAILABLE':
       // Trigger transaction sync for this item
-      logger.info('Triggering transaction sync', { item_id, webhook_code });
-      if (DEBUG) console.log(`Triggering transaction sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+      txLogger.info('Triggering transaction sync', { item_id, webhook_code });
 
       // Mark item as ready for recurring transactions on HISTORICAL_UPDATE or SYNC_UPDATES_AVAILABLE
       if (webhook_code === 'HISTORICAL_UPDATE' || webhook_code === 'SYNC_UPDATES_AVAILABLE') {
@@ -189,9 +190,9 @@ async function handleTransactionsWebhook(webhookData) {
           .eq('id', plaidItem.id);
 
         if (updateReadyError) {
-          logger.error('Error updating recurring_ready', null, { error: updateReadyError });
+          txLogger.error('Error updating recurring_ready', null, { error: updateReadyError });
         } else {
-          logger.info('Marked item as recurring_ready', { item_id, webhook_code });
+          txLogger.info('Marked item as recurring_ready', { item_id, webhook_code });
         }
       }
 
@@ -212,34 +213,27 @@ async function handleTransactionsWebhook(webhookData) {
 
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
-          logger.info('Transaction sync completed', {
+          txLogger.info('Transaction sync completed', {
             item_id,
             transactions_synced: syncResult.transactions_synced,
             pending_transactions_updated: syncResult.pending_transactions_updated
           });
-          if (DEBUG) {
-            console.log(`Webhook-triggered sync completed for item ${item_id}:`, {
-              transactions_synced: syncResult.transactions_synced,
-              pending_transactions_updated: syncResult.pending_transactions_updated
-            });
-          }
         } else {
           const errorData = await syncResponse.json();
-          logger.error('Transaction sync failed', null, { item_id, error: errorData });
+          txLogger.error('Transaction sync failed', null, { item_id, error: errorData });
         }
       } catch (error) {
-        logger.error('Error in webhook-triggered sync', error, { item_id });
+        txLogger.error('Error in webhook-triggered sync', error, { item_id });
       }
       break;
 
     case 'TRANSACTIONS_REMOVED':
       // Handle removed transactions
       if (removed_transactions && removed_transactions.length > 0) {
-        logger.info('Removing transactions', {
+        txLogger.info('Removing transactions', {
           item_id,
           count: removed_transactions.length
         });
-        if (DEBUG) console.log(`Removing ${removed_transactions.length} transactions for item: ${item_id}`);
 
         const { error: deleteError } = await supabaseAdmin
           .from('transactions')
@@ -247,23 +241,23 @@ async function handleTransactionsWebhook(webhookData) {
           .in('plaid_transaction_id', removed_transactions);
 
         if (deleteError) {
-          logger.error('Error removing transactions', null, { error: deleteError });
+          txLogger.error('Error removing transactions', null, { error: deleteError });
         } else {
-          logger.info('Successfully removed transactions', { count: removed_transactions.length });
-          if (DEBUG) console.log('Successfully removed transactions');
+          txLogger.info('Successfully removed transactions', { count: removed_transactions.length });
         }
       }
       break;
 
     default:
-      if (DEBUG) console.log('Unhandled transaction webhook code:', webhook_code);
+      txLogger.warn('Unhandled transaction webhook code', { webhook_code });
   }
 }
 
-async function handleItemWebhook(webhookData) {
+async function handleItemWebhook(webhookData, logger) {
   const { webhook_code, item_id } = webhookData;
+  const itemLogger = logger.child('item');
 
-  if (DEBUG) console.log(`Processing ITEM webhook: ${webhook_code} for item: ${item_id}`);
+  itemLogger.info('Processing ITEM webhook', { webhook_code, item_id });
 
   // Get the plaid item from database
   const { data: plaidItem, error: itemError } = await supabaseAdmin
@@ -273,13 +267,18 @@ async function handleItemWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    console.error('Plaid item not found for webhook:', item_id, itemError);
+    itemLogger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
   switch (webhook_code) {
     case 'ERROR':
       // Update plaid item with error status
+      itemLogger.error('Item error webhook received', null, {
+        item_id,
+        plaid_error: webhookData.error
+      });
+
       const { error: updateError } = await supabaseAdmin
         .from('plaid_items')
         .update({
@@ -289,22 +288,20 @@ async function handleItemWebhook(webhookData) {
         .eq('id', plaidItem.id);
 
       if (updateError) {
-        console.error('Error updating plaid item status:', updateError);
+        itemLogger.error('Error updating plaid item status', null, { error: updateError });
       }
       break;
 
     case 'NEW_ACCOUNTS_AVAILABLE':
       // New accounts are available, sync them
-      if (DEBUG) console.log('New accounts available for item:', item_id);
+      itemLogger.info('New accounts available', { item_id });
       try {
         // Get fresh account data from Plaid
         const { getAccounts, getInstitution } = await import('../../../../lib/plaidClient');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         const { accounts, institution_id } = accountsResponse;
 
-        if (DEBUG) {
-          console.log(`🔍 DEBUG: Found ${accounts.length} accounts for item ${item_id}`);
-        }
+        itemLogger.info('Fetched accounts from Plaid', { item_id, count: accounts.length });
 
         // Get institution info (with fallback)
         let institutionData = null;
@@ -330,14 +327,12 @@ async function handleItemWebhook(webhookData) {
               .single();
 
             if (institutionError) {
-              console.error('Error upserting institution:', institutionError);
-              // Don't fail the whole process, just log the error
+              itemLogger.warn('Error upserting institution', { error: institutionError });
             } else {
               institutionData = instData;
             }
           } catch (instError) {
-            console.error('Error getting institution info, continuing without it:', instError);
-            // Continue without institution info - not critical for account creation
+            itemLogger.warn('Error getting institution info, continuing without it', { error: instError.message });
           }
         }
 
@@ -357,10 +352,6 @@ async function handleItemWebhook(webhookData) {
           plaid_item_id: plaidItem.id,
         }));
 
-        if (DEBUG) {
-          console.log('🔍 DEBUG: Accounts to insert (count):', accountsToInsert.length);
-        }
-
         // Insert accounts (upsert to handle duplicates)
         const { data: accountsData, error: accountsError } = await supabaseAdmin
           .from('accounts')
@@ -370,61 +361,48 @@ async function handleItemWebhook(webhookData) {
           .select();
 
         if (accountsError) {
-          console.error('Error upserting new accounts:', accountsError);
+          itemLogger.error('Error upserting new accounts', null, { error: accountsError });
         } else {
-          if (DEBUG) {
-            console.log(`✅ Synced ${accountsData.length} accounts for item ${item_id}`);
-          }
+          itemLogger.info('Synced accounts', { item_id, count: accountsData.length });
         }
       } catch (accountSyncError) {
-        console.error('Error syncing new accounts:', accountSyncError);
+        itemLogger.error('Error syncing new accounts', accountSyncError, { item_id });
       }
       break;
 
     case 'PENDING_EXPIRATION':
-      // Item is about to expire, user needs to re-authenticate
-      if (DEBUG) console.log('Item pending expiration for item:', item_id);
+      itemLogger.warn('Item pending expiration', { item_id });
       break;
 
     case 'USER_PERMISSION_REVOKED':
-      // User has revoked access
-      if (DEBUG) console.log('User permission revoked for item:', item_id);
+      itemLogger.warn('User permission revoked', { item_id });
       break;
 
     default:
-      if (DEBUG) console.log('Unhandled item webhook code:', webhook_code);
+      itemLogger.warn('Unhandled item webhook code', { webhook_code });
   }
 }
 
-async function handleHoldingsWebhook(webhookData) {
+async function handleHoldingsWebhook(webhookData, logger) {
   const { webhook_code, item_id, error, new_holdings, updated_holdings } = webhookData;
+  const holdingsLogger = logger.child('holdings');
 
-  logger.info('Processing HOLDINGS webhook', {
+  holdingsLogger.info('Processing HOLDINGS webhook', {
     webhook_code,
     item_id,
     has_error: !!error,
     new_holdings: new_holdings || 0,
     updated_holdings: updated_holdings || 0
   });
-  if (DEBUG) {
-    console.log(`Processing HOLDINGS webhook: ${webhook_code} for item: ${item_id}`, {
-      new_holdings,
-      updated_holdings,
-      has_error: !!error
-    });
-  }
 
   // Check for errors in webhook payload
   if (error) {
-    logger.error('Holdings webhook contains error', null, {
+    holdingsLogger.error('Holdings webhook contains error', null, {
       item_id,
       error_type: error.error_type,
       error_code: error.error_code,
       error_message: error.error_message
     });
-    if (DEBUG) {
-      console.log('⚠️ Holdings webhook contains error, skipping sync:', error);
-    }
     return;
   }
 
@@ -436,15 +414,14 @@ async function handleHoldingsWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    holdingsLogger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
   switch (webhook_code) {
     case 'DEFAULT_UPDATE':
       // Trigger holdings sync for this item
-      logger.info('Triggering holdings sync', { item_id, webhook_code });
-      if (DEBUG) console.log(`Triggering holdings sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+      holdingsLogger.info('Triggering holdings sync', { item_id, webhook_code });
 
       try {
         // Import and call the sync function directly instead of making HTTP request
@@ -463,60 +440,45 @@ async function handleHoldingsWebhook(webhookData) {
 
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
-          logger.info('Holdings sync completed', {
+          holdingsLogger.info('Holdings sync completed', {
             item_id,
             portfolios_created: syncResult.portfolios_created,
             holdings_synced: syncResult.holdings_synced
           });
-          if (DEBUG) {
-            console.log(`Webhook-triggered holdings sync completed for item ${item_id}:`, {
-              portfolios_created: syncResult.portfolios_created,
-              holdings_synced: syncResult.holdings_synced
-            });
-          }
         } else {
           const errorData = await syncResponse.json();
-          logger.error('Holdings sync failed', null, { item_id, error: errorData });
+          holdingsLogger.error('Holdings sync failed', null, { item_id, error: errorData });
         }
-      } catch (error) {
-        logger.error('Error in webhook-triggered holdings sync', error, { item_id });
+      } catch (syncError) {
+        holdingsLogger.error('Error in webhook-triggered holdings sync', syncError, { item_id });
       }
       break;
 
     default:
-      if (DEBUG) console.log('Unhandled holdings webhook code:', webhook_code);
+      holdingsLogger.warn('Unhandled holdings webhook code', { webhook_code });
   }
 }
 
-async function handleInvestmentTransactionsWebhook(webhookData) {
+async function handleInvestmentTransactionsWebhook(webhookData, logger) {
   const { webhook_code, item_id, error, new_investments_transactions, canceled_investments_transactions } = webhookData;
+  const invTxLogger = logger.child('investment-transactions');
 
-  logger.info('Processing INVESTMENTS_TRANSACTIONS webhook', {
+  invTxLogger.info('Processing INVESTMENTS_TRANSACTIONS webhook', {
     webhook_code,
     item_id,
     has_error: !!error,
     new_investments_transactions: new_investments_transactions || 0,
     canceled_investments_transactions: canceled_investments_transactions || 0
   });
-  if (DEBUG) {
-    console.log(`Processing INVESTMENTS_TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`, {
-      new_investments_transactions,
-      canceled_investments_transactions,
-      has_error: !!error
-    });
-  }
 
   // Check for errors in webhook payload
   if (error) {
-    logger.error('Investment transactions webhook contains error', null, {
+    invTxLogger.error('Investment transactions webhook contains error', null, {
       item_id,
       error_type: error.error_type,
       error_code: error.error_code,
       error_message: error.error_message
     });
-    if (DEBUG) {
-      console.log('⚠️ Investment transactions webhook contains error, skipping sync:', error);
-    }
     return;
   }
 
@@ -528,7 +490,7 @@ async function handleInvestmentTransactionsWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    invTxLogger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
@@ -536,8 +498,7 @@ async function handleInvestmentTransactionsWebhook(webhookData) {
     case 'DEFAULT_UPDATE':
     case 'HISTORICAL_UPDATE':
       // Trigger investment transactions sync for this item
-      logger.info('Triggering investment transactions sync', { item_id, webhook_code });
-      if (DEBUG) console.log(`Triggering investment transactions sync for item: ${item_id}, webhook_code: ${webhook_code}`);
+      invTxLogger.info('Triggering investment transactions sync', { item_id, webhook_code });
 
       try {
         // Import and call the sync function directly instead of making HTTP request
@@ -556,39 +517,32 @@ async function handleInvestmentTransactionsWebhook(webhookData) {
 
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
-          logger.info('Investment transactions sync completed', {
+          invTxLogger.info('Investment transactions sync completed', {
             item_id,
             transactions_synced: syncResult.transactions_synced
           });
-          if (DEBUG) {
-            console.log(`Webhook-triggered investment transactions sync completed for item ${item_id}:`, {
-              transactions_synced: syncResult.transactions_synced
-            });
-          }
         } else {
           const errorData = await syncResponse.json();
-          logger.error('Investment transactions sync failed', null, { item_id, error: errorData });
+          invTxLogger.error('Investment transactions sync failed', null, { item_id, error: errorData });
         }
-      } catch (error) {
-        logger.error('Error in webhook-triggered investment transactions sync', error, { item_id });
+      } catch (syncError) {
+        invTxLogger.error('Error in webhook-triggered investment transactions sync', syncError, { item_id });
       }
       break;
 
     default:
-      if (DEBUG) console.log('Unhandled investment transactions webhook code:', webhook_code);
+      invTxLogger.warn('Unhandled investment transactions webhook code', { webhook_code });
   }
 }
 
-async function handleRecurringTransactionsWebhook(webhookData) {
+async function handleRecurringTransactionsWebhook(webhookData, logger) {
   const { webhook_code, item_id } = webhookData;
+  const recurringLogger = logger.child('recurring');
 
-  logger.info('Processing RECURRING_TRANSACTIONS webhook', {
+  recurringLogger.info('Processing RECURRING_TRANSACTIONS webhook', {
     webhook_code,
     item_id
   });
-  if (DEBUG) {
-    console.log(`Processing RECURRING_TRANSACTIONS webhook: ${webhook_code} for item: ${item_id}`);
-  }
 
   // Get the plaid item from database
   const { data: plaidItem, error: itemError } = await supabaseAdmin
@@ -598,15 +552,14 @@ async function handleRecurringTransactionsWebhook(webhookData) {
     .single();
 
   if (itemError || !plaidItem) {
-    logger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
+    recurringLogger.error('Plaid item not found for webhook', null, { item_id, error: itemError });
     return;
   }
 
   switch (webhook_code) {
     case 'RECURRING_TRANSACTIONS_UPDATE':
       // Recurring transactions data is ready or has been updated
-      logger.info('Triggering recurring transactions sync', { item_id, webhook_code });
-      if (DEBUG) console.log(`Triggering recurring transactions sync for item: ${item_id}`);
+      recurringLogger.info('Triggering recurring transactions sync', { item_id, webhook_code });
 
       try {
         // Import and call the sync function directly
@@ -623,25 +576,20 @@ async function handleRecurringTransactionsWebhook(webhookData) {
 
         if (syncResponse.ok) {
           const syncResult = await syncResponse.json();
-          logger.info('Recurring transactions sync completed', {
+          recurringLogger.info('Recurring transactions sync completed', {
             item_id,
             synced: syncResult.synced
           });
-          if (DEBUG) {
-            console.log(`Webhook-triggered recurring sync completed for item ${item_id}:`, {
-              synced: syncResult.synced
-            });
-          }
         } else {
           const errorData = await syncResponse.json();
-          logger.error('Recurring transactions sync failed', null, { item_id, error: errorData });
+          recurringLogger.error('Recurring transactions sync failed', null, { item_id, error: errorData });
         }
-      } catch (error) {
-        logger.error('Error in webhook-triggered recurring sync', error, { item_id });
+      } catch (syncError) {
+        recurringLogger.error('Error in webhook-triggered recurring sync', syncError, { item_id });
       }
       break;
 
     default:
-      if (DEBUG) console.log('Unhandled recurring transactions webhook code:', webhook_code);
+      recurringLogger.warn('Unhandled recurring transactions webhook code', { webhook_code });
   }
 }
