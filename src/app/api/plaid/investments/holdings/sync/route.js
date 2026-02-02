@@ -191,7 +191,7 @@ export async function POST(request) {
         })));
       }
       
-      // Log holdings by account
+      // Log holdings by account with full vested info
       if (holdings && holdings.length > 0) {
         const holdingsByAcct = {};
         holdings.forEach(h => {
@@ -201,7 +201,10 @@ export async function POST(request) {
           holdingsByAcct[h.account_id].push({
             security_id: h.security_id,
             quantity: h.quantity,
-            institution_value: h.institution_value
+            vested_quantity: h.vested_quantity,
+            unvested_quantity: h.unvested_quantity,
+            institution_value: h.institution_value,
+            vested_value: h.vested_value
           });
         });
         console.log('📦 Holdings by account:', Object.keys(holdingsByAcct).map(accId => ({
@@ -209,6 +212,37 @@ export async function POST(request) {
           holdings_count: holdingsByAcct[accId].length,
           holdings: holdingsByAcct[accId]
         })));
+      }
+    }
+
+    // Always log CRM-specific holdings for debugging RSU vested quantity issues
+    if (holdings && holdings.length > 0) {
+      const crmHoldings = holdings.filter(h => {
+        const security = securities?.find(s => s.security_id === h.security_id);
+        const ticker = security?.ticker_symbol?.toUpperCase() || '';
+        return ticker === 'CRM';
+      });
+      if (crmHoldings.length > 0) {
+        console.log('🔍 CRM Holdings Debug (RSU vested analysis):');
+        crmHoldings.forEach((h, idx) => {
+          const security = securities?.find(s => s.security_id === h.security_id);
+          console.log(`  CRM Holding ${idx + 1}:`, {
+            account_id: h.account_id,
+            security_id: h.security_id,
+            security_name: security?.name,
+            security_type: security?.type,
+            quantity: h.quantity,
+            vested_quantity: h.vested_quantity,
+            unvested_quantity: h.unvested_quantity,
+            institution_value: h.institution_value,
+            vested_value: h.vested_value,
+            cost_basis: h.cost_basis,
+            will_use: h.vested_quantity != null ? `vested_quantity (${h.vested_quantity})` : `quantity (${h.quantity})`
+          });
+        });
+        const totalQuantity = crmHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
+        const totalVested = crmHoldings.reduce((sum, h) => sum + (h.vested_quantity ?? h.quantity ?? 0), 0);
+        console.log(`  CRM Total: quantity=${totalQuantity}, will_sync=${totalVested} (using vested where available)`);
       }
     }
 
@@ -480,6 +514,17 @@ export async function POST(request) {
           console.log(`  ${assetLabel}: ${tickerUpper} - ${quantity} shares @ $${costBasis > 0 && quantity > 0 ? (costBasis / quantity).toFixed(2) : '0.00'} = $${institutionValue.toFixed(2)}`);
         }
 
+        // Always log CRM holdings for debugging vested quantity
+        if (tickerUpper === 'CRM') {
+          console.log(`  🔍 CRM Holding Processed:`, {
+            raw_quantity: holding.quantity,
+            raw_vested_quantity: holding.vested_quantity,
+            used_quantity: quantity,
+            cost_basis: costBasis,
+            institution_value: institutionValue
+          });
+        }
+
         // Aggregate holdings by ticker (sum shares, weighted average for cost)
         if (holdingsByTicker.has(tickerUpper)) {
           const existing = holdingsByTicker.get(tickerUpper);
@@ -511,6 +556,17 @@ export async function POST(request) {
         if (cashTickers.size > 0) {
           console.log(`  💵 Found ${cashTickers.size} cash holdings:`, Array.from(cashTickers));
         }
+      }
+
+      // Always log CRM aggregation result for debugging
+      if (holdingsByTicker.has('CRM')) {
+        const crmHolding = holdingsByTicker.get('CRM');
+        console.log(`  🔍 CRM Final Aggregation:`, {
+          ticker: crmHolding.ticker,
+          total_shares: crmHolding.shares,
+          avg_cost: crmHolding.avg_cost,
+          asset_type: crmHolding.asset_type
+        });
       }
 
       // Convert map to array
