@@ -41,8 +41,26 @@ export async function GET() {
           const securityMap = new Map();
           (securities || []).forEach(s => securityMap.set(s.security_id, s));
 
+          // Get ALL holdings grouped by account (not just CRM)
+          const allHoldingsByAccount = {};
+          (holdings || []).forEach(h => {
+            const sec = securityMap.get(h.security_id);
+            const accId = h.account_id;
+            if (!allHoldingsByAccount[accId]) {
+              allHoldingsByAccount[accId] = {
+                account_info: accountMap.get(accId),
+                holdings: []
+              };
+            }
+            allHoldingsByAccount[accId].holdings.push({
+              ticker: sec?.ticker_symbol || 'Unknown',
+              quantity: h.quantity,
+              vested_quantity: h.vested_quantity,
+              institution_value: h.institution_value
+            });
+          });
+
           // Find CRM holdings
-          const crmFromPlaid = (holdings || [])
             .filter(h => {
               const sec = securityMap.get(h.security_id);
               return sec?.ticker_symbol?.toUpperCase() === 'CRM';
@@ -106,6 +124,7 @@ export async function GET() {
               subtype: a.subtype,
               mask: a.mask
             })),
+            all_holdings_by_account: allHoldingsByAccount,
             crm_holdings: crmFromPlaid.map(h => ({
               ...h,
               account_info: accountMap.get(h.account_id)
