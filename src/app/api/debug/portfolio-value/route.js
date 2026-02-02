@@ -49,6 +49,20 @@ export async function GET() {
             })
             .map(h => {
               const sec = securityMap.get(h.security_id);
+              // Calculate what we SHOULD sync based on all available fields
+              let correctVested = h.quantity;
+              let reason = 'Using full quantity (no vesting info)';
+
+              if (h.vested_quantity != null) {
+                correctVested = h.vested_quantity;
+                reason = 'Using vested_quantity';
+              } else if (h.unvested_quantity != null && h.unvested_quantity > 0) {
+                // If unvested_quantity is provided but vested_quantity isn't,
+                // calculate vested as: quantity - unvested
+                correctVested = h.quantity - h.unvested_quantity;
+                reason = `Calculated: quantity(${h.quantity}) - unvested(${h.unvested_quantity})`;
+              }
+
               return {
                 account_id: h.account_id,
                 security_name: sec?.name,
@@ -58,8 +72,9 @@ export async function GET() {
                 institution_value: h.institution_value,
                 vested_value: h.vested_value,
                 cost_basis: h.cost_basis,
-                will_sync: h.vested_quantity != null ? h.vested_quantity : h.quantity,
-                reason: h.vested_quantity != null ? 'Using vested_quantity' : 'No vested_quantity - using quantity'
+                current_sync: h.vested_quantity != null ? h.vested_quantity : h.quantity,
+                correct_vested: correctVested,
+                reason: reason
               };
             });
 
@@ -67,7 +82,8 @@ export async function GET() {
             item_id: item.item_id,
             crm_holdings: crmFromPlaid,
             total_quantity: crmFromPlaid.reduce((s, h) => s + (h.quantity || 0), 0),
-            total_will_sync: crmFromPlaid.reduce((s, h) => s + (h.will_sync || 0), 0)
+            current_sync_total: crmFromPlaid.reduce((s, h) => s + (h.current_sync || 0), 0),
+            correct_vested_total: crmFromPlaid.reduce((s, h) => s + (h.correct_vested || 0), 0)
           });
         } catch (plaidErr) {
           plaidCrmData.push({
@@ -87,7 +103,8 @@ export async function GET() {
       plaid_items_count: items?.length || 0,
       analysis: {
         db_shows: crmHoldings?.reduce((sum, h) => sum + parseFloat(h.shares || 0), 0),
-        plaid_will_sync: plaidCrmData.reduce((s, p) => s + (p.total_will_sync || 0), 0)
+        plaid_current_sync: plaidCrmData.reduce((s, p) => s + (p.current_sync_total || 0), 0),
+        plaid_correct_vested: plaidCrmData.reduce((s, p) => s + (p.correct_vested_total || 0), 0)
       }
     });
   } catch (err) {
