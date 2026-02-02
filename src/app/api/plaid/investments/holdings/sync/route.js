@@ -455,12 +455,30 @@ export async function POST(request) {
 
         // Prefer vested_quantity for equities (RSUs) - falls back to quantity if not available
         // E*TRADE and other brokers may provide vested_quantity for equity compensation
-        const quantity = holding.vested_quantity != null
-          ? parseFloat(holding.vested_quantity)
-          : (parseFloat(holding.quantity) || 0);
-
-        if (DEBUG && holding.vested_quantity != null) {
-          console.log(`  📊 ${tickerUpper}: Using vested_quantity (${holding.vested_quantity}) instead of total quantity (${holding.quantity})`);
+        //
+        // IMPORTANT: If BOTH vested_quantity AND vested_value are null, this likely means
+        // the holding has 0 vested shares (e.g., a new RSU grant that hasn't vested yet).
+        // Only treat vested_quantity=null as "all shares vested" if vested_value is also provided,
+        // which indicates the broker knows about vesting but chose not to provide a quantity.
+        let quantity;
+        if (holding.vested_quantity != null) {
+          // Broker provided explicit vested quantity - use it
+          quantity = parseFloat(holding.vested_quantity);
+          if (DEBUG) {
+            console.log(`  📊 ${tickerUpper}: Using vested_quantity (${holding.vested_quantity}) instead of total quantity (${holding.quantity})`);
+          }
+        } else if (holding.vested_value == null && holding.quantity > 0) {
+          // Both vested_quantity and vested_value are null - likely 0 vested shares
+          // This handles RSU grants that haven't vested yet
+          quantity = 0;
+          console.log(`  ⚠️ ${tickerUpper}: No vesting info (vested_quantity and vested_value both null) - treating as 0 vested shares (likely unvested RSU grant)`);
+        } else {
+          // vested_quantity is null but vested_value exists, or quantity is 0
+          // Fall back to full quantity (Plaid docs say assume all vested if vested_quantity is null)
+          quantity = parseFloat(holding.quantity) || 0;
+          if (DEBUG) {
+            console.log(`  📊 ${tickerUpper}: No vested_quantity but has vested_value - using full quantity (${holding.quantity})`);
+          }
         }
 
         const costBasis = parseFloat(holding.cost_basis) || 0;

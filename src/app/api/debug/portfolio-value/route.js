@@ -50,12 +50,17 @@ export async function GET() {
             .map(h => {
               const sec = securityMap.get(h.security_id);
               // Calculate what we SHOULD sync based on all available fields
+              // NEW LOGIC: If BOTH vested_quantity AND vested_value are null, treat as 0 vested
               let correctVested = h.quantity;
-              let reason = 'Using full quantity (no vesting info)';
+              let reason = 'Using full quantity (fallback)';
 
               if (h.vested_quantity != null) {
                 correctVested = h.vested_quantity;
                 reason = 'Using vested_quantity';
+              } else if (h.vested_value == null && h.quantity > 0) {
+                // Both vested_quantity and vested_value are null - likely 0 vested (unvested RSU grant)
+                correctVested = 0;
+                reason = '⚠️ NO VESTING INFO (both null) - treating as 0 vested';
               } else if (h.unvested_quantity != null && h.unvested_quantity > 0) {
                 // If unvested_quantity is provided but vested_quantity isn't,
                 // calculate vested as: quantity - unvested
