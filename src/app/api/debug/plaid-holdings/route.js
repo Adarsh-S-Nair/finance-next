@@ -1,29 +1,28 @@
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
 // Debug endpoint to see raw Plaid holdings data
 // This helps diagnose issues with vested_quantity handling for RSUs
+// Usage: GET /api/debug/plaid-holdings?userId=YOUR_USER_ID
 export async function GET(request) {
   try {
-    const cookieStore = await cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        get(name) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    });
-
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!userId) {
+      return Response.json({
+        error: 'userId query parameter required',
+        usage: 'GET /api/debug/plaid-holdings?userId=YOUR_USER_ID'
+      }, { status: 400 });
     }
+
+    // Verify user exists
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (userError || !userData?.user) {
+      return Response.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const user = userData.user;
 
     // Get all plaid items for this user
     const { data: plaidItems, error: itemsError } = await supabaseAdmin
