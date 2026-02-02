@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
-// GET: Query CRM holdings from database for debugging
+// GET: Query CRM holdings from database for debugging (v2)
 export async function GET() {
   try {
     if (!supabaseAdmin) {
