@@ -3,32 +3,13 @@ import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
 
 // Debug endpoint to see raw Plaid holdings data
 // This helps diagnose issues with vested_quantity handling for RSUs
-// Usage: GET /api/debug/plaid-holdings?userId=YOUR_USER_ID
+// No auth required - this is a temporary debug endpoint
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return Response.json({
-        error: 'userId query parameter required',
-        usage: 'GET /api/debug/plaid-holdings?userId=YOUR_USER_ID'
-      }, { status: 400 });
-    }
-
-    // Verify user exists
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (userError || !userData?.user) {
-      return Response.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const user = userData.user;
-
-    // Get all plaid items for this user
+    // Get ALL plaid items (personal app, should be just one user)
     const { data: plaidItems, error: itemsError } = await supabaseAdmin
       .from('plaid_items')
-      .select('id, item_id, access_token, institution_id')
-      .eq('user_id', user.id);
+      .select('id, item_id, access_token, institution_id, user_id');
 
     if (itemsError) {
       return Response.json({ error: 'Failed to fetch plaid items' }, { status: 500 });
@@ -116,9 +97,9 @@ export async function GET(request) {
         id,
         name,
         type,
+        user_id,
         holdings(id, ticker, shares, avg_cost, asset_type)
       `)
-      .eq('user_id', user.id)
       .eq('type', 'plaid_investment');
 
     // Group database holdings by ticker for easy comparison
@@ -146,7 +127,6 @@ export async function GET(request) {
     }
 
     return Response.json({
-      user_id: user.id,
       plaid_items_count: plaidItems.length,
       results,
       database: {
