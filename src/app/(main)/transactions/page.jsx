@@ -1280,7 +1280,7 @@ function TransactionsContent() {
 
   if ((loading && !debouncedSearchQuery) || !profile?.id) {
     return (
-      <PageContainer padding="pt-16 pb-6">
+      <PageContainer frame="toolbar" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1340,7 +1340,7 @@ function TransactionsContent() {
   // Show error state
   if (error) {
     return (
-      <PageContainer padding="pt-16 pb-6">
+      <PageContainer frame="toolbar" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1414,7 +1414,7 @@ function TransactionsContent() {
   };
 
   return (
-    <PageContainer padding="pt-16 pb-6">
+    <PageContainer frame="toolbar" showHeader={false}>
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}

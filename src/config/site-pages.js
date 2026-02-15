@@ -11,13 +11,21 @@ export const SITE_PAGES = {
     title: 'Accounts',
     header: 'Accounts',
   },
+  '/budgets': {
+    title: 'Budgets',
+    header: 'Budgets',
+  },
+  '/paper-trading': {
+    title: 'Paper Trading',
+    header: 'Paper Trading',
+  },
   '/settings': {
     title: 'Settings',
     header: 'Settings',
   },
   '/investments': {
     title: 'Investments',
-    header: null,
+    header: 'Investments',
   },
   // Add other routes as needed
 };

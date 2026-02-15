@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { LuChevronRight, LuRefreshCw, LuSettings } from "react-icons/lu";
 import PageContainer from "../../../components/PageContainer";
+import PageHeader from "../../../components/PageHeader";
 import Button from "../../../components/ui/Button";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -58,12 +59,16 @@ export default function InvestmentsLayout({ children }) {
 
   return (
     <InvestmentsHeaderContext.Provider value={{ setHeaderActions }}>
-      <PageContainer padding="pb-6">
-        {/* Persistent Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2 text-sm">
-            {isDetailPage ? (
-              <>
+      <PageContainer showHeader={false}>
+        <PageHeader
+          title={
+            isDetailPage
+              ? (isBacktestPage ? "Backtest Results" : (portfolioName || "Loading..."))
+              : "Investments"
+          }
+          prefix={
+            isDetailPage ? (
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/investments')}
                   className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
@@ -71,56 +76,47 @@ export default function InvestmentsLayout({ children }) {
                   Portfolios
                 </button>
                 <LuChevronRight className="w-3.5 h-3.5 text-[var(--color-border)]" />
-                {isBacktestPage ? (
-                  <span className="text-[var(--color-fg)] font-medium">Backtest Results</span>
-                ) : portfolioName ? (
-                  <span className="text-[var(--color-fg)] font-medium">{portfolioName}</span>
-                ) : (
-                  <span className="text-[var(--color-muted)]">Loading...</span>
-                )}
-              </>
-            ) : (
-              <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
-                Portfolio
-              </h1>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {!isDetailPage && headerActions.onSyncHoldingsClick && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={headerActions.onSyncHoldingsClick}
-                disabled={headerActions.isSyncingHoldings}
-                className="!rounded-full !px-2"
-                title="Investment sync options"
-                aria-label="Investment sync options"
-              >
-                <LuRefreshCw className={`w-3.5 h-3.5 ${headerActions.isSyncingHoldings ? 'animate-spin' : ''}`} />
-              </Button>
-            )}
-            {isDetailPage && headerActions.onSettingsClick && (
-              <button
-                onClick={headerActions.onSettingsClick}
-                className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-all cursor-pointer"
-                title="Portfolio Settings"
-              >
-                <LuSettings className="w-4 h-4" />
-              </button>
-            )}
-            {!isDetailPage && headerActions.onConnectClick && (
-              <Button
-                size="sm"
-                variant="matte"
-                onClick={headerActions.onConnectClick}
-                className="gap-1.5 !rounded-full pl-3 pr-4"
-              >
-                <LuPlus className="w-3.5 h-3.5" />
-                Connect
-              </Button>
-            )}
-          </div>
-        </div>
+              </div>
+            ) : null
+          }
+          action={
+            <div className="flex items-center gap-2">
+              {!isDetailPage && headerActions.onSyncHoldingsClick && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={headerActions.onSyncHoldingsClick}
+                  disabled={headerActions.isSyncingHoldings}
+                  className="!rounded-full !px-2"
+                  title="Investment sync options"
+                  aria-label="Investment sync options"
+                >
+                  <LuRefreshCw className={`w-3.5 h-3.5 ${headerActions.isSyncingHoldings ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
+              {isDetailPage && headerActions.onSettingsClick && (
+                <button
+                  onClick={headerActions.onSettingsClick}
+                  className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-all cursor-pointer"
+                  title="Portfolio Settings"
+                >
+                  <LuSettings className="w-4 h-4" />
+                </button>
+              )}
+              {!isDetailPage && headerActions.onConnectClick && (
+                <Button
+                  size="sm"
+                  variant="matte"
+                  onClick={headerActions.onConnectClick}
+                  className="gap-1.5 !rounded-full pl-3 pr-4"
+                >
+                  <LuPlus className="w-3.5 h-3.5" />
+                  Connect
+                </Button>
+              )}
+            </div>
+          }
+        />
 
         {/* Content */}
         {children}

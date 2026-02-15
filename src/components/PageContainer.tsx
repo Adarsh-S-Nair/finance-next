@@ -3,16 +3,31 @@
 import React, { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { SITE_PAGES } from "../config/site-pages";
+import PageHeader from "./PageHeader";
 
 type Props = {
-  title?: string;
+  title?: ReactNode;
   documentTitle?: string; // Deprecated: handled by layout metadata
   children: ReactNode;
   action?: ReactNode;
-  padding?: string;
+  frame?: "default" | "toolbar";
+  padding?: string; // Deprecated: prefer `frame`
+  showHeader?: boolean;
 };
 
-export default function PageContainer({ title, children, action, padding = "py-6" }: Props) {
+const FRAME_CLASS: Record<NonNullable<Props["frame"]>, string> = {
+  default: "pb-6",
+  toolbar: "pt-16 pb-6",
+};
+
+export default function PageContainer({
+  title,
+  children,
+  action,
+  frame = "default",
+  padding,
+  showHeader = true,
+}: Props) {
   const pathname = usePathname();
 
   // Determine the visual title
@@ -27,21 +42,12 @@ export default function PageContainer({ title, children, action, padding = "py-6
     }
   }
 
+  const frameClass = padding ?? FRAME_CLASS[frame];
+
   return (
-    <div className={padding}>
-      {(displayTitle || action) && (
-        <div className="hidden md:flex items-center justify-between mb-6 pb-3">
-          {displayTitle && (
-            <h1 className="text-lg font-normal tracking-normal text-[var(--color-fg)]">
-              {displayTitle}
-            </h1>
-          )}
-          {action && <div className="ml-auto">{action}</div>}
-        </div>
-      )}
+    <div className={frameClass}>
+      <PageHeader title={displayTitle} action={action} show={showHeader} />
       {children}
     </div>
   );
 }
-
-
