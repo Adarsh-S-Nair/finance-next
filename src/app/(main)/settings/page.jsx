@@ -49,6 +49,7 @@ export default function SettingsPage() {
     }
   };
 
+
   async function handleDeleteAccount() {
     try {
       setBusy(true);

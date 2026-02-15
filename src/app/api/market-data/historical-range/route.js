@@ -260,10 +260,15 @@ export async function GET(request) {
     }
 
     if (prices.length === 0) {
-      return NextResponse.json(
-        { error: 'No historical data available' },
-        { status: 404 }
-      );
+      // Return empty data instead of 404 so clients can gracefully fallback
+      // without noisy network errors in the console.
+      return NextResponse.json({
+        ticker,
+        interval,
+        prices: [],
+        source,
+        no_data: true,
+      });
     }
 
     const assetType = isCrypto ? '🪙 Crypto' : '📊 Stock';
@@ -284,5 +289,4 @@ export async function GET(request) {
     );
   }
 }
-
 

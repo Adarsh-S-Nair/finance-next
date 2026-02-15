@@ -5,9 +5,9 @@ const logger = createLogger('manual-sync-trigger');
 
 export async function POST(request) {
   try {
-    const { plaidItemId } = await request.json();
+    const { plaidItemId, includeHoldingsDebug = false } = await request.json();
 
-    logger.info('Manual sync trigger requested', { plaidItemId });
+    logger.info('Manual sync trigger requested', { plaidItemId, includeHoldingsDebug });
 
     if (!plaidItemId) {
       return Response.json(
@@ -33,29 +33,86 @@ export async function POST(request) {
     logger.info('Triggering sync for item', {
       item_id: plaidItem.item_id,
       user_id: plaidItem.user_id,
+      products: plaidItem.products || []
     });
 
-    // Call the sync endpoint
-    const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+    const products = Array.isArray(plaidItem.products) ? plaidItem.products : [];
+    const hasInvestmentsProduct = products.includes('investments');
+    const hasTransactionsProduct = products.includes('transactions');
+    const shouldRunTransactionsSync = hasTransactionsProduct || !hasInvestmentsProduct;
 
-    const syncRequest = {
-      json: async () => ({
-        plaidItemId: plaidItem.id,
-        userId: plaidItem.user_id,
-        forceSync: true // Force sync even if already syncing
-      })
+    const responsePayload = {
+      success: true,
+      item_id: plaidItem.item_id,
+      products,
+      transaction_sync: null,
+      holdings_sync: null,
+      investment_transactions_sync: null
     };
 
-    const syncResponse = await syncEndpoint(syncRequest);
-    const syncResult = await syncResponse.json();
+    if (shouldRunTransactionsSync) {
+      const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+      const syncRequest = {
+        json: async () => ({
+          plaidItemId: plaidItem.id,
+          userId: plaidItem.user_id,
+          forceSync: true
+        })
+      };
+      const syncResponse = await syncEndpoint(syncRequest);
+      const syncResult = await syncResponse.json();
+      responsePayload.transaction_sync = {
+        success: syncResponse.ok,
+        ...syncResult
+      };
+      if (!syncResponse.ok) responsePayload.success = false;
+    }
 
-    logger.info('Manual sync completed', syncResult);
+    if (hasInvestmentsProduct) {
+      const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+      const holdingsSyncRequest = {
+        json: async () => ({
+          plaidItemId: plaidItem.id,
+          userId: plaidItem.user_id,
+          forceSync: true,
+          includeDebug: includeHoldingsDebug
+        })
+      };
+      const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
+      const holdingsSyncResult = await holdingsSyncResponse.json();
+      responsePayload.holdings_sync = {
+        success: holdingsSyncResponse.ok,
+        ...holdingsSyncResult
+      };
+      if (!holdingsSyncResponse.ok) responsePayload.success = false;
+
+      const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
+      const invTxSyncRequest = {
+        json: async () => ({
+          plaidItemId: plaidItem.id,
+          userId: plaidItem.user_id,
+          forceSync: true
+        })
+      };
+      const invTxSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
+      const invTxSyncResult = await invTxSyncResponse.json();
+      responsePayload.investment_transactions_sync = {
+        success: invTxSyncResponse.ok,
+        ...invTxSyncResult
+      };
+      if (!invTxSyncResponse.ok) responsePayload.success = false;
+    }
+
+    logger.info('Manual sync completed', {
+      item_id: plaidItem.item_id,
+      success: responsePayload.success,
+      has_transactions_sync: !!responsePayload.transaction_sync,
+      has_holdings_sync: !!responsePayload.holdings_sync,
+      has_investment_transactions_sync: !!responsePayload.investment_transactions_sync
+    });
     await logger.flush();
 
-    return Response.json({
-      success: syncResponse.ok,
-      ...syncResult,
-    });
+    return Response.json(responsePayload);
 
   } catch (error) {
     logger.error('Error triggering manual sync', error);

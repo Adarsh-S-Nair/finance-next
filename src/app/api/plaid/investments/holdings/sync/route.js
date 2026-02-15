@@ -132,13 +132,19 @@ export async function POST(request) {
   let plaidItemId = null;
 
   try {
-    const { plaidItemId: requestPlaidItemId, userId, forceSync = false } = await request.json();
+    const {
+      plaidItemId: requestPlaidItemId,
+      userId,
+      forceSync = false,
+      includeDebug = false
+    } = await request.json();
     plaidItemId = requestPlaidItemId;
 
     logger.info('Holdings sync request received', {
       plaidItemId,
       userId,
-      forceSync
+      forceSync,
+      includeDebug
     });
     if (DEBUG) console.log(`🔄 Holdings sync request for plaid item: ${plaidItemId} (user: ${userId})`);
 
@@ -332,6 +338,7 @@ export async function POST(request) {
 
     let portfoliosCreated = 0;
     let holdingsSynced = 0;
+    const debugSyncSummary = [];
     
     // Create a set of account_ids that have holdings data from Plaid
     const accountIdsWithHoldings = new Set(holdingsByAccount.keys());
@@ -422,6 +429,17 @@ export async function POST(request) {
       let totalHoldingsValue = 0;
       let cashFromHoldings = 0; // Cash positions like CUR:USD
       const holdingsToUpsert = [];
+      const accountSubtype = (account.subtype || '').toLowerCase();
+      const accountName = (account.name || '').toLowerCase();
+      const isLikelyEquityCompAccount = ['stock plan', 'equity', 'rsu', 'espp', 'employee']
+        .some(token => accountSubtype.includes(token) || accountName.includes(token));
+      const accountDebug = includeDebug ? {
+        account_id: accountId,
+        account_name: account.name,
+        account_subtype: account.subtype || null,
+        likely_equity_comp_account: isLikelyEquityCompAccount,
+        holdings: []
+      } : null;
 
       // Use a Map to aggregate holdings by ticker (in case Plaid returns duplicates)
       const holdingsByTicker = new Map();
@@ -460,35 +478,78 @@ export async function POST(request) {
         // the holding has 0 vested shares (e.g., a new RSU grant that hasn't vested yet).
         // Only treat vested_quantity=null as "all shares vested" if vested_value is also provided,
         // which indicates the broker knows about vesting but chose not to provide a quantity.
+        const rawQuantity = parseFloat(holding.quantity) || 0;
+        const rawVestedQuantity = holding.vested_quantity != null ? parseFloat(holding.vested_quantity) : null;
+        const rawUnvestedQuantity = holding.unvested_quantity != null ? parseFloat(holding.unvested_quantity) : null;
+
         let quantity;
-        if (holding.vested_quantity != null) {
+        let quantityReason;
+        if (rawVestedQuantity != null) {
           // Broker provided explicit vested quantity - use it
-          quantity = parseFloat(holding.vested_quantity);
+          quantity = rawVestedQuantity;
+          quantityReason = 'explicit_vested_quantity';
           if (DEBUG) {
             console.log(`  📊 ${tickerUpper}: Using vested_quantity (${holding.vested_quantity}) instead of total quantity (${holding.quantity})`);
           }
-        } else if (holding.vested_value == null && holding.quantity > 0) {
-          // Both vested_quantity and vested_value are null - likely 0 vested shares
-          // This handles RSU grants that haven't vested yet
+        } else if (rawUnvestedQuantity != null && rawQuantity > 0) {
+          // If Plaid provides unvested_quantity, compute vested as total - unvested.
+          // This avoids dropping legitimate vested holdings when vested_quantity is omitted.
+          quantity = Math.max(rawQuantity - rawUnvestedQuantity, 0);
+          quantityReason = 'derived_from_total_minus_unvested';
+          if (DEBUG) {
+            console.log(`  📊 ${tickerUpper}: Derived vested quantity (${quantity}) from quantity (${rawQuantity}) - unvested_quantity (${rawUnvestedQuantity})`);
+          }
+        } else if (holding.vested_value == null && rawQuantity > 0 && isLikelyEquityCompAccount) {
+          // Fallback only for likely equity compensation accounts.
+          // Some stock plan feeds omit vested fields for unvested grants.
           quantity = 0;
-          console.log(`  ⚠️ ${tickerUpper}: No vesting info (vested_quantity and vested_value both null) - treating as 0 vested shares (likely unvested RSU grant)`);
+          quantityReason = 'equity_comp_no_vesting_fields_assume_unvested';
+          console.log(`  ⚠️ ${tickerUpper}: No vesting fields on likely equity compensation account - treating as 0 vested shares`);
+        } else if (holding.vested_value == null && holding.quantity > 0) {
+          // For non-compensation accounts, default to full quantity when vesting fields are absent.
+          quantity = rawQuantity;
+          quantityReason = 'no_vesting_fields_non_comp_account_use_full_quantity';
+          if (DEBUG) {
+            console.log(`  📊 ${tickerUpper}: No vesting fields on non-comp account - using full quantity (${holding.quantity})`);
+          }
         } else {
           // vested_quantity is null but vested_value exists, or quantity is 0
           // Fall back to full quantity (Plaid docs say assume all vested if vested_quantity is null)
-          quantity = parseFloat(holding.quantity) || 0;
+          quantity = rawQuantity;
+          quantityReason = 'fallback_full_quantity';
           if (DEBUG) {
             console.log(`  📊 ${tickerUpper}: No vested_quantity but has vested_value - using full quantity (${holding.quantity})`);
           }
         }
 
         const costBasis = parseFloat(holding.cost_basis) || 0;
-        // Prefer vested_value for equities (RSUs) when available
-        const institutionValue = holding.vested_value != null
-          ? parseFloat(holding.vested_value)
-          : (parseFloat(holding.institution_value) || 0);
+        const totalInstitutionValue = parseFloat(holding.institution_value) || 0;
+        let institutionValue = totalInstitutionValue;
+        // Prefer vested_value when available.
+        if (holding.vested_value != null) {
+          institutionValue = parseFloat(holding.vested_value);
+        } else if (rawUnvestedQuantity != null && rawQuantity > 0 && quantity < rawQuantity) {
+          // Pro-rate value when we had to derive vested quantity from total/unvested.
+          institutionValue = totalInstitutionValue * (quantity / rawQuantity);
+        }
 
         if (DEBUG && holding.vested_value != null) {
           console.log(`  💰 ${tickerUpper}: Using vested_value ($${holding.vested_value}) instead of total value ($${holding.institution_value})`);
+        }
+
+        if (accountDebug) {
+          accountDebug.holdings.push({
+            ticker: tickerUpper,
+            security_id: holding.security_id,
+            quantity: rawQuantity,
+            vested_quantity: rawVestedQuantity,
+            unvested_quantity: rawUnvestedQuantity,
+            institution_value: totalInstitutionValue,
+            vested_value: holding.vested_value != null ? parseFloat(holding.vested_value) : null,
+            synced_quantity: quantity,
+            synced_value: institutionValue,
+            quantity_reason: quantityReason
+          });
         }
         
         // Also check if ticker itself is a known crypto (in case Plaid misclassified)
@@ -924,6 +985,9 @@ export async function POST(request) {
           } else {
             holdingsSynced += nonZeroHoldings.length;
             if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for portfolio ${portfolio.id}`);
+            if (accountDebug) {
+              accountDebug.non_zero_holdings_inserted = nonZeroHoldings.length;
+            }
 
             // Create a snapshot for this portfolio (conditional - only if date/value changed)
             try {
@@ -974,9 +1038,19 @@ export async function POST(request) {
           }
         } else {
           if (DEBUG) console.log(`  ⚠️ No non-zero holdings to insert for account ${accountId}`);
+          if (accountDebug) {
+            accountDebug.non_zero_holdings_inserted = 0;
+          }
         }
       } else {
         if (DEBUG) console.log(`  ⚠️ No holdings data from Plaid for account ${accountId} (already deleted old holdings)`);
+        if (accountDebug) {
+          accountDebug.non_zero_holdings_inserted = 0;
+        }
+      }
+
+      if (accountDebug) {
+        debugSyncSummary.push(accountDebug);
       }
     }
     
@@ -1062,7 +1136,12 @@ export async function POST(request) {
     return Response.json({
       success: true,
       portfolios_created: portfoliosCreated,
-      holdings_synced: holdingsSynced
+      holdings_synced: holdingsSynced,
+      ...(includeDebug ? {
+        plaid_accounts_count: accounts?.length || 0,
+        plaid_holdings_count: holdings?.length || 0,
+        holdings_debug: debugSyncSummary
+      } : {})
     });
   } catch (error) {
     logger.error('Error syncing holdings', error, {
@@ -1078,4 +1157,3 @@ export async function POST(request) {
     );
   }
 }
-

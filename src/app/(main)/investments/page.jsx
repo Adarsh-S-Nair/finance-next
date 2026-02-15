@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
+import Modal from "../../../components/ui/Modal";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import EmptyState from "../../../components/ui/EmptyState";
 import { PiBankFill } from "react-icons/pi";
@@ -12,7 +13,7 @@ import { useUser } from "../../../components/UserProvider";
 import { supabase } from "../../../lib/supabaseClient";
 import LineChart from "../../../components/ui/LineChart";
 import { useInvestmentsHeader } from "./InvestmentsHeaderContext";
-import { ChartSkeleton, CardSkeleton } from "../../../components/ui/Skeleton";
+import { ChartSkeleton, CardSkeleton, HoldingsTableSkeleton } from "../../../components/ui/Skeleton";
 
 // Format currency with appropriate decimal places
 // Uses more decimals for small amounts (crypto prices)
@@ -188,6 +189,197 @@ export default function InvestmentsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [chartTimeRange, setChartTimeRange] = useState('ALL');
   const [sparklineData, setSparklineData] = useState({});
+  const [isSyncingHoldings, setIsSyncingHoldings] = useState(false);
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [selectedSyncScope, setSelectedSyncScope] = useState('all');
+
+  const investmentSyncTargets = useMemo(() => {
+    const seen = new Set();
+    const targets = [];
+    investmentPortfolios.forEach((portfolio) => {
+      const account = portfolio.source_account;
+      const plaidItemId = account?.plaid_item_id;
+      if (!plaidItemId || seen.has(plaidItemId)) return;
+      seen.add(plaidItemId);
+      targets.push({
+        plaidItemId,
+        accountName: account?.name || portfolio.name || 'Investment Account',
+        portfolioName: portfolio.name || 'Portfolio'
+      });
+    });
+    return targets;
+  }, [investmentPortfolios]);
+
+  useEffect(() => {
+    if (selectedSyncScope !== 'all') {
+      const exists = investmentSyncTargets.some(target => target.plaidItemId === selectedSyncScope);
+      if (!exists) setSelectedSyncScope('all');
+    }
+  }, [selectedSyncScope, investmentSyncTargets]);
+
+  const runLatestHoldingsSync = useCallback(async (plaidItemId) => {
+    const response = await fetch('/api/plaid/investments/holdings/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        plaidItemId,
+        userId: profile.id,
+        forceSync: true,
+        includeDebug: true
+      })
+    });
+    const responseText = await response.text();
+    let result;
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error(`Server returned non-JSON response (status ${response.status})`);
+    }
+    if (!response.ok) {
+      throw new Error(result?.details || result?.error || 'Failed to sync latest holdings');
+    }
+    return result;
+  }, [profile?.id]);
+
+  const runHardResetSync = useCallback(async (plaidItemId) => {
+    const response = await fetch('/api/plaid/investments/hard-reset-sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        plaidItemId,
+        userId: profile.id,
+        includeHoldingsDebug: true
+      })
+    });
+    const responseText = await response.text();
+    let result;
+    try {
+      result = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error(`Server returned non-JSON response (status ${response.status})`);
+    }
+    if (!response.ok) {
+      throw new Error(result?.details || result?.error || 'Failed to hard reset sync');
+    }
+    return result;
+  }, [profile?.id]);
+
+  const handleLatestHoldingsSync = useCallback(async () => {
+    if (!profile?.id) return;
+    setIsSyncingHoldings(true);
+    setLoading(true);
+    setIsRefreshingData(true);
+
+    try {
+      const plaidItemIds = selectedSyncScope === 'all'
+        ? investmentSyncTargets.map(target => target.plaidItemId)
+        : [selectedSyncScope];
+      if (plaidItemIds.length === 0) {
+        throw new Error('No connected investment accounts found for syncing');
+      }
+
+      console.group('[Plaid Holdings] Latest holdings sync start');
+      console.log('Sync targets', { selectedSyncScope, plaidItemIds, userId: profile.id });
+
+      for (const plaidItemId of plaidItemIds) {
+        const result = await runLatestHoldingsSync(plaidItemId);
+        console.groupCollapsed(`[Plaid Holdings] Item ${plaidItemId}`);
+        console.log('Holdings sync result', result);
+        const accountDebug = result?.holdings_debug || [];
+        accountDebug.forEach((accountEntry) => {
+          console.groupCollapsed(`[Plaid Holdings] Account ${accountEntry.account_name || accountEntry.account_id}`);
+          console.log('Account metadata', {
+            account_id: accountEntry.account_id,
+            account_subtype: accountEntry.account_subtype,
+            likely_equity_comp_account: accountEntry.likely_equity_comp_account,
+            non_zero_holdings_inserted: accountEntry.non_zero_holdings_inserted
+          });
+          console.table((accountEntry.holdings || []).map(h => ({
+            ticker: h.ticker,
+            quantity: h.quantity,
+            vested_quantity: h.vested_quantity,
+            unvested_quantity: h.unvested_quantity,
+            synced_quantity: h.synced_quantity,
+            quantity_reason: h.quantity_reason
+          })));
+          console.groupEnd();
+        });
+        console.groupEnd();
+      }
+
+      console.groupEnd();
+      setRefreshTrigger(prev => prev + 1);
+      setIsSyncModalOpen(false);
+    } catch (error) {
+      console.groupEnd();
+      console.error('[Plaid Holdings] Sync error', error);
+      alert(`Failed to sync investment holdings: ${error.message}`);
+    } finally {
+      setIsSyncingHoldings(false);
+    }
+  }, [profile?.id, selectedSyncScope, investmentSyncTargets, runLatestHoldingsSync]);
+
+  const handleHardResetSync = useCallback(async () => {
+    if (!profile?.id) return;
+    setIsSyncingHoldings(true);
+    setLoading(true);
+    setIsRefreshingData(true);
+
+    try {
+      const plaidItemIds = selectedSyncScope === 'all'
+        ? investmentSyncTargets.map(target => target.plaidItemId)
+        : [selectedSyncScope];
+      if (plaidItemIds.length === 0) {
+        throw new Error('No connected investment accounts found for reset');
+      }
+
+      console.group('[Plaid Investments] Hard reset sync start');
+      console.log('Reset targets', { selectedSyncScope, plaidItemIds, userId: profile.id });
+
+      for (const plaidItemId of plaidItemIds) {
+        const result = await runHardResetSync(plaidItemId);
+        console.groupCollapsed(`[Plaid Investments] Hard reset item ${plaidItemId}`);
+        console.log('Hard reset result', result);
+        const accountDebug = result?.holdings_sync?.holdings_debug || [];
+        accountDebug.forEach((accountEntry) => {
+          console.groupCollapsed(`[Plaid Holdings] Account ${accountEntry.account_name || accountEntry.account_id}`);
+          console.table((accountEntry.holdings || []).map(h => ({
+            ticker: h.ticker,
+            quantity: h.quantity,
+            vested_quantity: h.vested_quantity,
+            unvested_quantity: h.unvested_quantity,
+            synced_quantity: h.synced_quantity,
+            quantity_reason: h.quantity_reason
+          })));
+          console.groupEnd();
+        });
+        console.groupEnd();
+      }
+
+      console.groupEnd();
+      setRefreshTrigger(prev => prev + 1);
+      setIsSyncModalOpen(false);
+    } catch (error) {
+      console.groupEnd();
+      console.error('[Plaid Investments] Hard reset sync error', error);
+      alert(`Failed to hard reset investment sync: ${error.message}`);
+    } finally {
+      setIsSyncingHoldings(false);
+    }
+  }, [profile?.id, selectedSyncScope, investmentSyncTargets, runHardResetSync]);
+
+  const openSyncModal = useCallback(() => {
+    if (investmentSyncTargets.length === 0) {
+      alert('No connected investment accounts found for syncing.');
+      return;
+    }
+    setIsSyncModalOpen(true);
+  }, [investmentSyncTargets]);
 
   // Register header actions with layout (only show connect button when accounts exist)
   useEffect(() => {
@@ -197,13 +389,17 @@ export default function InvestmentsPage() {
       const hasAccounts = !loading && investmentPortfolios.length > 0;
       setHeaderActions({
         onConnectClick: hasAccounts ? () => setShowLinkModal(true) : null,
+        onSyncHoldingsClick: hasAccounts ? openSyncModal : null,
+        isSyncingHoldings: isSyncingHoldings || isRefreshingData,
       });
     }
-  }, [setHeaderActions, loading, investmentPortfolios.length]);
+  }, [setHeaderActions, loading, investmentPortfolios.length, openSyncModal, isSyncingHoldings, isRefreshingData]);
 
   // Fetch investment portfolios and holdings
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      setIsRefreshingData(true);
       try {
         const { data: plaidPortfoliosData, error: plaidPortfoliosError } = await supabase
           .from('portfolios')
@@ -212,6 +408,7 @@ export default function InvestmentsPage() {
             holdings(id, ticker, shares, avg_cost),
             source_account:accounts!portfolios_source_account_id_fkey(
               id,
+              plaid_item_id,
               name,
               balances,
               institutions(name, logo)
@@ -228,8 +425,37 @@ export default function InvestmentsPage() {
         const accountIds = (plaidPortfoliosData || [])
           .map(p => p.source_account?.id)
           .filter(id => id);
+        const portfolioIds = (plaidPortfoliosData || [])
+          .map(p => p.id)
+          .filter(id => id);
 
-        if (accountIds.length > 0) {
+        // Prefer portfolio_snapshots for investment portfolio chart history.
+        // Fall back to account_snapshots only if portfolio snapshots don't exist yet.
+        if (portfolioIds.length > 0) {
+          const { data: portfolioSnapshotsData } = await supabase
+            .from('portfolio_snapshots')
+            .select('portfolio_id, snapshot_date, created_at, total_value, cash, holdings_value')
+            .in('portfolio_id', portfolioIds)
+            .order('snapshot_date', { ascending: true });
+
+          if (portfolioSnapshotsData && portfolioSnapshotsData.length > 0) {
+            const normalizedSnapshots = portfolioSnapshotsData.map(s => ({
+              ...s,
+              recorded_at: s.snapshot_date ? `${s.snapshot_date}T00:00:00` : s.created_at
+            }));
+            setPortfolioSnapshots(normalizedSnapshots);
+          } else if (accountIds.length > 0) {
+            const { data: accountSnapshotsData } = await supabase
+              .from('account_snapshots')
+              .select('*')
+              .in('account_id', accountIds)
+              .order('recorded_at', { ascending: true });
+
+            setPortfolioSnapshots(accountSnapshotsData || []);
+          } else {
+            setPortfolioSnapshots([]);
+          }
+        } else if (accountIds.length > 0) {
           const { data: accountSnapshotsData } = await supabase
             .from('account_snapshots')
             .select('*')
@@ -237,6 +463,8 @@ export default function InvestmentsPage() {
             .order('recorded_at', { ascending: true });
 
           setPortfolioSnapshots(accountSnapshotsData || []);
+        } else {
+          setPortfolioSnapshots([]);
         }
 
         const allTickers = (plaidPortfoliosData || []).flatMap(p =>
@@ -313,6 +541,7 @@ export default function InvestmentsPage() {
       } catch (err) {
         console.error('Error fetching investment data:', err);
       } finally {
+        setIsRefreshingData(false);
         setLoading(false);
       }
     };
@@ -470,8 +699,10 @@ export default function InvestmentsPage() {
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="lg:w-2/3 flex flex-col gap-6">
           <ChartSkeleton />
+          <HoldingsTableSkeleton />
         </div>
         <div className="lg:w-1/3 flex flex-col gap-4">
+          <CardSkeleton className="h-48" />
           <CardSkeleton className="h-48" />
         </div>
       </div>
@@ -503,6 +734,8 @@ export default function InvestmentsPage() {
           <div className="lg:w-1/3 flex flex-col gap-4">
             <AccountsSummary
               portfolioMetrics={portfolioMetrics}
+            />
+            <LinkedAccountsWidget
               accounts={investmentPortfolios}
               stockQuotes={stockQuotes}
             />
@@ -530,9 +763,79 @@ export default function InvestmentsPage() {
         onClose={() => setShowLinkModal(false)}
         defaultAccountType="investment"
         onSuccess={() => {
+          setLoading(true);
+          setIsRefreshingData(true);
           setRefreshTrigger(prev => prev + 1);
         }}
       />
+
+      <Modal
+        isOpen={isSyncModalOpen}
+        onClose={() => !isSyncingHoldings && setIsSyncModalOpen(false)}
+        title="Investment Sync Options"
+        description="Choose whether to fetch latest holdings or hard reset local investment data and rebuild from Plaid while keeping the existing connection."
+        size="md"
+      >
+        <div className="space-y-4">
+          {investmentSyncTargets.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-fg)] mb-2">Scope</label>
+              <select
+                className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-2 text-sm"
+                value={selectedSyncScope}
+                onChange={(e) => setSelectedSyncScope(e.target.value)}
+                disabled={isSyncingHoldings}
+              >
+                <option value="all">All Investment Accounts</option>
+                {investmentSyncTargets.map(target => (
+                  <option key={target.plaidItemId} value={target.plaidItemId}>
+                    {target.accountName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="rounded-md border border-[var(--color-border)] p-3">
+            <div className="text-sm font-medium text-[var(--color-fg)]">Latest Holdings</div>
+            <p className="text-xs text-[var(--color-muted)] mt-1">
+              Fetches latest holdings and reapplies vested/unvested logic without deleting portfolio history.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              onClick={handleLatestHoldingsSync}
+              disabled={isSyncingHoldings}
+            >
+              {isSyncingHoldings ? 'Working...' : 'Get Latest Holdings'}
+            </Button>
+          </div>
+
+          <div className="rounded-md border border-[color-mix(in_oklab,var(--color-danger),transparent_70%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] p-3">
+            <div className="text-sm font-medium text-[var(--color-danger)]">Hard Reset + Rebuild</div>
+            <p className="text-xs text-[var(--color-muted)] mt-1">
+              Deletes local investment portfolio data (including holdings, trades, and portfolio snapshots) for selected account scope, then runs sync from Plaid again. Plaid connection stays active.
+            </p>
+            <Button
+              variant="danger"
+              className="mt-3 w-full"
+              onClick={handleHardResetSync}
+              disabled={isSyncingHoldings}
+            >
+              {isSyncingHoldings ? 'Resetting...' : 'Hard Reset and Resync'}
+            </Button>
+          </div>
+
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => setIsSyncModalOpen(false)}
+            disabled={isSyncingHoldings}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -593,6 +896,13 @@ function PortfolioChartCard({ portfolioMetrics, snapshots, holdings, timeRange, 
     // If start date is before oldest snapshot, use oldest snapshot
     if (startDate < oldestSnapshotDate) {
       startDate = new Date(oldestSnapshotDate);
+    }
+
+    // Ensure we always have a non-zero chart window so historical-range
+    // requests don't end up with start=end (which can return 404/no-data).
+    const MIN_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 day
+    if ((now.getTime() - startDate.getTime()) < MIN_WINDOW_MS) {
+      startDate = new Date(now.getTime() - MIN_WINDOW_MS);
     }
 
     return { startDate, endDate: now };
@@ -1147,68 +1457,7 @@ function HoldingsList({ holdings, sparklineData = {} }) {
 // ACCOUNTS SUMMARY - Minimal design
 // ============================================================================
 
-function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
-  // Calculate invested percent (non-cash assets)
-  const nonCashValue = (portfolioMetrics.assetTypeTotals?.stock || 0) + (portfolioMetrics.assetTypeTotals?.crypto || 0);
-  const investedPercent = portfolioMetrics.totalPortfolioValue > 0
-    ? ((nonCashValue / portfolioMetrics.totalPortfolioValue) * 100)
-    : 0;
-
-  // Calculate each account's value and group by institution
-  const accountsByInstitution = useMemo(() => {
-    const grouped = {};
-    
-    accounts.forEach(portfolio => {
-      const account = portfolio.source_account;
-      const institution = account?.institutions;
-      const institutionName = institution?.name || 'Other';
-      const institutionLogo = institution?.logo || null;
-      const accountName = account?.name || 'Account';
-
-      // Calculate holdings value and cash from actual holdings
-      let holdingsValue = 0;
-      let cashValue = 0;
-      
-      (portfolio.holdings || []).forEach(h => {
-        const ticker = (h.ticker || '').toUpperCase();
-        const quote = stockQuotes[ticker];
-        const shares = h.shares || 0;
-        const assetType = h.asset_type || quote?.assetType || 'stock';
-        
-        const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
-        
-        if (isCashHolding) {
-          cashValue += shares * 1.0;
-        } else {
-          const price = quote?.price || h.avg_cost || 0;
-          holdingsValue += shares * price;
-        }
-      });
-
-      const totalValue = holdingsValue + cashValue;
-
-      if (!grouped[institutionName]) {
-        grouped[institutionName] = {
-          name: institutionName,
-          logo: institutionLogo,
-          accounts: [],
-          totalValue: 0
-        };
-      }
-      
-      grouped[institutionName].accounts.push({
-        id: portfolio.id,
-        name: accountName,
-        totalValue
-      });
-      grouped[institutionName].totalValue += totalValue;
-    });
-
-    // Sort institutions by total value (descending)
-    return Object.values(grouped).sort((a, b) => b.totalValue - a.totalValue);
-  }, [accounts, stockQuotes]);
-
-  const cashPercent = 100 - investedPercent;
+function AccountsSummary({ portfolioMetrics }) {
   const totalValue = portfolioMetrics.totalPortfolioValue;
   
   // Create segments for the segmented bar grouped by asset type
@@ -1228,7 +1477,7 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
       amount: portfolioMetrics.assetTypeTotals?.cash || 0,
       color: '#059669' // Emerald-600 like Cash in accounts page
     }
-  ].filter(segment => segment.amount > 0);
+  ].sort((a, b) => b.amount - a.amount);
 
   const [hoveredSegment, setHoveredSegment] = useState(null);
 
@@ -1241,125 +1490,194 @@ function AccountsSummary({ portfolioMetrics, accounts, stockQuotes }) {
         </div>
         
         {/* Segmented Bar */}
-        {totalValue > 0 ? (
-          <div className="space-y-4">
-            {/* Bar */}
-            <div
-              className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface)]"
-              onMouseLeave={() => setHoveredSegment(null)}
-            >
-              {segments.map((segment) => {
-                const percentage = (segment.amount / totalValue) * 100;
-                const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+        <div className="space-y-4">
+          {/* Bar */}
+          <div
+            className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface)]"
+            onMouseLeave={() => setHoveredSegment(null)}
+          >
+            {segments.map((segment) => {
+              const percentage = totalValue > 0 ? (segment.amount / totalValue) * 100 : 0;
+              const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
 
-                return (
-                  <div
-                    key={segment.label}
-                    className="h-full transition-all duration-200 cursor-pointer"
-                    style={{
-                      width: `${percentage}%`,
-                      backgroundColor: segment.color,
-                      opacity: isDimmed ? 0.3 : 1,
-                    }}
-                    onMouseEnter={() => setHoveredSegment(segment)}
-                  />
-                );
-              })}
-            </div>
-
-            {/* Vertical Legend */}
-            <div className="space-y-2 pt-1">
-              {segments.map((segment, index) => {
-                const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
-                const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
-                const percentage = ((segment.amount / totalValue) * 100).toFixed(1);
-
-                return (
-                  <div
-                    key={index}
-                    className={`flex items-center justify-between text-xs transition-opacity duration-200 cursor-pointer ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
-                    onMouseEnter={() => setHoveredSegment(segment)}
-                    onMouseLeave={() => setHoveredSegment(null)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: segment.color }}
-                      />
-                      <span className={`text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
-                        {segment.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[var(--color-fg)] font-medium tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
-                        {formatCurrency(segment.amount)}
-                      </span>
-                      <span className="text-[var(--color-muted)] font-mono text-[10px]">{percentage}%</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              return (
+                <div
+                  key={segment.label}
+                  className="h-full transition-all duration-200 cursor-pointer"
+                  style={{
+                    width: `${percentage}%`,
+                    backgroundColor: segment.color,
+                    opacity: isDimmed ? 0.3 : 1,
+                  }}
+                  onMouseEnter={() => setHoveredSegment(segment)}
+                />
+              );
+            })}
           </div>
-        ) : (
-          <div className="w-full h-3 bg-[var(--color-border)]/20 rounded-full overflow-hidden" />
-        )}
-      </div>
 
-      {/* Accounts grouped by institution */}
-      {accountsByInstitution.length > 0 && (
-        <div className="px-5 pb-5">
-          <div className="text-xs text-[var(--color-muted)] uppercase tracking-wider mb-3">
-            Linked Accounts
-          </div>
-          <div className="space-y-4">
-            {accountsByInstitution.map((institution, instIndex) => (
-              <div key={institution.name}>
-                {/* Institution Header */}
-                <div className="flex items-center justify-between mb-2">
+          {/* Vertical Legend */}
+          <div className="space-y-2 pt-1">
+            {segments.map((segment, index) => {
+              const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
+              const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
+              const percentage = totalValue > 0 ? ((segment.amount / totalValue) * 100).toFixed(1) : '0.0';
+
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center justify-between text-xs transition-opacity duration-200 cursor-pointer ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+                  onMouseEnter={() => setHoveredSegment(segment)}
+                  onMouseLeave={() => setHoveredSegment(null)}
+                >
                   <div className="flex items-center gap-2">
-                    {institution.logo ? (
-                      <img
-                        src={institution.logo}
-                        alt=""
-                        className="w-4 h-4 rounded object-contain flex-shrink-0"
-                      />
-                    ) : (
-                      <PiBankFill className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
-                    )}
-                    <span className="text-xs text-[var(--color-muted)]">{institution.name}</span>
-                  </div>
-                  <span className="text-xs text-[var(--color-fg)] font-medium tabular-nums">
-                    {formatCurrency(institution.totalValue)}
-                  </span>
-                </div>
-                
-                {/* Accounts under this institution */}
-                <div className="ml-6 space-y-1.5">
-                  {institution.accounts.map((account) => (
                     <div
-                      key={account.id}
-                      className="flex items-center justify-between py-1"
-                    >
-                      <span className="text-xs text-[var(--color-muted)] truncate pr-2">
-                        {account.name}
-                      </span>
-                      <span className="text-xs text-[var(--color-fg)] font-medium tabular-nums flex-shrink-0">
-                        {formatCurrency(account.totalValue)}
-                      </span>
-                    </div>
-                  ))}
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: segment.color }}
+                    />
+                    <span className={`text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                      {segment.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[var(--color-fg)] font-medium tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                      {formatCurrency(segment.amount)}
+                    </span>
+                    <span className="text-[var(--color-muted)] font-mono text-[10px]">{percentage}%</span>
+                  </div>
                 </div>
-                
-                {/* Divider between institutions */}
-                {instIndex < accountsByInstitution.length - 1 && (
-                  <div className="mt-4 border-t border-[var(--color-border)]/30" />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
-      )}
+      </div>
+    </Card>
+  );
+}
+
+function LinkedAccountsWidget({ accounts, stockQuotes }) {
+  const accountsByInstitution = useMemo(() => {
+    const grouped = {};
+
+    accounts.forEach((portfolio) => {
+      const account = portfolio.source_account;
+      const institution = account?.institutions;
+      const institutionName = institution?.name || 'Other';
+      const institutionLogo = institution?.logo || null;
+      const accountName = account?.name || 'Account';
+
+      let holdingsValue = 0;
+      let cashValue = 0;
+
+      (portfolio.holdings || []).forEach((h) => {
+        const ticker = (h.ticker || '').toUpperCase();
+        const quote = stockQuotes[ticker];
+        const shares = h.shares || 0;
+        const assetType = h.asset_type || quote?.assetType || 'stock';
+        const isCashHolding = assetType === 'cash' || ticker.startsWith('CUR:') || ticker === 'USD';
+
+        if (isCashHolding) {
+          cashValue += shares;
+        } else {
+          const price = quote?.price || h.avg_cost || 0;
+          holdingsValue += shares * price;
+        }
+      });
+
+      const totalValue = holdingsValue + cashValue;
+
+      if (!grouped[institutionName]) {
+        grouped[institutionName] = {
+          name: institutionName,
+          logo: institutionLogo,
+          accounts: [],
+          totalValue: 0,
+        };
+      }
+
+      grouped[institutionName].accounts.push({
+        id: portfolio.id,
+        name: accountName,
+        totalValue,
+      });
+      grouped[institutionName].totalValue += totalValue;
+    });
+
+    return Object.values(grouped)
+      .map((institution) => ({
+        ...institution,
+        accounts: institution.accounts.sort((a, b) => b.totalValue - a.totalValue),
+      }))
+      .sort((a, b) => b.totalValue - a.totalValue);
+  }, [accounts, stockQuotes]);
+
+  if (accountsByInstitution.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card variant="glass" padding="none">
+      <div className="p-5">
+        <div className="text-[11px] text-[var(--color-muted)]/95 uppercase tracking-[0.14em]">
+          Linked Accounts
+        </div>
+
+        <div className="mt-4 divide-y divide-[var(--color-border)]/35">
+          {accountsByInstitution.map((institution) => (
+            <div key={institution.name} className="py-4 first:pt-0 last:pb-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex items-center gap-3">
+                  {institution.logo ? (
+                    <img
+                      src={institution.logo}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-[var(--color-surface)]/70 flex items-center justify-center flex-shrink-0">
+                      <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-[15px] leading-tight text-[var(--color-fg)]/95 font-medium truncate">
+                      {institution.name}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-muted)]/95 mt-0.5">
+                      {institution.accounts.length} {institution.accounts.length === 1 ? 'account' : 'accounts'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] uppercase tracking-[0.09em] text-[var(--color-muted)]/95">
+                    Institution Total
+                  </div>
+                  <div className="text-[18px] leading-none text-[var(--color-fg)]/95 font-medium tabular-nums mt-1">
+                    {formatCurrency(institution.totalValue)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 border-t border-[var(--color-border)]/25 divide-y divide-[var(--color-border)]/20">
+                {institution.accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="grid grid-cols-[1fr_auto] items-center gap-3 py-2.5"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]/80 shrink-0" />
+                      <span className="text-[12px] text-[var(--color-fg)]/85 truncate">
+                        {account.name}
+                      </span>
+                    </div>
+                    <span className="text-[12px] text-[var(--color-fg)]/90 font-medium tabular-nums shrink-0">
+                      {formatCurrency(account.totalValue)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </Card>
   );
 }

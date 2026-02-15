@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { LuChevronRight, LuSettings } from "react-icons/lu";
+import { LuChevronRight, LuRefreshCw, LuSettings } from "react-icons/lu";
 import PageContainer from "../../../components/PageContainer";
 import Button from "../../../components/ui/Button";
 import { useState, useEffect } from "react";
@@ -17,6 +17,8 @@ export default function InvestmentsLayout({ children }) {
   const [portfolioName, setPortfolioName] = useState(null);
   const [headerActions, setHeaderActions] = useState({
     onConnectClick: null,
+    onSyncHoldingsClick: null,
+    isSyncingHoldings: false,
     onSettingsClick: null,
   });
 
@@ -84,6 +86,19 @@ export default function InvestmentsLayout({ children }) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {!isDetailPage && headerActions.onSyncHoldingsClick && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={headerActions.onSyncHoldingsClick}
+                disabled={headerActions.isSyncingHoldings}
+                className="!rounded-full !px-2"
+                title="Investment sync options"
+                aria-label="Investment sync options"
+              >
+                <LuRefreshCw className={`w-3.5 h-3.5 ${headerActions.isSyncingHoldings ? 'animate-spin' : ''}`} />
+              </Button>
+            )}
             {isDetailPage && headerActions.onSettingsClick && (
               <button
                 onClick={headerActions.onSettingsClick}
