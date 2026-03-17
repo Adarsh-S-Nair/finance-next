@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabase/client";
 
 /**
  * AuthGuard component that protects routes requiring authentication.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "./UserProvider";
+import { useUser } from "./providers/UserProvider";
 import Dropdown from "./ui/Dropdown";
 
 export default function ThemeToggle() {

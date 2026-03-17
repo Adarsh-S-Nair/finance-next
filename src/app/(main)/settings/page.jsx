@@ -1,16 +1,16 @@
 "use client";
 
-import PageContainer from "../../../components/PageContainer";
+import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
 import AccentPicker from "../../../components/AccentPicker";
 import Card from "../../../components/ui/Card";
 import { useState } from "react";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import Button from "../../../components/ui/Button";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { useUser } from "../../../components/UserProvider";
-import { useAccounts } from "../../../components/AccountsProvider";
+import { useUser } from "../../../components/providers/UserProvider";
+import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
 import { FaPlus } from "react-icons/fa";
 import { HiChevronDown } from "react-icons/hi2";

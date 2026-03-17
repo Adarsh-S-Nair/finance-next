@@ -1,5 +1,5 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { getInvestmentsHoldings } from '../../../../lib/plaid/client';
 
 // Debug endpoint to see raw Plaid holdings data
 // This helps diagnose issues with vested_quantity handling for RSUs

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Card from "../ui/Card";
-import { useAccounts } from "../AccountsProvider";
+import { useAccounts } from "../providers/AccountsProvider";
 import { useRouter } from "next/navigation";
 import Button from "../ui/Button";
 import { PiBankFill } from "react-icons/pi";

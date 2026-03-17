@@ -1,5 +1,5 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { getInvestmentsHoldings } from '../../../../lib/plaid/client';
 
 // Dump RAW Plaid response with no processing
 // This helps us see exactly what E*TRADE is returning

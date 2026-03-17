@@ -1,5 +1,5 @@
-import { removeItem } from '../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { removeItem } from '../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 /**
  * Disconnect a single account from an institution

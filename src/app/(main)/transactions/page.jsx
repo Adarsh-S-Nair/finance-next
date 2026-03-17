@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "../../../components/PageContainer";
+import PageContainer from "../../../components/layout/PageContainer";
 import Button from "../../../components/ui/Button";
 import DynamicIcon from "../../../components/DynamicIcon";
 import Drawer from "../../../components/ui/Drawer";
@@ -10,10 +10,10 @@ import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChev
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser } from "../../../components/UserProvider";
+import { useUser } from "../../../components/providers/UserProvider";
 import Input from "../../../components/ui/Input";
-import { supabase } from "../../../lib/supabaseClient";
-import PageToolbar from "../../../components/PageToolbar";
+import { supabase } from "../../../lib/supabase/client";
+import PageToolbar from "../../../components/layout/PageToolbar";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
 import TransactionRow from "../../../components/transactions/TransactionRow";

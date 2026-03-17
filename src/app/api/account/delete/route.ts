@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
-import { removeItem } from "../../../../lib/plaidClient";
+import { supabaseAdmin } from "../../../../lib/supabase/admin";
+import { removeItem } from "../../../../lib/plaid/client";
 
 export async function POST(req: NextRequest) {
   try {

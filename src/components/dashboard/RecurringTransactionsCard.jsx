@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import Card from '../ui/Card';
-import { useUser } from '../UserProvider';
+import { useUser } from '../providers/UserProvider';
 import { FiRefreshCw, FiAlertCircle, FiTag } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
 import DynamicIcon from '../DynamicIcon';

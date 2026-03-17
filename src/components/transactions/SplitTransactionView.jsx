@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ContactSelector from '../reimbursements/ContactSelector';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase } from '../../lib/supabase/client';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import { FiDollarSign, FiCheck } from 'react-icons/fi';

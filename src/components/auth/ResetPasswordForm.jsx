@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
-import { useToast } from "../../components/ToastProvider";
+import { supabase } from "../../lib/supabase/client";
+import { useToast } from "../../components/providers/ToastProvider";
 
 export default function ResetPasswordForm() {
   const [password, setPassword] = useState("");

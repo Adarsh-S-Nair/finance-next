@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "../../../components/UserProvider";
-import PageContainer from "../../../components/PageContainer";
+import { useUser } from "../../../components/providers/UserProvider";
+import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";

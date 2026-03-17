@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabaseClient";
-import { useToast } from "../../components/ToastProvider";
+import { supabase } from "../../lib/supabase/client";
+import { useToast } from "../../components/providers/ToastProvider";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");

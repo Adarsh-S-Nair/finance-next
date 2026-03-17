@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
-import { fetchUserProfile, upsertUserProfile } from "../lib/userProfile";
+import { supabase } from "../../lib/supabase/client";
+import { fetchUserProfile, upsertUserProfile } from "../../lib/user/profile";
 import { useToast } from "./ToastProvider";
 
 const UserContext = createContext({

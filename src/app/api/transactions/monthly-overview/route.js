@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 // Helper function to fetch and process transactions for a given month
 async function getMonthData(userId, year, month, excludedCategoryIds) {

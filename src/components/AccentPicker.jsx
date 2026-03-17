@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useUser } from "./UserProvider";
+import { useUser } from "./providers/UserProvider";
 
 const PRESETS = [
   { key: "default", base: "var(--color-primary)", hover: "var(--color-primary-hover)", on: "var(--color-on-primary)", label: "Default" },

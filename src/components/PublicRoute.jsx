@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabase/client";
 
 /**
  * PublicRoute component that redirects authenticated users away from public pages.

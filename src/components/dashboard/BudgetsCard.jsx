@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Card from "../ui/Card";
-import { useUser } from "../UserProvider";
+import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard() {

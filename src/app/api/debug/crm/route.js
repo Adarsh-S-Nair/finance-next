@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 // Super simple debug endpoint - just show CRM holdings from database
 export async function GET() {

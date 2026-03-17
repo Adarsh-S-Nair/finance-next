@@ -1,13 +1,13 @@
 "use client";
 
-import ThemeToggle from "./ThemeToggle";
-import AccentPicker from "./AccentPicker";
+import ThemeToggle from "../ThemeToggle";
+import AccentPicker from "../AccentPicker";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import ConfirmDialog from "./ui/ConfirmDialog";
-import { supabase } from "../lib/supabaseClient";
-import { useUser } from "./UserProvider";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { supabase } from "../../lib/supabase/client";
+import { useUser } from "../providers/UserProvider";
 
 export default function Topbar() {
   const pathname = usePathname();

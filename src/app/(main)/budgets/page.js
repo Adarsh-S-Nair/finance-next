@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useUser } from '../../../components/UserProvider';
-import PageContainer from '../../../components/PageContainer';
+import { useUser } from '../../../components/providers/UserProvider';
+import PageContainer from '../../../components/layout/PageContainer';
 import BudgetCard from '../../../components/budgets/BudgetCard';
 import CreateBudgetModal from '../../../components/budgets/CreateBudgetModal';
 import Button from '../../../components/ui/Button';

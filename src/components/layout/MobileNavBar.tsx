@@ -4,12 +4,12 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { NAV_GROUPS } from "./nav";
+import { NAV_GROUPS } from "../nav";
 import { LuSettings, LuLogOut } from "react-icons/lu";
 import clsx from "clsx";
-import ConfirmDialog from "./ui/ConfirmDialog";
-import { useUser } from "./UserProvider";
-import { supabase } from "../lib/supabaseClient";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { useUser } from "../providers/UserProvider";
+import { supabase } from "../../lib/supabase/client";
 
 export default function MobileNavBar() {
   const pathname = usePathname();

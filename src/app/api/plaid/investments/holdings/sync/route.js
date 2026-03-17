@@ -1,5 +1,5 @@
-import { getPlaidClient } from '../../../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../../../lib/supabaseAdmin';
+import { getPlaidClient } from '../../../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../../lib/logger';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
@@ -178,7 +178,7 @@ export async function POST(request) {
     if (DEBUG) console.log(`📋 Found plaid item: ${plaidItem.item_id}`);
 
     // Get holdings from Plaid
-    const { getInvestmentsHoldings } = await import('../../../../../../lib/plaidClient');
+    const { getInvestmentsHoldings } = await import('../../../../../../lib/plaid/client');
     const holdingsResponse = await getInvestmentsHoldings(plaidItem.access_token);
     
     const { accounts, holdings, securities } = holdingsResponse;

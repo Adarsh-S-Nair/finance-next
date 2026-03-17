@@ -5,16 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import { supabase } from "../lib/supabaseClient";
-import { NAV_GROUPS } from "./nav";
+import { supabase } from "../../lib/supabase/client";
+import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
 import { TbLogout } from "react-icons/tb";
 import { LuSettings, LuHeadphones } from "react-icons/lu";
-import Button from "./ui/Button";
-import ConfirmDialog from "./ui/ConfirmDialog";
-import { useUser } from "./UserProvider";
+import Button from "../ui/Button";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { useUser } from "../providers/UserProvider";
 import { motion } from "framer-motion";
-import Tooltip from "./ui/Tooltip";
+import Tooltip from "../ui/Tooltip";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();

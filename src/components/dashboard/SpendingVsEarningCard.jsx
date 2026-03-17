@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChartV2";
 import Dropdown from "../ui/Dropdown";
-import { useUser } from "../UserProvider";
+import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 
 // Animated counter component for smooth number transitions

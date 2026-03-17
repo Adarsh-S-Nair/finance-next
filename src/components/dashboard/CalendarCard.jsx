@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from '../ui/Card';
-import { useUser } from '../UserProvider';
+import { useUser } from '../providers/UserProvider';
 import { FiChevronLeft, FiChevronRight, FiTag, FiX } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import Drawer from '../ui/Drawer';

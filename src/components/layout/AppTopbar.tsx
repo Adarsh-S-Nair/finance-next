@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import DebugMemoryStats from "./DebugMemoryStats";
-import AlertsIcon from "./AlertsIcon";
+import { supabase } from "../../lib/supabase/client";
+import DebugMemoryStats from "../DebugMemoryStats";
+import AlertsIcon from "../AlertsIcon";
 import { motion } from "framer-motion";
-import ConfirmDialog from "./ui/ConfirmDialog";
-import { useUser } from "./UserProvider";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { useUser } from "../providers/UserProvider";
 
 export default function AppTopbar() {
   const [profileUrl, setProfileUrl] = useState<string | null>(null);

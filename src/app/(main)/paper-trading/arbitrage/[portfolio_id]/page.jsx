@@ -10,8 +10,8 @@ import {
   LuTrendingUp,
   LuRefreshCw,
 } from "react-icons/lu";
-import { useUser } from "../../../../../components/UserProvider";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { useUser } from "../../../../../components/providers/UserProvider";
+import { supabase } from "../../../../../lib/supabase/client";
 import { usePaperTradingHeader } from "../../PaperTradingHeaderContext";
 import { CardSkeleton, ChartSkeleton } from "../../../../../components/ui/Skeleton";
 

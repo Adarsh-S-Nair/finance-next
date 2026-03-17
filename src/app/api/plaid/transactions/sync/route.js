@@ -1,5 +1,5 @@
-import { getPlaidClient, PLAID_ENV, getTransactions, syncTransactions } from '../../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
+import { getPlaidClient, PLAID_ENV, getTransactions, syncTransactions } from '../../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../lib/categoryUtils';
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 import { createLogger } from '../../../../../lib/logger';
@@ -214,7 +214,7 @@ export async function POST(request) {
       // For now, we'll get fresh account data from Plaid at the end of sync
       if (DEBUG) console.log('🏦 Fetching fresh account data from Plaid for balance updates...');
       try {
-        const { getAccounts } = await import('../../../../../lib/plaidClient');
+        const { getAccounts } = await import('../../../../../lib/plaid/client');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         accountsToUpdate = accountsResponse.accounts || [];
         if (DEBUG) console.log(`📊 Retrieved ${accountsToUpdate.length} accounts for balance updates`);

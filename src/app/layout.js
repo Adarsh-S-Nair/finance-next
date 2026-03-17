@@ -1,10 +1,10 @@
 import "./globals.css";
 import { Outfit, Poppins } from 'next/font/google';
-import Topbar from "../components/Topbar";
-import ToastProvider from "../components/ToastProvider";
-import UserProvider from "../components/UserProvider";
-import { AccountsProvider } from "../components/AccountsProvider";
-import { NetWorthProvider } from "../components/NetWorthProvider";
+import Topbar from "../components/layout/Topbar";
+import ToastProvider from "../components/providers/ToastProvider";
+import UserProvider from "../components/providers/UserProvider";
+import { AccountsProvider } from "../components/providers/AccountsProvider";
+import { NetWorthProvider } from "../components/providers/NetWorthProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
 import DynamicFavicon from "../components/DynamicFavicon";
 

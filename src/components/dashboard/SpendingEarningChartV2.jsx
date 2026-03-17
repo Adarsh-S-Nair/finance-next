@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useUser } from '../UserProvider';
+import { useUser } from '../providers/UserProvider';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {

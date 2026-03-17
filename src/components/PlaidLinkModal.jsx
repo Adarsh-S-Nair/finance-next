@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import Drawer from './ui/Drawer';
 import Button from './ui/Button';
-import { useUser } from './UserProvider';
-import { useAccounts } from './AccountsProvider';
+import { useUser } from './providers/UserProvider';
+import { useAccounts } from './providers/AccountsProvider';
 import { FiLoader, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
 const ACCOUNT_TYPES = [

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import Card from "../ui/Card";
 import LineChart from "../ui/LineChart";
 import Dropdown from "../ui/Dropdown";
-import { useUser } from "../UserProvider";
+import { useUser } from "../providers/UserProvider";
 
 export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);

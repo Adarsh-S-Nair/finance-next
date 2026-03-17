@@ -1,5 +1,5 @@
-import { getAccounts } from '../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { getAccounts } from '../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 export async function GET(request) {
   try {
