@@ -12,6 +12,7 @@ import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
 
 // Helper to format currency
 const formatCurrency = (amount) => {
@@ -201,6 +202,17 @@ export default function AccountsPage() {
   }
 
   const hasAccounts = allAccounts.length > 0;
+
+  if (!hasAccounts) {
+    const meta = profile || {};
+    const name = meta.first_name || undefined;
+
+    return (
+      <PageContainer title="Get started" showHeader={false}>
+        <AccountSetupFlow userName={name} onComplete={() => refreshAccounts()} />
+      </PageContainer>
+    );
+  }
 
   return (
     <NetWorthHoverProvider>
