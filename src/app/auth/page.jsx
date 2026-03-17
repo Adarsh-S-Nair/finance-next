@@ -11,9 +11,9 @@ export default function AuthPage() {
   return (
     <PublicRoute>
       <RouteTransition>
-        <div className="min-h-screen bg-zinc-50 text-zinc-900 selection:bg-zinc-900 selection:text-white lg:grid lg:grid-cols-[minmax(0,1fr)_520px]">
-          <div className="hidden border-r border-zinc-200 bg-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
-            <div>
+        <div className="min-h-screen bg-zinc-50 text-zinc-900 selection:bg-zinc-900 selection:text-white">
+          <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-8 sm:px-6 lg:px-8 lg:py-10">
+            <div className="flex items-start justify-between gap-4">
               <Link href="/" className="inline-flex items-center gap-3">
                 <span
                   aria-hidden
@@ -32,55 +32,45 @@ export default function AuthPage() {
                 <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZENTARI</span>
               </Link>
 
-              <div className="mt-20 max-w-xl">
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">Personal finance, without the mess</p>
-                <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-900 xl:text-5xl">
-                  Sign in to your financial workspace.
-                </h1>
-                <p className="mt-5 text-base leading-7 text-zinc-600 xl:text-lg">
-                  Track spending, stay on top of budgets, and keep an eye on your investments from one clean dashboard.
-                </p>
-              </div>
+              <Link href="/" className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900">
+                Back home
+              </Link>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                ["Cash flow", "See where your money goes"],
-                ["Budgets", "Stay aligned month to month"],
-                ["Investments", "Keep portfolio context nearby"],
-              ].map(([title, copy]) => (
-                <div key={title} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                  <div className="text-sm font-medium text-zinc-900">{title}</div>
-                  <div className="mt-2 text-sm leading-6 text-zinc-600">{copy}</div>
+            <div className="flex flex-1 items-center py-10 lg:py-14">
+              <div className="grid w-full gap-12 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">Personal finance, without the mess</p>
+                  <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
+                    Sign in to your financial workspace.
+                  </h1>
+                  <p className="mt-5 max-w-xl text-base leading-7 text-zinc-600 sm:text-lg">
+                    Track spending, stay on top of budgets, and keep an eye on your investments from one clean dashboard.
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="flex min-h-screen items-center justify-center px-5 py-12 sm:px-6 lg:px-12 xl:px-16">
-            <div className="w-full max-w-md space-y-8">
-              <div className="space-y-3">
-                <Link href="/" className="inline-flex items-center text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 lg:hidden">
-                  ← Back home
-                </Link>
-                <div>
-                  <h2 className="text-3xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>
+                <div className="w-full max-w-md lg:ml-auto">
+                  <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
+                      <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>
+                    </div>
+
+                    <Tabs
+                      tabs={[
+                        { key: "login", label: "Sign in", content: <LoginForm /> },
+                        { key: "signup", label: "Create account", content: <SignupForm /> },
+                      ]}
+                      initialKey="login"
+                      variant="zinc"
+                    />
+                  </div>
+
+                  <p className="mt-5 text-center text-xs leading-5 text-zinc-400">
+                    By continuing, you agree to our <Link href="/docs/terms" className="underline underline-offset-4 hover:text-zinc-700">Terms</Link> and <Link href="/docs/privacy" className="underline underline-offset-4 hover:text-zinc-700">Privacy Policy</Link>.
+                  </p>
                 </div>
               </div>
-
-              <Tabs
-                tabs={[
-                  { key: "login", label: "Sign in", content: <LoginForm /> },
-                  { key: "signup", label: "Create account", content: <SignupForm /> },
-                ]}
-                initialKey="login"
-                variant="zinc"
-              />
-
-              <p className="text-center text-xs leading-5 text-zinc-400">
-                By continuing, you agree to our <Link href="/docs/terms" className="underline underline-offset-4 hover:text-zinc-700">Terms</Link> and <Link href="/docs/privacy" className="underline underline-offset-4 hover:text-zinc-700">Privacy Policy</Link>.
-              </p>
             </div>
           </div>
         </div>
