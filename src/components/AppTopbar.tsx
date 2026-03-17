@@ -2,21 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { LuMenu } from "react-icons/lu";
 import DebugMemoryStats from "./DebugMemoryStats";
 import AlertsIcon from "./AlertsIcon";
 import { motion } from "framer-motion";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import { useUser } from "./UserProvider";
-import { useRouter } from "next/navigation";
 
-export default function AppTopbar({ isSidebarCollapsed }: { isSidebarCollapsed?: boolean }) {
+export default function AppTopbar() {
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { logout } = useUser();
-  const router = useRouter();
 
   useEffect(() => {
     const load = async () => {

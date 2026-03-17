@@ -66,12 +66,10 @@ export async function GET(request) {
 
     // Determine the initial balance for each account (the first ever recorded balance)
     const initialBalances = {};
-    const firstRecordedDate = {};
 
     allSnapshots.forEach(snapshot => {
       if (initialBalances[snapshot.account_id] === undefined) {
         initialBalances[snapshot.account_id] = toNumber(snapshot.current_balance);
-        firstRecordedDate[snapshot.account_id] = new Date(snapshot.recorded_at);
       }
     });
 

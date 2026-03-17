@@ -5,12 +5,10 @@ import AppTopbar from "./AppTopbar";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
-import { usePathname } from "next/navigation";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     const handleResize = () => {
@@ -47,7 +45,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div
         className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-64"
       >
-        <AppTopbar isSidebarCollapsed={isSidebarCollapsed} />
+        <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
             {children}
