@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Card from "../ui/Card";
 import Dropdown from "../ui/Dropdown";
-import { useUser } from "../UserProvider";
+import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
 
 const logger = createLogger('detect-similar');

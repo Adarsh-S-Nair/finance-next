@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Modal from "../ui/Modal";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
-import { useUser } from "../UserProvider";
+import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
-import { getInvestmentsHoldings } from '../../../../lib/plaidClient';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { getInvestmentsHoldings } from '../../../../lib/plaid/client';
 
 // GET: Query CRM holdings - shows RAW Plaid response for debugging
 export async function GET() {

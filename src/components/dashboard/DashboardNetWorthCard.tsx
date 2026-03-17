@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Card from "../ui/Card";
-import { useUser } from "../UserProvider";
-import { useNetWorth } from "../NetWorthProvider";
+import { useUser } from "../providers/UserProvider";
+import { useNetWorth } from "../providers/NetWorthProvider";
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 1000 }) {

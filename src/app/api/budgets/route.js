@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../lib/supabase/admin';
 import { getBudgetProgress, upsertBudget, deleteBudget } from '../../../lib/spending';
 
 export async function GET(request) {

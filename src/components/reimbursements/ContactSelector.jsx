@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase } from '../../lib/supabase/client';
 import { FiPlus, FiUser } from 'react-icons/fi';
 
 export default function ContactSelector({ onSelect, selectedContactId }) {

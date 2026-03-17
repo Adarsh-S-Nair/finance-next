@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FiBell } from "react-icons/fi"; // Outline icon
-import { useUser } from "./UserProvider";
+import { useUser } from "./providers/UserProvider";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { FiAlertCircle, FiChevronRight } from "react-icons/fi";
 import Link from "next/link";

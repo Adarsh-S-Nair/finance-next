@@ -2,7 +2,7 @@
 
 import React, { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { SITE_PAGES } from "../config/site-pages";
+import { SITE_PAGES } from "../../config/site-pages";
 import PageHeader from "./PageHeader";
 
 type Props = {

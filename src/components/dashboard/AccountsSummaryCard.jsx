@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Card from "../ui/Card";
-import { useAccounts } from "../AccountsProvider";
+import { useAccounts } from "../providers/AccountsProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 
 // Animated counter component for smooth number transitions

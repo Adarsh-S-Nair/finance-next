@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 // Cache TTL: 5 minutes (matches frontend refresh cadence)
 const CACHE_TTL_MS = 5 * 60 * 1000;

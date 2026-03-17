@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Card from '../ui/Card';
-import { useUser } from '../UserProvider';
+import { useUser } from '../providers/UserProvider';
 
 // Helper for smooth Bezier curves
 const getControlPoint = (current, previous, next, reverse, smoothing = 0.2) => {

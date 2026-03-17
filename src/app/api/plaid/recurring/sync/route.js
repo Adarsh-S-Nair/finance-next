@@ -1,5 +1,5 @@
-import { getPlaidClient } from '../../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../../lib/supabaseAdmin';
+import { getPlaidClient } from '../../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../lib/logger';
 import { detectMissedRecurring } from '../../../../../lib/recurringGapFiller';
 

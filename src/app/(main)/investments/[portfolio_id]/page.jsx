@@ -9,8 +9,8 @@ import Drawer from "../../../../components/ui/Drawer";
 import ConfirmDialog from "../../../../components/ui/ConfirmDialog";
 import LineChart from "../../../../components/ui/LineChart";
 import { LuTrash2 } from "react-icons/lu";
-import { useUser } from "../../../../components/UserProvider";
-import { supabase } from "../../../../lib/supabaseClient";
+import { useUser } from "../../../../components/providers/UserProvider";
+import { supabase } from "../../../../lib/supabase/client";
 import { useInvestmentsHeader } from "../InvestmentsHeaderContext";
 import { ChartSkeleton, CardSkeleton, HoldingsTableSkeleton } from "../../../../components/ui/Skeleton";
 

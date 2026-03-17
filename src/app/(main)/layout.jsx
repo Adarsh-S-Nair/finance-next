@@ -1,6 +1,6 @@
 "use client";
 
-import AppShell from "../../components/AppShell";
+import AppShell from "../../components/layout/AppShell";
 import AuthGuard from "../../components/AuthGuard";
 
 export default function MainLayout({ children }) {

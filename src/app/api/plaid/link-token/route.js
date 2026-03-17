@@ -1,5 +1,5 @@
-import { createLinkToken } from '../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { createLinkToken } from '../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 export async function POST(request) {
   try {

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
 import LineChart from "../../../../components/ui/LineChart";
-import { supabase } from "../../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabase/client";
 import { BacktestTradingEngine } from "../../../../lib/backtestTradingEngine";
 
 // Available cryptos with chain info for Trust Wallet logos

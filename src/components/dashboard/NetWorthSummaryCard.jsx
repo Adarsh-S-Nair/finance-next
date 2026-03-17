@@ -2,8 +2,8 @@
 
 import React from "react";
 import Card from "../ui/Card";
-import { useUser } from "../UserProvider";
-import { useNetWorth } from "../NetWorthProvider";
+import { useUser } from "../providers/UserProvider";
+import { useNetWorth } from "../providers/NetWorthProvider";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {

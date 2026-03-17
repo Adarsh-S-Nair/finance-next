@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
@@ -297,7 +297,7 @@ async function handleItemWebhook(webhookData, logger) {
       itemLogger.info('New accounts available', { item_id });
       try {
         // Get fresh account data from Plaid
-        const { getAccounts, getInstitution } = await import('../../../../lib/plaidClient');
+        const { getAccounts, getInstitution } = await import('../../../../lib/plaid/client');
         const accountsResponse = await getAccounts(plaidItem.access_token);
         const { accounts, institution_id } = accountsResponse;
 

@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import Card from "../ui/Card";
-import { useAccounts } from "../AccountsProvider";
-import { useUser } from "../UserProvider";
-import { useNetWorth } from "../NetWorthProvider";
+import { useAccounts } from "../providers/AccountsProvider";
+import { useUser } from "../providers/UserProvider";
+import { useNetWorth } from "../providers/NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 import LineChart from '../ui/LineChart';
 

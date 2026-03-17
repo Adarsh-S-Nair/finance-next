@@ -2,12 +2,12 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { LuChevronRight, LuSettings } from "react-icons/lu";
-import PageContainer from "../../../components/PageContainer";
-import PageHeader from "../../../components/PageHeader";
+import PageContainer from "../../../components/layout/PageContainer";
+import PageHeader from "../../../components/layout/PageHeader";
 import Button from "../../../components/ui/Button";
 import { useState, useEffect } from "react";
-import { supabase } from "../../../lib/supabaseClient";
-import { useUser } from "../../../components/UserProvider";
+import { supabase } from "../../../lib/supabase/client";
+import { useUser } from "../../../components/providers/UserProvider";
 import { LuPlus } from "react-icons/lu";
 import { PaperTradingHeaderContext } from "./PaperTradingHeaderContext";
 

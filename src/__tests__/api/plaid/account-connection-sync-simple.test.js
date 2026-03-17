@@ -25,7 +25,7 @@ import {
 global.fetch = jest.fn()
 
 // Mock the plaidClient module
-jest.mock('../../../lib/plaidClient', () => ({
+jest.mock('../../../lib/plaid/client', () => ({
   exchangePublicToken: mockExchangePublicToken,
   getAccounts: mockGetAccounts,
   getInstitution: mockGetInstitution,

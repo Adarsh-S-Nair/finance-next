@@ -19,7 +19,7 @@ jest.mock('next/server', () => ({
 }));
 
 // Mock supabaseAdmin
-jest.mock('../../../../lib/supabaseAdmin', () => ({
+jest.mock('../../../../lib/supabase/admin', () => ({
   supabaseAdmin: {
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
@@ -31,7 +31,7 @@ jest.mock('../../../../lib/supabaseAdmin', () => ({
   },
 }));
 
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 describe('Net Worth History API', () => {
   beforeEach(() => {

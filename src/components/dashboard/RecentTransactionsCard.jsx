@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Card from '../ui/Card';
-import { useUser } from '../UserProvider';
+import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
 

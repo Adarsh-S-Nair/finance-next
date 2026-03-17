@@ -1,5 +1,5 @@
-import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaidClient';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaid/client';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 
 export async function POST(request) {

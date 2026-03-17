@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
-import { useToast } from "../../components/ToastProvider";
+import { supabase } from "../../lib/supabase/client";
+import { useToast } from "../../components/providers/ToastProvider";
 import { useRouter } from "next/navigation";
-import { upsertUserProfile, buildAvatarUrl } from "../../lib/userProfile";
-import { useUser } from "../../components/UserProvider";
+import { upsertUserProfile, buildAvatarUrl } from "../../lib/user/profile";
+import { useUser } from "../../components/providers/UserProvider";
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState("");

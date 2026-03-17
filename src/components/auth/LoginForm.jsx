@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabaseClient";
-import { useToast } from "../../components/ToastProvider";
+import { supabase } from "../../lib/supabase/client";
+import { useToast } from "../../components/providers/ToastProvider";
 import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
