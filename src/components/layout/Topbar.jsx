@@ -1,7 +1,5 @@
 "use client";
 
-import ThemeToggle from "../ThemeToggle";
-import AccentPicker from "../AccentPicker";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -35,8 +33,7 @@ export default function Topbar() {
     };
   }, []);
 
-  if (isAuthedRoute || isAuth) return null;
-  if (isLanding && user) return null;
+  if (isAuthedRoute || isAuth || isLanding) return null;
 
   return (
     <header className="sticky top-0 z-20 w-full bg-white/70 backdrop-blur border-b border-zinc-100">
