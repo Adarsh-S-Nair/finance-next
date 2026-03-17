@@ -8,14 +8,33 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // Avoid auto-refreshing on the server side to prevent memory leaks from timers
 const isServer = typeof window === 'undefined';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const createServerSafeStub = () => ({
   auth: {
-    persistSession: !isServer,
-    autoRefreshToken: !isServer,
-    detectSessionInUrl: !isServer,
-    flowType: "pkce",
+    getUser: async () => ({ data: { user: null }, error: null }),
+    getSession: async () => ({ data: { session: null }, error: null }),
+    refreshSession: async () => ({ data: { session: null }, error: null }),
+    signOut: async () => ({ error: null }),
+    signInWithPassword: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
+    signUp: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
+    updateUser: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
+    resetPasswordForEmail: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    startAutoRefresh: () => {},
+    stopAutoRefresh: () => {},
   },
 });
+
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: !isServer,
+          autoRefreshToken: !isServer,
+          detectSessionInUrl: !isServer,
+          flowType: "pkce",
+        },
+      })
+    : createServerSafeStub();
 
 // Helper to clear stale Supabase auth data from localStorage
 const clearStaleAuthData = () => {
