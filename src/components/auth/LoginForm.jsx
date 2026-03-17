@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Button from "../../components/Button";
+import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import { useToast } from "../../components/ToastProvider";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,15 @@ export default function LoginForm() {
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Password</label>
+        <div className="flex items-center justify-between gap-3">
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Password</label>
+          <Link
+            href="/auth/forgot-password"
+            className="text-xs font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-900"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <input
           className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
           type="password"
