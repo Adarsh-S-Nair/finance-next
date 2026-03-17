@@ -2,6 +2,23 @@ import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { NextResponse } from 'next/server';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
+function toISODateString(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function toNumber(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -47,31 +64,26 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch snapshots' }, { status: 500 });
     }
 
-    // DEBUG: Log first few snapshots to see what we're working with
-    console.log('🔍 DEBUG: Total snapshots found:', allSnapshots.length);
-    if (allSnapshots.length > 0) {
-      console.log('🔍 DEBUG: First 5 snapshots:', JSON.stringify(allSnapshots.slice(0, 5), null, 2));
-    }
-
     // Determine the initial balance for each account (the first ever recorded balance)
     const initialBalances = {};
     const firstRecordedDate = {};
 
     allSnapshots.forEach(snapshot => {
       if (initialBalances[snapshot.account_id] === undefined) {
-        // Log when we find the first snapshot for an account
-        console.log(`🔍 DEBUG: Found first snapshot for account ${snapshot.account_id}: ${snapshot.current_balance} at ${snapshot.recorded_at}`);
-        initialBalances[snapshot.account_id] = snapshot.current_balance;
+        initialBalances[snapshot.account_id] = toNumber(snapshot.current_balance);
         firstRecordedDate[snapshot.account_id] = new Date(snapshot.recorded_at);
       }
     });
 
-    console.log('🔍 DEBUG: Final Initial Balances:', JSON.stringify(initialBalances, null, 2));
+    if (DEBUG) {
+      console.log('🔍 Net worth history snapshots:', allSnapshots.length);
+      console.log('🔍 Net worth history initial balances:', initialBalances);
+    }
 
     // Create a map of snapshots by date and account
     const snapshotsByDate = {};
     allSnapshots.forEach(snapshot => {
-      const date = new Date(snapshot.recorded_at).toISOString().split('T')[0];
+      const date = toISODateString(new Date(snapshot.recorded_at));
       if (!snapshotsByDate[date]) {
         snapshotsByDate[date] = {};
       }
@@ -87,7 +99,7 @@ export async function GET(request) {
     const endDateTime = endDate.getTime();
 
     while (currentDate.getTime() <= endDateTime) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = toISODateString(currentDate);
 
       // Update current balances with any snapshots from this day
       if (snapshotsByDate[dateStr]) {
@@ -102,7 +114,7 @@ export async function GET(request) {
       const accountBalances = {};
 
       accounts.forEach(account => {
-        const balance = currentBalances[account.id] || 0;
+        const balance = toNumber(currentBalances[account.id]);
         const isLiability = isLiabilityAccount(account);
 
         if (isLiability) {

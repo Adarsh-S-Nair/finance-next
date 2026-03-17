@@ -44,14 +44,14 @@ describe('Net Worth History API', () => {
       url: 'http://localhost:3000/api/net-worth/history?userId=user123&months=1',
     };
 
-    // Calculate dates relative to now
+    // Calculate dates relative to now using the same month-based logic as the route
     const now = new Date();
     const day1Date = new Date(now);
-    day1Date.setDate(now.getDate() - 30);
+    day1Date.setMonth(day1Date.getMonth() - 1);
     const day1Str = day1Date.toISOString().split('T')[0];
 
-    const day15Date = new Date(now);
-    day15Date.setDate(now.getDate() - 15);
+    const day15Date = new Date(day1Date);
+    day15Date.setDate(day15Date.getDate() + 15);
     const day15Str = day15Date.toISOString().split('T')[0];
 
     const day30Date = new Date(now);
