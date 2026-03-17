@@ -36,7 +36,7 @@ const componentMap = {
 
 export default function DashboardPage() {
   const { user } = useUser();
-  const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
+  const { accounts, loading: accountsLoading, initialized: accountsInitialized, refreshAccounts } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [activeCardIndex, setActiveCardIndex] = useState(0);
 
@@ -105,7 +105,7 @@ export default function DashboardPage() {
 
   const hasInstitutions = accounts.length > 0;
 
-  if (!accountsLoading && !hasInstitutions) {
+  if (accountsInitialized && !accountsLoading && !hasInstitutions) {
     const meta = user?.user_metadata || {};
     const first = meta.first_name || meta.name?.split(' ')[0] || meta.full_name?.split(' ')[0];
     const nameFromEmail = user?.email?.split('@')[0];

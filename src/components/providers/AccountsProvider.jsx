@@ -9,6 +9,7 @@ export function AccountsProvider({ children }) {
   const { user } = useUser();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState(null);
   const [lastFetched, setLastFetched] = useState(null);
 
@@ -58,6 +59,7 @@ export function AccountsProvider({ children }) {
     if (!user?.id) {
       setAccounts([]);
       setError(null);
+      setInitialized(false);
       return;
     }
 
@@ -80,9 +82,11 @@ export function AccountsProvider({ children }) {
       const transformedAccounts = transformAccountsData(data.accounts || []);
       setAccounts(transformedAccounts);
       setLastFetched(Date.now());
+      setInitialized(true);
     } catch (err) {
       console.error('Error fetching accounts:', err);
       setError(err.message);
+      setInitialized(true);
     } finally {
       setLoading(false);
     }
@@ -97,6 +101,7 @@ export function AccountsProvider({ children }) {
       setAccounts([]);
       setError(null);
       setLastFetched(null);
+      setInitialized(false);
     }
   }, [user?.id]);
 
@@ -158,6 +163,7 @@ export function AccountsProvider({ children }) {
     accounts,
     allAccounts,
     loading,
+    initialized,
     error,
     totalBalance,
     totalAssets,

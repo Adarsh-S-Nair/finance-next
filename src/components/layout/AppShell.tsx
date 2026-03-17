@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
@@ -45,9 +46,10 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
         <div className="pt-6">
           <button
             onClick={() => setShowLogout(true)}
-            className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+            aria-label="Log out"
           >
-            Log out
+            <LuLogOut className="h-4.5 w-4.5" />
           </button>
         </div>
       </div>
@@ -82,10 +84,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const pathname = usePathname();
-  const { accounts, loading } = useAccounts();
+  const { accounts, loading, initialized } = useAccounts();
 
   const isFtuxRoute = pathname === "/dashboard" || pathname === "/accounts";
-  const shouldUseFtuxShell = isFtuxRoute && !loading && accounts.length === 0;
+  const shouldUseFtuxShell = isFtuxRoute && initialized && !loading && accounts.length === 0;
 
   useEffect(() => {
     const handleResize = () => {
