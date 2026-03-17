@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
-import { useRouter } from "next/navigation";
+
+const inputClassName =
+  "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -28,9 +32,9 @@ export default function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Email</label>
+        <label className="text-sm font-medium text-zinc-800">Email</label>
         <input
-          className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          className={inputClassName}
           type="email"
           placeholder="name@example.com"
           value={email}
@@ -40,16 +44,13 @@ export default function LoginForm() {
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Password</label>
-          <Link
-            href="/auth/forgot-password"
-            className="text-xs font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-900"
-          >
+          <label className="text-sm font-medium text-zinc-800">Password</label>
+          <Link href="/auth/forgot-password" className="text-xs font-medium text-zinc-500 hover:text-zinc-900">
             Forgot password?
           </Link>
         </div>
         <input
-          className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          className={inputClassName}
           type="password"
           placeholder="••••••••"
           value={password}
@@ -57,15 +58,9 @@ export default function LoginForm() {
           required
         />
       </div>
-      <button
-        type="submit"
-        className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-white bg-zinc-900 text-white hover:bg-zinc-900/90 h-10 py-2 w-full"
-        disabled={isLoading}
-      >
+      <Button type="submit" fullWidth disabled={isLoading} className="h-11">
         {isLoading ? "Signing in..." : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }
-
-

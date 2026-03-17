@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
-import { useRouter } from "next/navigation";
 import { upsertUserProfile, buildAvatarUrl } from "../../lib/user/profile";
-import { useUser } from "../../components/providers/UserProvider";
+
+const inputClassName =
+  "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function SignupForm() {
   const [firstName, setFirstName] = useState("");
@@ -15,7 +18,6 @@ export default function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { setToast } = useToast();
   const router = useRouter();
-  const { user, profile } = useUser();
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -30,13 +32,14 @@ export default function SignupForm() {
         },
       },
     });
+
     if (error) {
       setToast({ title: "Sign up failed", description: error.message, variant: "error" });
     } else if (data?.user) {
       try {
         const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
         await upsertUserProfile({ avatar_url: avatarUrl });
-      } catch { }
+      } catch {}
       setToast({ title: "Account created", variant: "success" });
       router.push("/dashboard");
     }
@@ -47,57 +50,25 @@ export default function SignupForm() {
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">First name</label>
-          <input
-            className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            type="text"
-            placeholder="Jane"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            required
-          />
+          <label className="text-sm font-medium text-zinc-800">First name</label>
+          <input className={inputClassName} type="text" placeholder="Jane" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Last name</label>
-          <input
-            className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            type="text"
-            placeholder="Doe"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            required
-          />
+          <label className="text-sm font-medium text-zinc-800">Last name</label>
+          <input className={inputClassName} type="text" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
         </div>
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Email</label>
-        <input
-          className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-          type="email"
-          placeholder="name@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <label className="text-sm font-medium text-zinc-800">Email</label>
+        <input className={inputClassName} type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-zinc-900">Password</label>
-        <input
-          className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <label className="text-sm font-medium text-zinc-800">Password</label>
+        <input className={inputClassName} type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
-      <button
-        type="submit"
-        className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-white bg-zinc-900 text-white hover:bg-zinc-900/90 h-10 py-2 w-full"
-        disabled={isLoading}
-      >
+      <Button type="submit" fullWidth disabled={isLoading} className="h-11">
         {isLoading ? "Creating account..." : "Create account"}
-      </button>
+      </Button>
     </form>
   );
 }
