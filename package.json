@@ -12,7 +12,7 @@
     "sync:nasdaq100": "node scripts/sync-nasdaq100.js",
     "sync:nasdaq100:api": "node -e \"fetch('http://localhost:3000/api/market-data/sync-constituents').then(r=>r.json()).then(console.log).catch(console.error)\"",
     "populate:tickers": "node scripts/populate-tickers.js",
-    "dev:test": "node --experimental-vm-modules scripts/load-test-env.js next dev",
+    "dev:test": "next dev --env-file .env.test",
     "seed:ftux": "node --experimental-vm-modules scripts/seed/seed-empty-user.js",
     "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js",
     "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"
@@ -32,7 +32,7 @@
     "lucide-react": "^0.555.0",
     "next": "^16.0.7",
     "next-axiom": "^1.9.3",
-    "pg": "^8.16.3",
+    "pg": "^8.20.0",
     "plaid": "^38.1.0",
     "react": "^19.2.1",
     "react-chartjs-2": "^5.3.0",
