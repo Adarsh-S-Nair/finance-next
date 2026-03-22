@@ -125,6 +125,8 @@ function AccountTypeStep({ onSelect, onBack }) {
 }
 
 /* ── Step 3: Connecting (uses Plaid) ────────────────────────── */
+const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
+
 function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
@@ -132,7 +134,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   const [exchanging, setExchanging] = useState(false);
   const [plaidExited, setPlaidExited] = useState(false);
 
-  const handlePlaidSuccess = async (publicToken) => {
+  const exchangeToken = async (publicToken) => {
     try {
       setExchanging(true);
       const response = await authFetch("/api/plaid/exchange-token", {
@@ -171,16 +173,16 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   };
 
   const { open, ready } = usePlaidLink({
-    token: linkToken,
-    onSuccess: handlePlaidSuccess,
+    token: isMockPlaid ? null : linkToken,
+    onSuccess: (publicToken) => exchangeToken(publicToken),
     onExit: handlePlaidExit,
   });
 
-  // Fetch link token on mount
+  // Fetch link token and connect
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchToken() {
+    async function connect() {
       setError(null);
       try {
         const response = await authFetch("/api/plaid/link-token", {
@@ -192,7 +194,14 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
         if (!response.ok) throw new Error("Failed to create link token");
 
         const data = await response.json();
-        if (!cancelled) setLinkToken(data.link_token);
+        if (cancelled) return;
+
+        if (isMockPlaid) {
+          // In mock mode, skip Plaid Link entirely — exchange the mock token directly
+          await exchangeToken(`mock-public-${accountType.id}`);
+        } else {
+          setLinkToken(data.link_token);
+        }
       } catch (err) {
         if (!cancelled) {
           const msg = err.message || "Failed to prepare connection";
@@ -202,14 +211,14 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
       }
     }
 
-    fetchToken();
+    connect();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountType.id]);
 
-  // Open Plaid when ready
+  // Open Plaid when ready (non-mock only)
   useEffect(() => {
-    if (linkToken && ready && !error && !plaidExited) {
+    if (!isMockPlaid && linkToken && ready && !error && !plaidExited) {
       open();
     }
   }, [linkToken, ready, error, open, plaidExited]);
