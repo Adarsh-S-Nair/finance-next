@@ -1,21 +1,15 @@
 import { supabaseAdmin } from '../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../lib/api/auth';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit')) || 25; // Default to 25 transactions
     const offset = parseInt(searchParams.get('offset')) || 0; // Default to 0 for pagination
     const afterId = searchParams.get('afterId'); // For loading older transactions
     const beforeId = searchParams.get('beforeId'); // For loading newer transactions
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
 
     if (DEBUG) console.log(`Transactions API: user=${userId} limit=${limit} offset=${offset} afterId=${afterId} beforeId=${beforeId}`);
 
@@ -202,6 +196,7 @@ export async function GET(request) {
       beforeId: beforeId || null
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in transactions GET API:', error);
     return Response.json(
       { error: 'Internal server error' },

@@ -1,14 +1,10 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
+    const userId = requireVerifiedUserId(request);
 
     // Get all accounts for the user
     const { data: accounts, error: accountsError } = await supabaseAdmin
@@ -67,6 +63,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in debug snapshots API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

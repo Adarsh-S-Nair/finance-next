@@ -1,16 +1,9 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../../lib/api/auth';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
+    const userId = requireVerifiedUserId(request);
 
     // 1. Count Unknown Accounts
     const { count: unknownAccountCount, error: unknownError } = await supabaseAdmin
@@ -38,11 +31,6 @@ export async function GET(request) {
 
     console.log('Alerts count query result:', { unknownAccountCount, unmatchedTransferCount, totalCount, userId });
 
-    if (unknownError || unmatchedError) {
-      // Log but try to return what we have? Or just return 0?
-      // Let's return what we have.
-    }
-
     return Response.json({
       count: totalCount,
       unknownAccountCount: unknownAccountCount || 0,
@@ -50,6 +38,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in unknown-count API:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

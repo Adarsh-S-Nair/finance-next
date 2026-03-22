@@ -1,15 +1,9 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../../lib/api/auth';
 
 export async function POST(request) {
   try {
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
+    const userId = requireVerifiedUserId(request);
 
     console.log('Sync all transactions request for user:', userId);
 
@@ -44,9 +38,7 @@ export async function POST(request) {
       try {
         const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: forwardHeaders,
           body: JSON.stringify({
             plaidItemId: plaidItem.id,
             userId: userId,
@@ -104,6 +96,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in sync all transactions:', error);
     return Response.json(
       { error: 'Failed to sync all transactions', details: error.message },

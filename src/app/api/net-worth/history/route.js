@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 function toISODateString(date) {
@@ -21,13 +22,9 @@ function toNumber(value) {
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const months = parseInt(searchParams.get('months') || '12');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     // Calculate the date range
     const endDate = new Date();
@@ -144,6 +141,7 @@ export async function GET(request) {
     return NextResponse.json({ data: netWorthHistory });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in net worth history API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

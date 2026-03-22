@@ -2,6 +2,7 @@ import { getPlaidClient } from '../../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../lib/logger';
 import { detectMissedRecurring } from '../../../../../lib/recurringGapFiller';
+import { resolveUserId } from '../../../../../lib/api/auth';
 
 const logger = createLogger('plaid-recurring-sync');
 
@@ -11,11 +12,8 @@ const logger = createLogger('plaid-recurring-sync');
  */
 export async function POST(request) {
   try {
-    const { userId, forceReset = false } = await request.json();
-
-    if (!userId) {
-      return Response.json({ error: 'userId is required' }, { status: 400 });
-    }
+    const { userId: bodyUserId, forceReset = false } = await request.json();
+    const userId = resolveUserId(request, bodyUserId);
 
     logger.info('Starting recurring transactions sync', { userId, forceReset });
 
@@ -249,6 +247,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     logger.error('Error in recurring sync', { error: error.message });
     await logger.flush();
 

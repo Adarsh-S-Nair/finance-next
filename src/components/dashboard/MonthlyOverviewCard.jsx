@@ -31,7 +31,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     const fetchAvailableMonths = async () => {
       if (!user?.id) return;
       try {
-        const response = await fetch(`/api/transactions/available-months?userId=${user.id}`);
+        const response = await fetch(`/api/transactions/available-months`);
         if (!response.ok) throw new Error('Failed to fetch available months');
         const result = await response.json();
         setAvailableMonths(result.months || []);
@@ -60,7 +60,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         const monthIndex = parseInt(month) - 1; // Convert to 0-indexed
 
         const response = await fetch(
-          `/api/transactions/monthly-overview?userId=${user.id}&month=${monthIndex}&year=${year}`
+          `/api/transactions/monthly-overview?month=${monthIndex}&year=${year}`
         );
 
         if (!response.ok) throw new Error('Failed to fetch monthly overview data');

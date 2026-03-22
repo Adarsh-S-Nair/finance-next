@@ -1,10 +1,11 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const type = searchParams.get('type') || 'spending'; // 'spending' or 'income'
     const daysParam = parseInt(searchParams.get('days') || '90', 10);
     const MAX_DAYS = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 90;
@@ -13,13 +14,6 @@ export async function GET(request) {
     // Optional explicit date range (overrides days parameter)
     const startDateParam = searchParams.get('startDate'); // YYYY-MM-DD format
     const endDateParam = searchParams.get('endDate'); // YYYY-MM-DD format
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
 
     if (true) console.log(`Fetching ${type} by category for user:`, userId, 'days:', daysParam, 'forBudget:', forBudget, 'startDate:', startDateParam, 'endDate:', endDateParam);
 
@@ -301,6 +295,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in spending by category API:', error);
     return Response.json(
       { error: 'Internal server error' },

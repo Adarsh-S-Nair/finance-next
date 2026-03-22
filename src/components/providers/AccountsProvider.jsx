@@ -72,7 +72,7 @@ export function AccountsProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/plaid/accounts?userId=${user.id}`);
+      const response = await fetch(`/api/plaid/accounts`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch accounts');

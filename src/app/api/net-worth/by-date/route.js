@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
@@ -47,15 +48,11 @@ function buildDateRange(startDate, endDate) {
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const maxDaysParam = parseInt(searchParams.get('maxDays') || '0', 10);
     const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365; // cap to 1 year
     const minimal = (searchParams.get('minimal') || '0') === '1';
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     if (DEBUG) console.log(`🔍 Net Worth by Date API: user ${userId}`);
 
@@ -235,6 +232,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in net worth by date API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

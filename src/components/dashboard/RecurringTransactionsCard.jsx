@@ -111,7 +111,7 @@ export default function RecurringTransactionsCard() {
     try {
       setLoading(true);
       // Fetch only outflow (expenses/bills) by default
-      const response = await fetch(`/api/recurring/get?userId=${user.id}&streamType=outflow`);
+      const response = await fetch(`/api/recurring/get?streamType=outflow`);
       if (!response.ok) throw new Error('Failed to fetch');
       const result = await response.json();
       setRecurring(result.recurring || []);
@@ -156,7 +156,7 @@ export default function RecurringTransactionsCard() {
       const response = await fetch('/api/plaid/recurring/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, forceReset }),
+        body: JSON.stringify({ forceReset }),
       });
 
       const result = await response.json();
@@ -192,7 +192,6 @@ export default function RecurringTransactionsCard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.id,
           plaidItemId: plaidItemId,
           additionalProducts: ['transactions']  // recurring is an add-on to transactions
         }),

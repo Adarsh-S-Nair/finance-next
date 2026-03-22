@@ -42,7 +42,7 @@ export default function SpendingCard() {
       if (!user?.id) return;
 
       try {
-        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=6`);
+        const response = await fetch(`/api/transactions/spending-earning?months=6`);
         const data = await response.json();
 
         if (data.data) {

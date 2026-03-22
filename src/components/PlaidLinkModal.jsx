@@ -78,7 +78,6 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           publicToken,
-          userId: user.id,
           accountType: selectedAccountType?.id || null,
         }),
       });
@@ -142,7 +141,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       const response = await fetch('/api/plaid/link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, accountType }),
+        body: JSON.stringify({ accountType }),
       });
 
       if (!response.ok) {

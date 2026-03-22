@@ -1,5 +1,6 @@
 import { removeItem } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 /**
  * Disconnect a single account from an institution
@@ -14,17 +15,15 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
  */
 export async function POST(request) {
   try {
-    const { accountId, userId } = await request.json();
-
+    const userId = requireVerifiedUserId(request);
+    const { accountId } = await request.json();
     console.log('Disconnect account request - accountId:', accountId, 'userId:', userId);
-
-    if (!accountId || !userId) {
+    if (!accountId) {
       return Response.json(
-        { error: 'Account ID and user ID are required' },
+        { error: 'Account ID is required' },
         { status: 400 }
       );
     }
-
     // Step 1: Get the account details including its plaid_item_id
     const { data: account, error: accountError } = await supabaseAdmin
       .from('accounts')
@@ -39,7 +38,6 @@ export async function POST(request) {
       .eq('id', accountId)
       .eq('user_id', userId)
       .single();
-
     if (accountError || !account) {
       console.error('Account not found:', accountError);
       return Response.json(
@@ -47,19 +45,15 @@ export async function POST(request) {
         { status: 404 }
       );
     }
-
     const plaidItemId = account.plaid_item_id;
     const plaidItem = account.plaid_items;
-
     console.log('Found account:', account.name, 'plaid_item_id:', plaidItemId);
-
     // Step 2: Count how many accounts are associated with this Plaid item
     const { count: accountCount, error: countError } = await supabaseAdmin
       .from('accounts')
       .select('id', { count: 'exact', head: true })
       .eq('plaid_item_id', plaidItemId)
       .eq('user_id', userId);
-
     if (countError) {
       console.error('Error counting accounts:', countError);
       return Response.json(
@@ -67,11 +61,8 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     console.log('Account count for this Plaid item:', accountCount);
-
     const isLastAccount = accountCount === 1;
-
     // Step 3: If this is the LAST account, call Plaid's /item/remove FIRST
     if (isLastAccount && plaidItem?.access_token) {
       console.log('This is the LAST account for this Plaid item. Calling Plaid /item/remove API FIRST...');
@@ -94,7 +85,6 @@ export async function POST(request) {
     } else {
       console.log('Not the last account - skipping Plaid /item/remove (still needed for other accounts)');
     }
-
     // Step 4: Delete the account from our database
     // This will CASCADE delete:
     //   - transactions (via transactions.account_id on delete cascade)
@@ -108,7 +98,6 @@ export async function POST(request) {
       .delete()
       .eq('id', accountId)
       .eq('user_id', userId);
-
     if (deleteAccountError) {
       console.error('Error deleting account:', deleteAccountError);
       return Response.json(
@@ -116,19 +105,15 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     console.log('Account deleted successfully');
-
     // Step 5: If this was the last account, also delete the plaid_item record
     if (isLastAccount && plaidItemId) {
       console.log('Deleting orphaned plaid_item record...');
-      
       const { error: deletePlaidItemError } = await supabaseAdmin
         .from('plaid_items')
         .delete()
         .eq('id', plaidItemId)
         .eq('user_id', userId);
-
       if (deletePlaidItemError) {
         console.error('Error deleting plaid_item:', deletePlaidItemError);
         // Log but don't fail - the Plaid connection is already removed
@@ -137,14 +122,13 @@ export async function POST(request) {
         console.log('Plaid item record deleted successfully');
       }
     }
-
     return Response.json({
       success: true,
       message: 'Account disconnected successfully',
       wasLastAccount: isLastAccount
     });
-
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in disconnect-account process:', error);
     return Response.json(
       { error: 'Failed to disconnect account', details: error.message },
@@ -152,4 +136,3 @@ export async function POST(request) {
     );
   }
 }
-

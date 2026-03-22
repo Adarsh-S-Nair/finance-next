@@ -73,10 +73,10 @@ export default function TopCategoriesCard() {
           // Use exact month boundaries for consistency with monthly-overview
           const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
           const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          apiUrl = `/api/transactions/spending-by-category?userId=${user.id}&startDate=${startDate}&endDate=${endDate}`;
+          apiUrl = `/api/transactions/spending-by-category?startDate=${startDate}&endDate=${endDate}`;
         } else {
           // Last 30 days
-          apiUrl = `/api/transactions/spending-by-category?userId=${user.id}&days=30`;
+          apiUrl = `/api/transactions/spending-by-category?days=30`;
         }
 
         const res = await fetch(apiUrl);

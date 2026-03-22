@@ -1,37 +1,33 @@
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function POST(request) {
   try {
-    const { publicToken, userId, accountType } = await request.json();
-
-    if (!publicToken || !userId) {
+    const userId = requireVerifiedUserId(request);
+    const { publicToken, accountType } = await request.json();
+    if (!publicToken) {
       return Response.json(
-        { error: 'Public token and user ID are required' },
+        { error: 'Public token is required' },
         { status: 400 }
       );
     }
-
     // Determine product type based on accountType
     const isInvestmentProduct = accountType === 'investment';
     const isCreditCardProduct = accountType === 'credit_card';
     const isCheckingSavingsProduct = accountType === 'checking_savings';
-
     // Exchange public token for access token
     const tokenResponse = await exchangePublicToken(publicToken);
     const { access_token, item_id } = tokenResponse;
-
     // Get accounts from Plaid
     const accountsResponse = await getAccounts(access_token);
     const { accounts: allAccounts, institution_id } = accountsResponse;
     console.log(`📊 Found ${allAccounts.length} total accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
-
     // Filter accounts based on the user's selected account type
     // This ensures we only store accounts that match the user's intent
     // (Plaid returns ALL accounts at an institution regardless of product requested)
     let accounts = allAccounts;
-
     if (accountType) {
       accounts = allAccounts.filter(account => {
         if (isInvestmentProduct) {
@@ -47,9 +43,7 @@ export async function POST(request) {
         // Default: keep all accounts
         return true;
       });
-
       console.log(`🔍 Filtered to ${accounts.length} accounts matching type "${accountType}" (from ${allAccounts.length} total)`);
-
       // Log which accounts were filtered out for debugging
       const filteredOut = allAccounts.filter(a => !accounts.includes(a));
       if (filteredOut.length > 0) {
@@ -58,7 +52,6 @@ export async function POST(request) {
         );
       }
     }
-
     // If no accounts match the filter, return an error
     if (accounts.length === 0) {
       console.warn(`⚠️ No accounts match the selected type "${accountType}"`);
@@ -70,7 +63,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
     // Debug logging for account details
     console.log('🔍 DEBUG: Full accounts response from exchange-token:', JSON.stringify(accountsResponse, null, 2));
     console.log('🔍 DEBUG: Individual accounts from exchange-token:', accounts.map(acc => ({
@@ -80,18 +72,14 @@ export async function POST(request) {
       subtype: acc.subtype,
       mask: acc.mask
     })));
-
     // Get institution info (with fallback)
     let institution = null;
     let institutionData = null;
-
     // Try to get institution_id from different possible locations
     const actualInstitutionId = institution_id || accountsResponse.item?.institution_id;
-
     if (actualInstitutionId) {
       try {
         institution = await getInstitution(actualInstitutionId);
-
         // Upsert institution in database
         const { data: instData, error: institutionError } = await supabaseAdmin
           .from('institutions')
@@ -106,7 +94,6 @@ export async function POST(request) {
           })
           .select()
           .single();
-
         if (institutionError) {
           console.error('Error upserting institution:', institutionError);
           // Don't fail the whole process, just log the error
@@ -118,10 +105,8 @@ export async function POST(request) {
         // Continue without institution info - not critical for account creation
       }
     }
-
     // Determine products array based on account type
     const products = isInvestmentProduct ? ['investments'] : ['transactions'];
-
     // First, create or update the plaid_item
     const { data: plaidItemData, error: plaidItemError } = await supabaseAdmin
       .from('plaid_items')
@@ -138,7 +123,6 @@ export async function POST(request) {
       })
       .select()
       .single();
-
     if (plaidItemError) {
       console.error('Error upserting plaid item:', plaidItemError);
       return Response.json(
@@ -146,15 +130,12 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     // Process and save accounts with smart matching for investment accounts
     const accountsToInsert = [];
     const accountsToUpdate = [];
-
     for (const account of accounts) {
       const accountKey = `${item_id}_${account.account_id}`;
       const isInvestmentAccount = account.type === 'investment';
-
       // For investment accounts, try to match existing account first
       if (isInvestmentAccount && isInvestmentProduct) {
         // Try to find existing account by item_id + account_id (best match)
@@ -165,7 +146,6 @@ export async function POST(request) {
           .eq('account_id', account.account_id)
           .eq('user_id', userId)
           .maybeSingle();
-
         // Fallback: try matching by item_id + name + type (for cases where account_id changed)
         if (!existingAccount) {
           const { data: matchedAccount } = await supabaseAdmin
@@ -176,10 +156,8 @@ export async function POST(request) {
             .eq('type', 'investment')
             .eq('user_id', userId)
             .maybeSingle();
-
           existingAccount = matchedAccount;
         }
-
         if (existingAccount) {
           // Update existing account in place (preserves account.id and snapshots)
           accountsToUpdate.push({
@@ -234,7 +212,6 @@ export async function POST(request) {
         });
       }
     }
-
     // Update existing accounts
     let updatedAccounts = [];
     if (accountsToUpdate.length > 0) {
@@ -246,7 +223,6 @@ export async function POST(request) {
           .eq('id', id)
           .select()
           .single();
-
         if (updateError) {
           console.error('Error updating account:', updateError);
         } else {
@@ -254,7 +230,6 @@ export async function POST(request) {
         }
       }
     }
-
     // Insert new accounts (upsert to handle duplicates)
     let insertedAccounts = [];
     if (accountsToInsert.length > 0) {
@@ -264,7 +239,6 @@ export async function POST(request) {
           onConflict: 'plaid_item_id,account_id'
         })
         .select();
-
       if (insertError) {
         console.error('Error upserting accounts:', insertError);
         return Response.json(
@@ -274,24 +248,17 @@ export async function POST(request) {
       }
       insertedAccounts = inserted || [];
     }
-
     // Combine updated and inserted accounts
     const accountsData = [...updatedAccounts, ...insertedAccounts];
-
     console.log(`✅ Saved ${accountsData.length} accounts successfully`);
     console.log('🔍 DEBUG: Saved accounts:', accountsData.map(acc => ({
       id: acc.id,
-      account_id: acc.account_id,
-      name: acc.name,
-      type: acc.type,
       subtype: acc.subtype
     })));
-
     // Create account snapshots for the newly created accounts
     try {
       console.log('📸 Creating account snapshots...');
       const snapshotResult = await createAccountSnapshots(accounts, accountsData.map(acc => acc.id));
-
       if (snapshotResult.success) {
         console.log(`✅ Created ${snapshotResult.data.length} account snapshots successfully`);
       } else {
@@ -302,7 +269,6 @@ export async function POST(request) {
       console.warn('Error creating account snapshots:', snapshotError);
       // Don't fail the whole process if snapshot creation fails
     }
-
     // Trigger transaction sync for the new plaid item (only for checking/savings or credit card products)
     // We explicitly check the product type rather than just account types to avoid syncing transactions
     // for investment accounts that happen to also have a credit card
@@ -314,13 +280,12 @@ export async function POST(request) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-user-id': userId,
           },
           body: JSON.stringify({
             plaidItemId: plaidItemData.id,
-            userId: userId
-          })
+          }),
         });
-
         if (!syncResponse.ok) {
           console.warn('⚠️ Transaction sync failed, but account linking succeeded');
         } else {
@@ -332,7 +297,6 @@ export async function POST(request) {
         // Don't fail the whole process if sync fails
       }
     }
-
     // Trigger holdings and investment transactions sync (only for investment product)
     const shouldSyncInvestments = isInvestmentProduct && accountsData.length > 0;
     if (shouldSyncInvestments) {
@@ -343,13 +307,12 @@ export async function POST(request) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-user-id': userId,
           },
           body: JSON.stringify({
             plaidItemId: plaidItemData.id,
-            userId: userId
-          })
+          }),
         });
-
         if (!holdingsSyncResponse.ok) {
           console.warn('⚠️ Holdings sync failed, but account linking succeeded');
         } else {
@@ -358,9 +321,7 @@ export async function POST(request) {
         }
       } catch (holdingsSyncError) {
         console.warn('Error triggering holdings sync:', holdingsSyncError);
-        // Don't fail the whole process if sync fails
       }
-
       // Sync investment transactions
       try {
         console.log('🔄 Starting investment transactions sync...');
@@ -368,13 +329,12 @@ export async function POST(request) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-user-id': userId,
           },
           body: JSON.stringify({
             plaidItemId: plaidItemData.id,
-            userId: userId
-          })
+          }),
         });
-
         if (!investmentTransactionsSyncResponse.ok) {
           console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
         } else {
@@ -383,16 +343,15 @@ export async function POST(request) {
         }
       } catch (investmentTransactionsSyncError) {
         console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
-        // Don't fail the whole process if sync fails
       }
     }
-
     return Response.json({
       success: true,
       accounts: accountsData,
       institution: institutionData || null,
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error exchanging token:', error);
     return Response.json(
       { error: 'Failed to exchange token' },

@@ -1,17 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 /**
  * GET /api/recurring/get
  * Retrieves recurring transaction streams for a user from the database.
  */
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-  const streamType = searchParams.get('streamType'); // 'inflow', 'outflow', or null for all
-
-  if (!userId) {
-    return Response.json({ error: 'User ID is required' }, { status: 400 });
+  let userId;
+  try {
+    userId = requireVerifiedUserId(request);
+  } catch (err) {
+    if (err instanceof Response) return err;
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const { searchParams } = new URL(request.url);
+  const streamType = searchParams.get('streamType'); // 'inflow', 'outflow', or null for all
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -153,6 +156,7 @@ export async function GET(request) {
 
     return Response.json({ recurring: streams });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error fetching recurring streams:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }

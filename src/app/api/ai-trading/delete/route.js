@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,7 @@ function getSupabaseClient() {
 
 export async function DELETE(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
     const portfolioId = searchParams.get('portfolioId');
 
@@ -32,11 +34,12 @@ export async function DELETE(request) {
 
     const supabase = getSupabaseClient();
 
-    // Verify the portfolio exists and is an ai_simulation type
+    // Verify the portfolio exists, is the right type, and belongs to this user
     const { data: portfolio, error: fetchError } = await supabase
       .from('portfolios')
-      .select('id, type')
+      .select('id, type, user_id')
       .eq('id', portfolioId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !portfolio) {
@@ -101,6 +104,7 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Delete portfolio error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to delete portfolio' },

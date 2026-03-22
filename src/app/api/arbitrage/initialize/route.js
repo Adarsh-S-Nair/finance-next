@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,11 @@ const VALID_CRYPTOS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK'
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const supabase = getSupabaseClient();
     const body = await request.json();
 
     const {
-      userId,
       name,
       startingCapital,
       exchanges, // Array of exchange IDs
@@ -36,9 +37,9 @@ export async function POST(request) {
     } = body;
 
     // Validate required fields
-    if (!userId || !name || !startingCapital) {
+    if (!name || !startingCapital) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, name, startingCapital' },
+        { error: 'Missing required fields: name, startingCapital' },
         { status: 400 }
       );
     }
@@ -178,6 +179,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Arbitrage initialization error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to initialize portfolio' },

@@ -1,9 +1,10 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../../lib/api/auth';
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const limitParam = parseInt(searchParams.get('limit') || '0', 10);
     const minimal = (searchParams.get('minimal') || '1') === '1';
     const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
@@ -26,12 +27,7 @@ export async function GET(request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
+
 
     console.log('Fetching transactions for user:', userId, `(limit=${limit}, minimal=${minimal}, dir=${direction})`);
 
@@ -336,6 +332,7 @@ export async function GET(request) {
         : null,
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in transactions GET API:', error);
     return Response.json(
       { error: 'Internal server error' },

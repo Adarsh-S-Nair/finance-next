@@ -1,22 +1,19 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 // Window pagination API
 // Params:
-// - userId: required
 // - direction: 'older' | 'newer' (required)
 // - edgeId: transaction id that represents the current edge in the requested direction (required)
 // - limit: number (default 20)
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const direction = (searchParams.get('direction') || '').toLowerCase();
     const edgeId = searchParams.get('edgeId');
     const limit = parseInt(searchParams.get('limit')) || 20;
 
-    if (!userId) {
-      return Response.json({ error: 'User ID is required' }, { status: 400 });
-    }
     if (!edgeId) {
       return Response.json({ error: 'edgeId is required' }, { status: 400 });
     }
@@ -124,6 +121,7 @@ export async function GET(request) {
       windowEdges: { newestId, oldestId }
     });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Error in window pagination API:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

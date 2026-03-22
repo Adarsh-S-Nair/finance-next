@@ -1,19 +1,13 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const monthsParam = parseInt(searchParams.get('months') || '24', 10);
     const MAX_MONTHS = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 36) : 24;
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
 
     // Determine the user's earliest transaction date to exclude incomplete months
     const { data: earliestTxResult } = await supabaseAdmin
@@ -404,6 +398,7 @@ export async function GET(request) {
       }
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in spending-earning API:', error);
     return Response.json(
       { error: 'Internal server error' },

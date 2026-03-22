@@ -4,6 +4,7 @@ import { formatCategoryName, generateUniqueCategoryColor } from '../../../../../
 import { createAccountSnapshotConditional } from '../../../../../lib/accountSnapshotUtils';
 import { createLogger } from '../../../../../lib/logger';
 import { formatInTimeZone } from 'date-fns-tz';
+import { resolveUserId } from '../../../../../lib/api/auth';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('transaction-sync');
@@ -12,8 +13,9 @@ export async function POST(request) {
   let plaidItemId = null; // Declare at function scope for error handling
 
   try {
-    const { plaidItemId: requestPlaidItemId, userId, forceSync = false } = await request.json();
+    const { plaidItemId: requestPlaidItemId, userId: bodyUserId, forceSync = false } = await request.json();
     plaidItemId = requestPlaidItemId; // Assign to function scope variable
+    const userId = resolveUserId(request, bodyUserId);
 
     logger.info('Transaction sync request received', {
       plaidItemId,
@@ -676,6 +678,7 @@ export async function POST(request) {
         .eq('id', plaidItemId);
     }
 
+    if (error instanceof Response) return error;
     return Response.json(
       { error: 'Failed to sync transactions', details: error.message },
       { status: 500 }
