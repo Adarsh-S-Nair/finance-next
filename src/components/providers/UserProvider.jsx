@@ -119,7 +119,16 @@ export default function UserProvider({ children }) {
     if (user && !profile && !profileLoadingRef.current) {
       profileLoadingRef.current = true;
       setLoading(true);
+
+      // Safety timeout: never spin for more than 5 seconds
+      const timeout = setTimeout(() => {
+        setLoading(false);
+        setAuthTransition(false);
+        profileLoadingRef.current = false;
+      }, 5000);
+
       refreshProfile().finally(() => {
+        clearTimeout(timeout);
         // Only clear loading if we've already navigated away from public routes
         // Otherwise, keep spinning until the route change in the other effect branch handles it
         const isPublic = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
@@ -176,6 +185,15 @@ export default function UserProvider({ children }) {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
+
+    // Safety timeout: never show loading spinner for more than 8 seconds on init
+    const initTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+        setAuthTransition(false);
+      }
+    }, 8000);
+
     (async () => {
       try {
         const { data, error } = await supabase.auth.getUser();
@@ -246,9 +264,10 @@ export default function UserProvider({ children }) {
       }
 
       setUser(nextUser);
-      fetchedRef.current = false;
-      profileLoadingRef.current = false;
       if (event === "SIGNED_IN" && nextUser) {
+        // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
+        fetchedRef.current = false;
+        profileLoadingRef.current = false;
         const shouldNavigate = typeof window !== "undefined" && (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
         if (shouldNavigate) {
           setAuthTransition(true);
@@ -283,6 +302,7 @@ export default function UserProvider({ children }) {
     });
     return () => {
       isMounted = false;
+      clearTimeout(initTimeout);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
