@@ -14,11 +14,76 @@ import { supabase } from "../../lib/supabase/client";
 import ConfirmDialog from "../ui/ConfirmDialog";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
+  const { logout } = useUser();
+  const [showLogout, setShowLogout] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
-      <div className="flex min-h-screen items-center justify-center px-5 py-12 sm:px-6 lg:px-8">
+    <div className="h-screen overflow-hidden bg-zinc-50 text-zinc-900 relative">
+      {/* Top-left logo */}
+      <div className="absolute top-6 left-6 sm:left-8 flex items-center gap-3 z-10">
+        <Link href="/" className="inline-flex items-center gap-3">
+          <span
+            aria-hidden
+            className="block h-8 w-8 bg-zinc-900"
+            style={{
+              WebkitMaskImage: "url(/logo.svg)",
+              maskImage: "url(/logo.svg)",
+              WebkitMaskSize: "contain",
+              maskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskPosition: "center",
+            }}
+          />
+          <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZENTARI</span>
+          {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
+            <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
+              TEST
+            </span>
+          )}
+        </Link>
+      </div>
+
+      {/* Centered content */}
+      <div className="h-full flex items-center justify-center">
         {children}
       </div>
+
+      {/* Bottom-left logout icon */}
+      <div className="absolute bottom-6 left-6 sm:left-8 z-10">
+        <button
+          onClick={() => setShowLogout(true)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+          aria-label="Log out"
+        >
+          <LuLogOut className="h-4 w-4" />
+        </button>
+      </div>
+
+      <ConfirmDialog
+        isOpen={showLogout}
+        onCancel={() => setShowLogout(false)}
+        onConfirm={async () => {
+          try {
+            setIsSigningOut(true);
+            logout();
+            await supabase.auth.signOut();
+            window.location.href = "/";
+          } finally {
+            setIsSigningOut(false);
+            setShowLogout(false);
+          }
+        }}
+        title="Sign out"
+        description="Are you sure you want to sign out?"
+        confirmLabel="Sign out"
+        busyLabel="Signing out..."
+        cancelLabel="Cancel"
+        variant="primary"
+        busy={isSigningOut}
+      />
     </div>
   );
 }

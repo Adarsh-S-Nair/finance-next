@@ -34,7 +34,7 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
 
   return (
     <>
-      <div className="mx-auto flex min-h-[calc(100vh-160px)] w-full max-w-3xl items-center px-5 py-16 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-3xl px-5 sm:px-6 lg:px-8">
         <div className="w-full">
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
