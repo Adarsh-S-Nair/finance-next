@@ -12,7 +12,7 @@
     "sync:nasdaq100": "node scripts/sync-nasdaq100.js",
     "sync:nasdaq100:api": "node -e \"fetch('http://localhost:3000/api/market-data/sync-constituents').then(r=>r.json()).then(console.log).catch(console.error)\"",
     "populate:tickers": "node scripts/populate-tickers.js",
-    "dev:test": "node scripts/dev-test.js",
+    "dev:test": "npx cross-env USE_TEST_ENV=1 next dev",
     "seed:ftux": "node --experimental-vm-modules scripts/seed/seed-empty-user.js",
     "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js",
     "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"
