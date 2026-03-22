@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import PageContainer from "../../../components/layout/PageContainer";
-import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
@@ -35,8 +35,9 @@ const componentMap = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useUser();
-  const { accounts, loading: accountsLoading, initialized: accountsInitialized, refreshAccounts } = useAccounts();
+  const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [activeCardIndex, setActiveCardIndex] = useState(0);
 
@@ -105,17 +106,15 @@ export default function DashboardPage() {
 
   const hasInstitutions = accounts.length > 0;
 
-  if (accountsInitialized && !accountsLoading && !hasInstitutions) {
-    const meta = user?.user_metadata || {};
-    const first = meta.first_name || meta.name?.split(' ')[0] || meta.full_name?.split(' ')[0];
-    const nameFromEmail = user?.email?.split('@')[0];
-    const name = first || (nameFromEmail ? nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1) : undefined);
+  useEffect(() => {
+    if (accountsInitialized && !accountsLoading && !hasInstitutions) {
+      router.replace("/setup");
+    }
+  }, [accountsInitialized, accountsLoading, hasInstitutions, router]);
 
-    return (
-      <PageContainer title="Get started" documentTitle="Get started" showHeader={false}>
-        <AccountSetupFlow userName={name} onComplete={() => refreshAccounts()} />
-      </PageContainer>
-    );
+  // Don't render the dashboard until we know the user has accounts
+  if (accountsInitialized && !accountsLoading && !hasInstitutions) {
+    return null;
   }
 
   return (
