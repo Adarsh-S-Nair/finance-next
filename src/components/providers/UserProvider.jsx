@@ -94,7 +94,9 @@ export default function UserProvider({ children }) {
   const refreshProfile = useCallback(async () => {
     try {
       const { profile } = await fetchUserProfile();
-      setProfile(profile);
+      // Always set a truthy value so the "user && !profile" effect doesn't loop
+      // when the user has no profile row yet (new accounts)
+      setProfile(profile || {});
 
       // Only apply theme/accent if we are NOT on a public route
       const isPublicRoute = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
@@ -109,6 +111,8 @@ export default function UserProvider({ children }) {
       }
     } catch (error) {
       console.error("[UserProvider] refreshProfile error", error);
+      // Even on error, set profile to empty object to prevent infinite loop
+      setProfile((prev) => prev || {});
     } finally {
       // leave loading state to outer controller
     }
