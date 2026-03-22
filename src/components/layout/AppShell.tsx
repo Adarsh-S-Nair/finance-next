@@ -91,8 +91,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { accounts, loading, initialized } = useAccounts();
 
+  const isSetupRoute = pathname === "/setup";
   const isFtuxRoute = pathname === "/dashboard" || pathname === "/accounts";
-  const shouldUseFtuxShell = isFtuxRoute && initialized && !loading && accounts.length === 0;
+  const shouldUseFtuxShell =
+    isSetupRoute || (isFtuxRoute && initialized && !loading && accounts.length === 0);
 
   useEffect(() => {
     const handleResize = () => {

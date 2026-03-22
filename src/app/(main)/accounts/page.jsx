@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
 import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
@@ -12,7 +13,6 @@ import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
-import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
 
 // Helper to format currency
 const formatCurrency = (amount) => {
@@ -104,16 +104,25 @@ const CategoryHeader = ({ title, count, total, isFirst }) => {
 };
 
 export default function AccountsPage() {
+  const router = useRouter();
   const { profile } = useUser();
   const {
     accounts, // Institutions
     allAccounts, // Flat list of accounts
     loading,
+    initialized,
     error,
     refreshAccounts
   } = useAccounts();
 
   const [showLinkModal, setShowLinkModal] = useState(false);
+
+  // Redirect new users to setup page
+  useEffect(() => {
+    if (initialized && !loading && allAccounts.length === 0 && !error) {
+      router.replace("/setup");
+    }
+  }, [initialized, loading, allAccounts, error, router]);
 
   // Mobile carousel state
   const [activeCardIndex, setActiveCardIndex] = useState(0);
@@ -203,15 +212,9 @@ export default function AccountsPage() {
 
   const hasAccounts = allAccounts.length > 0;
 
-  if (!hasAccounts) {
-    const meta = profile || {};
-    const name = meta.first_name || undefined;
-
-    return (
-      <PageContainer title="Get started" showHeader={false}>
-        <AccountSetupFlow userName={name} onComplete={() => refreshAccounts()} />
-      </PageContainer>
-    );
+  // While redirecting (no accounts), render nothing
+  if (!hasAccounts && !error && !loading) {
+    return null;
   }
 
   return (
