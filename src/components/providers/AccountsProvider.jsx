@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
@@ -78,7 +78,13 @@ export function AccountsProvider({ children }) {
       const response = await authFetch(`/api/plaid/accounts`);
       
       if (!response.ok) {
-        // Non-2xx: treat as empty (e.g. 401 for new users during FTUX)
+        if (response.status === 401) {
+          // Auth not ready yet — don't mark as initialized so
+          // dashboard doesn't prematurely redirect to /setup
+          setLoading(false);
+          return;
+        }
+        // Other errors: treat as empty
         setAccounts([]);
         setLastFetched(Date.now());
         setInitialized(true);
@@ -100,8 +106,22 @@ export function AccountsProvider({ children }) {
     }
   };
 
+  // Retry fetching accounts if auth wasn't ready on first try
+  const retryCountRef = useRef(0);
+  useEffect(() => {
+    if (user?.id && !initialized && !loading && retryCountRef.current < 3) {
+      const timer = setTimeout(() => {
+        retryCountRef.current += 1;
+        fetchAccounts();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    if (initialized) retryCountRef.current = 0;
+  }, [user?.id, initialized, loading]);
+
   // Load accounts when user changes
   useEffect(() => {
+    retryCountRef.current = 0;
     if (user?.id) {
       fetchAccounts();
     } else {
