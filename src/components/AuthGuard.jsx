@@ -20,8 +20,14 @@ export default function AuthGuard({ children }) {
 
     const checkAuth = async () => {
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getUser();
         if (!isMounted) return;
+
+        if (error && error.message && error.message.includes('Refresh Token')) {
+          // Stale refresh token — redirect silently without console error
+          router.replace("/");
+          return;
+        }
 
         if (data?.user) {
           setIsAuthenticated(true);
@@ -31,7 +37,6 @@ export default function AuthGuard({ children }) {
           router.replace("/");
         }
       } catch (error) {
-        console.error("[AuthGuard] Error checking auth:", error);
         if (isMounted) {
           // On error, redirect to landing page for safety
           router.replace("/");

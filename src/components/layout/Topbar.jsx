@@ -11,6 +11,7 @@ export default function Topbar() {
   const pathname = usePathname();
   const isAuth = pathname.startsWith("/auth");
   const isDashboard = pathname.startsWith("/dashboard");
+  const isSetup = pathname === "/setup";
   const isAuthedRoute = isDashboard || pathname.startsWith("/accounts") || pathname.startsWith("/transactions") || pathname.startsWith("/budgets") || pathname.startsWith("/investments") || pathname.startsWith("/paper-trading") || pathname.startsWith("/settings") || pathname.startsWith("/docs");
   const isLanding = pathname === "/";
   const { logout } = useUser();
@@ -23,6 +24,8 @@ export default function Topbar() {
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return;
       setUser(data?.user ?? null);
+    }).catch(() => {
+      if (mounted) setUser(null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -33,7 +36,7 @@ export default function Topbar() {
     };
   }, []);
 
-  if (isAuthedRoute || isAuth || isLanding) return null;
+  if (isAuthedRoute || isAuth || isLanding || isSetup) return null;
 
   return (
     <header className="sticky top-0 z-20 w-full bg-white/70 backdrop-blur border-b border-zinc-100">
