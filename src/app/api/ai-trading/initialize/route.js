@@ -16,6 +16,7 @@ import { loadPrompt, fillTemplate } from '../../../../lib/promptLoader';
 import { callGemini } from '../../../../lib/geminiClient';
 import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails, checkMarketStatus } from '../../../../lib/marketData';
 import { formatDateString } from '../../../../lib/portfolioUtils';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -134,16 +135,17 @@ async function createInitialPortfolioSnapshot(supabase, portfolio, assetType, cr
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     // Create Supabase client (lazy, only when actually needed)
     const supabase = getSupabaseClient();
     
     const body = await request.json();
-    const { userId, name, aiModel, startingCapital, assetType = 'stock', cryptoAssets } = body;
+    const { name, aiModel, startingCapital, assetType = 'stock', cryptoAssets } = body;
 
     // Validate required fields
-    if (!userId || !name || !startingCapital) {
+    if (!name || !startingCapital) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, name, startingCapital' },
+        { error: 'Missing required fields: name, startingCapital' },
         { status: 400 }
       );
     }
@@ -1303,6 +1305,7 @@ export async function POST(request) {
     }
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('❌ Portfolio initialization failed:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to initialize portfolio' },

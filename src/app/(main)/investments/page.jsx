@@ -226,7 +226,6 @@ export default function InvestmentsPage() {
       },
       body: JSON.stringify({
         plaidItemId,
-        userId: profile.id,
         forceSync: true,
         includeDebug: true
       })
@@ -252,7 +251,6 @@ export default function InvestmentsPage() {
       },
       body: JSON.stringify({
         plaidItemId,
-        userId: profile.id,
         includeHoldingsDebug: true
       })
     });

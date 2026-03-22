@@ -1,12 +1,9 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function POST(request) {
   try {
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return Response.json({ error: 'User ID is required' }, { status: 400 });
-    }
+    const userId = requireVerifiedUserId(request);
 
     // 1. Reset cursors for all items belonging to this user
     const { error: updateError } = await supabaseAdmin
@@ -36,14 +33,19 @@ export async function POST(request) {
 
     const syncResults = [];
 
+    // Forward the Authorization header so middleware can verify the request
+    const authHeader = request.headers.get('Authorization');
+    const cookieHeader = request.headers.get('cookie');
+    const forwardHeaders = { 'Content-Type': 'application/json' };
+    if (authHeader) forwardHeaders['Authorization'] = authHeader;
+    if (cookieHeader) forwardHeaders['cookie'] = cookieHeader;
+
     for (const item of items) {
       try {
         console.log(`Triggering sync for item ${item.id}...`);
         const syncRes = await fetch(`${baseUrl}/api/plaid/transactions/sync`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: forwardHeaders,
           body: JSON.stringify({
             plaidItemId: item.id,
             userId: userId,
@@ -66,6 +68,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in reset-cursor:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }

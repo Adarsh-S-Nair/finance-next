@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 // Mark route as dynamic
 export const dynamic = 'force-dynamic';
@@ -42,14 +43,15 @@ async function testAlpacaConnection(apiKey, secretKey) {
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const supabase = getSupabaseClient();
     const body = await request.json();
-    const { userId, name, apiKey, secretKey } = body;
+    const { name, apiKey, secretKey } = body;
 
     // Validate required fields
-    if (!userId || !name || !apiKey || !secretKey) {
+    if (!name || !apiKey || !secretKey) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, name, apiKey, secretKey' },
+        { error: 'Missing required fields: name, apiKey, secretKey' },
         { status: 400 }
       );
     }
@@ -108,6 +110,7 @@ export async function POST(request) {
       },
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error connecting Alpaca account:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to connect Alpaca account' },

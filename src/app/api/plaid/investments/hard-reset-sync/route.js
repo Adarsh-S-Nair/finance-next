@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../lib/logger';
+import { resolveUserId } from '../../../../../lib/api/auth';
 
 const logger = createLogger('investment-hard-reset-sync');
 
@@ -7,7 +8,8 @@ export async function POST(request) {
   let plaidItemId = null;
 
   try {
-    const { plaidItemId: requestPlaidItemId, userId, includeHoldingsDebug = false } = await request.json();
+    const { plaidItemId: requestPlaidItemId, userId: bodyUserId, includeHoldingsDebug = false } = await request.json();
+    const userId = resolveUserId(request, bodyUserId);
     plaidItemId = requestPlaidItemId;
 
     if (!plaidItemId || !userId) {
@@ -174,6 +176,7 @@ export async function POST(request) {
       investment_transactions_sync: invTxSyncResult
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     logger.error('Hard reset sync failed', error, {
       plaidItemId,
       errorMessage: error.message

@@ -73,7 +73,7 @@ export default function SpendingVsEarningCard() {
           monthsParam = (currentMonth + 1).toString(); // Convert to 1-indexed month count
         }
 
-        const response = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=${monthsParam}`);
+        const response = await fetch(`/api/transactions/spending-earning?months=${monthsParam}`);
         if (!response.ok) throw new Error('Failed to fetch data');
         const result = await response.json();
         setChartData(result.data || []);

@@ -37,7 +37,8 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/plaid/reset-cursor', {
         method: 'POST',
-        body: JSON.stringify({ userId: profile.id })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
       });
       if (!res.ok) throw new Error("Failed to reset");
       alert("Resync started. Please wait a few moments for transactions to update.");
@@ -103,7 +104,6 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({
           plaidItemId: institution.plaidItemId,
-          userId: profile?.id
         })
       });
 
@@ -165,7 +165,6 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({
           accountId: account.id,
-          userId: profile?.id
         })
       });
 

@@ -15,7 +15,7 @@ export default function BudgetsCard() {
     async function fetchBudgets() {
       if (!user?.id) return;
       try {
-        const res = await fetch(`/api/budgets?userId=${user.id}`);
+        const res = await fetch(`/api/budgets`);
         const json = await res.json();
         setBudgets(json.data || []);
       } catch (e) {

@@ -39,9 +39,10 @@ describe('Net Worth History API', () => {
   });
 
   it('should backfill account balance before the first snapshot', async () => {
-    // Mock request
+    // Mock request — provide x-user-id header as middleware would inject it
     const request = {
-      url: 'http://localhost:3000/api/net-worth/history?userId=user123&months=1',
+      url: 'http://localhost:3000/api/net-worth/history?months=1',
+      headers: { get: (name) => name === 'x-user-id' ? 'user123' : null },
     };
 
     // Calculate dates relative to now using the same month-based logic as the route

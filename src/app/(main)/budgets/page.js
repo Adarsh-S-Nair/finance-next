@@ -19,7 +19,7 @@ export default function BudgetsPage() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/budgets?userId=${user.id}`);
+      const res = await fetch(`/api/budgets`);
       const json = await res.json();
       setBudgets(json.data || []);
     } catch (e) {
@@ -36,7 +36,7 @@ export default function BudgetsPage() {
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this budget?')) return;
     try {
-      await fetch(`/api/budgets?id=${id}&userId=${user.id}`, { method: 'DELETE' });
+      await fetch(`/api/budgets?id=${id}`, { method: 'DELETE' });
       fetchBudgets();
     } catch (e) {
       console.error(e);

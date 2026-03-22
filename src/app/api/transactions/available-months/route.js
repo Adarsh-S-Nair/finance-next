@@ -1,13 +1,9 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return Response.json({ error: 'User ID is required' }, { status: 400 });
-    }
+    const userId = requireVerifiedUserId(request);
 
     // Get all transactions to extract unique months (only from 'transactions' source)
     const { data: transactions, error } = await supabaseAdmin
@@ -53,6 +49,7 @@ export async function GET(request) {
 
     return Response.json({ months });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in available-months API:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

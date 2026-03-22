@@ -50,9 +50,11 @@ export async function POST(request) {
       investment_transactions_sync: null
     };
 
+    const internalHeaders = { get: () => null };
     if (shouldRunTransactionsSync) {
       const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
       const syncRequest = {
+        headers: internalHeaders,
         json: async () => ({
           plaidItemId: plaidItem.id,
           userId: plaidItem.user_id,
@@ -71,6 +73,7 @@ export async function POST(request) {
     if (hasInvestmentsProduct) {
       const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
       const holdingsSyncRequest = {
+        headers: internalHeaders,
         json: async () => ({
           plaidItemId: plaidItem.id,
           userId: plaidItem.user_id,
@@ -88,6 +91,7 @@ export async function POST(request) {
 
       const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
       const invTxSyncRequest = {
+        headers: internalHeaders,
         json: async () => ({
           plaidItemId: plaidItem.id,
           userId: plaidItem.user_id,

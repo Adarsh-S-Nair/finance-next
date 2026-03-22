@@ -180,7 +180,7 @@ export default function CalendarCard({ className = '' }) {
       try {
         setLoading(true);
         // Fetch all recurring streams (both inflow and outflow) by removing streamType filter
-        const response = await fetch(`/api/recurring/get?userId=${user.id}`);
+        const response = await fetch(`/api/recurring/get`);
         if (!response.ok) throw new Error('Failed to fetch');
         const result = await response.json();
         setRecurring(result.recurring || []);

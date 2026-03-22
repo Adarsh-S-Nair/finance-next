@@ -1,13 +1,15 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 const logger = createLogger('detect-similar');
 
 export async function POST(request) {
   try {
-    const { transactionId, categoryId, userId } = await request.json();
+    const userId = requireVerifiedUserId(request);
+    const { transactionId, categoryId } = await request.json();
 
-    if (!transactionId || !categoryId || !userId) {
+    if (!transactionId || !categoryId) {
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
@@ -129,6 +131,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error instanceof Response) return error;
     logger.error('Error in detect-similar', error);
     return Response.json({ error: error.message }, { status: 500 });
   }

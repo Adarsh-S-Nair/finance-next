@@ -202,6 +202,7 @@ async function handleTransactionsWebhook(webhookData, logger) {
 
         // Create a mock request object for the sync endpoint
         const syncRequest = {
+          headers: { get: () => null },
           json: async () => ({
             plaidItemId: plaidItem.id,
             userId: plaidItem.user_id,
@@ -429,6 +430,7 @@ async function handleHoldingsWebhook(webhookData, logger) {
 
         // Create a mock request object for the sync endpoint
         const syncRequest = {
+          headers: { get: () => null },
           json: async () => ({
             plaidItemId: plaidItem.id,
             userId: plaidItem.user_id,
@@ -506,6 +508,7 @@ async function handleInvestmentTransactionsWebhook(webhookData, logger) {
 
         // Create a mock request object for the sync endpoint
         const syncRequest = {
+          headers: { get: () => null },
           json: async () => ({
             plaidItemId: plaidItem.id,
             userId: plaidItem.user_id,
@@ -567,6 +570,7 @@ async function handleRecurringTransactionsWebhook(webhookData, logger) {
 
         // Create a mock request object for the sync endpoint
         const syncRequest = {
+          headers: { get: () => null },
           json: async () => ({
             userId: plaidItem.user_id
           })

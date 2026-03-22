@@ -19,7 +19,7 @@ export default function AlertsIcon() {
       if (!profile?.id) return;
 
       try {
-        const response = await fetch(`/api/plaid/transactions/unknown-count?userId=${profile.id}`);
+        const response = await fetch(`/api/plaid/transactions/unknown-count`);
         if (response.ok) {
           const data = await response.json();
           setCounts(data);

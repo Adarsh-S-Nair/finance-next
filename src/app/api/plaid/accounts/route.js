@@ -1,17 +1,10 @@
 import { getAccounts } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
+    const userId = requireVerifiedUserId(request);
 
     // Get user's accounts from database
     const { data: accounts, error } = await supabaseAdmin
@@ -45,6 +38,7 @@ export async function GET(request) {
 
     return Response.json({ accounts });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in accounts API:', error);
     return Response.json(
       { error: 'Internal server error' },
@@ -55,16 +49,17 @@ export async function GET(request) {
 
 export async function DELETE(request) {
   try {
-    const { accountId, userId } = await request.json();
+    const userId = requireVerifiedUserId(request);
+    const { accountId } = await request.json();
 
-    if (!accountId || !userId) {
+    if (!accountId) {
       return Response.json(
-        { error: 'Account ID and user ID are required' },
+        { error: 'Account ID is required' },
         { status: 400 }
       );
     }
 
-    // Delete account (RLS will ensure user can only delete their own accounts)
+    // Delete account (verify ownership via user_id)
     const { error } = await supabaseAdmin
       .from('accounts')
       .delete()
@@ -81,6 +76,7 @@ export async function DELETE(request) {
 
     return Response.json({ success: true });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error deleting account:', error);
     return Response.json(
       { error: 'Internal server error' },

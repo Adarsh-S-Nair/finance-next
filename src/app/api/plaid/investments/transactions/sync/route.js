@@ -1,6 +1,7 @@
 import { getPlaidClient, PLAID_ENV, getInvestmentTransactions } from '../../../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../../lib/logger';
+import { resolveUserId } from '../../../../../../lib/api/auth';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('investment-transactions-sync');
@@ -9,8 +10,9 @@ export async function POST(request) {
   let plaidItemId = null;
 
   try {
-    const { plaidItemId: requestPlaidItemId, userId, forceSync = false } = await request.json();
+    const { plaidItemId: requestPlaidItemId, userId: bodyUserId, forceSync = false } = await request.json();
     plaidItemId = requestPlaidItemId;
+    const userId = resolveUserId(request, bodyUserId);
 
     logger.info('Investment transactions sync request received', {
       plaidItemId,
@@ -233,6 +235,7 @@ export async function POST(request) {
     });
     await logger.flush();
 
+    if (error instanceof Response) return error;
     return Response.json(
       { error: 'Failed to sync investment transactions', details: error.message },
       { status: 500 }

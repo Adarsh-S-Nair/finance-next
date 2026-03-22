@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
 import { removeItem } from "../../../../lib/plaid/client";
+import { requireVerifiedUserId } from "../../../../lib/api/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    // Get calling user's auth session via cookie header
-    const authHeader = req.headers.get("Authorization");
-    // In Next.js App Router, we can't directly use user session on server without a helper; instead,
-    // we rely on client to provide current access token in Authorization: Bearer <token> header.
-    if (!authHeader?.toLowerCase().startsWith("bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const accessToken = authHeader.split(" ")[1];
-    if (!accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Validate the token to fetch the user id
-    const { data: tokenUser, error: tokenErr } = await supabaseAdmin.auth.getUser(accessToken);
-    if (tokenErr || !tokenUser?.user?.id) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-    }
-    const userId = tokenUser.user.id;
+    // Middleware has already verified the token and injected x-user-id
+    const userId = requireVerifiedUserId(req);
 
     // Step 1: Get all Plaid items for this user
     console.log(`Fetching Plaid items for user: ${userId}`);
@@ -87,6 +72,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (e instanceof Response) return e;
     return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
   }
 }

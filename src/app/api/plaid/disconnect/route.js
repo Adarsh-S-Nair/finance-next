@@ -1,19 +1,18 @@
 import { removeItem } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function POST(request) {
   try {
-    const { plaidItemId, userId } = await request.json();
-
+    const userId = requireVerifiedUserId(request);
+    const { plaidItemId } = await request.json();
     console.log('Disconnect request for plaid item:', plaidItemId, 'user:', userId);
-
-    if (!plaidItemId || !userId) {
+    if (!plaidItemId) {
       return Response.json(
-        { error: 'Plaid item ID and user ID are required' },
+        { error: 'Plaid item ID is required' },
         { status: 400 }
       );
     }
-
     // Get the plaid item from database
     const { data: plaidItem, error: itemError } = await supabaseAdmin
       .from('plaid_items')
@@ -21,7 +20,6 @@ export async function POST(request) {
       .eq('id', plaidItemId)
       .eq('user_id', userId)
       .single();
-
     if (itemError || !plaidItem) {
       console.error('Plaid item not found:', itemError);
       return Response.json(
@@ -29,9 +27,7 @@ export async function POST(request) {
         { status: 404 }
       );
     }
-
     console.log('Found plaid item:', plaidItem.item_id, 'access_token:', plaidItem.access_token ? 'present' : 'missing');
-
     // Step 1: Call Plaid's item/remove API
     console.log('Calling Plaid item/remove API...');
     try {
@@ -47,7 +43,6 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     // Step 2: Only if Plaid API succeeds, delete from our database
     console.log('Plaid API succeeded, now deleting from database...');
     
@@ -64,7 +59,6 @@ export async function POST(request) {
       .delete()
       .eq('id', plaidItemId)
       .eq('user_id', userId);
-
     if (deleteError) {
       console.error('Error deleting plaid item from database:', deleteError);
       return Response.json(
@@ -72,15 +66,13 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     console.log('Successfully disconnected plaid item and removed from database');
-
     return Response.json({
       success: true,
       message: 'Institution disconnected successfully'
     });
-
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in disconnect process:', error);
     return Response.json(
       { error: 'Failed to disconnect institution', details: error.message },

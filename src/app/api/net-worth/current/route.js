@@ -1,15 +1,11 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-    }
+    const userId = requireVerifiedUserId(request);
 
     if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for user ${userId}`);
 
@@ -88,6 +84,7 @@ export async function GET(request) {
     return NextResponse.json(response);
 
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in current net worth API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

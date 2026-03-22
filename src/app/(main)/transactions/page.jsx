@@ -706,7 +706,6 @@ function TransactionsContent() {
     if (!profile?.id) return null;
 
     const params = new URLSearchParams({
-      userId: profile.id,
       limit: PAGE_LIMIT.toString(),
       minimal: '1',
       direction
@@ -816,7 +815,7 @@ function TransactionsContent() {
       const response = await fetch('/api/plaid/sync-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: profile.id }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -1136,7 +1135,6 @@ function TransactionsContent() {
         body: JSON.stringify({
           transactionId: selectedTransaction.id,
           categoryId: category.id,
-          userId: profile.id
         })
       });
 

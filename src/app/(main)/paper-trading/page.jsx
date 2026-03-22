@@ -272,7 +272,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: profile.id,
             name: name.trim(),
             startingCapital: startingCapital,
             exchanges: selectedExchanges,
@@ -298,7 +297,6 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: profile.id,
           name: name.trim(),
           aiModel: hasAI ? selectedModel : null,
           startingCapital: startingCapital,

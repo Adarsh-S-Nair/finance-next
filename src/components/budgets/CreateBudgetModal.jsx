@@ -48,7 +48,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   async function fetchIncomeData() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/transactions/spending-earning?userId=${user.id}&months=6`); // Fetch more months to ensure we have enough completed ones
+      const res = await fetch(`/api/transactions/spending-earning?months=6`); // Fetch more months to ensure we have enough completed ones
       const data = await res.json();
 
       if (data.data && data.data.length > 0) {
@@ -86,7 +86,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     try {
       // Fetch individual categories (not groups) for more granular budgeting
       // Use forBudget=true to get complete months only for accurate averaging
-      const res = await fetch(`/api/transactions/spending-by-category?userId=${user.id}&days=120&forBudget=true`);
+      const res = await fetch(`/api/transactions/spending-by-category?days=120&forBudget=true`);
       const data = await res.json();
 
       // Use actual complete months from API for accurate averaging
@@ -122,7 +122,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     if (!category) return;
 
     try {
-      let queryParams = `userId=${user.id}&months=6&includeCategoryIds=${category.id}`; // Fetch last 6 months for history
+      let queryParams = `months=6&includeCategoryIds=${category.id}`; // Fetch last 6 months for history
 
       const res = await fetch(`/api/transactions/spending-earning?${queryParams}`);
       const data = await res.json();
@@ -153,7 +153,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     if (!category) return;
     setLoadingTransactions(true);
     try {
-      let queryParams = `userId=${user.id}&limit=50&includeCategoryIds=${category.id}`;
+      let queryParams = `limit=50&includeCategoryIds=${category.id}`;
 
       const res = await fetch(`/api/transactions?${queryParams}`);
       const data = await res.json();
@@ -181,7 +181,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
     fetchRecentTransactions(opt);
 
     try {
-      const res = await fetch(`/api/transactions/category-history?userId=${user.id}&categoryId=${opt.id}&months=4`);
+      const res = await fetch(`/api/transactions/category-history?categoryId=${opt.id}&months=4`);
       const data = await res.json();
 
       if (data.data && data.data.length > 0) {
@@ -264,7 +264,6 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
 
   const createBudget = async (scope, budgetAmount) => {
     const payload = {
-      userId: user.id,
       amount: parseFloat(budgetAmount),
       period: 'monthly',
       [scope.type === 'group' ? 'category_group_id' : 'category_id']: scope.id

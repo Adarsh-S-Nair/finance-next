@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 // Helper function to fetch and process transactions for a given month
 async function getMonthData(userId, year, month, excludedCategoryIds) {
@@ -129,12 +130,8 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
 
 export async function GET(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return Response.json({ error: 'User ID is required' }, { status: 400 });
-    }
 
     // Get month and year from params or default to current
     const now = new Date();
@@ -243,6 +240,7 @@ export async function GET(request) {
       currentDay: isCurrentMonth ? currentDay : null
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('Error in monthly overview API:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -81,7 +81,7 @@ export default function RecentTransactionsCard() {
         const controller = new AbortController();
         abortRef.current = controller;
 
-        const response = await fetch(`/api/plaid/transactions/get?userId=${user.id}&limit=8&minimal=1`, {
+        const response = await fetch(`/api/plaid/transactions/get?limit=8&minimal=1`, {
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
         });

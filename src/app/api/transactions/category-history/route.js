@@ -1,19 +1,13 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 
 export async function GET(request) {
     try {
+        const userId = requireVerifiedUserId(request);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
         const categoryId = searchParams.get('categoryId');
         const monthsParam = parseInt(searchParams.get('months') || '4', 10);
         const MAX_MONTHS = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 12) : 4;
-
-        if (!userId) {
-            return Response.json(
-                { error: 'User ID is required' },
-                { status: 400 }
-            );
-        }
 
         if (!categoryId) {
             return Response.json(
@@ -182,6 +176,7 @@ export async function GET(request) {
         });
 
     } catch (error) {
+        if (error instanceof Response) return error;
         console.error('Error in category history API:', error);
         return Response.json(
             { error: 'Internal server error' },
