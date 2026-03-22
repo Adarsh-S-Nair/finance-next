@@ -252,11 +252,17 @@ export default function UserProvider({ children }) {
         if (shouldNavigate) {
           setAuthTransition(true);
           setLoading(true);
-          // Navigate first without loading profile yet
-          router.replace("/dashboard");
-          // Don't load profile here - let the new useEffect handle it
+          // Check if user has any accounts to decide setup vs dashboard
+          try {
+            const res = await fetch("/api/plaid/accounts");
+            const body = res.ok ? await res.json() : { accounts: [] };
+            const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
+            router.replace(hasAccounts ? "/dashboard" : "/setup");
+          } catch {
+            // On error, default to setup for new users
+            router.replace("/setup");
+          }
           setToast({ title: "Signed in", variant: "success" });
-          // Don't set loading to false here - let the profile loading useEffect handle it
         } else {
           // Already on an authenticated route; refresh silently without global overlay
           await refreshProfile();
