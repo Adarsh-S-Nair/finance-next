@@ -23,9 +23,11 @@ function daysAgo(n) {
 
 /**
  * Base transaction templates — realistic merchants with proper Plaid category shapes.
+ * recurring: true  → only generated on cadence-appropriate days (monthly/bi-weekly)
+ * recurring: false → generated randomly
  */
 const TRANSACTION_TEMPLATES = [
-  // Groceries
+  // ── Groceries ──────────────────────────────────────────────────────────────
   {
     merchant_name: 'Whole Foods Market',
     amount: 87.42,
@@ -48,7 +50,7 @@ const TRANSACTION_TEMPLATES = [
     },
   },
   {
-    merchant_name: 'Trader Joe\'s',
+    merchant_name: "Trader Joe's",
     amount: 54.18,
     payment_channel: 'in store',
     personal_finance_category: {
@@ -89,7 +91,42 @@ const TRANSACTION_TEMPLATES = [
       lon: -97.8328,
     },
   },
-  // Restaurants
+  {
+    merchant_name: 'Walmart Grocery',
+    amount: 98.34,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_GROCERIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'walmart.com',
+    icon_url: null,
+    location: {
+      address: '9300 S IH 35',
+      city: 'Austin',
+      region: 'TX',
+      postal_code: '78748',
+      country: 'US',
+      lat: null,
+      lon: null,
+    },
+  },
+  {
+    merchant_name: 'Aldi',
+    amount: 43.19,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_GROCERIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'aldi.us',
+    icon_url: null,
+    location: { address: '5345 Brodie Ln', city: 'Austin', region: 'TX', postal_code: '78745', country: 'US', lat: null, lon: null },
+  },
+
+  // ── Restaurants ────────────────────────────────────────────────────────────
   {
     merchant_name: 'Chipotle Mexican Grill',
     amount: 14.75,
@@ -102,6 +139,32 @@ const TRANSACTION_TEMPLATES = [
     website: 'chipotle.com',
     icon_url: 'https://plaid-merchant-logos.plaid.com/chipotle_mexican_grill_8248.png',
     location: { address: '200 E 6th St', city: 'Austin', region: 'TX', postal_code: '78701', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: "McDonald's",
+    amount: 9.87,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_FAST_FOOD',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'mcdonalds.com',
+    icon_url: null,
+    location: { address: '100 Congress Ave', city: 'Austin', region: 'TX', postal_code: '78701', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: 'Chick-fil-A',
+    amount: 13.42,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_FAST_FOOD',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'chick-fil-a.com',
+    icon_url: null,
+    location: { address: '5207 Brodie Ln', city: 'Austin', region: 'TX', postal_code: '78745', country: 'US', lat: null, lon: null },
   },
   {
     merchant_name: 'Starbucks',
@@ -117,6 +180,19 @@ const TRANSACTION_TEMPLATES = [
     location: { address: '1012 W 6th St', city: 'Austin', region: 'TX', postal_code: '78703', country: 'US', lat: null, lon: null },
   },
   {
+    merchant_name: 'Dutch Bros Coffee',
+    amount: 6.25,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_COFFEE',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'dutchbros.com',
+    icon_url: null,
+    location: { address: '4301 W William Cannon Dr', city: 'Austin', region: 'TX', postal_code: '78749', country: 'US', lat: null, lon: null },
+  },
+  {
     merchant_name: 'Uchi Austin',
     amount: 142.30,
     payment_channel: 'in store',
@@ -129,7 +205,60 @@ const TRANSACTION_TEMPLATES = [
     icon_url: null,
     location: { address: '801 S Lamar Blvd', city: 'Austin', region: 'TX', postal_code: '78704', country: 'US', lat: null, lon: null },
   },
-  // Transportation
+  {
+    merchant_name: 'The Cheesecake Factory',
+    amount: 67.80,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_RESTAURANT',
+      confidence_level: 'HIGH',
+    },
+    website: 'thecheesecakefactory.com',
+    icon_url: null,
+    location: { address: '11410 Century Oaks Terrace', city: 'Austin', region: 'TX', postal_code: '78758', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: 'Olive Garden',
+    amount: 48.25,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_RESTAURANT',
+      confidence_level: 'HIGH',
+    },
+    website: 'olivegarden.com',
+    icon_url: null,
+    location: { address: '9721 Research Blvd', city: 'Austin', region: 'TX', postal_code: '78759', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: 'DoorDash',
+    amount: 34.99,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_RESTAURANT',
+      confidence_level: 'HIGH',
+    },
+    website: 'doordash.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Uber Eats',
+    amount: 28.75,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'FOOD_AND_DRINK',
+      detailed: 'FOOD_AND_DRINK_RESTAURANT',
+      confidence_level: 'HIGH',
+    },
+    website: 'ubereats.com',
+    icon_url: null,
+    location: null,
+  },
+
+  // ── Transportation ─────────────────────────────────────────────────────────
   {
     merchant_name: 'Uber',
     amount: 18.42,
@@ -141,6 +270,19 @@ const TRANSACTION_TEMPLATES = [
     },
     website: 'uber.com',
     icon_url: 'https://plaid-merchant-logos.plaid.com/uber_344.png',
+    location: null,
+  },
+  {
+    merchant_name: 'Lyft',
+    amount: 22.10,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'TRANSPORTATION',
+      detailed: 'TRANSPORTATION_TAXIS_AND_RIDE_SHARES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'lyft.com',
+    icon_url: null,
     location: null,
   },
   {
@@ -156,10 +298,37 @@ const TRANSACTION_TEMPLATES = [
     icon_url: null,
     location: { address: '2900 S Lamar Blvd', city: 'Austin', region: 'TX', postal_code: '78704', country: 'US', lat: null, lon: null },
   },
-  // Shopping
+  {
+    merchant_name: 'ExxonMobil',
+    amount: 48.65,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'TRANSPORTATION',
+      detailed: 'TRANSPORTATION_GAS_STATIONS',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'exxon.com',
+    icon_url: null,
+    location: { address: '1200 E 51st St', city: 'Austin', region: 'TX', postal_code: '78723', country: 'US', lat: null, lon: null },
+  },
+
+  // ── Shopping / General Merchandise ─────────────────────────────────────────
   {
     merchant_name: 'Amazon',
     amount: 67.99,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'GENERAL_MERCHANDISE',
+      detailed: 'GENERAL_MERCHANDISE_ONLINE_MARKETPLACES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'amazon.com',
+    icon_url: 'https://plaid-merchant-logos.plaid.com/amazon_1387.png',
+    location: null,
+  },
+  {
+    merchant_name: 'Amazon',
+    amount: 124.50,
     payment_channel: 'online',
     personal_finance_category: {
       primary: 'GENERAL_MERCHANDISE',
@@ -196,11 +365,65 @@ const TRANSACTION_TEMPLATES = [
     icon_url: null,
     location: { address: '6929 N IH 35', city: 'Austin', region: 'TX', postal_code: '78753', country: 'US', lat: null, lon: null },
   },
-  // Entertainment
+  {
+    merchant_name: 'Walmart',
+    amount: 76.23,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'GENERAL_MERCHANDISE',
+      detailed: 'GENERAL_MERCHANDISE_SUPERSTORES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'walmart.com',
+    icon_url: null,
+    location: { address: '9300 S IH 35', city: 'Austin', region: 'TX', postal_code: '78748', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: 'Best Buy',
+    amount: 249.99,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'GENERAL_MERCHANDISE',
+      detailed: 'GENERAL_MERCHANDISE_ELECTRONICS',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'bestbuy.com',
+    icon_url: null,
+    location: { address: '9722 Great Hills Trail', city: 'Austin', region: 'TX', postal_code: '78759', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: 'Home Depot',
+    amount: 83.41,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'GENERAL_MERCHANDISE',
+      detailed: 'GENERAL_MERCHANDISE_HOME_IMPROVEMENT',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'homedepot.com',
+    icon_url: null,
+    location: { address: '6301 Airport Blvd', city: 'Austin', region: 'TX', postal_code: '78752', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: "Lowe's",
+    amount: 56.78,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'GENERAL_MERCHANDISE',
+      detailed: 'GENERAL_MERCHANDISE_HOME_IMPROVEMENT',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'lowes.com',
+    icon_url: null,
+    location: { address: '7015 Bandera Rd', city: 'San Antonio', region: 'TX', postal_code: '78238', country: 'US', lat: null, lon: null },
+  },
+
+  // ── Entertainment / Subscriptions ─────────────────────────────────────────
   {
     merchant_name: 'Netflix',
     amount: 22.99,
     payment_channel: 'online',
+    recurring: true,
     personal_finance_category: {
       primary: 'ENTERTAINMENT',
       detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
@@ -214,6 +437,7 @@ const TRANSACTION_TEMPLATES = [
     merchant_name: 'Spotify',
     amount: 10.99,
     payment_channel: 'online',
+    recurring: true,
     personal_finance_category: {
       primary: 'ENTERTAINMENT',
       detailed: 'ENTERTAINMENT_MUSIC',
@@ -223,14 +447,113 @@ const TRANSACTION_TEMPLATES = [
     icon_url: 'https://plaid-merchant-logos.plaid.com/spotify_1706.png',
     location: null,
   },
-  // Bills & Utilities
+  {
+    merchant_name: 'Hulu',
+    amount: 17.99,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'hulu.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Disney+',
+    amount: 13.99,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'disneyplus.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'YouTube Premium',
+    amount: 13.99,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'youtube.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Apple TV+',
+    amount: 9.99,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'apple.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Xbox Game Pass',
+    amount: 14.99,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_GAMES',
+      confidence_level: 'HIGH',
+    },
+    website: 'xbox.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'AMC Theaters',
+    amount: 38.00,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'ENTERTAINMENT',
+      detailed: 'ENTERTAINMENT_TV_AND_MOVIES',
+      confidence_level: 'HIGH',
+    },
+    website: 'amctheatres.com',
+    icon_url: null,
+    location: { address: '2700 W Anderson Ln', city: 'Austin', region: 'TX', postal_code: '78757', country: 'US', lat: null, lon: null },
+  },
+
+  // ── Rent & Utilities ───────────────────────────────────────────────────────
+  {
+    merchant_name: 'Arbor Walk Apartments',
+    amount: 1875.00,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'RENT_AND_UTILITIES',
+      detailed: 'RENT_AND_UTILITIES_RENT',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: null,
+  },
   {
     merchant_name: 'Austin Energy',
     amount: 112.33,
     payment_channel: 'online',
+    recurring: true,
     personal_finance_category: {
-      primary: 'HOME',
-      detailed: 'HOME_UTILITIES',
+      primary: 'RENT_AND_UTILITIES',
+      detailed: 'RENT_AND_UTILITIES_UTILITIES',
       confidence_level: 'HIGH',
     },
     website: 'austinenergy.com',
@@ -238,23 +561,154 @@ const TRANSACTION_TEMPLATES = [
     location: null,
   },
   {
+    merchant_name: 'Google Fiber',
+    amount: 70.00,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'RENT_AND_UTILITIES',
+      detailed: 'RENT_AND_UTILITIES_INTERNET_AND_CABLE',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'fiber.google.com',
+    icon_url: null,
+    location: null,
+  },
+  {
     merchant_name: 'AT&T',
     amount: 85.00,
     payment_channel: 'online',
+    recurring: true,
     personal_finance_category: {
-      primary: 'GENERAL_SERVICES',
-      detailed: 'GENERAL_SERVICES_TELECOMMUNICATION_SERVICES',
+      primary: 'RENT_AND_UTILITIES',
+      detailed: 'RENT_AND_UTILITIES_TELEPHONE_SERVICES',
       confidence_level: 'VERY_HIGH',
     },
     website: 'att.com',
     icon_url: null,
     location: null,
   },
-  // Health & Fitness
+  {
+    merchant_name: 'City of Austin Water',
+    amount: 42.18,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'RENT_AND_UTILITIES',
+      detailed: 'RENT_AND_UTILITIES_UTILITIES',
+      confidence_level: 'HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: null,
+  },
+
+  // ── Income ─────────────────────────────────────────────────────────────────
+  {
+    merchant_name: 'Direct Deposit - Payroll',
+    amount: -4500.00, // Plaid convention: credits are negative
+    payment_channel: 'other',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'INCOME',
+      detailed: 'INCOME_WAGES',
+      confidence_level: 'HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: null,
+  },
+
+  // ── Transfer In / Out ──────────────────────────────────────────────────────
+  {
+    merchant_name: 'Venmo',
+    amount: -75.00,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'TRANSFER_IN',
+      detailed: 'TRANSFER_IN_CASH_ADVANCES_AND_LOANS',
+      confidence_level: 'HIGH',
+    },
+    website: 'venmo.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Venmo',
+    amount: 50.00,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'TRANSFER_OUT',
+      detailed: 'TRANSFER_OUT_ACCOUNT_TRANSFER',
+      confidence_level: 'HIGH',
+    },
+    website: 'venmo.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Zelle Transfer',
+    amount: -200.00,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'TRANSFER_IN',
+      detailed: 'TRANSFER_IN_ACCOUNT_TRANSFER',
+      confidence_level: 'HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Zelle Transfer',
+    amount: 125.00,
+    payment_channel: 'online',
+    personal_finance_category: {
+      primary: 'TRANSFER_OUT',
+      detailed: 'TRANSFER_OUT_ACCOUNT_TRANSFER',
+      confidence_level: 'HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: null,
+  },
+
+  // ── Loan Payments ──────────────────────────────────────────────────────────
+  {
+    merchant_name: 'Navient Student Loans',
+    amount: 320.00,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'LOAN_PAYMENTS',
+      detailed: 'LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'navient.com',
+    icon_url: null,
+    location: null,
+  },
+  {
+    merchant_name: 'Toyota Financial Services',
+    amount: 485.00,
+    payment_channel: 'online',
+    recurring: true,
+    personal_finance_category: {
+      primary: 'LOAN_PAYMENTS',
+      detailed: 'LOAN_PAYMENTS_CAR_PAYMENT',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'toyotafinancial.com',
+    icon_url: null,
+    location: null,
+  },
+
+  // ── Health & Fitness ───────────────────────────────────────────────────────
   {
     merchant_name: 'Planet Fitness',
     amount: 24.99,
     payment_channel: 'online',
+    recurring: true,
     personal_finance_category: {
       primary: 'PERSONAL_CARE',
       detailed: 'PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS',
@@ -277,7 +731,34 @@ const TRANSACTION_TEMPLATES = [
     icon_url: null,
     location: { address: '600 W 6th St', city: 'Austin', region: 'TX', postal_code: '78701', country: 'US', lat: null, lon: null },
   },
-  // Travel
+  {
+    merchant_name: 'Walgreens',
+    amount: 18.42,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'PERSONAL_CARE',
+      detailed: 'PERSONAL_CARE_PHARMACIES',
+      confidence_level: 'VERY_HIGH',
+    },
+    website: 'walgreens.com',
+    icon_url: null,
+    location: { address: '1100 W 5th St', city: 'Austin', region: 'TX', postal_code: '78703', country: 'US', lat: null, lon: null },
+  },
+  {
+    merchant_name: "Doctor's Office",
+    amount: 40.00,
+    payment_channel: 'in store',
+    personal_finance_category: {
+      primary: 'MEDICAL',
+      detailed: 'MEDICAL_PRIMARY_CARE',
+      confidence_level: 'HIGH',
+    },
+    website: null,
+    icon_url: null,
+    location: { address: '3816 Bee Caves Rd', city: 'Austin', region: 'TX', postal_code: '78746', country: 'US', lat: null, lon: null },
+  },
+
+  // ── Travel ─────────────────────────────────────────────────────────────────
   {
     merchant_name: 'Southwest Airlines',
     amount: 234.00,
@@ -304,21 +785,30 @@ const TRANSACTION_TEMPLATES = [
     icon_url: null,
     location: null,
   },
-  // Income/Credits
   {
-    merchant_name: 'Direct Deposit',
-    amount: -4500.00,
-    payment_channel: 'other',
+    merchant_name: 'Airbnb',
+    amount: 312.00,
+    payment_channel: 'online',
     personal_finance_category: {
-      primary: 'INCOME',
-      detailed: 'INCOME_WAGES',
-      confidence_level: 'HIGH',
+      primary: 'TRAVEL',
+      detailed: 'TRAVEL_LODGING',
+      confidence_level: 'VERY_HIGH',
     },
-    website: null,
+    website: 'airbnb.com',
     icon_url: null,
     location: null,
   },
 ];
+
+/**
+ * Non-recurring templates: filtered list used for random day-to-day drip.
+ */
+export const DRIP_TEMPLATES = TRANSACTION_TEMPLATES.filter(t => !t.recurring);
+
+/**
+ * Recurring templates: monthly billing cadence items.
+ */
+export const RECURRING_TEMPLATES = TRANSACTION_TEMPLATES.filter(t => t.recurring);
 
 /**
  * Generate a set of transactions for a given account ID.

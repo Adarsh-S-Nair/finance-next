@@ -19,6 +19,7 @@ import {
 } from './mock-data/accounts.js';
 import {
   generateTransactions,
+  DRIP_TEMPLATES,
   MOCK_TRANSACTIONS_POWER_USER,
   MOCK_TRANSACTIONS_CREDIT,
 } from './mock-data/transactions.js';
@@ -137,9 +138,140 @@ export async function getInstitution(institutionId) {
 }
 
 // ------------------------------------------------------------------
+// _seededRandom — simple deterministic PRNG (mirrors the one in transactions.js)
+// ------------------------------------------------------------------
+function _seededRandom(seed, i) {
+  const x = Math.sin(seed + i) * 10000;
+  return x - Math.floor(x);
+}
+
+// ------------------------------------------------------------------
+// _parseCursorTimestamp
+// Cursors look like "mock-cursor-<ms>" – extract the ms timestamp.
+// Returns null if cursor is not parseable.
+// ------------------------------------------------------------------
+function _parseCursorTimestamp(cursor) {
+  if (!cursor) return null;
+  const match = cursor.match(/mock-cursor-(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+// ------------------------------------------------------------------
+// _generateDripTransactions
+// Generate realistic new transactions for elapsed days since last sync.
+// IDs are deterministic per (accountId, date, slot) so re-syncs are idempotent.
+// ------------------------------------------------------------------
+function _generateDripTransactions(accounts, sinceMs) {
+  const added = [];
+  const now = Date.now();
+  const sinceDate = new Date(sinceMs);
+  sinceDate.setHours(0, 0, 0, 0); // start of day
+  const nowDate = new Date(now);
+
+  // Iterate over each elapsed day (exclusive of the cursor day, inclusive of today)
+  for (let d = new Date(sinceDate); d <= nowDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    // Day-level seed: numeric representation of YYYYMMDD
+    const daySeed = parseInt(dateStr.replace(/-/g, ''), 10);
+
+    // Determine how many transactions on this day using weighted distribution
+    // 0-1 most common, 3+ rare
+    const roll = _seededRandom(daySeed, 0);
+    let txCount;
+    if (roll < 0.35) {
+      txCount = 0;
+    } else if (roll < 0.70) {
+      txCount = 1;
+    } else if (roll < 0.88) {
+      txCount = 2;
+    } else if (roll < 0.96) {
+      txCount = 3;
+    } else if (roll < 0.99) {
+      txCount = 4;
+    } else {
+      txCount = 5;
+    }
+
+    for (const account of accounts) {
+      if (account.type !== 'depository' && account.type !== 'credit') continue;
+
+      // Per-account modifier so different accounts get different transactions
+      const accountSeed = account.account_id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      const effectiveSeed = daySeed + accountSeed;
+
+      for (let slot = 0; slot < txCount; slot++) {
+        const templateIdx = Math.floor(_seededRandom(effectiveSeed, slot * 3 + 1) * DRIP_TEMPLATES.length);
+        const template = DRIP_TEMPLATES[templateIdx];
+
+        // Slight amount variation
+        const variation = 1 + (_seededRandom(effectiveSeed, slot * 3 + 2) - 0.5) * 0.2;
+        const baseAmt = Math.abs(template.amount);
+        const isCredit = template.amount < 0;
+        const amount = parseFloat((baseAmt * variation * (isCredit ? -1 : 1)).toFixed(2));
+
+        // Deterministic transaction ID — safe to re-insert
+        const txId = `mock_drip_${account.account_id}_${dateStr}_${slot}`;
+
+        const hour = String(8 + Math.floor(_seededRandom(effectiveSeed, slot + 10) * 13)).padStart(2, '0');
+        const minute = String(Math.floor(_seededRandom(effectiveSeed, slot + 20) * 59)).padStart(2, '0');
+
+        added.push({
+          account_id: account.account_id,
+          transaction_id: txId,
+          amount,
+          iso_currency_code: 'USD',
+          unofficial_currency_code: null,
+          category: null,
+          category_id: null,
+          check_number: null,
+          datetime: `${dateStr}T${hour}:${minute}:00Z`,
+          authorized_date: dateStr,
+          authorized_datetime: `${dateStr}T00:00:00Z`,
+          date: dateStr,
+          location: template.location || {
+            address: null, city: null, region: null, postal_code: null,
+            country: null, lat: null, lon: null, store_number: null,
+          },
+          name: template.merchant_name,
+          merchant_name: template.merchant_name,
+          merchant_entity_id: `mock_merchant_${templateIdx}`,
+          logo_url: template.icon_url,
+          website: template.website || null,
+          payment_meta: {
+            by_order_of: null, payee: null, payer: null, payment_method: null,
+            payment_processor: null, ppd_id: null, reason: null, reference_number: null,
+          },
+          payment_channel: template.payment_channel,
+          pending: false,
+          pending_transaction_id: null,
+          account_owner: null,
+          transaction_code: null,
+          transaction_type: amount < 0 ? 'special' : 'place',
+          personal_finance_category: template.personal_finance_category,
+          personal_finance_category_icon_url: template.icon_url,
+          counterparties: [
+            {
+              name: template.merchant_name,
+              type: 'merchant',
+              logo_url: template.icon_url,
+              website: template.website || null,
+              entity_id: `mock_entity_${templateIdx}`,
+              confidence_level: 'VERY_HIGH',
+            },
+          ],
+        });
+      }
+    }
+  }
+
+  return added;
+}
+
+// ------------------------------------------------------------------
 // syncTransactions
-// Cursor-based transaction sync. First call returns all transactions,
-// subsequent calls return empty (no new data).
+// Cursor-based transaction sync.
+// - Initial sync (null cursor): returns historical transactions for all accounts.
+// - Subsequent syncs: generates new transactions for days elapsed since last cursor.
 // Matches Plaid's TransactionsSyncResponse shape.
 // ------------------------------------------------------------------
 export async function syncTransactions(accessToken, cursor = null) {
@@ -148,7 +280,7 @@ export async function syncTransactions(accessToken, cursor = null) {
   const item = _mockState.items.get(accessToken);
   const itemId = item?.item_id ?? 'mock-item-unknown';
 
-  // Initial sync (empty/null cursor) → return all transactions
+  // Initial sync (empty/null cursor) → return all historical transactions
   const isInitialSync = !cursor || cursor === '';
 
   let added = [];
@@ -166,12 +298,18 @@ export async function syncTransactions(accessToken, cursor = null) {
         added.push(...generateTransactions(account.account_id, count, seed, 90));
       }
     }
+  } else {
+    // Incremental sync: drip transactions for elapsed days since last cursor
+    const sinceMs = _parseCursorTimestamp(cursor);
+    if (sinceMs) {
+      const accounts = item?.accounts ?? MOCK_ACCOUNTS_POWER_USER;
+      added = _generateDripTransactions(accounts, sinceMs);
+      console.log(`[MOCK PLAID] Drip: generated ${added.length} new transactions since last sync`);
+    }
   }
 
-  // Next cursor is deterministic based on current timestamp (or fixed for tests)
-  const nextCursor = isInitialSync
-    ? `mock-cursor-${Date.now()}`
-    : cursor; // No new data after first sync
+  // Next cursor always advances to now
+  const nextCursor = `mock-cursor-${Date.now()}`;
 
   // Update stored cursor
   if (item) {

@@ -276,16 +276,13 @@ export async function POST(request) {
     if (shouldSyncTransactions) {
       try {
         console.log('🔄 Starting transaction sync...');
-        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/transactions/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': userId,
-          },
-          body: JSON.stringify({
-            plaidItemId: plaidItemData.id,
-          }),
-        });
+        // Use direct import instead of HTTP fetch to avoid silent failures in mock/serverless mode
+        const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+        const syncRequest = {
+          headers: { get: () => null },
+          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+        };
+        const syncResponse = await syncEndpoint(syncRequest);
         if (!syncResponse.ok) {
           console.warn('⚠️ Transaction sync failed, but account linking succeeded');
         } else {
@@ -303,16 +300,13 @@ export async function POST(request) {
       // Sync holdings
       try {
         console.log('🔄 Starting holdings sync...');
-        const holdingsSyncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/investments/holdings/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': userId,
-          },
-          body: JSON.stringify({
-            plaidItemId: plaidItemData.id,
-          }),
-        });
+        // Use direct import instead of HTTP fetch to avoid silent failures in mock/serverless mode
+        const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+        const holdingsSyncRequest = {
+          headers: { get: () => null },
+          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+        };
+        const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
         if (!holdingsSyncResponse.ok) {
           console.warn('⚠️ Holdings sync failed, but account linking succeeded');
         } else {
@@ -325,16 +319,13 @@ export async function POST(request) {
       // Sync investment transactions
       try {
         console.log('🔄 Starting investment transactions sync...');
-        const investmentTransactionsSyncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/plaid/investments/transactions/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': userId,
-          },
-          body: JSON.stringify({
-            plaidItemId: plaidItemData.id,
-          }),
-        });
+        // Use direct import instead of HTTP fetch to avoid silent failures in mock/serverless mode
+        const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
+        const invTxSyncRequest = {
+          headers: { get: () => null },
+          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+        };
+        const investmentTransactionsSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
         if (!investmentTransactionsSyncResponse.ok) {
           console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
         } else {
