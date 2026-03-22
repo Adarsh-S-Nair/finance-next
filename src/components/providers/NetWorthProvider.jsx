@@ -43,14 +43,33 @@ export function NetWorthProvider({ children }) {
       
       // Fetch current net worth
       const currentResponse = await fetch(`/api/net-worth/current`, { signal: controller.signal });
+      if (currentResponse.status === 404 || currentResponse.status === 204) {
+        // New user with no accounts — not an error, just no data yet
+        setCurrentNetWorth(null);
+        setNetWorthHistory([]);
+        setLastFetched(Date.now());
+        return;
+      }
       if (!currentResponse.ok) {
         throw new Error('Failed to fetch current net worth');
       }
       const currentData = await currentResponse.json();
+      // Handle empty result (no accounts yet)
+      if (!currentData || (Array.isArray(currentData) && currentData.length === 0)) {
+        setCurrentNetWorth(null);
+        setNetWorthHistory([]);
+        setLastFetched(Date.now());
+        return;
+      }
       setCurrentNetWorth(currentData);
       
       // Fetch historical data for the chart (full payload for hover details)
       const historyResponse = await fetch(`/api/net-worth/by-date?maxDays=365`, { signal: controller.signal });
+      if (historyResponse.status === 404 || historyResponse.status === 204) {
+        setNetWorthHistory([]);
+        setLastFetched(Date.now());
+        return;
+      }
       if (!historyResponse.ok) {
         throw new Error('Failed to fetch net worth history');
       }

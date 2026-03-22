@@ -30,6 +30,11 @@ export default function AuthPage() {
                   }}
                 />
                 <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZENTARI</span>
+                {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
+                  <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
+                    TEST
+                  </span>
+                )}
               </Link>
 
               <Link href="/" className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900">

@@ -58,7 +58,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 ZENTARI
               </h1>
               {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
-                <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 leading-none">
+                <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
                   TEST
                 </span>
               )}

@@ -53,9 +53,16 @@ export default function AppTopbar() {
             whileHover={{ scale: 1.05, rotate: 5 }}
             transition={{ type: "spring", stiffness: 400, damping: 15 }}
           />
-          <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase hidden sm:block" style={{ fontFamily: 'var(--font-poppins)' }}>
-            ZENTARI
-          </h1>
+          <div className="hidden sm:flex items-center gap-2">
+            <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+              ZENTARI
+            </h1>
+            {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
+              <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
+                TEST
+              </span>
+            )}
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' && <DebugMemoryStats />}
