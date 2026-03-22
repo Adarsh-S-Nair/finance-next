@@ -82,4 +82,43 @@ if (!isServer) {
     // Network restored - resume auto-refresh
     supabase.auth.startAutoRefresh();
   });
+
+  // Patch window.fetch to inject auth token on /api/* calls
+  // This runs at module load time so it's ready before any component effects
+  if (!window.__authFetchPatched) {
+    window.__authFetchPatched = true;
+    const originalFetch = window.fetch;
+
+    window.fetch = async function patchedFetch(input, init) {
+      let url = "";
+      if (typeof input === "string") url = input;
+      else if (input instanceof URL) url = input.toString();
+      else if (input instanceof Request) url = input.url;
+
+      const isApiCall = url.startsWith("/api/") || url.startsWith(window.location.origin + "/api/");
+
+      if (isApiCall) {
+        let hasAuth = false;
+        if (init?.headers) { const h = new Headers(init.headers); hasAuth = h.has("Authorization"); }
+        if (!hasAuth && input instanceof Request) hasAuth = input.headers.has("Authorization");
+
+        if (!hasAuth) {
+          try {
+            const { data } = await supabase.auth.getSession();
+            const token = data?.session?.access_token;
+            if (token) {
+              const mergedHeaders = new Headers(input instanceof Request ? input.headers : init?.headers);
+              mergedHeaders.set("Authorization", `Bearer ${token}`);
+              if (input instanceof Request) {
+                return originalFetch.call(this, new Request(input, { headers: mergedHeaders }), init);
+              }
+              return originalFetch.call(this, input, { ...init, headers: mergedHeaders });
+            }
+          } catch { /* proceed without auth */ }
+        }
+      }
+
+      return originalFetch.call(this, input, init);
+    };
+  }
 }
