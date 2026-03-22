@@ -1,12 +1,14 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 
 const AccountsContext = createContext();
 
 export function AccountsProvider({ children }) {
   const { user } = useUser();
+  const pathname = usePathname();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -75,7 +77,11 @@ export function AccountsProvider({ children }) {
       const response = await fetch(`/api/plaid/accounts`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch accounts');
+        // Non-2xx: treat as empty (e.g. 401 for new users during FTUX)
+        setAccounts([]);
+        setLastFetched(Date.now());
+        setInitialized(true);
+        return;
       }
       
       const data = await response.json();
@@ -85,7 +91,8 @@ export function AccountsProvider({ children }) {
       setInitialized(true);
     } catch (err) {
       console.error('Error fetching accounts:', err);
-      setError(err.message);
+      setAccounts([]);
+      setError(null); // Don't surface the error to the UI
       setInitialized(true);
     } finally {
       setLoading(false);
@@ -94,6 +101,15 @@ export function AccountsProvider({ children }) {
 
   // Load accounts when user changes
   useEffect(() => {
+    // Skip fetching on the setup page (FTUX) — new users have no accounts yet
+    if (pathname === '/setup') {
+      setAccounts([]);
+      setError(null);
+      setLastFetched(null);
+      setInitialized(true);
+      return;
+    }
+
     if (user?.id) {
       fetchAccounts();
     } else {
@@ -103,7 +119,7 @@ export function AccountsProvider({ children }) {
       setLastFetched(null);
       setInitialized(false);
     }
-  }, [user?.id]);
+  }, [user?.id, pathname]);
 
   // Add account to context (for when new accounts are added)
   const addAccount = (newAccount) => {

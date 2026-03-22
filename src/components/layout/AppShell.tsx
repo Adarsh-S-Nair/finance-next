@@ -13,6 +13,16 @@ import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import ConfirmDialog from "../ui/ConfirmDialog";
 
+function SetupShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      <div className="flex min-h-screen items-center justify-center px-5 py-12 sm:px-6 lg:px-8">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function FtuxShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
   const [showLogout, setShowLogout] = useState(false);
@@ -93,8 +103,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isSetupRoute = pathname === "/setup";
   const isFtuxRoute = pathname === "/dashboard" || pathname === "/accounts";
+  const shouldUseSetupShell = isSetupRoute;
   const shouldUseFtuxShell =
-    isSetupRoute || (isFtuxRoute && initialized && !loading && accounts.length === 0);
+    !isSetupRoute && (isFtuxRoute && initialized && !loading && accounts.length === 0);
 
   useEffect(() => {
     const handleResize = () => {
@@ -117,6 +128,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  if (shouldUseSetupShell) {
+    return <SetupShell>{children}</SetupShell>;
+  }
 
   if (shouldUseFtuxShell) {
     return <FtuxShell>{children}</FtuxShell>;

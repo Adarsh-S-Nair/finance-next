@@ -1,12 +1,14 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 
 const NetWorthContext = createContext();
 
 export function NetWorthProvider({ children }) {
   const { user } = useUser();
+  const pathname = usePathname();
   const [netWorthHistory, setNetWorthHistory] = useState([]);
   const [currentNetWorth, setCurrentNetWorth] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,11 @@ export function NetWorthProvider({ children }) {
         return;
       }
       if (!currentResponse.ok) {
-        throw new Error('Failed to fetch current net worth');
+        // Any other error (e.g. 401 for new users) — treat as no data, don't throw
+        setCurrentNetWorth(null);
+        setNetWorthHistory([]);
+        setLastFetched(Date.now());
+        return;
       }
       const currentData = await currentResponse.json();
       // Handle empty result (no accounts yet)
@@ -71,7 +77,10 @@ export function NetWorthProvider({ children }) {
         return;
       }
       if (!historyResponse.ok) {
-        throw new Error('Failed to fetch net worth history');
+        // Any history fetch error — treat as no data, don't throw
+        setNetWorthHistory([]);
+        setLastFetched(Date.now());
+        return;
       }
       const historyData = await historyResponse.json();
       
@@ -97,6 +106,15 @@ export function NetWorthProvider({ children }) {
       return;
     }
 
+    // Skip fetching on the setup page (FTUX) — no accounts yet, no point fetching
+    if (pathname === '/setup') {
+      setNetWorthHistory([]);
+      setCurrentNetWorth(null);
+      setError(null);
+      setLastFetched(null);
+      return;
+    }
+
     if (user?.id) {
       fetchNetWorthData();
     } else {
@@ -107,7 +125,7 @@ export function NetWorthProvider({ children }) {
     }
     
     return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, [user?.id]);
+  }, [user?.id, pathname]);
 
   // Refresh net worth data (force fetch)
   const refreshNetWorthData = () => {
