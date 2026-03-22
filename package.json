@@ -11,7 +11,11 @@
     "test:coverage": "jest --coverage",
     "sync:nasdaq100": "node scripts/sync-nasdaq100.js",
     "sync:nasdaq100:api": "node -e \"fetch('http://localhost:3000/api/market-data/sync-constituents').then(r=>r.json()).then(console.log).catch(console.error)\"",
-    "populate:tickers": "node scripts/populate-tickers.js"
+    "populate:tickers": "node scripts/populate-tickers.js",
+    "dev:test": "node --experimental-vm-modules scripts/load-test-env.js next dev",
+    "seed:ftux": "node --experimental-vm-modules scripts/seed/seed-empty-user.js",
+    "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js",
+    "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"
   },
   "dependencies": {
     "@nivo/bar": "^0.99.0",
