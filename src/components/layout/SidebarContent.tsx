@@ -53,9 +53,16 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             }}
           />
           {!isCollapsed && (
-            <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
-              ZENTARI
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+                ZENTARI
+              </h1>
+              {process.env.NEXT_PUBLIC_TEST_MODE === 'true' && (
+                <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 leading-none">
+                  TEST
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
