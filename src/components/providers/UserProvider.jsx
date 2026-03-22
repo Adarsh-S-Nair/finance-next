@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "../../lib/supabase/client";
 import { fetchUserProfile, upsertUserProfile } from "../../lib/user/profile";
 import { useToast } from "./ToastProvider";
+import { authFetch } from "../../lib/api/fetch";
 
 const UserContext = createContext({
   user: null,
@@ -254,7 +255,7 @@ export default function UserProvider({ children }) {
           setLoading(true);
           // Check if user has any accounts to decide setup vs dashboard
           try {
-            const res = await fetch("/api/plaid/accounts");
+            const res = await authFetch("/api/plaid/accounts");
             const body = res.ok ? await res.json() : { accounts: [] };
             const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
             router.replace(hasAccounts ? "/dashboard" : "/setup");

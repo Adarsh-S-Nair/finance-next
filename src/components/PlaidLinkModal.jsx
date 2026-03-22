@@ -7,6 +7,7 @@ import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { useUser } from './providers/UserProvider';
 import { useAccounts } from './providers/AccountsProvider';
+import { authFetch } from '../lib/api/fetch';
 
 const ACCOUNT_TYPES = [
   {
@@ -73,7 +74,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/plaid/exchange-token', {
+      const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,7 +139,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/plaid/link-token', {
+      const response = await authFetch('/api/plaid/link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountType }),

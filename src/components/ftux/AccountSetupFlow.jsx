@@ -3,9 +3,10 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
-import { FiArrowRight, FiCheckCircle, FiLoader, FiAlertCircle } from "react-icons/fi";
+import { FiChevronRight, FiChevronLeft, FiCheckCircle, FiLoader, FiAlertCircle } from "react-icons/fi";
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
+import { authFetch } from "../../lib/api/fetch";
 
 const ACCOUNT_TYPES = [
   {
@@ -64,6 +65,19 @@ function PaginationDots({ current, total }) {
   );
 }
 
+function BackButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-sm text-zinc-400 transition-colors hover:text-zinc-700"
+    >
+      <FiChevronLeft className="h-4 w-4" />
+      Back
+    </button>
+  );
+}
+
 /* ── Step 1: Welcome ─────────────────────────────────────────── */
 function WelcomeStep({ firstName, onNext }) {
   return (
@@ -74,16 +88,19 @@ function WelcomeStep({ firstName, onNext }) {
       <p className="mt-4 text-base text-zinc-500">Connect your first account to get going.</p>
       <Button onClick={onNext} className="mt-10 h-11 px-8">
         Get started
-        <FiArrowRight className="ml-2 h-4 w-4" />
+        <FiChevronRight className="ml-1.5 h-4 w-4" />
       </Button>
     </div>
   );
 }
 
 /* ── Step 2: Account Type ────────────────────────────────────── */
-function AccountTypeStep({ onSelect }) {
+function AccountTypeStep({ onSelect, onBack }) {
   return (
     <div className="w-full max-w-sm">
+      <div className="mb-6">
+        <BackButton onClick={onBack} />
+      </div>
       <h2 className="mb-6 text-center text-xl font-semibold tracking-tight text-zinc-900">
         What would you like to connect?
       </h2>
@@ -93,13 +110,13 @@ function AccountTypeStep({ onSelect }) {
             key={type.id}
             type="button"
             onClick={() => onSelect(type)}
-            className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-left shadow-sm transition-all hover:border-zinc-400 hover:shadow-md active:scale-[0.98]"
+            className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-5 py-4 text-left shadow-sm transition-all hover:border-zinc-400 hover:shadow-md active:scale-[0.98]"
           >
             <div>
               <div className="text-sm font-semibold text-zinc-900">{type.label}</div>
               <div className="mt-0.5 text-xs text-zinc-500">{type.description}</div>
             </div>
-            <FiArrowRight className="ml-4 h-4 w-4 flex-shrink-0 text-zinc-400" />
+            <FiChevronRight className="ml-4 h-4 w-4 flex-shrink-0 text-zinc-400" />
           </button>
         ))}
       </div>
@@ -108,17 +125,17 @@ function AccountTypeStep({ onSelect }) {
 }
 
 /* ── Step 3: Connecting (uses Plaid) ────────────────────────── */
-function ConnectingStep({ accountType, onSuccess, onError }) {
+function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
   const [error, setError] = useState(null);
-  const [fetching, setFetching] = useState(false);
   const [exchanging, setExchanging] = useState(false);
+  const [plaidExited, setPlaidExited] = useState(false);
 
   const handlePlaidSuccess = async (publicToken) => {
     try {
       setExchanging(true);
-      const response = await fetch("/api/plaid/exchange-token", {
+      const response = await authFetch("/api/plaid/exchange-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publicToken, accountType: accountType.id }),
@@ -147,6 +164,9 @@ function ConnectingStep({ accountType, onSuccess, onError }) {
       const msg = err.message || "An error occurred during account linking";
       setError(msg);
       onError(msg);
+    } else {
+      // User closed Plaid without error — allow going back
+      setPlaidExited(true);
     }
   };
 
@@ -161,10 +181,9 @@ function ConnectingStep({ accountType, onSuccess, onError }) {
     let cancelled = false;
 
     async function fetchToken() {
-      setFetching(true);
       setError(null);
       try {
-        const response = await fetch("/api/plaid/link-token", {
+        const response = await authFetch("/api/plaid/link-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ accountType: accountType.id }),
@@ -180,8 +199,6 @@ function ConnectingStep({ accountType, onSuccess, onError }) {
           setError(msg);
           onError(msg);
         }
-      } finally {
-        if (!cancelled) setFetching(false);
       }
     }
 
@@ -192,10 +209,10 @@ function ConnectingStep({ accountType, onSuccess, onError }) {
 
   // Open Plaid when ready
   useEffect(() => {
-    if (linkToken && ready && !error) {
+    if (linkToken && ready && !error && !plaidExited) {
       open();
     }
-  }, [linkToken, ready, error, open]);
+  }, [linkToken, ready, error, open, plaidExited]);
 
   if (error) {
     return (
@@ -203,6 +220,36 @@ function ConnectingStep({ accountType, onSuccess, onError }) {
         <FiAlertCircle className="mb-4 h-10 w-10 text-red-400" />
         <p className="text-sm font-medium text-zinc-900">Something went wrong</p>
         <p className="mt-1 text-sm text-zinc-500">{error}</p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+        >
+          <FiChevronLeft className="h-4 w-4" />
+          Try a different account
+        </button>
+      </div>
+    );
+  }
+
+  if (plaidExited) {
+    return (
+      <div className="flex flex-col items-center text-center">
+        <p className="text-sm font-medium text-zinc-900">Connection cancelled</p>
+        <p className="mt-1 text-sm text-zinc-500">No worries — you can try again.</p>
+        <div className="mt-6 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+          >
+            <FiChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+          <Button onClick={() => { setPlaidExited(false); open(); }} className="h-9 px-5 text-sm">
+            Try again
+          </Button>
+        </div>
       </div>
     );
   }
@@ -229,7 +276,7 @@ function DoneStep({ onComplete }) {
       <p className="mt-2 text-sm text-zinc-500">Your account is connected. Let&apos;s go.</p>
       <Button onClick={onComplete} className="mt-10 h-11 px-8">
         Go to dashboard
-        <FiArrowRight className="ml-2 h-4 w-4" />
+        <FiChevronRight className="ml-1.5 h-4 w-4" />
       </Button>
     </div>
   );
@@ -241,7 +288,6 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
   const [direction, setDirection] = useState(1);
   const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
-  const [connectError, setConnectError] = useState(null);
 
   const firstName = useMemo(() => {
     if (!userName) return "there";
@@ -263,8 +309,8 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
     goTo(3);
   };
 
-  const handlePlaidError = (msg) => {
-    setConnectError(msg);
+  const handlePlaidError = () => {
+    // Error is displayed within ConnectingStep
   };
 
   const handleComplete = () => {
@@ -286,6 +332,7 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
           <AccountTypeStep
             key="account-type"
             onSelect={handleAccountTypeSelect}
+            onBack={() => goTo(0)}
           />
         );
       case 2:
@@ -295,6 +342,7 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
             accountType={selectedAccountType}
             onSuccess={handlePlaidSuccess}
             onError={handlePlaidError}
+            onBack={() => goTo(1)}
           />
         );
       case 3:
