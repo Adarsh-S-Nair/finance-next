@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
+import { authFetch } from '../../lib/api/fetch';
 
 const AccountsContext = createContext();
 
@@ -74,7 +75,7 @@ export function AccountsProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/plaid/accounts`);
+      const response = await authFetch(`/api/plaid/accounts`);
       
       if (!response.ok) {
         // Non-2xx: treat as empty (e.g. 401 for new users during FTUX)
@@ -101,15 +102,6 @@ export function AccountsProvider({ children }) {
 
   // Load accounts when user changes
   useEffect(() => {
-    // Skip fetching on the setup page (FTUX) — new users have no accounts yet
-    if (pathname === '/setup') {
-      setAccounts([]);
-      setError(null);
-      setLastFetched(null);
-      setInitialized(true);
-      return;
-    }
-
     if (user?.id) {
       fetchAccounts();
     } else {
