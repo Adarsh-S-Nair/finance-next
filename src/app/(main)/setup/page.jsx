@@ -34,11 +34,15 @@ export default function SetupPage() {
     );
   }
 
-  const meta = profile || user?.user_metadata || {};
+  // Check profile and user_metadata independently — profile may be {} (empty object, truthy)
+  // even when the user has no DB row yet, so we can't rely on `profile || user_metadata`.
+  const profileMeta = profile || {};
+  const userMeta = user?.user_metadata || {};
   const firstName =
-    meta.first_name ||
-    meta.name?.split(" ")[0] ||
-    meta.full_name?.split(" ")[0] ||
+    profileMeta.first_name ||
+    userMeta.first_name ||
+    userMeta.name?.split(" ")[0] ||
+    userMeta.full_name?.split(" ")[0] ||
     user?.email?.split("@")[0];
   const name = firstName
     ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
