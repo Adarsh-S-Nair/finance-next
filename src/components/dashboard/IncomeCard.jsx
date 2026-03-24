@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { authFetch } from '../../lib/api/fetch';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 
@@ -42,7 +43,7 @@ export default function IncomeCard() {
       if (!user?.id) return;
 
       try {
-        const response = await fetch(`/api/transactions/spending-earning?months=6`);
+        const response = await authFetch(`/api/transactions/spending-earning?months=6`);
         const data = await response.json();
 
         if (data.data) {

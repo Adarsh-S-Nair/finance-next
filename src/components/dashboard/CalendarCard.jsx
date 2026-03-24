@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { authFetch } from '../../lib/api/fetch';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 import { FiChevronLeft, FiChevronRight, FiTag, FiX } from 'react-icons/fi';
@@ -180,7 +181,7 @@ export default function CalendarCard({ className = '' }) {
       try {
         setLoading(true);
         // Fetch all recurring streams (both inflow and outflow) by removing streamType filter
-        const response = await fetch(`/api/recurring/get`);
+        const response = await authFetch(`/api/recurring/get`);
         if (!response.ok) throw new Error('Failed to fetch');
         const result = await response.json();
         setRecurring(result.recurring || []);

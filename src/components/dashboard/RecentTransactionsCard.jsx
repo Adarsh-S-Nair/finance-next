@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { authFetch } from '../../lib/api/fetch';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
@@ -81,7 +82,7 @@ export default function RecentTransactionsCard() {
         const controller = new AbortController();
         abortRef.current = controller;
 
-        const response = await fetch(`/api/plaid/transactions/get?limit=8&minimal=1`, {
+        const response = await authFetch(`/api/plaid/transactions/get?limit=8&minimal=1`, {
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json' },
         });

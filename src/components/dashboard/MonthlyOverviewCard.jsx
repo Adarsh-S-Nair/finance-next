@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { authFetch } from "../../lib/api/fetch";
 import Card from "../ui/Card";
 import LineChart from "../ui/LineChart";
 import Dropdown from "../ui/Dropdown";
@@ -31,7 +32,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     const fetchAvailableMonths = async () => {
       if (!user?.id) return;
       try {
-        const response = await fetch(`/api/transactions/available-months`);
+        const response = await authFetch(`/api/transactions/available-months`);
         if (!response.ok) throw new Error('Failed to fetch available months');
         const result = await response.json();
         setAvailableMonths(result.months || []);
@@ -59,7 +60,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         const [year, month] = selectedMonth.split('-');
         const monthIndex = parseInt(month) - 1; // Convert to 0-indexed
 
-        const response = await fetch(
+        const response = await authFetch(
           `/api/transactions/monthly-overview?month=${monthIndex}&year=${year}`
         );
 

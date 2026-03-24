@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../../lib/api/fetch';
 import { usePlaidLink } from 'react-plaid-link';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
@@ -111,7 +112,7 @@ export default function RecurringTransactionsCard() {
     try {
       setLoading(true);
       // Fetch only outflow (expenses/bills) by default
-      const response = await fetch(`/api/recurring/get?streamType=outflow`);
+      const response = await authFetch(`/api/recurring/get?streamType=outflow`);
       if (!response.ok) throw new Error('Failed to fetch');
       const result = await response.json();
       setRecurring(result.recurring || []);
@@ -153,7 +154,7 @@ export default function RecurringTransactionsCard() {
       setSyncing(true);
       setItemsNeedingConsent([]); // Clear previous consent prompts
 
-      const response = await fetch('/api/plaid/recurring/sync', {
+      const response = await authFetch('/api/plaid/recurring/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ forceReset }),
@@ -188,7 +189,7 @@ export default function RecurringTransactionsCard() {
       setUpdatingConsent(true);
 
       // Get link token in update mode
-      const response = await fetch('/api/plaid/link-token', {
+      const response = await authFetch('/api/plaid/link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

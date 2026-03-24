@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import Card from "../ui/Card";
 import { useUser } from "../providers/UserProvider";
@@ -15,7 +16,7 @@ export default function BudgetsCard() {
     async function fetchBudgets() {
       if (!user?.id) return;
       try {
-        const res = await fetch(`/api/budgets`);
+        const res = await authFetch(`/api/budgets`);
         const json = await res.json();
         setBudgets(json.data || []);
       } catch (e) {

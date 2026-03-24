@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../../lib/api/fetch';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 
@@ -18,7 +19,7 @@ export default function SpendingOverviewCard() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/transactions/spending-by-category?days=30`);
+        const response = await authFetch(`/api/transactions/spending-by-category?days=30`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch spending data');

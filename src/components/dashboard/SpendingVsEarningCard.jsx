@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { authFetch } from "../../lib/api/fetch";
 import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChartV2";
 import Dropdown from "../ui/Dropdown";
@@ -73,7 +74,7 @@ export default function SpendingVsEarningCard() {
           monthsParam = (currentMonth + 1).toString(); // Convert to 1-indexed month count
         }
 
-        const response = await fetch(`/api/transactions/spending-earning?months=${monthsParam}`);
+        const response = await authFetch(`/api/transactions/spending-earning?months=${monthsParam}`);
         if (!response.ok) throw new Error('Failed to fetch data');
         const result = await response.json();
         setChartData(result.data || []);

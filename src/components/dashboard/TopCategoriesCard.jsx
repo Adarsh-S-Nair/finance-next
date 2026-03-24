@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { authFetch } from "../../lib/api/fetch";
 import Card from "../ui/Card";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../providers/UserProvider";
@@ -79,7 +80,7 @@ export default function TopCategoriesCard() {
           apiUrl = `/api/transactions/spending-by-category?days=30`;
         }
 
-        const res = await fetch(apiUrl);
+        const res = await authFetch(apiUrl);
         if (!res.ok) throw new Error("Failed to fetch data");
         const data = await res.json();
 
