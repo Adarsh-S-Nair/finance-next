@@ -17,6 +17,7 @@ import { HiChevronDown } from "react-icons/hi2";
 import { IoUnlink } from "react-icons/io5";
 import { FiTool } from "react-icons/fi";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function SettingsPage() {
     if (!confirm("Are you sure? This will reset your transaction history and trigger a full resync.")) return;
     setIsResyncing(true);
     try {
-      const res = await fetch('/api/plaid/reset-cursor', {
+      const res = await authFetch('/api/plaid/reset-cursor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -54,15 +55,10 @@ export default function SettingsPage() {
   async function handleDeleteAccount() {
     try {
       setBusy(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const res = await fetch("/api/account/delete", {
+      const res = await authFetch("/api/account/delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (!res.ok) {
@@ -97,7 +93,7 @@ export default function SettingsPage() {
       setIsDisconnecting(true);
       console.log('Disconnecting institution:', institution.name, 'plaidItemId:', institution.plaidItemId);
 
-      const response = await fetch('/api/plaid/disconnect', {
+      const response = await authFetch('/api/plaid/disconnect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

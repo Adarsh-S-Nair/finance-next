@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase/client";
 
 /**
  * PublicRoute component that redirects authenticated users away from public pages.
  * Shows a loading spinner while checking auth state, then either renders
- * children (if not authenticated) or redirects to dashboard (if authenticated).
+ * children (if not authenticated) or shows a spinner while UserProvider handles routing.
+ *
+ * Note: We do NOT call router.replace here. UserProvider handles post-signin routing
+ * (checking if user has accounts → /setup vs /dashboard). Calling router.replace here
+ * would race with UserProvider and send new users to /dashboard instead of /setup.
  */
 export default function PublicRoute({ children }) {
-  const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -23,8 +25,7 @@ export default function PublicRoute({ children }) {
         if (!isMounted) return;
 
         if (data?.user) {
-          // Authenticated - redirect to dashboard
-          router.replace("/dashboard");
+          // Authenticated — let UserProvider handle routing destination
           setIsAuthenticated(true);
         } else {
           // Not authenticated - show the public page
@@ -41,14 +42,13 @@ export default function PublicRoute({ children }) {
 
     checkAuth();
 
-    // Listen for auth state changes
+    // Listen for auth state changes — only update isAuthenticated,
+    // never call router.replace. UserProvider owns post-signin routing.
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return;
 
         if (event === "SIGNED_IN" && session?.user) {
-          // User just signed in - redirect to dashboard
-          router.replace("/dashboard");
           setIsAuthenticated(true);
         }
       }
@@ -58,7 +58,7 @@ export default function PublicRoute({ children }) {
       isMounted = false;
       subscription.subscription?.unsubscribe?.();
     };
-  }, [router]);
+  }, []);
 
   // Show loading state while checking auth
   if (isChecking) {
@@ -69,7 +69,7 @@ export default function PublicRoute({ children }) {
     );
   }
 
-  // If authenticated, don't render children (redirect is happening)
+  // If authenticated, show spinner while UserProvider figures out where to route
   if (isAuthenticated) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">

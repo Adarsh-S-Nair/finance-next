@@ -11,7 +11,7 @@ export const MOCK_INSTITUTIONS = {
     country_codes: ['US'],
     url: 'https://www.chase.com',
     primary_color: '#117ACA',
-    logo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    logo: 'https://logo.clearbit.com/chase.com',
     routing_numbers: ['021000021'],
     oauth: false,
     status: {
@@ -26,7 +26,7 @@ export const MOCK_INSTITUTIONS = {
     country_codes: ['US'],
     url: 'https://www.bankofamerica.com',
     primary_color: '#E31837',
-    logo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    logo: 'https://logo.clearbit.com/bankofamerica.com',
     routing_numbers: ['026009593'],
     oauth: false,
     status: {
@@ -41,7 +41,7 @@ export const MOCK_INSTITUTIONS = {
     country_codes: ['US'],
     url: 'https://www.schwab.com',
     primary_color: '#00A0DF',
-    logo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    logo: 'https://logo.clearbit.com/schwab.com',
     routing_numbers: ['121202211'],
     oauth: false,
     status: {
@@ -56,7 +56,7 @@ export const MOCK_INSTITUTIONS = {
     country_codes: ['US'],
     url: 'https://www.wellsfargo.com',
     primary_color: '#D71E28',
-    logo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    logo: 'https://logo.clearbit.com/wellsfargo.com',
     routing_numbers: ['121000248'],
     oauth: false,
     status: {

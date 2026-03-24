@@ -7,6 +7,7 @@ import { FiChevronRight, FiChevronLeft, FiCheck, FiLoader, FiAlertCircle } from 
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
+import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 
 const ACCOUNT_TYPES = [
   {
@@ -360,7 +361,7 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
 
   const firstName = useMemo(() => {
     if (!userName) return "there";
-    return String(userName).split(" ")[0];
+    return capitalizeFirstOnly(String(userName).split(" ")[0]);
   }, [userName]);
 
   const goTo = (nextStep) => {

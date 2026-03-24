@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../../components/providers/UserProvider";
 import Input from "../../../components/ui/Input";
 import { supabase } from "../../../lib/supabase/client";
+import { authFetch } from "../../../lib/api/fetch";
 import PageToolbar from "../../../components/layout/PageToolbar";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
@@ -779,7 +780,7 @@ function TransactionsContent() {
       if (endDate) params.append('endDate', endDate.toISOString());
     }
 
-    const response = await fetch(`/api/plaid/transactions/get?${params.toString()}`);
+    const response = await authFetch(`/api/plaid/transactions/get?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch transactions');
     return await response.json();
   };
@@ -812,7 +813,7 @@ function TransactionsContent() {
 
     try {
       // First, sync all Plaid items
-      const response = await fetch('/api/plaid/sync-all', {
+      const response = await authFetch('/api/plaid/sync-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -1129,7 +1130,7 @@ function TransactionsContent() {
     // 1. Check for similar transactions FIRST
     try {
       setDetectingSimilar(true);
-      const response = await fetch('/api/transactions/detect-similar', {
+      const response = await authFetch('/api/transactions/detect-similar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

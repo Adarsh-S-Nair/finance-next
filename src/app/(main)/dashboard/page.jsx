@@ -12,6 +12,7 @@ import DashboardNetWorthCard from "../../../components/dashboard/DashboardNetWor
 import RecurringTransactionsCard from "../../../components/dashboard/RecurringTransactionsCard";
 import RecentTransactionsCard from "../../../components/dashboard/RecentTransactionsCard";
 import PlaceholderCard from "../../../components/dashboard/PlaceholderCard";
+import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 
 import IncomeCard from "../../../components/dashboard/IncomeCard";
 import SpendingCard from "../../../components/dashboard/SpendingCard";
@@ -59,7 +60,7 @@ export default function DashboardPage() {
       const meta = user.user_metadata || {};
       const first = meta.first_name || meta.name?.split(' ')[0] || meta.full_name?.split(' ')[0];
       const nameFromEmail = user.email?.split('@')[0];
-      const name = first || (nameFromEmail ? nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1) : "User");
+      const name = first ? capitalizeFirstOnly(first) : (nameFromEmail ? capitalizeFirstOnly(nameFromEmail) : "User");
 
       setGreeting(`${timeGreeting}, ${name}`);
     }

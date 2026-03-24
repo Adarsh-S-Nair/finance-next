@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
+import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 
 export default function SetupPage() {
   const router = useRouter();
@@ -54,9 +55,7 @@ export default function SetupPage() {
     userMeta.name?.split(" ")[0] ||
     userMeta.full_name?.split(" ")[0] ||
     user?.email?.split("@")[0];
-  const name = firstName
-    ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
-    : undefined;
+  const name = firstName ? capitalizeFirstOnly(firstName) : undefined;
 
   return (
     <AccountSetupFlow
