@@ -128,7 +128,7 @@ const formatPrice = (amount, decimals = 2) => {
 export default function ArbitragePortfolioPage() {
   const params = useParams();
   const router = useRouter();
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const { setHeaderActions } = usePaperTradingHeader();
   const portfolioId = params.portfolio_id;
   const terminalRef = useRef(null);
@@ -150,7 +150,7 @@ export default function ArbitragePortfolioPage() {
 
   // Fetch initial portfolio data and snapshots
   useEffect(() => {
-    if (!portfolioId || !profile?.id) return;
+    if (!portfolioId || !user?.id) return;
 
     const fetchPortfolioData = async () => {
       // Fetch portfolio
@@ -158,7 +158,7 @@ export default function ArbitragePortfolioPage() {
         .from('portfolios')
         .select('*')
         .eq('id', portfolioId)
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id)
         .single();
 
       if (portfolioError) {
@@ -184,7 +184,7 @@ export default function ArbitragePortfolioPage() {
     };
 
     fetchPortfolioData();
-  }, [portfolioId, profile?.id, router]);
+  }, [portfolioId, user?.id, router]);
 
   // Prepare chart data from snapshots
   const chartData = useMemo(() => {

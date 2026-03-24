@@ -14,7 +14,7 @@ import { InvestmentsHeaderContext } from "./InvestmentsHeaderContext";
 export default function InvestmentsLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const [portfolioName, setPortfolioName] = useState(null);
   const [headerActions, setHeaderActions] = useState({
     onConnectClick: null,
@@ -32,7 +32,7 @@ export default function InvestmentsLayout({ children }) {
 
   // Fetch portfolio name for detail pages
   useEffect(() => {
-    if (!portfolioId || !profile?.id) {
+    if (!portfolioId || !user?.id) {
       setPortfolioName(null);
       return;
     }
@@ -43,7 +43,7 @@ export default function InvestmentsLayout({ children }) {
           .from('portfolios')
           .select('name')
           .eq('id', portfolioId)
-          .eq('user_id', profile.id)
+          .eq('user_id', user.id)
           .single();
 
         if (error) throw error;
@@ -55,7 +55,7 @@ export default function InvestmentsLayout({ children }) {
     };
 
     fetchPortfolioName();
-  }, [portfolioId, profile?.id]);
+  }, [portfolioId, user?.id]);
 
   return (
     <InvestmentsHeaderContext.Provider value={{ setHeaderActions }}>

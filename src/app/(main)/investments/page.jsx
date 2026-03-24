@@ -178,7 +178,7 @@ function AnimatedCounter({ value, duration = 120 }) {
 // ============================================================================
 
 export default function InvestmentsPage() {
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const { setHeaderActions } = useInvestmentsHeader();
   const [investmentPortfolios, setInvestmentPortfolios] = useState([]);
   const [allHoldings, setAllHoldings] = useState([]);
@@ -241,7 +241,7 @@ export default function InvestmentsPage() {
       throw new Error(result?.details || result?.error || 'Failed to sync latest holdings');
     }
     return result;
-  }, [profile?.id]);
+  }, [user?.id]);
 
   const runHardResetSync = useCallback(async (plaidItemId) => {
     const response = await fetch('/api/plaid/investments/hard-reset-sync', {
@@ -265,10 +265,10 @@ export default function InvestmentsPage() {
       throw new Error(result?.details || result?.error || 'Failed to hard reset sync');
     }
     return result;
-  }, [profile?.id]);
+  }, [user?.id]);
 
   const handleLatestHoldingsSync = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!user?.id) return;
     setIsSyncingHoldings(true);
     setLoading(true);
     setIsRefreshingData(true);
@@ -282,7 +282,7 @@ export default function InvestmentsPage() {
       }
 
       console.group('[Plaid Holdings] Latest holdings sync start');
-      console.log('Sync targets', { selectedSyncScope, plaidItemIds, userId: profile.id });
+      console.log('Sync targets', { selectedSyncScope, plaidItemIds, userId: user.id });
 
       for (const plaidItemId of plaidItemIds) {
         const result = await runLatestHoldingsSync(plaidItemId);
@@ -320,10 +320,10 @@ export default function InvestmentsPage() {
     } finally {
       setIsSyncingHoldings(false);
     }
-  }, [profile?.id, selectedSyncScope, investmentSyncTargets, runLatestHoldingsSync]);
+  }, [user?.id, selectedSyncScope, investmentSyncTargets, runLatestHoldingsSync]);
 
   const handleHardResetSync = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!user?.id) return;
     setIsSyncingHoldings(true);
     setLoading(true);
     setIsRefreshingData(true);
@@ -337,7 +337,7 @@ export default function InvestmentsPage() {
       }
 
       console.group('[Plaid Investments] Hard reset sync start');
-      console.log('Reset targets', { selectedSyncScope, plaidItemIds, userId: profile.id });
+      console.log('Reset targets', { selectedSyncScope, plaidItemIds, userId: user.id });
 
       for (const plaidItemId of plaidItemIds) {
         const result = await runHardResetSync(plaidItemId);
@@ -369,7 +369,7 @@ export default function InvestmentsPage() {
     } finally {
       setIsSyncingHoldings(false);
     }
-  }, [profile?.id, selectedSyncScope, investmentSyncTargets, runHardResetSync]);
+  }, [user?.id, selectedSyncScope, investmentSyncTargets, runHardResetSync]);
 
   const openSyncModal = useCallback(() => {
     if (investmentSyncTargets.length === 0) {
@@ -412,7 +412,7 @@ export default function InvestmentsPage() {
               institutions(name, logo)
             )
           `)
-          .eq('user_id', profile.id)
+          .eq('user_id', user.id)
           .eq('type', 'plaid_investment')
           .order('created_at', { ascending: false });
 
@@ -544,10 +544,10 @@ export default function InvestmentsPage() {
       }
     };
 
-    if (profile?.id) {
+    if (user?.id) {
       fetchData();
     }
-  }, [profile?.id, refreshTrigger]);
+  }, [user?.id, refreshTrigger]);
 
   // Calculate portfolio metrics
   const portfolioMetrics = useMemo(() => {
@@ -843,7 +843,7 @@ export default function InvestmentsPage() {
 // ============================================================================
 
 function PortfolioChartCard({ portfolioMetrics, snapshots, holdings, timeRange, onTimeRangeChange }) {
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const totalValue = portfolioMetrics.totalPortfolioValue;
   const cashValue = portfolioMetrics.cash;
   const setTimeRange = onTimeRangeChange;

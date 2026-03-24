@@ -73,7 +73,7 @@ const formatCurrency = (amount) => {
 // Create Portfolio Drawer
 function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
   const router = useRouter();
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const [step, setStep] = useState('form');
 
   // Portfolio state
@@ -975,7 +975,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
 
 export default function PaperTradingPage() {
   const router = useRouter();
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const { setHeaderActions } = usePaperTradingHeader();
   const [portfolios, setPortfolios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -999,7 +999,7 @@ export default function PaperTradingPage() {
         const { data: portfoliosData } = await supabase
           .from('portfolios')
           .select('*')
-          .eq('user_id', profile.id)
+          .eq('user_id', user.id)
           .in('type', ['ai_simulation', 'arbitrage_simulation'])
           .order('created_at', { ascending: false });
 
@@ -1011,10 +1011,10 @@ export default function PaperTradingPage() {
       }
     };
 
-    if (profile?.id) {
+    if (user?.id) {
       fetchData();
     }
-  }, [profile?.id]);
+  }, [user?.id]);
 
   // Calculate aggregate stats
   const stats = useMemo(() => {

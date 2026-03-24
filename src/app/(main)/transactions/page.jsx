@@ -592,7 +592,7 @@ const FiltersContent = ({
 };
 
 function TransactionsContent() {
-  const { profile } = useUser();
+  const { user, profile } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -704,7 +704,7 @@ function TransactionsContent() {
 
   // Fetch transactions helper
   const fetchTransactionsData = async (cursor = null, direction = 'forward') => {
-    if (!profile?.id) return null;
+    if (!user?.id) return null;
 
     const params = new URLSearchParams({
       limit: PAGE_LIMIT.toString(),
@@ -787,7 +787,7 @@ function TransactionsContent() {
 
   // Initial fetch
   const fetchInitialTransactions = async () => {
-    if (!profile?.id) return;
+    if (!user?.id) return;
 
     try {
       setLoading(true);
@@ -878,7 +878,7 @@ function TransactionsContent() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, nextCursor, profile?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
+  }, [loadingMore, nextCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
 
   // Load previous (prev page - newer transactions)
   const loadPrev = useCallback(async () => {
@@ -918,7 +918,7 @@ function TransactionsContent() {
     } finally {
       setLoadingPrev(false);
     }
-  }, [loadingPrev, prevCursor, profile?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
+  }, [loadingPrev, prevCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
 
   // Restore scroll position after prepending items
   useLayoutEffect(() => {
@@ -960,7 +960,7 @@ function TransactionsContent() {
     return () => {
       if (initialAbortRef.current) initialAbortRef.current.abort();
     };
-  }, [profile?.id, debouncedSearchQuery, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds]); // Re-fetch when ANY filter changes
+  }, [user?.id, debouncedSearchQuery, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds]); // Re-fetch when ANY filter changes
 
   // Debounce search query with transition for non-blocking updates
   useEffect(() => {
@@ -1244,7 +1244,7 @@ function TransactionsContent() {
 
           const { error } = await supabase
             .rpc('upsert_category_rule', {
-              p_user_id: profile.id,
+              p_user_id: user.id,
               p_category_id: pendingCategory.id,
               p_conditions: conditions
             });
@@ -1277,7 +1277,7 @@ function TransactionsContent() {
   // Show loading state with smooth transition
   const isSearchLoading = isPending || loading;
 
-  if ((loading && !debouncedSearchQuery) || !profile?.id) {
+  if ((loading && !debouncedSearchQuery) || !user?.id) {
     return (
       <PageContainer frame="toolbar" showHeader={false}>
         <SearchToolbar
