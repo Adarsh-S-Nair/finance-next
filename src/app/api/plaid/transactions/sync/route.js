@@ -366,16 +366,24 @@ export async function POST(request) {
           }
         }
 
-        // Insert new category groups (use upsert to handle race conditions
-        // and case-insensitive unique constraint on name)
+        // Insert new category groups one-by-one to handle the case-insensitive
+        // unique constraint on lower(name) — bulk insert fails entirely on any
+        // duplicate, and onConflict can't target functional indexes.
         if (newCategoryGroups.length > 0) {
-          const { error: categoryGroupsError } = await supabaseAdmin
-            .from('category_groups')
-            .upsert(newCategoryGroups, { onConflict: 'name', ignoreDuplicates: true });
+          for (const group of newCategoryGroups) {
+            const { error: categoryGroupError } = await supabaseAdmin
+              .from('category_groups')
+              .insert(group);
 
-          if (categoryGroupsError) {
-            console.error('❌ Failed to insert category groups:', categoryGroupsError);
-            throw new Error(`Failed to insert category groups: ${categoryGroupsError.message}`);
+            if (categoryGroupError) {
+              // 23505 = duplicate key — safe to ignore (category already exists)
+              if (categoryGroupError.code === '23505') {
+                if (DEBUG) console.log(`⏭️ Category group already exists (case-insensitive): "${group.name}"`);
+              } else {
+                console.error('❌ Failed to insert category group:', categoryGroupError);
+                throw new Error(`Failed to insert category group: ${categoryGroupError.message}`);
+              }
+            }
           }
 
           if (DEBUG) console.log(`✅ Successfully created ${newCategoryGroups.length} new category groups`);
@@ -420,7 +428,7 @@ export async function POST(request) {
 
           const { error: systemCategoriesError } = await supabaseAdmin
             .from('system_categories')
-            .upsert(newSystemCategories, { onConflict: 'label', ignoreDuplicates: true });
+            .upsert(newSystemCategories, { onConflict: 'label,group_id', ignoreDuplicates: true });
 
           if (systemCategoriesError) {
             console.error('❌ Failed to insert system categories:', systemCategoriesError);
