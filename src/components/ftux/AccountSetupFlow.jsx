@@ -328,7 +328,7 @@ function ConnectedStep({ onAddMore, onComplete }) {
 }
 
 /* ── Main component ─────────────────────────────────────────── */
-export default function AccountSetupFlow({ userName, onComplete = null }) {
+export default function AccountSetupFlow({ userName, onComplete = null, onFlowStart = null }) {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [selectedAccountType, setSelectedAccountType] = useState(null);
@@ -346,6 +346,10 @@ export default function AccountSetupFlow({ userName, onComplete = null }) {
 
   const handleAccountTypeSelect = (type) => {
     setSelectedAccountType(type);
+    // Signal to the parent (SetupPage) that the FTUX flow is now active.
+    // This prevents the redirect guard from firing when AccountsProvider
+    // refreshes after a successful account connection.
+    onFlowStart?.();
     goTo(2);
   };
 

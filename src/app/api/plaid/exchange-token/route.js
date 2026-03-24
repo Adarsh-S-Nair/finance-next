@@ -284,9 +284,11 @@ export async function POST(request) {
         };
         const syncResponse = await syncEndpoint(syncRequest);
         if (!syncResponse.ok) {
-          console.warn('⚠️ Transaction sync failed, but account linking succeeded');
+          const syncErrorBody = await syncResponse.json().catch(() => ({}));
+          console.error('⚠️ Transaction sync failed:', JSON.stringify(syncErrorBody));
         } else {
           const syncResult = await syncResponse.json();
+          console.log('Sync result:', JSON.stringify(syncResult));
           console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
         }
       } catch (syncError) {
