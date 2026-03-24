@@ -27,6 +27,19 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   // We need a local loading state to track fetch
   const [isFetching, setIsFetching] = useState(true);
 
+  // Generate placeholder chart data for current month (all $0 values)
+  const generatePlaceholderChartData = () => {
+    const now = new Date();
+    const month = now.getMonth();
+    const today = now.getDate();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Array.from({ length: Math.max(today, 1) }, (_, i) => ({
+      dateString: `${monthNames[month]} ${i + 1}`,
+      spending: 0,
+      previousSpending: 0,
+    }));
+  };
+
   // Fetch available months
   useEffect(() => {
     const fetchAvailableMonths = async () => {
@@ -42,8 +55,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         if (!initialMonth && months.length > 0) {
           setSelectedMonth(months[0].value); // First item is current month (sorted newest first)
         }
-        // If no months available (fresh account), stop the loading state
+        // If no months available (fresh account), show placeholder chart with $0 values
         if (months.length === 0) {
+          setChartData(generatePlaceholderChartData());
           setIsFetching(false);
         }
       } catch (error) {
@@ -129,7 +143,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   };
 
   const showLoading = isFetching;
-  const showEmpty = !isFetching && chartData.length === 0;
 
   // Dynamic Date Display
 
@@ -161,11 +174,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     <Card padding="none" className="relative overflow-hidden h-full">
       {showLoading ? (
         <SkeletonLoader />
-      ) : showEmpty ? (
-        <div className="flex flex-col items-center justify-center h-full text-center px-6">
-          <div className="card-header mb-2">Monthly Overview</div>
-          <p className="text-sm text-[var(--color-muted)]">No spending data yet. Transactions will appear here once your accounts sync.</p>
-        </div>
       ) : (
         <div className="flex flex-col h-full">
           {/* Custom Header */}
@@ -225,16 +233,23 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 )}
 
                 {/* Month Dropdown */}
-                <Dropdown
-                  label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
-                  items={availableMonths.map((month) => ({
-                    label: month.label,
-                    onClick: () => setSelectedMonth(month.value),
-                    selected: month.value === selectedMonth
-                  }))}
-                  size="sm"
-                  align="right"
-                />
+                {availableMonths.length > 0 && (
+                  <Dropdown
+                    label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
+                    items={availableMonths.map((month) => ({
+                      label: month.label,
+                      onClick: () => setSelectedMonth(month.value),
+                      selected: month.value === selectedMonth
+                    }))}
+                    size="sm"
+                    align="right"
+                  />
+                )}
+                {availableMonths.length === 0 && (
+                  <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
+                    {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                )}
               </div>
             </div>
           </div>

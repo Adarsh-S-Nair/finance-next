@@ -152,6 +152,39 @@ export default function TopCategoriesCard() {
     );
   };
 
+  // Empty donut (single gray ring) for when there's no spending data
+  const EmptyDonut = () => (
+    <div className="flex-1 min-h-0 relative">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={[{ value: 1 }]}
+            cx="50%"
+            cy="50%"
+            innerRadius={110}
+            outerRadius={128}
+            paddingAngle={0}
+            dataKey="value"
+            stroke="none"
+            isAnimationActive={false}
+            style={{ pointerEvents: 'none' }}
+          >
+            <Cell fill="var(--color-border)" opacity={0.5} />
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Center Text */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <div className="text-3xl font-medium text-[var(--color-muted)] mb-1">
+          {renderFormattedAmount(0)}
+        </div>
+        <div className="text-xs text-[var(--color-muted)] font-medium text-center px-4">
+          No spending yet
+        </div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <Card className="h-[400px]">
@@ -162,11 +195,11 @@ export default function TopCategoriesCard() {
     );
   }
 
-  if (error || categories.length === 0) {
+  if (error) {
     return (
       <Card className="h-[400px]">
         <div className="h-full flex items-center justify-center text-[var(--color-muted)]">
-          {error ? "Failed to load data" : "No spending data found"}
+          Failed to load data
         </div>
       </Card>
     );
@@ -192,7 +225,10 @@ export default function TopCategoriesCard() {
           />
         </div>
 
-        {/* Chart Section */}
+        {/* Chart Section - empty donut when no categories */}
+        {categories.length === 0 ? (
+          <EmptyDonut />
+        ) : (
         <div className="flex-1 min-h-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -264,6 +300,7 @@ export default function TopCategoriesCard() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </Card>
   );

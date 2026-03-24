@@ -61,6 +61,24 @@ export default function SpendingVsEarningCard() {
     { label: 'Year to Date', value: 'ytd' },
   ];
 
+  // Generate placeholder months with $0 values for empty state
+  const generatePlaceholderMonths = (count) => {
+    const now = new Date();
+    const months = [];
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      months.push({
+        monthName: monthNames[d.getMonth()],
+        monthNumber: d.getMonth() + 1,
+        year: d.getFullYear(),
+        earning: 0,
+        spending: 0,
+      });
+    }
+    return months;
+  };
+
   // Fetch data
   useEffect(() => {
     const fetchData = async () => {
@@ -77,7 +95,9 @@ export default function SpendingVsEarningCard() {
         const response = await authFetch(`/api/transactions/spending-earning?months=${monthsParam}`);
         if (!response.ok) throw new Error('Failed to fetch data');
         const result = await response.json();
-        setChartData(result.data || []);
+        const data = result.data || [];
+        // If no data returned, show placeholder months so chart renders with labels
+        setChartData(data.length > 0 ? data : generatePlaceholderMonths(parseInt(monthsParam) || 6));
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -136,14 +156,18 @@ export default function SpendingVsEarningCard() {
   };
 
   // Calculate average monthly cashflow (net gain/loss)
-  const { averageCashflow, monthCount } = useMemo(() => {
-    if (!chartData.length) return { averageCashflow: 0, monthCount: 0 };
+  const { averageCashflow, monthCount, hasTransactions } = useMemo(() => {
+    if (!chartData.length) return { averageCashflow: 0, monthCount: 0, hasTransactions: false };
+    const totalEarning = chartData.reduce((acc, curr) => acc + (curr.earning || 0), 0);
+    const totalSpendingAmt = chartData.reduce((acc, curr) => acc + Math.abs(curr.spending || 0), 0);
+    const hasAny = totalEarning > 0 || totalSpendingAmt > 0;
     const totalNet = chartData.reduce((acc, curr) => {
       return acc + ((curr.earning || 0) - (curr.spending || 0));
     }, 0);
     return {
-      averageCashflow: totalNet / chartData.length,
-      monthCount: chartData.length
+      averageCashflow: hasAny ? totalNet / chartData.length : 0,
+      monthCount: hasAny ? chartData.length : 0,
+      hasTransactions: hasAny,
     };
   }, [chartData]);
 
@@ -172,7 +196,9 @@ export default function SpendingVsEarningCard() {
 
               <div className="flex items-center gap-2 text-[10px]">
                 <span className="text-[var(--color-muted)]">
-                  Based on {monthCount} month{monthCount !== 1 ? 's' : ''}
+                  {hasTransactions
+                    ? `Based on ${monthCount} month${monthCount !== 1 ? 's' : ''}`
+                    : 'No transactions yet'}
                 </span>
               </div>
             </div>
