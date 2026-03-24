@@ -14,13 +14,19 @@ export default function SetupPage() {
   // Prevent redirect while the FTUX flow is actively connecting an account
   const flowActiveRef = useRef(false);
 
-  // Guard: if user already has accounts, send them to dashboard
-  // But NOT while the FTUX flow is active — the user needs to see the "Connected!" step
+  // Guard: redirect to dashboard if user already has accounts (returning user visiting /setup)
+  // Skip redirect for the first 500ms to avoid flash during initial load
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
-    if (accountsInitialized && !accountsLoading && accounts.length > 0 && !flowActiveRef.current) {
+    const timer = setTimeout(() => setSettled(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (settled && accountsInitialized && !accountsLoading && accounts.length > 0 && !flowActiveRef.current) {
       router.replace("/dashboard");
     }
-  }, [accountsInitialized, accountsLoading, accounts, router]);
+  }, [settled, accountsInitialized, accountsLoading, accounts, router]);
 
   const handleComplete = async () => {
     flowActiveRef.current = false;
@@ -29,8 +35,8 @@ export default function SetupPage() {
     router.replace("/dashboard");
   };
 
-  // Don't render the setup flow while redirecting
-  if (completing || (accountsInitialized && !accountsLoading && accounts.length > 0 && !flowActiveRef.current)) {
+  // Don't render the setup flow while completing (after user clicks "Continue to dashboard")
+  if (completing) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />

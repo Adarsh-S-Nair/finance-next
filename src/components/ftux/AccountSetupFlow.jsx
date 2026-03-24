@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
-import { FiChevronRight, FiChevronLeft, FiCheckCircle, FiCheck, FiLoader, FiAlertCircle } from "react-icons/fi";
+import { FiChevronRight, FiChevronLeft, FiCheck, FiLoader, FiAlertCircle } from "react-icons/fi";
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
@@ -305,24 +305,48 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
 function ConnectedStep({ onAddMore, onComplete }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
-        <FiCheckCircle className="h-7 w-7 text-emerald-600" />
-      </div>
-      <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Account connected!</h2>
-      <p className="mt-2 text-sm text-zinc-500">Want to connect another account?</p>
-      <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-xs">
-        <Button onClick={onAddMore} className="w-full h-11 cursor-pointer">
-          Connect another account
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+        className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100"
+      >
+        <FiCheck className="h-7 w-7 text-zinc-700" />
+      </motion.div>
+      <motion.h2
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="text-2xl font-semibold tracking-tight text-zinc-900"
+      >
+        Account connected
+      </motion.h2>
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="mt-2 text-sm text-zinc-400"
+      >
+        You can always add more from settings.
+      </motion.p>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-8 flex flex-col items-center gap-3 w-full max-w-xs"
+      >
+        <Button onClick={onComplete} className="w-full h-11">
+          Continue to dashboard
+          <FiChevronRight className="ml-1.5 h-4 w-4" />
         </Button>
         <button
           type="button"
-          onClick={onComplete}
-          className="text-sm text-zinc-500 hover:text-zinc-700 hover:underline transition-colors cursor-pointer"
+          onClick={onAddMore}
+          className="text-sm text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
         >
-          Continue to dashboard
-          <FiChevronRight className="inline ml-1 h-3.5 w-3.5" />
+          Connect another account
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 }
