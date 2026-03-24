@@ -35,14 +35,20 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         const response = await authFetch(`/api/transactions/available-months`);
         if (!response.ok) throw new Error('Failed to fetch available months');
         const result = await response.json();
-        setAvailableMonths(result.months || []);
+        const months = result.months || [];
+        setAvailableMonths(months);
 
         // Set current month as default ONLY if no initialMonth was provided
-        if (!initialMonth && result.months && result.months.length > 0) {
-          setSelectedMonth(result.months[0].value); // First item is current month (sorted newest first)
+        if (!initialMonth && months.length > 0) {
+          setSelectedMonth(months[0].value); // First item is current month (sorted newest first)
+        }
+        // If no months available (fresh account), stop the loading state
+        if (months.length === 0) {
+          setIsFetching(false);
         }
       } catch (error) {
         console.error("Error fetching available months:", error);
+        setIsFetching(false);
       }
     };
 
@@ -123,6 +129,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   };
 
   const showLoading = isFetching;
+  const showEmpty = !isFetching && chartData.length === 0;
 
   // Dynamic Date Display
 
@@ -154,6 +161,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     <Card padding="none" className="relative overflow-hidden h-full">
       {showLoading ? (
         <SkeletonLoader />
+      ) : showEmpty ? (
+        <div className="flex flex-col items-center justify-center h-full text-center px-6">
+          <div className="card-header mb-2">Monthly Overview</div>
+          <p className="text-sm text-[var(--color-muted)]">No spending data yet. Transactions will appear here once your accounts sync.</p>
+        </div>
       ) : (
         <div className="flex flex-col h-full">
           {/* Custom Header */}
