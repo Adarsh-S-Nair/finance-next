@@ -345,7 +345,7 @@ export async function POST(request) {
           throw new Error(`Failed to fetch existing category groups: ${existingError.message}`);
         }
 
-        const existingNames = new Set(existingCategoryGroups?.map(cg => cg.name) || []);
+        const existingNames = new Set(existingCategoryGroups?.map(cg => cg.name.toLowerCase()) || []);
         const existingColors = existingCategoryGroups?.map(cg => cg.hex_color) || [];
 
         // Create new category groups for categories that don't exist
@@ -353,7 +353,7 @@ export async function POST(request) {
         for (const primaryCategory of primaryCategories) {
           const formattedName = formatCategoryName(primaryCategory);
 
-          if (!existingNames.has(formattedName)) {
+          if (!existingNames.has(formattedName.toLowerCase())) {
             const uniqueColor = generateUniqueCategoryColor(existingColors);
             newCategoryGroups.push({
               name: formattedName,
@@ -366,11 +366,12 @@ export async function POST(request) {
           }
         }
 
-        // Insert new category groups
+        // Insert new category groups (use upsert to handle race conditions
+        // and case-insensitive unique constraint on name)
         if (newCategoryGroups.length > 0) {
           const { error: categoryGroupsError } = await supabaseAdmin
             .from('category_groups')
-            .insert(newCategoryGroups);
+            .upsert(newCategoryGroups, { onConflict: 'name', ignoreDuplicates: true });
 
           if (categoryGroupsError) {
             console.error('❌ Failed to insert category groups:', categoryGroupsError);
@@ -419,7 +420,7 @@ export async function POST(request) {
 
           const { error: systemCategoriesError } = await supabaseAdmin
             .from('system_categories')
-            .insert(newSystemCategories);
+            .upsert(newSystemCategories, { onConflict: 'label', ignoreDuplicates: true });
 
           if (systemCategoriesError) {
             console.error('❌ Failed to insert system categories:', systemCategoriesError);
