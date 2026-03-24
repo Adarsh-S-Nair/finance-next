@@ -52,9 +52,10 @@ function PaginationDots({ current, total }) {
   return (
     <div className="flex items-center justify-center gap-2">
       {Array.from({ length: total }).map((_, i) => (
-        <div
+        <motion.div
           key={i}
-          className={`rounded-full transition-all duration-300 ${
+          layout
+          className={`rounded-full transition-colors duration-300 ${
             i === current
               ? "h-2 w-5 bg-zinc-900"
               : "h-2 w-2 bg-zinc-300"
@@ -67,13 +68,15 @@ function PaginationDots({ current, total }) {
 
 function BackButton({ onClick }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
-      className="h-8 w-8 rounded-full flex items-center justify-center border border-zinc-200 hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      className="h-9 w-9 rounded-full flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-700 transition-colors duration-150 cursor-pointer"
     >
       <FiChevronLeft className="h-4 w-4" />
-    </button>
+    </motion.button>
   );
 }
 
@@ -85,7 +88,7 @@ function WelcomeStep({ firstName, onNext }) {
         Hey {firstName},<br />let&apos;s get started.
       </h1>
       <p className="mt-4 text-base text-zinc-500">Connect your first account to get going.</p>
-      <Button onClick={onNext} className="mt-10 h-11 px-8">
+      <Button onClick={onNext} className="mt-10 h-11 px-8 cursor-pointer">
         Get started
         <FiChevronRight className="ml-1.5 h-4 w-4" />
       </Button>
@@ -105,44 +108,45 @@ function AccountTypeStep({ onSelect, onBack }) {
       <h2 className="mb-5 text-center text-xl font-semibold tracking-tight text-zinc-900">
         What would you like to connect?
       </h2>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col divide-y divide-zinc-100">
         {ACCOUNT_TYPES.map((type) => {
           const isSelected = selected?.id === type.id;
           return (
-            <button
+            <motion.button
               key={type.id}
               type="button"
               onClick={() => setSelected(type)}
-              className={`flex w-full items-center justify-between rounded-lg border px-4 py-3.5 text-left shadow-sm transition-all active:scale-[0.98] ${
-                isSelected
-                  ? "border-zinc-900 bg-zinc-50 shadow-none"
-                  : "border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-md"
+              whileHover={{ backgroundColor: "rgba(0,0,0,0.02)" }}
+              whileTap={{ scale: 0.99 }}
+              className={`flex w-full items-center justify-between py-4 px-3 text-left cursor-pointer transition-colors duration-150 ${
+                isSelected ? "bg-zinc-50" : ""
               }`}
             >
               <div>
                 <div className="text-sm font-medium text-zinc-900">{type.label}</div>
-                <div className="mt-0.5 text-xs text-zinc-500">{type.description}</div>
+                <div className="mt-0.5 text-xs text-zinc-400">{type.description}</div>
               </div>
-              {isSelected ? (
-                <FiCheck className="ml-4 h-4 w-4 flex-shrink-0 text-zinc-900" />
-              ) : (
-                <FiChevronRight className="ml-4 h-4 w-4 flex-shrink-0 text-zinc-400" />
-              )}
-            </button>
+              <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+                isSelected
+                  ? "border-zinc-900 bg-zinc-900"
+                  : "border-zinc-300"
+              }`}>
+                {isSelected && <FiCheck className="h-3 w-3 text-white" />}
+              </div>
+            </motion.button>
           );
         })}
       </div>
-      {selected && (
-        <div className="mt-4">
-          <Button
-            onClick={() => onSelect(selected)}
-            className="w-full h-11"
-          >
-            Continue
-            <FiChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <div className="mt-6">
+        <Button
+          onClick={() => onSelect(selected)}
+          disabled={!selected}
+          className="w-full h-11"
+        >
+          Continue
+          <FiChevronRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -255,7 +259,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
           Try a different account
@@ -273,12 +277,12 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 cursor-pointer"
           >
             <FiChevronLeft className="h-4 w-4" />
             Back
           </button>
-          <Button onClick={() => { setPlaidExited(false); open(); }} className="h-9 px-5 text-sm">
+          <Button onClick={() => { setPlaidExited(false); open(); }} className="h-9 px-5 text-sm cursor-pointer">
             Try again
           </Button>
         </div>
@@ -307,13 +311,13 @@ function ConnectedStep({ onAddMore, onComplete }) {
       <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Account connected!</h2>
       <p className="mt-2 text-sm text-zinc-500">Want to connect another account?</p>
       <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-xs">
-        <Button onClick={onAddMore} className="w-full h-11">
+        <Button onClick={onAddMore} className="w-full h-11 cursor-pointer">
           Connect another account
         </Button>
         <button
           type="button"
           onClick={onComplete}
-          className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
+          className="text-sm text-zinc-500 hover:text-zinc-700 hover:underline transition-colors cursor-pointer"
         >
           Continue to dashboard
           <FiChevronRight className="inline ml-1 h-3.5 w-3.5" />
