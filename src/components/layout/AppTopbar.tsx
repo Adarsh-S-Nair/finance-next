@@ -7,6 +7,7 @@ import AlertsIcon from "../AlertsIcon";
 import { motion } from "framer-motion";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
+import { formatDisplayName } from "../../lib/utils/formatName";
 
 export default function AppTopbar() {
   const [profileUrl, setProfileUrl] = useState<string | null>(null);
@@ -26,7 +27,8 @@ export default function AppTopbar() {
       const first = (user.user_metadata?.first_name as string | undefined) || "";
       const last = (user.user_metadata?.last_name as string | undefined) || "";
       const composite = `${first} ${last}`.trim();
-      const altName = (user.user_metadata?.name as string | undefined) || (user.user_metadata?.full_name as string | undefined) || composite || "User";
+      const rawName = (user.user_metadata?.name as string | undefined) || (user.user_metadata?.full_name as string | undefined) || composite || "User";
+      const altName = formatDisplayName(rawName);
       setDisplayName(altName);
       setProfileUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(altName)}&background=random&bold=true`);
     };

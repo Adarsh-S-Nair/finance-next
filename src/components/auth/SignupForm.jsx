@@ -6,6 +6,7 @@ import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
 import { upsertUserProfile, buildAvatarUrl } from "../../lib/user/profile";
+import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 
 const inputClassName =
   "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
@@ -22,13 +23,15 @@ export default function SignupForm() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    const normalizedFirst = capitalizeFirstOnly(firstName);
+    const normalizedLast = capitalizeFirstOnly(lastName);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          first_name: firstName,
-          last_name: lastName,
+          first_name: normalizedFirst,
+          last_name: normalizedLast,
         },
       },
     });
