@@ -187,28 +187,16 @@ export default function TopCategoriesCard() {
 
   if (loading) {
     return (
-      <Card className="h-[400px]">
-        <div className="animate-pulse flex flex-col h-full gap-4">
+      <Card padding="none" className="h-[400px]">
+        <div className="animate-pulse flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="px-6 pt-6 pb-2 flex items-center justify-between">
             <div className="h-4 bg-[var(--color-border)] rounded w-32" />
             <div className="h-6 bg-[var(--color-border)] rounded w-24" />
           </div>
           {/* Donut chart placeholder */}
           <div className="flex justify-center items-center flex-1">
-            <div className="w-40 h-40 rounded-full bg-[var(--color-border)] opacity-30" />
-          </div>
-          {/* Category rows */}
-          <div className="space-y-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)]" />
-                  <div className="h-3 bg-[var(--color-border)] rounded w-24" />
-                </div>
-                <div className="h-3 bg-[var(--color-border)] rounded w-16" />
-              </div>
-            ))}
+            <div className="w-56 h-56 rounded-full border-[18px] border-[var(--color-border)] opacity-30" />
           </div>
         </div>
       </Card>

@@ -176,10 +176,24 @@ export default function SpendingVsEarningCard() {
   return (
     <Card padding="none" allowOverflow className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
       {showLoading && (
-        <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col p-4 sm:p-6 gap-4">
-          <div className="h-5 bg-[var(--color-border)] rounded w-40" />
-          <div className="h-8 bg-[var(--color-border)] rounded w-32" />
-          <div className="flex-1 bg-[var(--color-border)] rounded opacity-50 mt-2" />
+        <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
+          {/* Header row — matches actual layout */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <div className="h-4 bg-[var(--color-border)] rounded w-36 mb-3" />
+              <div className="h-8 bg-[var(--color-border)] rounded w-28 mb-2" />
+              <div className="h-3 bg-[var(--color-border)] rounded w-24" />
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="h-7 bg-[var(--color-border)] rounded w-24" />
+              <div className="flex gap-4">
+                <div className="h-3 bg-[var(--color-border)] rounded w-14" />
+                <div className="h-3 bg-[var(--color-border)] rounded w-16" />
+              </div>
+            </div>
+          </div>
+          {/* Chart area */}
+          <div className="flex-1 bg-[var(--color-border)] rounded opacity-30 mt-2" />
         </div>
       )}
 
