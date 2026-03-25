@@ -268,29 +268,43 @@ export default function UserProvider({ children }) {
       }
 
       setUser(nextUser);
+
+      // Helper: redirect authenticated users away from public routes (/, /auth)
+      const redirectFromPublicRoute = async () => {
+        const isOnPublicRoute = typeof window !== "undefined" &&
+          (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
+        if (!isOnPublicRoute) return false;
+
+        setAuthTransition(true);
+        setLoading(true);
+        try {
+          const res = await authFetch("/api/plaid/accounts");
+          const body = res.ok ? await res.json() : { accounts: [] };
+          const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
+          router.replace(hasAccounts ? "/dashboard" : "/setup");
+        } catch {
+          router.replace("/setup");
+        }
+        return true;
+      };
+
       if (event === "SIGNED_IN" && nextUser) {
         // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
         fetchedRef.current = false;
         profileLoadingRef.current = false;
-        const shouldNavigate = typeof window !== "undefined" && (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
-        if (shouldNavigate) {
-          setAuthTransition(true);
-          setLoading(true);
-          // Check if user has any accounts to decide setup vs dashboard
-          try {
-            const res = await authFetch("/api/plaid/accounts");
-            const body = res.ok ? await res.json() : { accounts: [] };
-            const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
-            router.replace(hasAccounts ? "/dashboard" : "/setup");
-          } catch {
-            // On error, default to setup for new users
-            router.replace("/setup");
-          }
+        if (await redirectFromPublicRoute()) {
           setToast({ title: "Signed in", variant: "success" });
         } else {
           // Already on an authenticated route; refresh silently without global overlay
           await refreshProfile();
         }
+        return;
+      }
+
+      // Handle existing session on public routes (e.g. refreshing /auth while logged in).
+      // Supabase fires INITIAL_SESSION (not SIGNED_IN) when restoring a session from storage.
+      if (event === "INITIAL_SESSION" && nextUser) {
+        await redirectFromPublicRoute();
         return;
       }
       if (event === "SIGNED_OUT") {
