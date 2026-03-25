@@ -119,7 +119,7 @@ export default function SpendingCard() {
         </div>
         <div className="text-2xl font-semibold text-[var(--color-fg)] tracking-tight">
           {loading ? (
-            <div className="h-8 w-32 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+            <div className="h-8 w-32 bg-[var(--color-border)] rounded animate-pulse" />
           ) : (
             <span>
               {main}
@@ -129,7 +129,7 @@ export default function SpendingCard() {
         </div>
         <div className="flex items-center mt-1">
           {loading ? (
-            <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+            <div className="h-4 w-16 bg-[var(--color-border)] rounded animate-pulse" />
           ) : (
             <span className={`text-xs font-medium ${momChange > 0
               ? 'text-rose-500'

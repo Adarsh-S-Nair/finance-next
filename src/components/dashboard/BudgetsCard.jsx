@@ -58,11 +58,11 @@ export default function BudgetsCard() {
           <h3 className="card-header">Budgets</h3>
         </div>
         <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-[var(--color-surface-hover)] rounded w-24" />
-          <div className="h-1.5 bg-[var(--color-surface-hover)] rounded-full" />
+          <div className="h-10 bg-[var(--color-border)] rounded w-24" />
+          <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
           <div className="space-y-3 mt-6">
-            <div className="h-8 bg-[var(--color-surface-hover)] rounded" />
-            <div className="h-8 bg-[var(--color-surface-hover)] rounded" />
+            <div className="h-8 bg-[var(--color-border)] rounded" />
+            <div className="h-8 bg-[var(--color-border)] rounded" />
           </div>
         </div>
       </Card>

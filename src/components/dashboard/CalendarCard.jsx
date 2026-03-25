@@ -391,6 +391,38 @@ export default function CalendarCard({ className = '' }) {
     );
   };
 
+  if (loading) {
+    return (
+      <Card width="full" variant="glass" className={`flex flex-col ${className}`}>
+        <div className="animate-pulse">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-4 bg-[var(--color-border)] rounded w-40" />
+            <div className="h-4 bg-[var(--color-border)] rounded w-14" />
+          </div>
+          {/* Month nav */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-4 bg-[var(--color-border)] rounded w-8" />
+            <div className="h-4 bg-[var(--color-border)] rounded w-28" />
+            <div className="h-4 bg-[var(--color-border)] rounded w-8" />
+          </div>
+          {/* Day labels */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="h-3 bg-[var(--color-border)] rounded mx-auto w-6" />
+            ))}
+          </div>
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {[...Array(35)].map((_, i) => (
+              <div key={i} className="h-9 bg-[var(--color-border)] rounded" />
+            ))}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card width="full" variant="glass" className={`flex flex-col ${className}`} allowOverflow>
 
@@ -566,13 +598,6 @@ export default function CalendarCard({ className = '' }) {
           );
         })}
       </div>
-
-      {/* Loading state overlay */}
-      {loading && (
-        <div className="absolute inset-0 bg-[var(--color-surface)]/50 flex items-center justify-center rounded-xl">
-          <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
 
       {/* View All Drawer */}
       <Drawer

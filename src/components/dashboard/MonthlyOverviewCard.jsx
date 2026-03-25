@@ -170,21 +170,21 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     <div className="flex flex-col h-full animate-pulse">
       <div className="px-6 pt-6">
         <div className="flex justify-between items-start mb-6">
-          <div className="h-5 w-32 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
-          <div className="h-5 w-24 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
+          <div className="h-5 w-32 bg-[var(--color-border)] rounded" />
+          <div className="h-5 w-24 bg-[var(--color-border)] rounded" />
         </div>
         <div className="flex gap-4 mb-6">
           <div>
-            <div className="h-8 w-24 bg-zinc-100 dark:bg-zinc-800/50 rounded mb-1" />
-            <div className="h-3 w-12 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
+            <div className="h-8 w-24 bg-[var(--color-border)] rounded mb-1" />
+            <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
           </div>
           <div>
-            <div className="h-8 w-24 bg-zinc-100 dark:bg-zinc-800/50 rounded mb-1" />
-            <div className="h-3 w-12 bg-zinc-100 dark:bg-zinc-800/50 rounded" />
+            <div className="h-8 w-24 bg-[var(--color-border)] rounded mb-1" />
+            <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
           </div>
         </div>
       </div>
-      <div className="flex-1 w-full bg-zinc-50 dark:bg-zinc-900/30 mt-4 mx-6 rounded-lg" />
+      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 mt-4 mx-6 rounded-lg" />
     </div>
   );
 

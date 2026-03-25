@@ -163,7 +163,7 @@ export default function DashboardNetWorthCard() {
           </svg>
         )}
         {isLoadingState && (
-          <div className="absolute inset-0 shimmer" />
+          <div className="absolute inset-0 bg-[var(--color-border)] animate-pulse rounded-b-3xl opacity-30" />
         )}
       </div>
     </Card>

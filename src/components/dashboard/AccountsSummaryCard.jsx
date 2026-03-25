@@ -271,7 +271,30 @@ export function AssetsCard({ width = "full" }) {
   const { loading, assetSegments, totalAssets } = useAccountData();
   const { isHovering } = useNetWorthHover();
 
-  if (loading) return <Card width={width} className="animate-pulse h-40" variant="glass" />;
+  if (loading) return (
+    <Card width={width} variant="glass" className="animate-pulse">
+      <div className="mb-4">
+        <div className="h-3 bg-[var(--color-border)] rounded w-12" />
+      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="h-4 bg-[var(--color-border)] rounded w-20" />
+          <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+        </div>
+        <div className="h-3 bg-[var(--color-border)] rounded-full w-full" />
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <div className="h-3 bg-[var(--color-border)] rounded w-16" />
+            <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+          </div>
+          <div className="flex justify-between">
+            <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+            <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
     <Card width={width} variant="glass" className="flex flex-col">
@@ -292,7 +315,30 @@ export function LiabilitiesCard({ width = "full" }) {
   const { loading, liabilitySegments, totalLiabilities } = useAccountData();
   const { isHovering } = useNetWorthHover();
 
-  if (loading) return <Card width={width} className="animate-pulse h-40" variant="glass" />;
+  if (loading) return (
+    <Card width={width} variant="glass" className="animate-pulse">
+      <div className="mb-4">
+        <div className="h-3 bg-[var(--color-border)] rounded w-16" />
+      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+          <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+        </div>
+        <div className="h-3 bg-[var(--color-border)] rounded-full w-full" />
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <div className="h-3 bg-[var(--color-border)] rounded w-14" />
+            <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+          </div>
+          <div className="flex justify-between">
+            <div className="h-3 bg-[var(--color-border)] rounded w-10" />
+            <div className="h-3 bg-[var(--color-border)] rounded w-20" />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
     <Card width={width} variant="glass" className="flex flex-col">
