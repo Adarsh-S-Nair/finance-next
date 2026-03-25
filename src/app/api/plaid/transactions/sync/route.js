@@ -6,6 +6,27 @@ import { createLogger } from '../../../../../lib/logger';
 import { formatInTimeZone } from 'date-fns-tz';
 import { resolveUserId } from '../../../../../lib/api/auth';
 
+const DEFAULT_CATEGORY_ICONS = {
+  'Income':                    { icon_lib: 'Fi', icon_name: 'FiDollarSign' },
+  'Transfer In':               { icon_lib: 'Fi', icon_name: 'FiArrowDownLeft' },
+  'Transfer Out':              { icon_lib: 'Fi', icon_name: 'FiArrowUpRight' },
+  'Food and Drink':            { icon_lib: 'Fi', icon_name: 'FiCoffee' },
+  'Entertainment':             { icon_lib: 'Fi', icon_name: 'FiMusic' },
+  'Transportation':            { icon_lib: 'Fi', icon_name: 'FiTruck' },
+  'Travel':                    { icon_lib: 'Fi', icon_name: 'FiMapPin' },
+  'Rent and Utilities':        { icon_lib: 'Fi', icon_name: 'FiHome' },
+  'Medical':                   { icon_lib: 'Fi', icon_name: 'FiHeart' },
+  'Personal Care':             { icon_lib: 'Fi', icon_name: 'FiSmile' },
+  'General Merchandise':       { icon_lib: 'Fi', icon_name: 'FiShoppingBag' },
+  'General Services':          { icon_lib: 'Fi', icon_name: 'FiBriefcase' },
+  'Government and Non Profit': { icon_lib: 'Fi', icon_name: 'FiFlag' },
+  'Home Improvement':          { icon_lib: 'Fi', icon_name: 'FiTool' },
+  'Loan Payments':             { icon_lib: 'Fi', icon_name: 'FiCreditCard' },
+  'Loan Disbursements':        { icon_lib: 'Fi', icon_name: 'FiDownload' },
+  'Bank Fees':                 { icon_lib: 'Fi', icon_name: 'FiAlertCircle' },
+  'Other':                     { icon_lib: 'Fi', icon_name: 'FiMoreHorizontal' },
+};
+
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('transaction-sync');
 
@@ -371,9 +392,10 @@ export async function POST(request) {
         // duplicate, and onConflict can't target functional indexes.
         if (newCategoryGroups.length > 0) {
           for (const group of newCategoryGroups) {
+            const icons = DEFAULT_CATEGORY_ICONS[group.name] || { icon_lib: 'Fi', icon_name: 'FiTag' };
             const { error: categoryGroupError } = await supabaseAdmin
               .from('category_groups')
-              .insert(group);
+              .insert({ ...group, ...icons });
 
             if (categoryGroupError) {
               // 23505 = duplicate key — safe to ignore (category already exists)
