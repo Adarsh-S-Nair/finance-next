@@ -256,6 +256,7 @@ export default function LineChart({
             tickLine={false}
             tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
             interval={xAxisInterval}
+            padding={{ left: 8, right: 8 }}
           />
 
           {/* Always render YAxis to support domain scaling, hide if not needed */}
