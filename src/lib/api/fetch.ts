@@ -1,5 +1,22 @@
 import { supabase } from "../supabase/client";
 
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (token) return token;
+  } catch {
+    // fall through to refresh attempt
+  }
+
+  try {
+    const { data } = await supabase.auth.refreshSession();
+    return data?.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Authenticated fetch wrapper.
  * Reads the current Supabase session and injects the access token
@@ -12,19 +29,28 @@ export async function authFetch(
   init?: RequestInit
 ): Promise<Response> {
   const headers = new Headers(init?.headers);
+  const hadAuthHeader = headers.has("Authorization");
 
-  // Only inject if we don't already have an Authorization header
-  if (!headers.has("Authorization")) {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data?.session?.access_token;
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-    } catch {
-      // If we can't get the session, proceed without the header
+  // Inject auth if missing. On refresh/HMR, Supabase session restoration can lag a bit,
+  // so try getSession first, then a refreshSession fallback.
+  if (!hadAuthHeader) {
+    const token = await getAccessToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
     }
   }
 
-  return fetch(input, { ...init, headers });
+  let response = await fetch(input, { ...init, headers });
+
+  // If auth wasn't ready yet and middleware returned 401, try one token refresh + retry.
+  if (!hadAuthHeader && response.status === 401) {
+    const retryToken = await getAccessToken();
+    if (retryToken) {
+      const retryHeaders = new Headers(init?.headers);
+      retryHeaders.set("Authorization", `Bearer ${retryToken}`);
+      response = await fetch(input, { ...init, headers: retryHeaders });
+    }
+  }
+
+  return response;
 }

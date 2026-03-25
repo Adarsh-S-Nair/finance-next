@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
+import { authFetch } from '../../lib/api/fetch';
 
 const NetWorthContext = createContext();
 
@@ -44,7 +45,7 @@ export function NetWorthProvider({ children }) {
       abortRef.current = controller;
       
       // Fetch current net worth
-      const currentResponse = await fetch(`/api/net-worth/current`, { signal: controller.signal });
+      const currentResponse = await authFetch(`/api/net-worth/current`, { signal: controller.signal });
       if (currentResponse.status === 404 || currentResponse.status === 204) {
         // New user with no accounts — not an error, just no data yet
         setCurrentNetWorth(null);
@@ -70,7 +71,7 @@ export function NetWorthProvider({ children }) {
       setCurrentNetWorth(currentData);
       
       // Fetch historical data for the chart (full payload for hover details)
-      const historyResponse = await fetch(`/api/net-worth/by-date?maxDays=365`, { signal: controller.signal });
+      const historyResponse = await authFetch(`/api/net-worth/by-date?maxDays=365`, { signal: controller.signal });
       if (historyResponse.status === 404 || historyResponse.status === 204) {
         setNetWorthHistory([]);
         setLastFetched(Date.now());
