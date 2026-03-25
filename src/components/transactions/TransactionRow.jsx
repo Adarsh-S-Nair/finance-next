@@ -12,9 +12,12 @@ const formatCurrency = (amount) => {
 };
 
 const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact, showDate = false }) {
+  const [logoFailed, setLogoFailed] = React.useState(false);
   const hasSplits = (transaction.transaction_splits?.length || 0) > 0;
   const hasSettledSplit = hasSplits && transaction.transaction_splits.some(s => s.is_settled);
   const hasUnsettledSplit = hasSplits && transaction.transaction_splits.some(s => !s.is_settled);
+
+  const showLogo = !DISABLE_LOGOS && transaction.icon_url && !logoFailed;
 
   return (
     <div
@@ -35,36 +38,28 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           <div
             className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300 ${selected ? 'ring-2 ring-[var(--color-accent)]/20' : ''}`}
             style={{
-              backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+              backgroundColor: showLogo
                 ? 'transparent'
                 : (transaction.category_hex_color || 'var(--color-accent)')
             }}
           >
-            {(!DISABLE_LOGOS && transaction.icon_url) ? (
+            {showLogo ? (
               <img
                 src={transaction.icon_url}
                 alt={transaction.merchant_name || transaction.description || 'Transaction'}
                 className="w-full h-full object-cover rounded-full"
                 loading="lazy"
                 decoding="async"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  const fallbackIcon = e.target.nextSibling;
-                  if (fallbackIcon) {
-                    fallbackIcon.style.display = 'block';
-                  }
-                }}
+                onError={() => setLogoFailed(true)}
               />
-            ) : null}
-            <DynamicIcon
-              iconLib={transaction.category_icon_lib}
-              iconName={transaction.category_icon_name}
-              className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
-              fallback={FiTag}
-              style={{
-                display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
-              }}
-            />
+            ) : (
+              <DynamicIcon
+                iconLib={transaction.category_icon_lib}
+                iconName={transaction.category_icon_name}
+                className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
+                fallback={FiTag}
+              />
+            )}
           </div>
           {selected && (
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-accent)] rounded-full flex items-center justify-center border-2 border-[var(--color-bg)] animate-scale-in">

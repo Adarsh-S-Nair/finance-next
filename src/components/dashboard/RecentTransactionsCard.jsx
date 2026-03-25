@@ -58,8 +58,43 @@ function formatDate(dateString) {
 }
 
 
+const DISABLE_LOGOS_DASH = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
+
+function TransactionIconCircle({ transaction }) {
+  const [logoFailed, setLogoFailed] = React.useState(false);
+  const showLogo = !DISABLE_LOGOS_DASH && transaction.icon_url && !logoFailed;
+
+  return (
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+      style={{
+        backgroundColor: showLogo
+          ? 'transparent'
+          : (transaction.category_hex_color || 'var(--color-accent)')
+      }}
+    >
+      {showLogo ? (
+        <img
+          src={transaction.icon_url}
+          alt={transaction.merchant_name || transaction.description || 'Transaction'}
+          className="w-full h-full object-contain"
+          loading="lazy"
+          decoding="async"
+          onError={() => setLogoFailed(true)}
+        />
+      ) : (
+        <DynamicIcon
+          iconLib={transaction.category_icon_lib}
+          iconName={transaction.category_icon_name}
+          className="h-4 w-4 text-white"
+          fallback={FiTag}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function RecentTransactionsCard() {
-  const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
   const { user } = useUser();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -203,41 +238,7 @@ export default function RecentTransactionsCard() {
               className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                  style={{
-                    backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-                      ? 'var(--color-muted)/10'
-                      : (transaction.category_hex_color || 'var(--color-accent)')
-                  }}
-                >
-                  {(!DISABLE_LOGOS && transaction.icon_url) ? (
-                    <img
-                      src={transaction.icon_url}
-                      alt={transaction.merchant_name || transaction.description || 'Transaction'}
-                      className="w-full h-full object-contain"
-                      loading="lazy"
-                      decoding="async"
-                      onError={(e) => {
-                        // Fallback to category icon if image fails to load
-                        e.target.style.display = 'none';
-                        const fallbackIcon = e.target.nextSibling;
-                        if (fallbackIcon) {
-                          fallbackIcon.style.display = 'block';
-                        }
-                      }}
-                    />
-                  ) : null}
-                  <DynamicIcon
-                    iconLib={transaction.category_icon_lib}
-                    iconName={transaction.category_icon_name}
-                    className="h-4 w-4 text-white"
-                    fallback={FiTag}
-                    style={{
-                      display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
-                    }}
-                  />
-                </div>
+                <TransactionIconCircle transaction={transaction} />
                 <div className="min-w-0 flex-1 mr-4">
                   <div className="text-sm font-light text-[var(--color-fg)] truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
