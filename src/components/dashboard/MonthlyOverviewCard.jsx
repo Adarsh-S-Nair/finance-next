@@ -278,7 +278,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               data={chartData}
               width="100%"
               height="100%"
-              margin={{ top: 10, right: 0, bottom: 0, left: 0 }}
+              margin={{ top: 10, right: 16, bottom: 0, left: 16 }}
               lines={[
                 {
                   dataKey: "previousSpending",

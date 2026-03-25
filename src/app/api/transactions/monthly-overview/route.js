@@ -187,6 +187,12 @@ export async function GET(request) {
     // Build merged data array with length = maxDays
     // Current month: only show spending up to currentDay if this is the current month
     // Previous month: show all data (complete month)
+    // Get the previous month's final cumulative spending to extend the line
+    // when the previous month has fewer days than the current month
+    const prevMonthFinalSpending = prevMonthResult?.data.length
+      ? prevMonthResult.data[prevMonthResult.data.length - 1].spending
+      : null;
+
     const mergedData = [];
     for (let day = 1; day <= maxDays; day++) {
       const currentDayData = currentMonthResult.data.find(d => d.day === day);
@@ -217,6 +223,17 @@ export async function GET(request) {
         }
       }
 
+      // For previous month: if the day exceeds the previous month's length,
+      // extend the line at the final cumulative value (flat line)
+      let previousSpending;
+      if (prevDayData) {
+        previousSpending = prevDayData.spending;
+      } else if (prevMonthResult && day > prevMonthResult.daysInMonth && prevMonthFinalSpending !== null) {
+        previousSpending = prevMonthFinalSpending;
+      } else {
+        previousSpending = null;
+      }
+
       // Generate date string for this day in the current/selected month
       const dateObj = new Date(year, month, day);
       const dateString = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -228,7 +245,7 @@ export async function GET(request) {
         income,
         dailySpending,
         dailyIncome,
-        previousSpending: prevDayData?.spending ?? null
+        previousSpending
       });
     }
 
