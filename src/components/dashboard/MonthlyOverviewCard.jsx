@@ -117,6 +117,16 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     return chartData[chartData.length - 1] || null;
   }, [chartData]);
 
+  // Find the full previous month total (last non-null previousSpending value)
+  const fullPreviousMonthSpending = useMemo(() => {
+    for (let i = chartData.length - 1; i >= 0; i--) {
+      if (chartData[i]?.previousSpending !== null && chartData[i]?.previousSpending !== undefined) {
+        return chartData[i].previousSpending;
+      }
+    }
+    return 0;
+  }, [chartData]);
+
   // When hovering, use the hovered data point but fall back to lastValidDataPoint's spending
   // if the hovered point has null spending (future dates in current month)
   const currentData = useMemo(() => {
@@ -133,6 +143,14 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }
     return lastValidDataPoint;
   }, [activeIndex, chartData, lastValidDataPoint]);
+
+  // Previous month spending: show full month total when not hovering, day-matched when hovering
+  const displayPreviousSpending = useMemo(() => {
+    if (activeIndex !== null && chartData[activeIndex]) {
+      return chartData[activeIndex]?.previousSpending ?? 0;
+    }
+    return fullPreviousMonthSpending;
+  }, [activeIndex, chartData, fullPreviousMonthSpending]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
@@ -211,7 +229,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 </div>
                 <div>
                   <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-muted)] mb-0.5">
-                    {formatCurrency(currentData?.previousSpending || 0)}
+                    {formatCurrency(displayPreviousSpending)}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-600" />
