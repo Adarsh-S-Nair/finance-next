@@ -30,12 +30,12 @@
   --color-accent-hover: var(--color-primary-hover);
   --color-on-accent: var(--color-on-primary);
 
-  --color-success: #34d399;
-  --color-success-hover: #10b981;
+  --color-success: #059669;
+  --color-success-hover: #047857;
   --color-on-success: #ffffff;
 
-  --color-danger: #dc2626;
-  /* Red 600 - richer, more authoritative */
+  --color-danger: #b91c1c;
+  /* Red 700 - deeper, less alarming */
   --color-on-danger: #ffffff;
 
   --color-warn: #fbbf24;
@@ -94,8 +94,8 @@
   /* Blue 400 */
   --color-neon-purple: #a78bfa;
   /* Purple 400 */
-  --color-neon-green: #4ade80;
-  /* Green 400 */
+  --color-neon-green: #34d399;
+  /* Emerald 400 - less neon */
   --color-neon-pink: #f472b6;
   /* Pink 400 */
 
@@ -109,11 +109,11 @@
   --color-on-accent: var(--color-on-primary);
 
   --color-success: var(--color-neon-green);
-  --color-success-hover: #22c55e;
+  --color-success-hover: #10b981;
   --color-on-success: #09090b;
 
-  --color-danger: #ef4444;
-  /* Red 500 - balanced visibility on dark */
+  --color-danger: #f87171;
+  /* Red 400 - softer against dark bg, less harsh */
   --color-on-danger: #ffffff;
 
   --color-warn: #fbbf24;

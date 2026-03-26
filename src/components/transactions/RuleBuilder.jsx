@@ -154,7 +154,7 @@ export default function RuleBuilder({ criteria, initialConditions, categoryName,
                   {conditions.length > 1 && (
                     <button
                       onClick={() => removeCondition(condition.id)}
-                      className="p-2 rounded-lg text-[var(--color-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-colors"
                       title="Remove condition"
                     >
                       <FiTrash2 className="w-4 h-4" />

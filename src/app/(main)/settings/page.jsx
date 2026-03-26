@@ -57,20 +57,15 @@ export default function SettingsPage() {
       setBusy(true);
       const res = await authFetch("/api/account/delete", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j?.error || "Failed to delete account");
       }
-      logout(); // Reset theme and accent immediately
       await supabase.auth.signOut();
       router.push("/");
-      router.refresh();
     } catch (e) {
-      // Optionally add toast here later
       console.error(e);
     } finally {
       setBusy(false);
@@ -295,7 +290,7 @@ export default function SettingsPage() {
                               e.stopPropagation();
                               handleDisconnectInstitution(institution);
                             }}
-                            className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                            className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
                             title="Disconnect all accounts"
                           >
                             <IoUnlink className="h-3.5 w-3.5" />
@@ -359,7 +354,7 @@ export default function SettingsPage() {
                                     e.stopPropagation();
                                     handleDisconnectAccount(account, institution);
                                   }}
-                                  className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover/account:opacity-100 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                  className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover/account:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
                                   title={`Disconnect ${account.name}`}
                                 >
                                   <IoUnlink className="h-3 w-3" />
@@ -402,7 +397,7 @@ export default function SettingsPage() {
           <Card variant="danger">
             <div className="flex items-center justify-between py-3">
               <div>
-                <div className="text-sm font-medium text-red-600 dark:text-red-400">Delete account</div>
+                <div className="text-sm font-medium text-[var(--color-danger)]">Delete account</div>
                 <div className="text-xs text-[var(--color-muted)] mt-0.5">This will permanently delete your account and all associated data.</div>
               </div>
               <Button

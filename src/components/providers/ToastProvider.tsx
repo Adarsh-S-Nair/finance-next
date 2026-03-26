@@ -79,9 +79,7 @@ export default function ToastProvider({ children }: PropsWithChildren) {
                 : t.variant === "warning"
                 ? "var(--color-warn)"
                 : "var(--color-ring)";
-            const fgColor = "#ffffff";
-            const trackColor = `color-mix(in_oklab, ${bgColor}, black 18%)`;
-            const fillColor = `color-mix(in_oklab, ${bgColor}, black 34%)`;
+
 
             return (
               <motion.div
@@ -91,11 +89,12 @@ export default function ToastProvider({ children }: PropsWithChildren) {
                 exit={{ x: 24, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 520, damping: 40, mass: 0.6 }}
                 className="pointer-events-auto relative overflow-hidden rounded-lg shadow-lg"
+                style={{ backgroundColor: "rgba(24, 24, 27, 0.95)", borderLeft: `3px solid ${bgColor}` }}
                 role="status"
                 aria-live="polite"
               >
-                <div className="relative flex items-start gap-3 p-3 pr-8" style={{ backgroundColor: bgColor, color: fgColor }}>
-                  <div className="mt-0.5">
+                <div className="relative flex items-start gap-3 p-3 pr-8" style={{ color: "#fafafa" }}>
+                  <div className="mt-0.5" style={{ color: bgColor }}>
                     {t.variant === "error" && <FaCircleXmark aria-hidden className="h-5 w-5" />}
                     {t.variant === "warning" && <RiErrorWarningFill aria-hidden className="h-5 w-5" />}
                     {t.variant === "success" && <FaCircleCheck aria-hidden className="h-5 w-5" />}
@@ -103,23 +102,23 @@ export default function ToastProvider({ children }: PropsWithChildren) {
                   </div>
                   <div className="min-w-0 flex-1">
                     {t.title && <div className="text-sm font-semibold">{t.title}</div>}
-                    {t.description && <div className="mt-0.5 text-sm opacity-90">{t.description}</div>}
+                    {t.description && <div className="mt-0.5 text-sm opacity-75">{t.description}</div>}
                   </div>
                   <button
                     type="button"
                     onClick={() => removeToast(t.id)}
                     className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md hover:opacity-80"
                     aria-label="Dismiss"
-                    style={{ color: fgColor }}
+                    style={{ color: "#fafafa" }}
                   >
                     ×
                   </button>
                 </div>
-                <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ backgroundColor: trackColor }} />
+                <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ backgroundColor: "rgba(255,255,255,0.1)" }} />
                 <div
                   className="absolute bottom-0 left-0 h-[3px]"
                   style={{
-                    backgroundColor: fillColor,
+                    backgroundColor: "rgba(255,255,255,0.25)",
                     animationName: "toastProgress",
                     animationTimingFunction: "linear",
                     animationDuration: `${t.durationMs}ms`,

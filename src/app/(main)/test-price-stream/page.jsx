@@ -89,7 +89,7 @@ export default function TestPriceStreamPage() {
         <span className={
           status === "connected" ? "text-green-500" :
           status === "connecting" ? "text-yellow-500" :
-          "text-red-500"
+          "text-[var(--color-danger)]"
         }>
           {status}
         </span>

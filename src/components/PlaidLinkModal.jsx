@@ -236,12 +236,12 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="rounded-xl border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)] bg-[color-mix(in_oklab,var(--color-danger),transparent_95%)] p-4">
             <div className="flex items-start gap-3">
-              <FiXCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
+              <FiXCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--color-danger)]" />
               <div>
-                <div className="text-sm font-medium text-red-700">Connection failed</div>
-                <p className="mt-1 text-sm text-red-600">{error}</p>
+                <div className="text-sm font-medium text-[var(--color-danger)]">Connection failed</div>
+                <p className="mt-1 text-sm text-[var(--color-danger)]">{error}</p>
               </div>
             </div>
           </div>

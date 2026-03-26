@@ -226,7 +226,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                               e.stopPropagation();
                               onDeleteSplit(split.id);
                             }}
-                            className="p-1.5 rounded-md text-[var(--color-muted)] hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                            className="p-1.5 rounded-md text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all opacity-0 group-hover:opacity-100"
                           >
                             <FiTrash2 className="w-4 h-4" />
                           </button>

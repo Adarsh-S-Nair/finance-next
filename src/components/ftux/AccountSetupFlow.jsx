@@ -254,7 +254,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   if (error) {
     return (
       <div className="flex flex-col items-center text-center">
-        <FiAlertCircle className="mb-4 h-10 w-10 text-red-400" />
+        <FiAlertCircle className="mb-4 h-10 w-10 text-[var(--color-danger)]" />
         <p className="text-sm font-medium text-zinc-900">Something went wrong</p>
         <p className="mt-1 text-sm text-zinc-500">{error}</p>
         <button

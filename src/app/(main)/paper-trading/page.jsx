@@ -890,8 +890,8 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
       )}
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <p className="text-sm text-red-500">{error}</p>
+        <div className="p-3 bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)] rounded-lg">
+          <p className="text-sm text-[var(--color-danger)]">{error}</p>
         </div>
       )}
     </div>
@@ -1325,10 +1325,10 @@ function PortfolioCard({ portfolio, onClick, onDelete }) {
           e.stopPropagation();
           onDelete();
         }}
-        className="absolute top-3 right-3 z-20 p-1.5 rounded-lg bg-[var(--color-surface)]/80 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all cursor-pointer"
+        className="absolute top-3 right-3 z-20 p-1.5 rounded-lg bg-[var(--color-surface)]/80 opacity-0 group-hover:opacity-100 hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_80%)] transition-all cursor-pointer"
         title="Delete portfolio"
       >
-        <LuTrash2 className="w-3.5 h-3.5 text-[var(--color-muted)] hover:text-red-500" />
+        <LuTrash2 className="w-3.5 h-3.5 text-[var(--color-muted)] hover:text-[var(--color-danger)]" />
       </button>
 
       <div className="cursor-pointer" onClick={onClick}>

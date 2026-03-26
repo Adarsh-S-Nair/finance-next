@@ -1349,8 +1349,8 @@ function TransactionsContent() {
           activeFilterCount={getActiveFilterCount()}
         />
         <div className="text-center py-12">
-          <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
-            <LuReceipt className="h-8 w-8 text-red-500" />
+          <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] rounded-full flex items-center justify-center mb-4">
+            <LuReceipt className="h-8 w-8 text-[var(--color-danger)]" />
           </div>
           <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">Error loading transactions</h3>
           <p className="text-[var(--color-muted)] mb-4">{error}</p>

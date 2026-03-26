@@ -177,7 +177,7 @@ export default function RepaymentView({ transaction, onRepaymentCreated, onClose
 
           <div className="flex justify-between text-sm pt-2 border-t border-[var(--color-border)]">
             <span className="text-[var(--color-muted)]">Unallocated:</span>
-            <span className={unallocated < -0.01 ? 'text-red-500' : 'text-[var(--color-fg)]'}>
+            <span className={unallocated < -0.01 ? 'text-[var(--color-danger)]' : 'text-[var(--color-fg)]'}>
               ${unallocated.toFixed(2)}
             </span>
           </div>
