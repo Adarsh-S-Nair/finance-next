@@ -2,7 +2,7 @@
 
 import Sidebar from "./Sidebar";
 import AppTopbar from "./AppTopbar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
 import Link from "next/link";
@@ -166,6 +166,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { accounts, loading, initialized } = useAccounts();
 
+  // Track navigation direction for page transition
+  const PAGE_ORDER = ['/dashboard', '/transactions', '/accounts', '/budgets', '/paper-trading', '/investments', '/settings'];
+  const prevPathRef = useRef(pathname);
+  const [direction, setDirection] = useState(0);
+
+  useEffect(() => {
+    const prevIndex = PAGE_ORDER.findIndex(p => prevPathRef.current?.startsWith(p));
+    const nextIndex = PAGE_ORDER.findIndex(p => pathname?.startsWith(p));
+    if (prevIndex !== -1 && nextIndex !== -1 && prevIndex !== nextIndex) {
+      setDirection(nextIndex > prevIndex ? 1 : -1);
+    } else {
+      setDirection(1); // default: down
+    }
+    prevPathRef.current = pathname;
+  }, [pathname]);
+
   const isSetupRoute = pathname === "/setup";
   const isFtuxRoute = pathname === "/dashboard" || pathname === "/accounts";
   const shouldUseSetupShell = isSetupRoute;
@@ -213,17 +229,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={pathname}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-              >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: direction * 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              {children}
+            </motion.div>
           </div>
         </main>
       </div>
