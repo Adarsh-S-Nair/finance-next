@@ -223,7 +223,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
                     <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This Month</span>
                   </div>
                 </div>
@@ -236,24 +236,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                     <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{previousMonthName || "Previous"}</span>
                   </div>
                 </div>
-                {/* Delta indicator */}
-                {displayPreviousSpending > 0 && (currentData?.spending || 0) > 0 && (
-                  <div className="hidden sm:flex items-center gap-1">
-                    {(() => {
-                      const delta = ((currentData?.spending || 0) - displayPreviousSpending) / displayPreviousSpending * 100;
-                      const isLess = delta < 0;
-                      return (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          isLess
-                            ? 'text-[var(--color-success)] bg-[color-mix(in_oklab,var(--color-success),transparent_90%)]'
-                            : 'text-[var(--color-danger)] bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)]'
-                        }`}>
-                          {isLess ? '↓' : '↑'} {Math.abs(delta).toFixed(0)}%
-                        </span>
-                      );
-                    })()}
-                  </div>
-                )}
+
               </div>
             </div>
 
@@ -309,11 +292,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-accent)",
+                  strokeColor: "var(--color-chart-primary)",
                   strokeWidth: 2.5,
                   strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.15,
+                  areaOpacity: 0.12,
                   gradientId: "monthlyOverviewSpending"
                 }
               ]}
