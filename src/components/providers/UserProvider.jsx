@@ -200,19 +200,38 @@ export default function UserProvider({ children }) {
 
     (async () => {
       try {
+        // Pre-check: if there's a stale refresh token in localStorage, clear it
+        // before getUser() fires a network request that will fail loudly.
+        // This prevents the "Invalid Refresh Token" AuthApiError console noise.
+        let hasStaleSession = false;
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            // We have a local session — validate it quickly with getUser()
+            // If the token is stale, getUser() will fail
+          } else {
+            // No local session at all — skip getUser(), go straight to logged-out state
+            hasStaleSession = false;
+          }
+        } catch {
+          hasStaleSession = true;
+        }
+
         const { data, error } = await supabase.auth.getUser();
         if (!isMounted) return;
 
         // Check for refresh token errors
-        if (error && error.message && error.message.includes('Refresh Token')) {
-          console.log("[UserProvider] Invalid refresh token detected, clearing stale data");
+        if (error && error.message && (error.message.includes('Refresh Token') || error.message.includes('refresh_token'))) {
           clearStaleAuthData();
           setProfile(null);
           setUser(null);
           document.documentElement.classList.toggle("dark", false);
           applyAccent(null);
           setLoading(false);
-          setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+          // Only show toast if user was previously logged in (not on fresh page load)
+          if (fetchedRef.current) {
+            setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+          }
           return;
         }
 

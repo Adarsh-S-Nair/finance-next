@@ -55,8 +55,9 @@ if (!isServer) {
   supabase.auth.onAuthStateChange((event, session) => {
     // If token refresh happened but session is null, the refresh failed
     if (event === 'TOKEN_REFRESHED' && !session) {
-      console.log('[Supabase] Invalid refresh token detected, clearing stale session data');
       clearStaleAuthData();
+      // Force a clean sign-out so no component is left waiting for auth
+      supabase.auth.signOut().catch(() => {});
     }
   });
 
