@@ -212,7 +212,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-64">
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0">
-          <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">{children}</div>
+          <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={pathname}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
       </div>
 
