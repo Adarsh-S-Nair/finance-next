@@ -219,7 +219,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               {/* Values Row */}
               <div className="flex items-baseline gap-6 sm:gap-10">
                 <div>
-                  <div className="text-2xl sm:text-4xl font-semibold tracking-tight text-[var(--color-fg)] mb-1">
+                  <div className="text-2xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -228,7 +228,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl sm:text-4xl font-semibold tracking-tight text-[var(--color-muted)]/50 mb-1">
+                  <div className="text-2xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)]/50 mb-1">
                     {formatCurrency(displayPreviousSpending)}
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -310,10 +310,10 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 {
                   dataKey: "spending",
                   strokeColor: "var(--color-accent)",
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                   strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.1,
+                  areaOpacity: 0.15,
                   gradientId: "monthlyOverviewSpending"
                 }
               ]}

@@ -65,7 +65,7 @@
   --color-chart-pattern: rgba(255, 255, 255, 0.15);
 
   /* Cashflow Chart Colors - Light Mode */
-  --color-cashflow-income: var(--color-accent);
+  --color-cashflow-income: var(--color-success);
   --color-cashflow-spending: #d4d4d8;
   /* Zinc 300 - neutral gray */
 
@@ -144,7 +144,7 @@
   --color-chart-pattern: rgba(0, 0, 0, 0.2);
 
   /* Cashflow Chart Colors - Dark Mode */
-  --color-cashflow-income: var(--color-accent);
+  --color-cashflow-income: var(--color-success);
   --color-cashflow-spending: #52525b;
   /* Zinc 600 - neutral gray */
 

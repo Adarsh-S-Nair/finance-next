@@ -141,8 +141,8 @@ export default function DashboardNetWorthCard() {
           <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
             <defs>
               <linearGradient id="netWorthGradient" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.02" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                <stop offset="0%" stopColor="var(--color-success)" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="var(--color-success)" stopOpacity="0" />
               </linearGradient>
             </defs>
             <path
@@ -153,12 +153,12 @@ export default function DashboardNetWorthCard() {
             <path
               d={linePath}
               fill="none"
-              stroke="#10b981"
+              stroke="var(--color-success)"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
-              className="transition-all duration-1000 ease-out opacity-10"
+              className="transition-all duration-1000 ease-out opacity-20"
             />
           </svg>
         )}

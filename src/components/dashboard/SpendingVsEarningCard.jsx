@@ -9,7 +9,7 @@ import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 
 // Animated counter component for smooth number transitions
-function AnimatedCounter({ value, duration = 1000 }) {
+function AnimatedCounter({ value, duration = 1000, showCents = true }) {
   const [displayValue, setDisplayValue] = useState(value);
 
   useEffect(() => {
@@ -32,9 +32,11 @@ function AnimatedCounter({ value, duration = 1000 }) {
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: showCents ? 2 : 0,
+    maximumFractionDigits: showCents ? 2 : 0,
   }).format(displayValue);
+
+  if (!showCents) return <span>{formatted}</span>;
 
   const [main, cents] = formatted.split('.');
 
@@ -207,11 +209,11 @@ export default function SpendingVsEarningCard() {
                 Avg. Monthly Cashflow
               </div>
 
-              <div className={`text-2xl sm:text-3xl font-semibold tracking-tight mb-1 sm:mb-2 ${
+              <div className={`text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2 ${
                 isPositiveCashflow ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'
               }`}>
                 <span>{isPositiveCashflow ? '+' : ''}</span>
-                <AnimatedCounter value={averageCashflow} />
+                <AnimatedCounter value={averageCashflow} showCents={false} />
               </div>
 
               <div className="flex items-center gap-2 text-[10px]">
