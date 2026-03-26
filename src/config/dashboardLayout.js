@@ -18,7 +18,7 @@ export const dashboardLayout = {
     {
       id: 'monthly-overview',
       component: 'MonthlyOverviewCard',
-      height: 'h-[360px]'
+      height: 'h-[420px]'
     },
     // Cashflow + Top Categories (stacked on mobile, side-by-side on desktop)
     {
@@ -29,16 +29,16 @@ export const dashboardLayout = {
           id: 'cashflow',
           component: 'SpendingVsEarningCard',
           width: 'lg:flex-1 lg:min-w-0',
-          mobileHeight: 'h-[350px] lg:h-full'
+          mobileHeight: 'h-[400px] lg:h-full'
         },
         {
           id: 'top-categories',
           component: 'TopCategoriesCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
-          mobileHeight: 'h-[400px] lg:h-full'
+          mobileHeight: 'h-[440px] lg:h-full'
         }
       ],
-      height: 'lg:h-[400px]'
+      height: 'lg:h-[440px]'
     }
   ],
 
@@ -49,7 +49,7 @@ export const dashboardLayout = {
       id: 'sidebar-group',
       type: 'row',
       // Mobile: stack, Tablet: side-by-side (bottom of screen), Desktop: stack (right sidebar)
-      className: 'flex flex-col md:flex-row lg:flex-col gap-6',
+      className: 'flex flex-col md:flex-row lg:flex-col gap-8',
       items: [
         // Budgets Widget
         {

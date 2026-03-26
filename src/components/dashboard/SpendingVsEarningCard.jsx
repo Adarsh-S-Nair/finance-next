@@ -199,7 +199,7 @@ export default function SpendingVsEarningCard() {
 
       <div className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}>
         {/* Custom Header */}
-        <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
+        <div className="px-5 sm:px-8 pt-5 sm:pt-8 pb-2 shrink-0">
           <div className="flex items-start justify-between gap-2">
             {/* Title and Values */}
             <div className="min-w-0">
@@ -207,7 +207,9 @@ export default function SpendingVsEarningCard() {
                 Avg. Monthly Cashflow
               </div>
 
-              <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
+              <div className={`text-2xl sm:text-3xl font-semibold tracking-tight mb-1 sm:mb-2 ${
+                isPositiveCashflow ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'
+              }`}>
                 <span>{isPositiveCashflow ? '+' : ''}</span>
                 <AnimatedCounter value={averageCashflow} />
               </div>

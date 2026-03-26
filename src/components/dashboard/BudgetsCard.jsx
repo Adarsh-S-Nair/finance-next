@@ -122,7 +122,9 @@ export default function BudgetsCard() {
       {/* Hero Section - Focus on Remaining */}
       <div className="mb-8">
         <div className="flex flex-col gap-1 mb-4">
-          <span className="text-4xl font-semibold text-[var(--color-fg)] tracking-tight">
+          <span className={`text-4xl font-semibold tracking-tight ${
+            remaining <= 0 ? 'text-[var(--color-danger)]' : percentage > 85 ? 'text-[var(--color-warn)]' : 'text-[var(--color-success)]'
+          }`}>
             {formatCurrency(remaining)}
           </span>
           <span className="text-sm text-[var(--color-muted)] font-medium">

@@ -196,12 +196,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         <div className="flex flex-col h-full">
           {/* Custom Header */}
           {/* Custom Header */}
-          <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex justify-between items-start">
+          <div className="px-5 sm:px-8 pt-5 sm:pt-8 pb-3 flex justify-between items-start">
             {/* Left Side: Title and Values */}
             <div>
               {/* Title */}
               <div
-                className={`flex items-center gap-1 mb-2 sm:mb-3 ${onBack ? 'cursor-pointer group' : ''}`}
+                className={`flex items-center gap-1 mb-3 sm:mb-4 ${onBack ? 'cursor-pointer group' : ''}`}
                 onClick={onBack}
               >
                 {onBack && (
@@ -217,9 +217,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               </div>
 
               {/* Values Row */}
-              <div className="flex items-baseline gap-4 sm:gap-8">
+              <div className="flex items-baseline gap-6 sm:gap-10">
                 <div>
-                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-0.5">
+                  <div className="text-2xl sm:text-4xl font-semibold tracking-tight text-[var(--color-fg)] mb-1">
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -228,7 +228,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xl sm:text-3xl font-medium tracking-tight text-[var(--color-muted)] mb-0.5">
+                  <div className="text-2xl sm:text-4xl font-semibold tracking-tight text-[var(--color-muted)]/50 mb-1">
                     {formatCurrency(displayPreviousSpending)}
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -236,6 +236,24 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                     <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{previousMonthName || "Previous"}</span>
                   </div>
                 </div>
+                {/* Delta indicator */}
+                {displayPreviousSpending > 0 && (currentData?.spending || 0) > 0 && (
+                  <div className="hidden sm:flex items-center gap-1">
+                    {(() => {
+                      const delta = ((currentData?.spending || 0) - displayPreviousSpending) / displayPreviousSpending * 100;
+                      const isLess = delta < 0;
+                      return (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          isLess
+                            ? 'text-[var(--color-success)] bg-[color-mix(in_oklab,var(--color-success),transparent_90%)]'
+                            : 'text-[var(--color-danger)] bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)]'
+                        }`}>
+                          {isLess ? '↓' : '↑'} {Math.abs(delta).toFixed(0)}%
+                        </span>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -273,7 +291,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           </div>
 
           {/* Chart */}
-          <div className="h-64 w-full mt-4" onMouseLeave={handleMouseLeave}>
+          <div className="flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
             <LineChart
               data={chartData}
               width="100%"

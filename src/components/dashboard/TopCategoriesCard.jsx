@@ -187,7 +187,7 @@ export default function TopCategoriesCard() {
 
   if (loading) {
     return (
-      <Card padding="none" className="h-[400px]">
+      <Card padding="none" className="h-[440px]">
         <div className="animate-pulse flex flex-col h-full">
           {/* Header */}
           <div className="px-6 pt-6 pb-2 flex items-center justify-between">
@@ -214,10 +214,10 @@ export default function TopCategoriesCard() {
   }
 
   return (
-    <Card padding="none" className="h-[400px] relative">
+    <Card padding="none" className="h-[440px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header with Dropdown */}
-        <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+        <div className="px-6 pt-8 pb-2 flex items-center justify-between">
           <div className="card-header">
             Top Spending
           </div>

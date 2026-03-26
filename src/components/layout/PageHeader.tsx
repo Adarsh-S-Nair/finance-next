@@ -20,13 +20,13 @@ export default function PageHeader({
   if (!show || (!title && !action && !prefix)) return null;
 
   return (
-    <div className={`hidden md:flex items-center justify-between mb-6 pb-3 gap-4 ${className}`.trim()}>
+    <div className={`hidden md:flex items-center justify-between mb-8 pb-4 gap-4 ${className}`.trim()}>
       <div className="min-w-0">
         {prefix && (
           <div className="text-sm text-[var(--color-muted)] mb-1">{prefix}</div>
         )}
         {title && (
-          <h1 className="text-lg font-normal tracking-normal text-[var(--color-fg)] truncate">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-fg)] truncate">
             {title}
           </h1>
         )}
