@@ -189,7 +189,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   );
 
   return (
-    <Card padding="none" className="relative overflow-hidden h-full">
+    <Card padding="none" hover className="relative overflow-hidden h-full">
       {showLoading ? (
         <SkeletonLoader />
       ) : (
@@ -223,7 +223,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
+                    <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
                     <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This Month</span>
                   </div>
                 </div>
@@ -292,11 +292,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-chart-primary)",
+                  strokeColor: "var(--color-accent)",
                   strokeWidth: 2.5,
                   strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.12,
+                  areaOpacity: 0.1,
                   gradientId: "monthlyOverviewSpending"
                 }
               ]}

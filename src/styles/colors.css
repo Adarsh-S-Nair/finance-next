@@ -59,15 +59,13 @@
   --color-shadow: transparent;
   --color-card-border: rgba(0, 0, 0, 0.04);
 
-  /* Chart Colors */
-  --color-chart-primary: #3b82f6;
-  /* Blue 500 - vivid but professional primary chart line */
+  /* Chart Colors - Dynamic based on accent */
   --color-chart-income: color-mix(in srgb, var(--color-accent), var(--color-muted) 25%);
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), white 30%);
   --color-chart-pattern: rgba(255, 255, 255, 0.15);
 
   /* Cashflow Chart Colors - Light Mode */
-  --color-cashflow-income: var(--color-success);
+  --color-cashflow-income: var(--color-accent);
   --color-cashflow-spending: #d4d4d8;
   /* Zinc 300 - neutral gray */
 
@@ -140,15 +138,13 @@
   --color-shadow: transparent;
   --color-card-border: transparent;
 
-  /* Chart Colors */
-  --color-chart-primary: #60a5fa;
-  /* Blue 400 - slightly lighter for dark mode */
+  /* Chart Colors - Dynamic based on accent */
   --color-chart-income: color-mix(in srgb, var(--color-accent), var(--color-muted) 25%);
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), black 30%);
   --color-chart-pattern: rgba(0, 0, 0, 0.2);
 
   /* Cashflow Chart Colors - Dark Mode */
-  --color-cashflow-income: var(--color-success);
+  --color-cashflow-income: var(--color-accent);
   --color-cashflow-spending: #52525b;
   /* Zinc 600 - neutral gray */
 

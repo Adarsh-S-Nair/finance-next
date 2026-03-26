@@ -176,7 +176,7 @@ export default function SpendingVsEarningCard() {
   const isPositiveCashflow = averageCashflow >= 0;
 
   return (
-    <Card padding="none" allowOverflow className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
+    <Card padding="none" allowOverflow hover className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
       {showLoading && (
         <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
           {/* Header row — matches actual layout */}
@@ -209,9 +209,7 @@ export default function SpendingVsEarningCard() {
                 Avg. Monthly Cashflow
               </div>
 
-              <div className={`text-2xl sm:text-3xl font-medium tracking-tight mb-1 sm:mb-2 ${
-                isPositiveCashflow ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'
-              }`}>
+              <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1 sm:mb-2">
                 <span>{isPositiveCashflow ? '+' : ''}</span>
                 <AnimatedCounter value={averageCashflow} showCents={false} />
               </div>

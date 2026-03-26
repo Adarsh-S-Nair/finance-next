@@ -19,6 +19,7 @@ import SpendingCard from "../../../components/dashboard/SpendingCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
+import FadeIn from "../../../components/ui/FadeIn";
 
 // Map string keys to actual components
 const componentMap = {
@@ -158,12 +159,20 @@ export default function DashboardPage() {
           )}
 
           {/* Main Cards */}
-          {dashboardLayout.main.map((item) => renderItem(item))}
+          {dashboardLayout.main.map((item, i) => (
+            <FadeIn key={item.id} delay={0.1 + i * 0.1}>
+              {renderItem(item)}
+            </FadeIn>
+          ))}
         </div>
 
         {/* Sidebar */}
         <div className="lg:col-span-3 space-y-8">
-          {dashboardLayout.sidebar.map((item) => renderItem(item))}
+          {dashboardLayout.sidebar.map((item, i) => (
+            <FadeIn key={item.id} delay={0.2 + i * 0.15}>
+              {renderItem(item)}
+            </FadeIn>
+          ))}
         </div>
       </div>
     </PageContainer>

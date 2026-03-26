@@ -158,7 +158,7 @@ export default function DashboardNetWorthCard() {
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
-              className="transition-all duration-1000 ease-out opacity-20"
+              className="transition-all duration-1000 ease-out opacity-10"
             />
           </svg>
         )}

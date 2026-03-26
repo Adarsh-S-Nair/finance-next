@@ -16,6 +16,7 @@ type CardProps = {
   variant?: "default" | "subtle" | "danger" | "glass";
   width?: "full" | "2/3" | "1/3" | "1/2" | "1/4";
   allowOverflow?: boolean;
+  hover?: boolean;
   onMouseLeave?: () => void;
   onMouseEnter?: () => void;
   onClick?: () => void;
@@ -34,6 +35,7 @@ export default function Card({
   variant = "glass", // Default to glass for the new look
   width = "full",
   allowOverflow = false,
+  hover = false,
   onMouseLeave,
   onMouseEnter,
   onClick
@@ -65,7 +67,8 @@ export default function Card({
     <div
       style={style}
       className={clsx(
-        "rounded-xl relative transition-all duration-300 flex flex-col", // Increased corner rounding, flex col for header
+        "rounded-xl relative transition-all duration-300 flex flex-col",
+        hover && "hover:-translate-y-0.5 hover:shadow-md",
         allowOverflow ? "overflow-visible" : "overflow-hidden",
         widthClasses[width],
         variantClasses[variant],

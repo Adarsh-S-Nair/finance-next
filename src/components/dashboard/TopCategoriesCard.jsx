@@ -8,22 +8,22 @@ import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 
-// Fallback palette when category groups don't have hex_color set
-const FALLBACK_PALETTE = [
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#f43f5e', // rose
-  '#a855f7', // purple
-];
+// Generate shades of accent color for donut slices
+function generateAccentShades(accentColor, count) {
+  if (!accentColor) {
+    return Array(count).fill("var(--color-muted)");
+  }
+  const shades = [];
+  for (let i = 0; i < count; i++) {
+    const opacities = [1, 0.85, 0.72, 0.60, 0.50, 0.42, 0.35, 0.30, 0.25, 0.22];
+    const opacity = opacities[i] ?? 0.20;
+    shades.push({ color: accentColor, opacity });
+  }
+  return shades;
+}
 
 export default function TopCategoriesCard() {
-  const { user } = useUser();
+  const { user, profile } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
@@ -38,11 +38,19 @@ export default function TopCategoriesCard() {
     { label: 'Last 30 Days', value: 'last30' },
   ];
 
-  // Get color for each category — use hex_color from category group, fallback to palette
-  const getCategoryColor = (entry, index) => {
-    if (entry.hex_color && entry.hex_color !== '#6B7280') return entry.hex_color;
-    return FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
-  };
+  // Get accent color from profile or CSS variable
+  const accentColor = useMemo(() => {
+    if (profile?.accent_color) return profile.accent_color;
+    if (typeof window !== 'undefined') {
+      return getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#18181b';
+    }
+    return '#18181b';
+  }, [profile?.accent_color]);
+
+  // Generate shades for the categories
+  const accentShades = useMemo(() => {
+    return generateAccentShades(accentColor, categories.length);
+  }, [accentColor, categories.length]);
 
   const containerRef = React.useRef(null);
 
@@ -201,7 +209,7 @@ export default function TopCategoriesCard() {
   }
 
   return (
-    <Card padding="none" className="h-[440px] relative">
+    <Card padding="none" hover className="h-[440px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header with Dropdown */}
         <div className="px-6 pt-8 pb-2 flex items-center justify-between">
@@ -242,18 +250,18 @@ export default function TopCategoriesCard() {
                 style={{ pointerEvents: 'none' }} // Pass events through
               >
                 {categories.map((entry, index) => {
-                  const color = getCategoryColor(entry, index);
-                  const isActive = activeIndex === index;
-                  const isDimmed = activeIndex !== null && !isActive;
+                  const shade = accentShades[index] || { color: accentColor, opacity: 0.3 };
+                  const baseOpacity = shade.opacity;
+                  const hoverOpacity = activeIndex === index ? baseOpacity : (activeIndex !== null ? baseOpacity * 0.3 : baseOpacity);
                   return (
                     <Cell
                       key={`cell-${index}`}
-                      fill={color}
-                      opacity={isDimmed ? 0.25 : isActive ? 1 : 0.85}
+                      fill={shade.color}
+                      opacity={hoverOpacity}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         outline: 'none',
-                        transform: isActive ? 'scale(1.03)' : 'scale(1)',
+                        transform: activeIndex === index ? 'scale(1.03)' : 'scale(1)',
                         transformOrigin: 'center center',
                         transformBox: 'fill-box'
                       }}
