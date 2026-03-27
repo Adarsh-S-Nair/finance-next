@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiArrowRight, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
-function LandingNav({ menuOpen, setMenuOpen }) {
+export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
   return (
-    <header>
+    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md">
       <div className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-3">
           <span
@@ -38,41 +38,47 @@ function LandingNav({ menuOpen, setMenuOpen }) {
           )}
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex">
-          {["Features", "Product", "Security"].map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              className="text-sm tracking-wide text-zinc-400 transition-colors hover:text-zinc-900"
+        {showLinks && (
+          <nav className="hidden items-center gap-8 md:flex">
+            {["Features", "Product", "Security"].map((item) => (
+              <a
+                key={item}
+                href={`#${item.toLowerCase()}`}
+                className="text-sm tracking-wide text-zinc-400 transition-colors hover:text-zinc-900"
+                style={{ fontFamily: "var(--font-outfit)" }}
+              >
+                {item}
+              </a>
+            ))}
+          </nav>
+        )}
+
+        {showLinks && (
+          <div className="hidden md:flex">
+            <Link
+              href="/auth"
+              className="border border-zinc-200 text-zinc-500 hover:bg-zinc-900 hover:text-white hover:border-zinc-900 text-sm rounded-md px-5 py-2.5 transition-all cursor-pointer"
               style={{ fontFamily: "var(--font-outfit)" }}
             >
-              {item}
-            </a>
-          ))}
-        </nav>
+              Sign In
+            </Link>
+          </div>
+        )}
 
-        <div className="hidden md:flex">
-          <Link
-            href="/auth"
-            className="border border-zinc-200 text-zinc-500 hover:bg-zinc-900 hover:text-white hover:border-zinc-900 text-sm rounded-md px-5 py-2.5 transition-all cursor-pointer"
-            style={{ fontFamily: "var(--font-outfit)" }}
+        {showLinks && (
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 md:hidden"
+            aria-label="Toggle navigation"
           >
-            Sign In
-          </Link>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMenuOpen((v) => !v)}
-          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 md:hidden"
-          aria-label="Toggle navigation"
-        >
-          {menuOpen ? <FiX size={20} /> : <FiMenu size={20} />}
-        </button>
+            {menuOpen ? <FiX size={20} /> : <FiMenu size={20} />}
+          </button>
+        )}
       </div>
 
       <AnimatePresence>
-        {menuOpen && (
+        {showLinks && menuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
