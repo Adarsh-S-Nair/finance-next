@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const inputClassName =
   "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
@@ -13,6 +14,8 @@ const inputClassName =
 export default function ResetPasswordForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
@@ -97,12 +100,22 @@ export default function ResetPasswordForm() {
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-zinc-800">New password</label>
-                <input className={inputClassName} type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <div className="relative">
+                  <input className={inputClassName} type={showPassword ? "text" : "password"} placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors" tabIndex={-1}>
+                    {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-zinc-800">Confirm new password</label>
-                <input className={inputClassName} type="password" placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                <div className="relative">
+                  <input className={inputClassName} type={showConfirm ? "text" : "password"} placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors" tabIndex={-1}>
+                    {showConfirm ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" fullWidth disabled={isLoading} className="h-11">
