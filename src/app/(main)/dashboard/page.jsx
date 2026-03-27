@@ -8,29 +8,18 @@ import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
-import DashboardNetWorthCard from "../../../components/dashboard/DashboardNetWorthCard";
-import RecurringTransactionsCard from "../../../components/dashboard/RecurringTransactionsCard";
 import RecentTransactionsCard from "../../../components/dashboard/RecentTransactionsCard";
-import PlaceholderCard from "../../../components/dashboard/PlaceholderCard";
-import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
-
-import IncomeCard from "../../../components/dashboard/IncomeCard";
-import SpendingCard from "../../../components/dashboard/SpendingCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
 import FadeIn from "../../../components/ui/FadeIn";
+import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 
 // Map string keys to actual components
 const componentMap = {
-  'DashboardNetWorthCard': DashboardNetWorthCard,
   'MonthlyOverviewCard': MonthlyOverviewCard,
   'SpendingVsEarningCard': SpendingVsEarningCard,
-  'PlaceholderCard': PlaceholderCard,
-  'RecurringTransactionsCard': RecurringTransactionsCard,
   'RecentTransactionsCard': RecentTransactionsCard,
-  'IncomeCard': IncomeCard,
-  'SpendingCard': SpendingCard,
   'BudgetsCard': BudgetsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,
@@ -41,15 +30,6 @@ export default function DashboardPage() {
   const { user } = useUser();
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
-
-  const handleScroll = (e) => {
-    // Calculate active index based on scroll position
-    // Cards are 85vw wide on mobile
-    const cardWidth = window.innerWidth * 0.85;
-    const index = Math.round(e.target.scrollLeft / cardWidth);
-    setActiveCardIndex(index);
-  };
 
   useEffect(() => {
     if (user) {
@@ -69,7 +49,6 @@ export default function DashboardPage() {
 
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
-    // Handle row type (multiple cards side-by-side on larger screens, stacked on small)
     if (item.type === 'row') {
       return (
         <div
@@ -92,15 +71,11 @@ export default function DashboardPage() {
       );
     }
 
-    // Standard single component
     const Component = componentMap[item.component];
     if (!Component) return null;
 
     return (
-      <div
-        key={item.id}
-        className={item.height || ''}
-      >
+      <div key={item.id} className={item.height || ''}>
         <Component {...(item.props || {})} />
       </div>
     );
@@ -114,7 +89,6 @@ export default function DashboardPage() {
     }
   }, [accountsInitialized, accountsLoading, hasInstitutions, router]);
 
-  // Don't render the dashboard until we know the user has accounts
   if (accountsInitialized && !accountsLoading && !hasInstitutions) {
     return null;
   }
@@ -124,41 +98,6 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-8">
-          {/* Top Row - Net Worth, Income, Spending */}
-          {dashboardLayout.top && (
-            <>
-              <div
-                className="flex md:grid md:grid-cols-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none gap-4 md:gap-6 pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide"
-                onScroll={handleScroll}
-              >
-                {dashboardLayout.top.map((item) => {
-                  const Component = componentMap[item.component];
-                  if (!Component) return null;
-                  return (
-                    <div
-                      key={item.id}
-                      className={`${item.height || ''} min-w-[85vw] md:min-w-0 snap-center shrink-0`}
-                    >
-                      <Component {...(item.props || {})} />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Mobile Pagination Dots */}
-              <div className="flex justify-center gap-2 md:hidden -mt-2 mb-4">
-                {dashboardLayout.top.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${i === activeCardIndex ? "bg-[var(--color-fg)]" : "bg-[var(--color-muted)]/30"
-                      }`}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Main Cards */}
           {dashboardLayout.main.map((item, i) => (
             <FadeIn key={item.id} delay={0.1 + i * 0.1}>
               {renderItem(item)}

@@ -1,20 +1,15 @@
 /**
  * Dashboard Layout Configuration
- * 
- * Defines the layout for the dashboard with a main content area and sidebar.
- * - 'main' section contains the primary dashboard cards (left side)
- * - 'sidebar' section contains supplementary cards (right side)
- * - 'component' matches the key in the componentMap in DashboardPage
+ *
+ * - 'main' section: primary dashboard cards (left side, 7 cols)
+ * - 'sidebar' section: supplementary cards (right side, 3 cols)
+ * - 'component' matches the key in componentMap in DashboardPage
  */
 
 export const dashboardLayout = {
-  // Top row (3 columns)
-  // Top row (3 columns)
-  top: null,
-
   // Main content area (left side, wider)
   main: [
-    // Monthly Overview Chart (full width)
+    // Monthly Overview Chart (full width, hero card)
     {
       id: 'monthly-overview',
       component: 'MonthlyOverviewCard',
@@ -43,20 +38,20 @@ export const dashboardLayout = {
   ],
 
   // Sidebar (right side, narrower)
-  // Sidebar (right side, narrower)
   sidebar: [
+    {
+      id: 'recent-transactions',
+      component: 'RecentTransactionsCard'
+    },
     {
       id: 'sidebar-group',
       type: 'row',
-      // Mobile: stack, Tablet: side-by-side (bottom of screen), Desktop: stack (right sidebar)
       className: 'flex flex-col md:flex-row lg:flex-col gap-8',
       items: [
-        // Budgets Widget
         {
           id: 'budgets',
           component: 'BudgetsCard'
         },
-        // Calendar (Recurring Transactions)
         {
           id: 'calendar',
           component: 'CalendarCard'

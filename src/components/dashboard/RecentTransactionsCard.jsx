@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
+import Link from 'next/link';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -127,8 +128,7 @@ export default function RecentTransactionsCard() {
         }
 
         const result = await response.json();
-        // Use up to 4 most recent transactions for this small card
-        setTransactions((result.transactions || []).slice(0, 4));
+        setTransactions((result.transactions || []).slice(0, 6));
       } catch (err) {
         if (err?.name === 'AbortError') return;
         console.error('Error fetching transactions:', err);
@@ -215,14 +215,12 @@ export default function RecentTransactionsCard() {
   }
 
   return (
-    <Card width="full" variant="glass">
+    <Card width="full" variant="glass" hover>
       <div className="mb-4 flex justify-between items-center">
-        <div className="text-sm text-[var(--color-muted)] font-light uppercase tracking-wider">Recent Transactions</div>
-        {transactions.length >= 4 && (
-          <button className="text-sm text-[var(--color-accent)] hover:underline font-light">
-            View all
-          </button>
-        )}
+        <h3 className="card-header">Recent Transactions</h3>
+        <Link href="/transactions" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+          View all
+        </Link>
       </div>
 
       <div className="space-y-1">
@@ -230,7 +228,7 @@ export default function RecentTransactionsCard() {
           const isPositive = transaction.amount > 0;
           // Use generic positive/neutral colors which map to neon in dark mode via CSS variables if configured,
           // or explicit neon classes if we want to force it.
-          const amountColor = isPositive ? 'text-green-600 dark:text-neon-green' : 'text-[var(--color-fg)]';
+          const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]';
 
           return (
             <div
