@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiArrowRight, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
-/* ─── Star field canvas ─── */
-function StarField() {
+/* ─── Star field + vortex canvas ─── */
+function SpaceCanvas() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -25,22 +25,65 @@ function StarField() {
 
     const initStars = () => {
       stars = [];
-      const count = Math.floor((canvas.width * canvas.height) / 6000);
+      const count = Math.floor((canvas.width * canvas.height) / 5000);
       for (let i = 0; i < count; i++) {
         stars.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
           r: Math.random() * 1.2 + 0.3,
           alpha: Math.random() * 0.6 + 0.1,
-          drift: (Math.random() - 0.5) * 0.15,
+          drift: (Math.random() - 0.5) * 0.12,
           twinkleSpeed: Math.random() * 0.008 + 0.002,
           twinkleOffset: Math.random() * Math.PI * 2,
         });
       }
     };
 
+    const drawVortex = (t) => {
+      const cx = canvas.width / 2;
+      const cy = canvas.height * 0.38;
+      const maxR = Math.min(canvas.width, canvas.height) * 0.38;
+      const rings = 6;
+      const particlesPerRing = 80;
+      const rotation = t * 0.0002;
+
+      for (let ring = 0; ring < rings; ring++) {
+        const ringR = maxR * ((ring + 1) / rings);
+        const speed = (rings - ring) * 0.4; // inner rings spin faster
+        const ringAlpha = 0.03 + (ring / rings) * 0.06;
+        const hue = 210 + ring * 8;
+
+        for (let p = 0; p < particlesPerRing; p++) {
+          const angle = (p / particlesPerRing) * Math.PI * 2 + rotation * speed + ring * 0.5;
+          // Slight ellipse (flatten vertically for depth)
+          const px = cx + Math.cos(angle) * ringR;
+          const py = cy + Math.sin(angle) * ringR * 0.35;
+          const size = 1 + (ring / rings) * 1.5;
+          const flicker = Math.sin(t * 0.003 + p + ring) * 0.3 + 0.7;
+
+          ctx.beginPath();
+          ctx.arc(px, py, size, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${hue}, 70%, 60%, ${ringAlpha * flicker})`;
+          ctx.fill();
+        }
+      }
+
+      // Core glow
+      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.3);
+      grd.addColorStop(0, "rgba(59,130,246,0.12)");
+      grd.addColorStop(0.5, "rgba(59,130,246,0.04)");
+      grd.addColorStop(1, "transparent");
+      ctx.fillStyle = grd;
+      ctx.fillRect(cx - maxR * 0.3, cy - maxR * 0.3, maxR * 0.6, maxR * 0.6);
+    };
+
     const draw = (t) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw vortex first (behind stars)
+      drawVortex(t);
+
+      // Stars
       for (const s of stars) {
         const flicker = Math.sin(t * s.twinkleSpeed + s.twinkleOffset) * 0.3 + 0.7;
         ctx.beginPath();
@@ -51,6 +94,7 @@ function StarField() {
         if (s.y < -2) s.y = canvas.height + 2;
         if (s.y > canvas.height + 2) s.y = -2;
       }
+
       animId = requestAnimationFrame(draw);
     };
 
@@ -222,103 +266,24 @@ export default function Home() {
         .lp-fade-3 { animation: fadeInUp 0.8s ease-out 0.5s both; }
         .lp-fade-4 { animation: fadeInUp 0.8s ease-out 0.7s both; }
 
-        /* Black hole */
-        @keyframes blackHoleSpin {
-          from { transform: translate(-50%, -50%) rotate(0deg); }
-          to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-        @keyframes blackHolePulse {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.5; }
-        }
-        .lp-black-hole {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          pointer-events: none;
-        }
-        .lp-bh-ring {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          border-radius: 50%;
-          border: 1px solid;
-          animation: blackHoleSpin linear infinite;
-        }
-        .lp-bh-glow {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          border-radius: 50%;
-          animation: blackHolePulse 4s ease-in-out infinite;
-        }
-
-        /* Dark scrollbar for landing page */
-        .lp-dark-scroll::-webkit-scrollbar { width: 6px; }
-        .lp-dark-scroll::-webkit-scrollbar-track { background: #06080d; }
-        .lp-dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-        .lp-dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        .lp-dark-scroll { scrollbar-color: rgba(255,255,255,0.1) #06080d; scrollbar-width: thin; }
+        /* Dark scrollbar — applied to html/body for the landing page */
+        html:has(.lp-space-page) { scrollbar-color: rgba(255,255,255,0.1) #06080d; scrollbar-width: thin; }
+        html:has(.lp-space-page)::-webkit-scrollbar { width: 6px; }
+        html:has(.lp-space-page)::-webkit-scrollbar-track { background: #06080d; }
+        html:has(.lp-space-page)::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        html:has(.lp-space-page)::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
       `}</style>
 
-      <main className="min-h-screen selection:bg-white selection:text-zinc-900 lp-dark-scroll">
+      <main className="lp-space-page min-h-screen selection:bg-white selection:text-zinc-900">
         {/* ─── Hero ─── */}
         <section className="lp-space-bg relative flex h-screen flex-col overflow-hidden">
-          <StarField />
+          <SpaceCanvas />
 
           {/* Subtle vignette */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.4)_100%)]" />
 
           <div className="relative z-10">
             <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-          </div>
-
-          {/* Black hole */}
-          <div className="lp-black-hole z-[1] w-[600px] h-[600px] sm:w-[700px] sm:h-[700px] lg:w-[800px] lg:h-[800px]">
-            {/* Core glow */}
-            <div
-              className="lp-bh-glow"
-              style={{
-                width: "180px",
-                height: "180px",
-                background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 40%, transparent 70%)",
-              }}
-            />
-            {/* Rings */}
-            {[
-              { size: 200, color: "rgba(59,130,246,0.12)", duration: "25s", dash: "8 12" },
-              { size: 300, color: "rgba(99,102,241,0.08)", duration: "35s", dash: "4 16" },
-              { size: 400, color: "rgba(59,130,246,0.06)", duration: "50s", dash: "6 20" },
-              { size: 520, color: "rgba(139,92,246,0.04)", duration: "70s", dash: "3 24" },
-              { size: 650, color: "rgba(59,130,246,0.03)", duration: "90s", dash: "2 28" },
-            ].map((ring, i) => (
-              <div
-                key={i}
-                className="lp-bh-ring"
-                style={{
-                  width: `${ring.size}px`,
-                  height: `${ring.size}px`,
-                  borderColor: ring.color,
-                  animationDuration: ring.duration,
-                  animationDirection: i % 2 === 0 ? "normal" : "reverse",
-                  borderStyle: "dashed",
-                  borderWidth: "1px",
-                  borderImage: `repeating-conic-gradient(${ring.color} 0deg, ${ring.color} 2deg, transparent 2deg, transparent 8deg) 1`,
-                }}
-              />
-            ))}
-            {/* Accretion disk glow */}
-            <div
-              className="lp-bh-glow"
-              style={{
-                width: "400px",
-                height: "400px",
-                background: "radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 60%)",
-                animationDelay: "2s",
-              }}
-            />
           </div>
 
           {/* Centered hero content */}
@@ -363,8 +328,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Bottom fade into white sections */}
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white/80 to-transparent z-20" />
+          {/* Bottom fade into white sections — very gradual */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 z-20"
+            style={{ background: "linear-gradient(to top, white 0%, rgba(255,255,255,0.6) 30%, rgba(255,255,255,0.2) 60%, transparent 100%)" }}
+          />
         </section>
 
         {/* ─── Features ─── */}
