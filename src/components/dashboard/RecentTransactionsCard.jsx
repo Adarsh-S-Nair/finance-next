@@ -128,7 +128,7 @@ export default function RecentTransactionsCard() {
         }
 
         const result = await response.json();
-        setTransactions((result.transactions || []).slice(0, 6));
+        setTransactions((result.transactions || []).slice(0, 5));
       } catch (err) {
         if (err?.name === 'AbortError') return;
         console.error('Error fetching transactions:', err);
