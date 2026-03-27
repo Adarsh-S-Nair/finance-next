@@ -8,10 +8,11 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle" | "outline" | "glass" | "matte" | "minimal";
   size?: "sm" | "md" | "lg" | "iconSm" | "icon" | "iconLg";
   fullWidth?: boolean;
+  loading?: boolean;
 };
 
 const baseStyles =
-  "inline-flex select-none items-center justify-center rounded-md text-sm font-medium transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
+  "inline-flex select-none items-center justify-center rounded-md text-sm font-medium transition-all duration-150 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:scale-[0.97] hover:scale-[1.01]";
 
 const variants: Record<string, string> = {
   primary:
@@ -37,7 +38,7 @@ const variants: Record<string, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", fullWidth = false, children, ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", fullWidth = false, loading = false, children, ...props }, ref) => {
     const { profile } = useUser();
     const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
     const isDefaultAccent = !profile?.accent_color;
@@ -73,9 +74,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={clsx(baseStyles, variantClasses, sizeClasses, fullWidth && "w-full", className)}
+        disabled={loading || props.disabled}
         {...props}
       >
-        {children}
+        {loading ? (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+        ) : (
+          children
+        )}
       </button>
     );
   }

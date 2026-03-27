@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
-import { FiChevronRight, FiChevronLeft, FiCheck, FiLoader, FiAlertCircle, FiPlus } from "react-icons/fi";
+import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus } from "react-icons/fi";
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
@@ -293,7 +293,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
 
   return (
     <div className="flex flex-col items-center text-center">
-      <FiLoader className="mb-4 h-10 w-10 animate-spin text-zinc-400" />
+      <div className="mb-4 h-10 w-10 animate-spin rounded-full border-[3px] border-zinc-200 border-t-zinc-900" />
       <p className="text-sm font-medium text-zinc-900">
         {exchanging ? "Finalizing connection…" : "Preparing secure connection…"}
       </p>
@@ -459,7 +459,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
         <button
           type="button"
           onClick={onAddMore}
-          className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer"
+          className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 active:scale-[0.97] transition-all duration-150 cursor-pointer"
         >
           <FiPlus className="h-4 w-4" />
           Connect another account
