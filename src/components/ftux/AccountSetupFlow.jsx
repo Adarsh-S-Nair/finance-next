@@ -53,13 +53,6 @@ const slideTransition = {
   opacity: { duration: 0.1, ease: "easeIn" },
 };
 
-// Spring animation for field reveal — bubbly, slight overshoot
-const revealTransition = {
-  type: "spring",
-  stiffness: 300,
-  damping: 20,
-};
-
 function PaginationDots({ current, total }) {
   return (
     <div className="flex items-center justify-center gap-2">
@@ -103,38 +96,13 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function NameStep({ onNext, onBack }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [showLastName, setShowLastName] = useState(false);
   const inputRef = useRef(null);
-  const lastNameRef = useRef(null);
 
   const canSubmit = firstName.trim().length > 0;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  // Focus last name when it appears
-  useEffect(() => {
-    if (showLastName) {
-      const timer = setTimeout(() => lastNameRef.current?.focus(), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [showLastName]);
-
-  const handleFirstNameKeyDown = (e) => {
-    if (e.key === 'Enter' && firstName.trim().length > 0) {
-      e.preventDefault();
-      if (!showLastName) {
-        setShowLastName(true);
-      } else {
-        // Last name already visible — submit the form
-        const trimmedFirst = firstName.trim();
-        const normalizedFirst = capitalizeFirstOnly(trimmedFirst);
-        const normalizedLast = capitalizeFirstOnly(lastName.trim());
-        onNext({ firstName: normalizedFirst, lastName: normalizedLast || null });
-      }
-    }
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -149,7 +117,7 @@ function NameStep({ onNext, onBack }) {
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-        What&apos;s your first name?
+        What&apos;s your name?
       </h1>
       <p className="mt-2 text-sm text-zinc-500">We&apos;ll use this to personalize your experience.</p>
 
@@ -163,34 +131,22 @@ function NameStep({ onNext, onBack }) {
             placeholder="Jane"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            onKeyDown={handleFirstNameKeyDown}
             required
           />
         </div>
 
-        <AnimatePresence>
-          {showLastName && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={revealTransition}
-              className="mt-5 space-y-2"
-            >
-              <label className="text-sm font-medium text-zinc-800">
-                Last name <span className="font-normal text-zinc-400">(optional)</span>
-              </label>
-              <input
-                ref={lastNameRef}
-                className={inputClassName}
-                type="text"
-                placeholder="Doe"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="mt-5 space-y-2">
+          <label className="text-sm font-medium text-zinc-800">
+            Last name <span className="font-normal text-zinc-400">(optional)</span>
+          </label>
+          <input
+            className={inputClassName}
+            type="text"
+            placeholder="Doe"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+        </div>
 
         <AnimatePresence>
           {canSubmit && (
@@ -220,9 +176,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showPasswordField, setShowPasswordField] = useState(false);
   const emailRef = useRef(null);
-  const passwordRef = useRef(null);
 
   const emailValid = EMAIL_REGEX.test(email.trim());
   const canSubmit = emailValid && password.trim().length >= 1 && !loading;
@@ -230,23 +184,6 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   useEffect(() => {
     emailRef.current?.focus();
   }, []);
-
-  // Focus password field when it becomes visible
-  useEffect(() => {
-    if (showPasswordField) {
-      const timer = setTimeout(() => passwordRef.current?.focus(), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [showPasswordField]);
-
-  const handleEmailKeyDown = (e) => {
-    if (e.key === 'Enter' && emailValid) {
-      e.preventDefault();
-      if (!showPasswordField) {
-        setShowPasswordField(true);
-      }
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -317,13 +254,12 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
         <BackButton onClick={onBack} />
       </div>
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-        Create your account
+        What&apos;s your email?
       </h1>
-      <p className="mt-2 text-sm text-zinc-500">Get started with a free Zentari account.</p>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left" noValidate>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-800">What&apos;s your email?</label>
+          <label className="text-sm font-medium text-zinc-800">Email</label>
           <input
             ref={emailRef}
             className={inputClassName}
@@ -331,43 +267,31 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             placeholder="name@example.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
-            onKeyDown={handleEmailKeyDown}
             required
           />
         </div>
 
-        <AnimatePresence>
-          {showPasswordField && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={revealTransition}
-              className="mt-5 space-y-2"
+        <div className="mt-5 space-y-2">
+          <label className="text-sm font-medium text-zinc-800">Password</label>
+          <div className="relative">
+            <input
+              className={inputClassName}
+              type={showPassword ? "text" : "password"}
+              placeholder="At least 8 characters"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+              tabIndex={-1}
             >
-              <label className="text-sm font-medium text-zinc-800">Choose a password</label>
-              <div className="relative">
-                <input
-                  ref={passwordRef}
-                  className={inputClassName}
-                  type={showPassword ? "text" : "password"}
-                  placeholder="At least 8 characters"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            </button>
+          </div>
+        </div>
 
         {error && (
           <div className="mt-3 rounded-md bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
@@ -394,9 +318,9 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
               className="mt-6"
             >
               <Button type="submit" fullWidth disabled={!canSubmit} className="h-11">
-                {loading ? "Creating account…" : (
+                {loading ? "Continuing…" : (
                   <>
-                    Create account
+                    Continue
                     <FiChevronRight className="ml-1.5 h-4 w-4" />
                   </>
                 )}
@@ -916,15 +840,15 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
         <PaginationDots current={step} total={TOTAL_STEPS} />
       </div>
 
-      {/* "Already have an account?" — quiet escape hatch, only on step 1 */}
+      {/* "Already have an account?" — fixed bottom-right, visible on pre-auth steps */}
       <AnimatePresence>
-        {step === 1 && (
+        {step <= 1 && (
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="mt-6 text-sm text-zinc-400"
+            className="fixed bottom-6 right-6 text-sm text-zinc-400"
           >
             Already have an account?{" "}
             <Link href="/auth" className="font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-700">
