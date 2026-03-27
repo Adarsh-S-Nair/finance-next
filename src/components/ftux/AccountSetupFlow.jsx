@@ -332,18 +332,56 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
 
   return (
     <div className="flex flex-col items-center text-center">
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-        className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100"
-      >
-        <FiCheck className="h-7 w-7 text-zinc-700" />
-      </motion.div>
+      {/* Institution logo → dots → green checkmark */}
+      <div className="mb-6 flex items-center gap-2">
+        {/* Institution logo or initial */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+          className="relative h-12 w-12 flex-shrink-0"
+        >
+          {institution?.logo && (
+            <img
+              src={institution.logo}
+              alt={institution.name || ""}
+              className="h-12 w-12 rounded-full object-contain bg-white border border-zinc-100 absolute inset-0"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+          )}
+          <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
+            <span className="text-base font-semibold text-zinc-500">
+              {(institution?.name || "?").charAt(0).toUpperCase()}
+            </span>
+          </div>
+        </motion.div>
+
+        {/* Connecting dots */}
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 0.4 }}
+            transition={{ delay: 0.2 + i * 0.08 }}
+            className="h-1.5 w-1.5 rounded-full bg-zinc-300"
+          />
+        ))}
+
+        {/* Green checkmark */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.5 }}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
+        >
+          <FiCheck className="h-6 w-6 text-white" strokeWidth={3} />
+        </motion.div>
+      </div>
+
       <motion.h2
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.6 }}
         className="text-2xl font-semibold tracking-tight text-zinc-900"
       >
         {institution?.name ? `${institution.name} connected` : "Account connected"}
@@ -354,7 +392,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.7 }}
           className="mt-5 w-full max-w-xs"
         >
           <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 divide-y divide-zinc-100">
@@ -363,7 +401,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
                 key={account.id || account.account_id || i}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.35 + i * 0.05 }}
+                transition={{ delay: 0.75 + i * 0.05 }}
                 className="flex items-center gap-3 px-4 py-3"
               >
                 {/* Institution logo with broken-image fallback */}
@@ -403,7 +441,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
       <motion.p
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: accounts.length > 0 ? 0.4 + accounts.length * 0.05 : 0.3 }}
+        transition={{ delay: accounts.length > 0 ? 0.8 + accounts.length * 0.05 : 0.7 }}
         className="mt-4 text-sm text-zinc-400"
       >
         You can always add more from settings.
@@ -411,7 +449,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: accounts.length > 0 ? 0.5 + accounts.length * 0.05 : 0.4 }}
+        transition={{ delay: accounts.length > 0 ? 0.9 + accounts.length * 0.05 : 0.8 }}
         className="mt-6 flex flex-col items-center gap-3 w-full max-w-xs"
       >
         <Button onClick={onComplete} className="w-full h-11">
