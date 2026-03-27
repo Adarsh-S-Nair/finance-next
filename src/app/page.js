@@ -180,7 +180,7 @@ export default function Home() {
 
             <div className="lp-fade-3 mt-10 flex flex-col items-center gap-4 sm:flex-row">
               <Link
-                href="/auth"
+                href="/setup"
                 className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-8 py-3.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 cursor-pointer"
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
@@ -264,11 +264,11 @@ export default function Home() {
               <div>
                 <div className="text-sm text-zinc-500">Ready to try it?</div>
                 <Link
-                  href="/auth"
+                  href="/setup"
                   className="mt-4 inline-flex h-11 cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
                   style={{ fontFamily: "var(--font-outfit)" }}
                 >
-                  Create account
+                  Get started
                 </Link>
               </div>
             </div>
