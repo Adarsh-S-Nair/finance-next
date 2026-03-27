@@ -20,7 +20,8 @@ export default function AuthPage() {
 
           <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl flex-col px-5 sm:px-6 lg:px-8">
             <div className="flex flex-1 items-center py-10 lg:py-14">
-              <div className="grid w-full gap-12 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center">
+              <div className="grid w-full gap-16 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-center">
+                {/* Left branding panel */}
                 <div className="max-w-2xl">
                   <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">Personal finance, without the mess</p>
                   <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
@@ -31,25 +32,27 @@ export default function AuthPage() {
                   </p>
                 </div>
 
+                {/* Right form panel — open layout, no card */}
                 <div className="w-full max-w-md lg:ml-auto">
-                  <div className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
-                    <div>
-                      <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
-                      <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>
-                    </div>
-
-                    <Tabs
-                      tabs={[
-                        { key: "login", label: "Sign in", content: <LoginForm /> },
-                        { key: "signup", label: "Create account", content: <SignupForm /> },
-                      ]}
-                      initialKey="login"
-                      variant="zinc"
-                    />
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>
                   </div>
 
-                  <p className="mt-5 text-center text-xs leading-5 text-zinc-400">
-                    By continuing, you agree to our <Link href="/docs/terms" className="underline underline-offset-4 hover:text-zinc-700">Terms</Link> and <Link href="/docs/privacy" className="underline underline-offset-4 hover:text-zinc-700">Privacy Policy</Link>.
+                  <Tabs
+                    tabs={[
+                      { key: "login", label: "Sign in", content: <LoginForm /> },
+                      { key: "signup", label: "Create account", content: <SignupForm /> },
+                    ]}
+                    initialKey="login"
+                    variant="zinc"
+                  />
+
+                  <p className="mt-6 text-xs leading-5 text-zinc-400">
+                    By continuing, you agree to our{" "}
+                    <Link href="/docs/terms" className="underline underline-offset-4 hover:text-zinc-700">Terms</Link>{" "}
+                    and{" "}
+                    <Link href="/docs/privacy" className="underline underline-offset-4 hover:text-zinc-700">Privacy Policy</Link>.
                   </p>
                 </div>
               </div>
