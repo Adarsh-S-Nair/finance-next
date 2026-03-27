@@ -366,20 +366,22 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
                 transition={{ delay: 0.35 + i * 0.05 }}
                 className="flex items-center gap-3 px-4 py-3"
               >
-                {/* Institution logo */}
-                {institution?.logo ? (
-                  <img
-                    src={institution.logo}
-                    alt={institution.name || ""}
-                    className="h-8 w-8 rounded-full object-contain bg-white border border-zinc-100 flex-shrink-0"
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center flex-shrink-0">
+                {/* Institution logo with broken-image fallback */}
+                <div className="relative h-8 w-8 flex-shrink-0">
+                  {institution?.logo && (
+                    <img
+                      src={institution.logo}
+                      alt={institution.name || ""}
+                      className="h-8 w-8 rounded-full object-contain bg-white border border-zinc-100 absolute inset-0"
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  )}
+                  <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center">
                     <span className="text-xs font-semibold text-zinc-500">
                       {(institution?.name || account.name || "?").charAt(0).toUpperCase()}
                     </span>
                   </div>
-                )}
+                </div>
                 <div className="text-left flex-1 min-w-0">
                   <div className="text-sm font-medium text-zinc-900 truncate">{account.name}</div>
                   <div className="text-xs text-zinc-400">
