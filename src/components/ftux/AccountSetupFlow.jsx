@@ -86,7 +86,9 @@ function BackButton({ onClick }) {
 }
 
 const inputClassName =
-  "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-100 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-100/80 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ── Step 0: Email + Password (account creation) ─────────────── */
 function EmailPasswordStep({ onNext }) {
@@ -96,10 +98,23 @@ function EmailPasswordStep({ onNext }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
+  const emailValid = EMAIL_REGEX.test(email.trim());
+  const showPasswordField = emailValid;
+  const canSubmit = emailValid && password.trim().length >= 1 && !loading;
 
   useEffect(() => {
     emailRef.current?.focus();
   }, []);
+
+  // Focus password field when it becomes visible
+  useEffect(() => {
+    if (showPasswordField) {
+      const timer = setTimeout(() => passwordRef.current?.focus(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [showPasswordField]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -159,9 +174,9 @@ function EmailPasswordStep({ onNext }) {
       </h1>
       <p className="mt-3 text-base text-zinc-500">Get started with a free Zentari account.</p>
 
-      <form onSubmit={handleSubmit} className="mt-8 w-full space-y-3 text-left" noValidate>
+      <form onSubmit={handleSubmit} className="mt-8 w-full text-left" noValidate>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-zinc-800">Email</label>
+          <label className="text-sm font-medium text-zinc-800">What&apos;s your email?</label>
           <input
             ref={emailRef}
             className={inputClassName}
@@ -172,30 +187,42 @@ function EmailPasswordStep({ onNext }) {
             required
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-zinc-800">Password</label>
-          <div className="relative">
-            <input
-              className={inputClassName}
-              type={showPassword ? "text" : "password"}
-              placeholder="At least 8 characters"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(null); }}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
-              tabIndex={-1}
+
+        <AnimatePresence>
+          {showPasswordField && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="mt-3 space-y-1.5"
             >
-              {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-            </button>
-          </div>
-        </div>
+              <label className="text-sm font-medium text-zinc-800">Choose a password</label>
+              <div className="relative">
+                <input
+                  ref={passwordRef}
+                  className={inputClassName}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {error && (
-          <div className="rounded-md bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
+          <div className="mt-3 rounded-md bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
             {error === "duplicate" ? (
               <>
                 This email is already registered.{" "}
@@ -209,16 +236,26 @@ function EmailPasswordStep({ onNext }) {
           </div>
         )}
 
-        <div className="pt-2">
-          <Button type="submit" fullWidth disabled={!email.trim() || !password.trim() || loading} className="h-11">
-            {loading ? "Creating account…" : (
-              <>
-                Continue
-                <FiChevronRight className="ml-1.5 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </div>
+        <AnimatePresence>
+          {canSubmit && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="mt-4"
+            >
+              <Button type="submit" fullWidth disabled={!canSubmit} className="h-11">
+                {loading ? "Creating account…" : (
+                  <>
+                    Create account
+                    <FiChevronRight className="ml-1.5 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </form>
 
       <p className="mt-5 text-sm text-zinc-500">
@@ -237,10 +274,22 @@ function NameStep({ onNext, onBack }) {
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
+  const lastNameRef = useRef(null);
+
+  const showLastName = firstName.trim().length > 0;
+  const canSubmit = firstName.trim().length > 0 && !saving;
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Focus last name when it appears
+  useEffect(() => {
+    if (showLastName) {
+      const timer = setTimeout(() => lastNameRef.current?.focus(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [showLastName]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -284,11 +333,11 @@ function NameStep({ onNext, onBack }) {
         </div>
       )}
       <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
-        What should we call you?
+        What&apos;s your first name?
       </h1>
       <p className="mt-3 text-base text-zinc-500">We&apos;ll use this to personalize your experience.</p>
 
-      <form onSubmit={handleSubmit} className="mt-8 w-full space-y-3 text-left">
+      <form onSubmit={handleSubmit} className="mt-8 w-full text-left">
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-zinc-800">First name</label>
           <input
@@ -301,28 +350,51 @@ function NameStep({ onNext, onBack }) {
             required
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-zinc-800">
-            Last name <span className="font-normal text-zinc-400">(optional)</span>
-          </label>
-          <input
-            className={inputClassName}
-            type="text"
-            placeholder="Doe"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-          />
-        </div>
-        <div className="pt-2">
-          <Button type="submit" fullWidth disabled={!firstName.trim() || saving} className="h-11">
-            {saving ? "Saving…" : (
-              <>
-                Continue
-                <FiChevronRight className="ml-1.5 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </div>
+
+        <AnimatePresence>
+          {showLastName && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="mt-3 space-y-1.5"
+            >
+              <label className="text-sm font-medium text-zinc-800">
+                Last name <span className="font-normal text-zinc-400">(optional)</span>
+              </label>
+              <input
+                ref={lastNameRef}
+                className={inputClassName}
+                type="text"
+                placeholder="Doe"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {canSubmit && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="mt-4"
+            >
+              <Button type="submit" fullWidth disabled={!canSubmit} className="h-11">
+                {saving ? "Saving…" : (
+                  <>
+                    Continue
+                    <FiChevronRight className="ml-1.5 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </form>
     </div>
   );
