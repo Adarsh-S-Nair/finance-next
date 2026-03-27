@@ -303,7 +303,33 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
 }
 
 /* ── Step 4: Connected + Add More ───────────────────────────── */
-function ConnectedStep({ onAddMore, onComplete }) {
+
+const SUBTYPE_LABELS = {
+  checking: "Checking",
+  savings: "Savings",
+  "money market": "Money Market",
+  cd: "CD",
+  "credit card": "Credit Card",
+  "401k": "401(k)",
+  "401a": "401(a)",
+  ira: "IRA",
+  roth: "Roth IRA",
+  "roth 401k": "Roth 401(k)",
+  brokerage: "Brokerage",
+  "mutual fund": "Mutual Fund",
+  hsa: "HSA",
+  "529": "529 Plan",
+};
+
+function formatSubtype(subtype) {
+  if (!subtype) return "";
+  return SUBTYPE_LABELS[subtype] || subtype.charAt(0).toUpperCase() + subtype.slice(1);
+}
+
+function ConnectedStep({ plaidData, onAddMore, onComplete }) {
+  const accounts = plaidData?.accounts || [];
+  const institution = plaidData?.institution;
+
   return (
     <div className="flex flex-col items-center text-center">
       <motion.div
@@ -320,21 +346,57 @@ function ConnectedStep({ onAddMore, onComplete }) {
         transition={{ delay: 0.2 }}
         className="text-2xl font-semibold tracking-tight text-zinc-900"
       >
-        Account connected
+        {institution?.name ? `${institution.name} connected` : "Account connected"}
       </motion.h2>
+
+      {/* Connected accounts list */}
+      {accounts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-5 w-full max-w-xs"
+        >
+          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 divide-y divide-zinc-100">
+            {accounts.map((account, i) => (
+              <motion.div
+                key={account.id || account.account_id || i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.35 + i * 0.05 }}
+                className="flex items-center justify-between px-4 py-3"
+              >
+                <div className="text-left">
+                  <div className="text-sm font-medium text-zinc-900">{account.name}</div>
+                  <div className="text-xs text-zinc-400">
+                    {formatSubtype(account.subtype)}
+                    {account.mask ? ` · ••${account.mask}` : ""}
+                  </div>
+                </div>
+                {account.balances?.current != null && (
+                  <div className="text-sm tabular-nums text-zinc-500">
+                    ${Number(account.balances.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       <motion.p
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="mt-2 text-sm text-zinc-400"
+        transition={{ delay: accounts.length > 0 ? 0.4 + accounts.length * 0.05 : 0.3 }}
+        className="mt-4 text-sm text-zinc-400"
       >
         You can always add more from settings.
       </motion.p>
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="mt-8 flex flex-col items-center gap-3 w-full max-w-xs"
+        transition={{ delay: accounts.length > 0 ? 0.5 + accounts.length * 0.05 : 0.4 }}
+        className="mt-6 flex flex-col items-center gap-3 w-full max-w-xs"
       >
         <Button onClick={onComplete} className="w-full h-11">
           Continue to dashboard
@@ -428,6 +490,7 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
         return (
           <ConnectedStep
             key="connected"
+            plaidData={plaidData}
             onAddMore={handleAddMore}
             onComplete={handleComplete}
           />
