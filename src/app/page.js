@@ -74,7 +74,7 @@ function LandingNav({ menuOpen, setMenuOpen }) {
         <Link href="/" className="flex items-center gap-3">
           <span
             aria-hidden
-            className="block h-8 w-8 bg-white"
+            className="block h-10 w-10 bg-white"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
@@ -87,7 +87,7 @@ function LandingNav({ menuOpen, setMenuOpen }) {
             }}
           />
           <span
-            className="text-xl font-medium tracking-[0.18em] text-white"
+            className="text-sm font-medium tracking-[0.18em] text-white"
             style={{ fontFamily: "var(--font-outfit)" }}
           >
             ZENTARI
@@ -221,9 +221,49 @@ export default function Home() {
         .lp-fade-2 { animation: fadeInUp 0.8s ease-out 0.3s both; }
         .lp-fade-3 { animation: fadeInUp 0.8s ease-out 0.5s both; }
         .lp-fade-4 { animation: fadeInUp 0.8s ease-out 0.7s both; }
+
+        /* Black hole */
+        @keyframes blackHoleSpin {
+          from { transform: translate(-50%, -50%) rotate(0deg); }
+          to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes blackHolePulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.5; }
+        }
+        .lp-black-hole {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          pointer-events: none;
+        }
+        .lp-bh-ring {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          border-radius: 50%;
+          border: 1px solid;
+          animation: blackHoleSpin linear infinite;
+        }
+        .lp-bh-glow {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          border-radius: 50%;
+          animation: blackHolePulse 4s ease-in-out infinite;
+        }
+
+        /* Dark scrollbar for landing page */
+        .lp-dark-scroll::-webkit-scrollbar { width: 6px; }
+        .lp-dark-scroll::-webkit-scrollbar-track { background: #06080d; }
+        .lp-dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .lp-dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .lp-dark-scroll { scrollbar-color: rgba(255,255,255,0.1) #06080d; scrollbar-width: thin; }
       `}</style>
 
-      <main className="min-h-screen selection:bg-white selection:text-zinc-900">
+      <main className="min-h-screen selection:bg-white selection:text-zinc-900 lp-dark-scroll">
         {/* ─── Hero ─── */}
         <section className="lp-space-bg relative flex h-screen flex-col overflow-hidden">
           <StarField />
@@ -235,10 +275,56 @@ export default function Home() {
             <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
           </div>
 
+          {/* Black hole */}
+          <div className="lp-black-hole z-[1] w-[600px] h-[600px] sm:w-[700px] sm:h-[700px] lg:w-[800px] lg:h-[800px]">
+            {/* Core glow */}
+            <div
+              className="lp-bh-glow"
+              style={{
+                width: "180px",
+                height: "180px",
+                background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0.05) 40%, transparent 70%)",
+              }}
+            />
+            {/* Rings */}
+            {[
+              { size: 200, color: "rgba(59,130,246,0.12)", duration: "25s", dash: "8 12" },
+              { size: 300, color: "rgba(99,102,241,0.08)", duration: "35s", dash: "4 16" },
+              { size: 400, color: "rgba(59,130,246,0.06)", duration: "50s", dash: "6 20" },
+              { size: 520, color: "rgba(139,92,246,0.04)", duration: "70s", dash: "3 24" },
+              { size: 650, color: "rgba(59,130,246,0.03)", duration: "90s", dash: "2 28" },
+            ].map((ring, i) => (
+              <div
+                key={i}
+                className="lp-bh-ring"
+                style={{
+                  width: `${ring.size}px`,
+                  height: `${ring.size}px`,
+                  borderColor: ring.color,
+                  animationDuration: ring.duration,
+                  animationDirection: i % 2 === 0 ? "normal" : "reverse",
+                  borderStyle: "dashed",
+                  borderWidth: "1px",
+                  borderImage: `repeating-conic-gradient(${ring.color} 0deg, ${ring.color} 2deg, transparent 2deg, transparent 8deg) 1`,
+                }}
+              />
+            ))}
+            {/* Accretion disk glow */}
+            <div
+              className="lp-bh-glow"
+              style={{
+                width: "400px",
+                height: "400px",
+                background: "radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 60%)",
+                animationDelay: "2s",
+              }}
+            />
+          </div>
+
           {/* Centered hero content */}
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
             <h1
-              className="lp-heading-glow lp-fade-1 text-4xl font-medium leading-[1.1] max-w-4xl sm:text-5xl md:text-6xl lg:text-7xl"
+              className="lp-heading-glow lp-fade-1 text-3xl font-medium leading-[1.1] max-w-3xl sm:text-4xl md:text-5xl lg:text-6xl"
               style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-outfit)" }}
             >
               A clearer view of{" "}
@@ -278,7 +364,7 @@ export default function Home() {
           </div>
 
           {/* Bottom fade into white sections */}
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent z-20" />
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white/80 to-transparent z-20" />
         </section>
 
         {/* ─── Features ─── */}
