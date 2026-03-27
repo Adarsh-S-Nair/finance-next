@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
-import { FiChevronRight, FiChevronLeft, FiCheck, FiLoader, FiAlertCircle } from "react-icons/fi";
+import { FiChevronRight, FiChevronLeft, FiCheck, FiLoader, FiAlertCircle, FiPlus } from "react-icons/fi";
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
@@ -364,17 +364,31 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.35 + i * 0.05 }}
-                className="flex items-center justify-between px-4 py-3"
+                className="flex items-center gap-3 px-4 py-3"
               >
-                <div className="text-left">
-                  <div className="text-sm font-medium text-zinc-900">{account.name}</div>
+                {/* Institution logo */}
+                {institution?.logo ? (
+                  <img
+                    src={institution.logo}
+                    alt={institution.name || ""}
+                    className="h-8 w-8 rounded-full object-contain bg-white border border-zinc-100 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-zinc-500">
+                      {(institution?.name || account.name || "?").charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div className="text-left flex-1 min-w-0">
+                  <div className="text-sm font-medium text-zinc-900 truncate">{account.name}</div>
                   <div className="text-xs text-zinc-400">
                     {formatSubtype(account.subtype)}
                     {account.mask ? ` · ••${account.mask}` : ""}
                   </div>
                 </div>
                 {account.balances?.current != null && (
-                  <div className="text-sm tabular-nums text-zinc-500">
+                  <div className="text-sm tabular-nums text-zinc-500 flex-shrink-0">
                     ${Number(account.balances.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 )}
@@ -405,8 +419,9 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
         <button
           type="button"
           onClick={onAddMore}
-          className="text-sm text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
+          className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors cursor-pointer"
         >
+          <FiPlus className="h-4 w-4" />
           Connect another account
         </button>
       </motion.div>
