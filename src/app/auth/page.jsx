@@ -42,7 +42,7 @@ export default function AuthPage() {
                   <p className="mt-5 text-sm text-zinc-500">
                     Don&apos;t have an account?{" "}
                     <Link href="/setup" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
-                      Get started →
+                      Get started
                     </Link>
                   </p>
 

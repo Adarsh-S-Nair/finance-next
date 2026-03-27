@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiArrowRight, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
+import { FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
 export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = "bg-white" }) {
@@ -185,7 +185,6 @@ export default function Home() {
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
                 Get Started
-                <FiArrowRight className="ml-2" size={15} />
               </Link>
               <a
                 href="#features"
