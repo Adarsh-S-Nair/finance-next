@@ -95,7 +95,7 @@ function BackButton({ onClick }) {
 
 // Input class: font-medium for typed text, no focus ring/outline
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -107,7 +107,7 @@ function NameStep({ onNext, onBack }) {
   const inputRef = useRef(null);
   const lastNameRef = useRef(null);
 
-  // Reveal last name only after first name field is blurred with content
+  // Reveal last name only after user presses Enter/Tab on first name, or genuinely blurs
   const showLastName = firstNameBlurred && firstName.trim().length > 0;
   const canSubmit = firstName.trim().length > 0;
 
@@ -122,6 +122,20 @@ function NameStep({ onNext, onBack }) {
       return () => clearTimeout(timer);
     }
   }, [showLastName]);
+
+  const handleFirstNameKeyDown = (e) => {
+    if ((e.key === 'Enter' || e.key === 'Tab') && firstName.trim().length > 0) {
+      e.preventDefault();
+      setFirstNameBlurred(true);
+    }
+  };
+
+  const handleFirstNameBlur = (e) => {
+    // Only reveal on genuine blur — not when focus stays on the same element (re-render artifact)
+    if (e.relatedTarget !== inputRef.current) {
+      setFirstNameBlurred(true);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -150,7 +164,8 @@ function NameStep({ onNext, onBack }) {
             placeholder="Jane"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            onBlur={() => setFirstNameBlurred(true)}
+            onKeyDown={handleFirstNameKeyDown}
+            onBlur={handleFirstNameBlur}
             required
           />
         </div>
@@ -212,7 +227,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   const passwordRef = useRef(null);
 
   const emailValid = EMAIL_REGEX.test(email.trim());
-  // Reveal password field only after email field is blurred with a valid email
+  // Reveal password field only after user presses Enter/Tab on email, or genuinely blurs
   const showPasswordField = emailBlurred && emailValid;
   const canSubmit = emailValid && password.trim().length >= 1 && !loading;
 
@@ -227,6 +242,20 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
       return () => clearTimeout(timer);
     }
   }, [showPasswordField]);
+
+  const handleEmailKeyDown = (e) => {
+    if ((e.key === 'Enter' || e.key === 'Tab') && emailValid) {
+      e.preventDefault();
+      setEmailBlurred(true);
+    }
+  };
+
+  const handleEmailBlur = (e) => {
+    // Only reveal on genuine blur — not when focus stays on the same element (re-render artifact)
+    if (e.relatedTarget !== emailRef.current) {
+      setEmailBlurred(true);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -311,7 +340,8 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             placeholder="name@example.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
-            onBlur={() => setEmailBlurred(true)}
+            onKeyDown={handleEmailKeyDown}
+            onBlur={handleEmailBlur}
             required
           />
         </div>
