@@ -51,17 +51,19 @@ function SetupContent() {
     const stepParam = searchParams.get("step");
     const stepFromUrl = stepParam ? parseInt(stepParam, 10) : null;
 
-    if (stepFromUrl !== null && stepFromUrl >= 1 && stepFromUrl <= 4) {
+    if (stepFromUrl !== null && stepFromUrl >= 2 && stepFromUrl <= 4) {
       setInitialStep(stepFromUrl);
       return;
     }
 
-    // Resume from saved onboarding_step in profile, or start at step 1 (name)
+    // Resume from saved onboarding_step in profile, or start at step 2 (account type)
+    // New FTUX order: 0=name (pre-auth), 1=email+pw (creates account), 2=account type, 3=connecting, 4=connected
+    // Authenticated users have already completed steps 0+1, so default to step 2
     const savedStep = profile?.onboarding_step;
-    if (savedStep && savedStep >= 1 && savedStep <= 4) {
+    if (savedStep && savedStep >= 2 && savedStep <= 4) {
       setInitialStep(savedStep);
     } else {
-      setInitialStep(1); // Default to name step for authenticated users
+      setInitialStep(2); // Default to account type step for authenticated users
     }
   }, [user, accountsInitialized, accountsLoading, accounts, profile, initialStep, router, searchParams]);
 
