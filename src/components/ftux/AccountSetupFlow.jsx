@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
 import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus } from "react-icons/fi";
@@ -8,6 +8,8 @@ import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
+import { upsertUserProfile } from "../../lib/user/profile";
+import { supabase } from "../../lib/supabase/client";
 
 const ACCOUNT_TYPES = [
   {
@@ -27,7 +29,8 @@ const ACCOUNT_TYPES = [
   },
 ];
 
-const TOTAL_STEPS = 4;
+// Now 5 steps: 0=Name, 1=Welcome, 2=AccountType, 3=Connecting, 4=Connected
+const TOTAL_STEPS = 5;
 
 const slideVariants = {
   enter: (direction) => ({
@@ -78,6 +81,100 @@ function BackButton({ onClick }) {
     >
       <FiChevronLeft className="h-4 w-4" />
     </motion.button>
+  );
+}
+
+const inputClassName =
+  "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+
+/* ── Step 0: Name Collection ─────────────────────────────────── */
+function NameStep({ onNext }) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmedFirst = firstName.trim();
+    if (!trimmedFirst) return;
+
+    setSaving(true);
+    try {
+      const normalizedFirst = capitalizeFirstOnly(trimmedFirst);
+      const normalizedLast = capitalizeFirstOnly(lastName.trim());
+
+      // Save to auth metadata and user_profiles
+      await supabase.auth.updateUser({
+        data: {
+          first_name: normalizedFirst,
+          last_name: normalizedLast || null,
+        },
+      });
+
+      await upsertUserProfile({
+        first_name: normalizedFirst,
+        last_name: normalizedLast || null,
+      });
+
+      onNext(normalizedFirst);
+    } catch (err) {
+      console.error("[NameStep] save error", err);
+      // Still proceed — name can be set later
+      onNext(capitalizeFirstOnly(firstName.trim()));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center text-center w-full max-w-sm">
+      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+        What should we call you?
+      </h1>
+      <p className="mt-3 text-base text-zinc-500">We&apos;ll use this to personalize your experience.</p>
+
+      <form onSubmit={handleSubmit} className="mt-8 w-full space-y-3 text-left">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-zinc-800">First name</label>
+          <input
+            ref={inputRef}
+            className={inputClassName}
+            type="text"
+            placeholder="Jane"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-zinc-800">
+            Last name <span className="font-normal text-zinc-400">(optional)</span>
+          </label>
+          <input
+            className={inputClassName}
+            type="text"
+            placeholder="Doe"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+        </div>
+        <div className="pt-2">
+          <Button type="submit" fullWidth disabled={!firstName.trim() || saving} className="h-11">
+            {saving ? "Saving…" : (
+              <>
+                Continue
+                <FiChevronRight className="ml-1.5 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -195,7 +292,6 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
       setError(msg);
       onError(msg);
     } else {
-      // User closed Plaid without error — allow going back
       setPlaidExited(true);
     }
   };
@@ -206,7 +302,6 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
     onExit: handlePlaidExit,
   });
 
-  // Fetch link token and connect
   useEffect(() => {
     let cancelled = false;
 
@@ -225,7 +320,6 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
         if (cancelled) return;
 
         if (isMockPlaid) {
-          // In mock mode, skip Plaid Link entirely — exchange the mock token directly
           await exchangeToken(`mock-public-${accountType.id}`);
         } else {
           setLinkToken(data.link_token);
@@ -244,7 +338,6 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountType.id]);
 
-  // Open Plaid when ready (non-mock only)
   useEffect(() => {
     if (!isMockPlaid && linkToken && ready && !error && !plaidExited) {
       open();
@@ -334,7 +427,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
     <div className="flex flex-col items-center text-center">
       {/* Institution logo → dots → green checkmark */}
       <div className="mb-6 flex items-center gap-2">
-        {/* Institution logo or initial */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -356,7 +448,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
           </div>
         </motion.div>
 
-        {/* Connecting dots */}
         {[0, 1, 2].map((i) => (
           <motion.div
             key={i}
@@ -367,7 +458,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
           />
         ))}
 
-        {/* Green checkmark */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -387,7 +477,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
         {institution?.name ? `${institution.name} connected` : "Account connected"}
       </motion.h2>
 
-      {/* Connected accounts list */}
       {accounts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -404,7 +493,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
                 transition={{ delay: 0.75 + i * 0.05 }}
                 className="flex items-center gap-3 px-4 py-3"
               >
-                {/* Institution logo with broken-image fallback */}
                 <div className="relative h-8 w-8 flex-shrink-0">
                   {institution?.logo && (
                     <img
@@ -475,29 +563,45 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
   const [direction, setDirection] = useState(1);
   const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
-
-  const firstName = useMemo(() => {
-    if (!userName) return "there";
+  // Resolved first name — either from props (returning user) or entered in step 0
+  const [resolvedFirstName, setResolvedFirstName] = useState(() => {
+    if (!userName) return null;
     return capitalizeFirstOnly(String(userName).split(" ")[0]);
-  }, [userName]);
+  });
+
+  // If we already have a name (returning user who somehow landed here), skip step 0
+  const effectiveStartStep = resolvedFirstName ? 1 : 0;
+  const [initialized, setInitialized] = useState(false);
+  useEffect(() => {
+    if (!initialized) {
+      if (resolvedFirstName) {
+        setStep(1);
+      }
+      setInitialized(true);
+    }
+  }, [resolvedFirstName, initialized]);
+
+  const firstName = resolvedFirstName || "there";
 
   const goTo = (nextStep) => {
     setDirection(nextStep > step ? 1 : -1);
     setStep(nextStep);
   };
 
+  const handleNameNext = (name) => {
+    setResolvedFirstName(name);
+    goTo(1);
+  };
+
   const handleAccountTypeSelect = (type) => {
     setSelectedAccountType(type);
-    // Signal to the parent (SetupPage) that the FTUX flow is now active.
-    // This prevents the redirect guard from firing when AccountsProvider
-    // refreshes after a successful account connection.
     onFlowStart?.();
-    goTo(2);
+    goTo(3);
   };
 
   const handlePlaidSuccess = (data) => {
     setPlaidData(data);
-    goTo(3);
+    goTo(4);
   };
 
   const handlePlaidError = () => {
@@ -506,7 +610,7 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
 
   const handleAddMore = () => {
     setSelectedAccountType(null);
-    goTo(1);
+    goTo(2);
   };
 
   const handleComplete = () => {
@@ -517,31 +621,38 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
     switch (step) {
       case 0:
         return (
-          <WelcomeStep
-            key="welcome"
-            firstName={firstName}
-            onNext={() => goTo(1)}
+          <NameStep
+            key="name"
+            onNext={handleNameNext}
           />
         );
       case 1:
         return (
-          <AccountTypeStep
-            key="account-type"
-            onSelect={handleAccountTypeSelect}
-            onBack={() => goTo(0)}
+          <WelcomeStep
+            key="welcome"
+            firstName={firstName}
+            onNext={() => goTo(2)}
           />
         );
       case 2:
+        return (
+          <AccountTypeStep
+            key="account-type"
+            onSelect={handleAccountTypeSelect}
+            onBack={() => goTo(1)}
+          />
+        );
+      case 3:
         return (
           <ConnectingStep
             key={`connecting-${selectedAccountType?.id}`}
             accountType={selectedAccountType}
             onSuccess={handlePlaidSuccess}
             onError={handlePlaidError}
-            onBack={() => goTo(1)}
+            onBack={() => goTo(2)}
           />
         );
-      case 3:
+      case 4:
         return (
           <ConnectedStep
             key="connected"
