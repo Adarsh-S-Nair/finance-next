@@ -3,7 +3,8 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
-import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus } from "react-icons/fi";
+import Link from "next/link";
+import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus, FiEye, FiEyeOff } from "react-icons/fi";
 import Button from "../ui/Button";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
@@ -29,7 +30,7 @@ const ACCOUNT_TYPES = [
   },
 ];
 
-// Now 5 steps: 0=Name, 1=Welcome, 2=AccountType, 3=Connecting, 4=Connected
+// Steps: 0=Email+Password, 1=Name, 2=AccountType, 3=Connecting, 4=Connected
 const TOTAL_STEPS = 5;
 
 const slideVariants = {
@@ -87,8 +88,151 @@ function BackButton({ onClick }) {
 const inputClassName =
   "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
-/* ── Step 0: Name Collection ─────────────────────────────────── */
-function NameStep({ onNext }) {
+/* ── Step 0: Email + Password (account creation) ─────────────── */
+function EmailPasswordStep({ onNext }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const emailRef = useRef(null);
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+
+      if (signUpError) {
+        // Supabase returns a generic error for duplicate emails in some configs
+        // but may also return user with identities=[] if email confirmation is off
+        const msg = signUpError.message || "";
+        if (
+          msg.toLowerCase().includes("already registered") ||
+          msg.toLowerCase().includes("user already exists") ||
+          msg.toLowerCase().includes("email address has already been registered")
+        ) {
+          setError("duplicate");
+        } else {
+          setError(msg || "Something went wrong. Please try again.");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Supabase may return a user with empty identities if email already exists
+      // (happens when email confirmation is disabled)
+      if (data?.user && (!data.user.identities || data.user.identities.length === 0)) {
+        setError("duplicate");
+        setLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        // Create initial profile with onboarding_step=1 (just completed step 0)
+        try {
+          const { buildAvatarUrl } = await import("../../lib/user/profile");
+          const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
+          await upsertUserProfile({ avatar_url: avatarUrl, onboarding_step: 1 });
+        } catch {}
+        onNext(email);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } catch (err) {
+      setError(err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center text-center w-full max-w-sm">
+      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+        Create your account
+      </h1>
+      <p className="mt-3 text-base text-zinc-500">Get started with a free Zentari account.</p>
+
+      <form onSubmit={handleSubmit} className="mt-8 w-full space-y-3 text-left" noValidate>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-zinc-800">Email</label>
+          <input
+            ref={emailRef}
+            className={inputClassName}
+            type="email"
+            placeholder="name@example.com"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(null); }}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-zinc-800">Password</label>
+          <div className="relative">
+            <input
+              className={inputClassName}
+              type={showPassword ? "text" : "password"}
+              placeholder="At least 8 characters"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-md bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
+            {error === "duplicate" ? (
+              <>
+                This email is already registered.{" "}
+                <Link href="/auth" className="font-medium underline underline-offset-4 hover:text-red-900">
+                  Sign in instead →
+                </Link>
+              </>
+            ) : (
+              error
+            )}
+          </div>
+        )}
+
+        <div className="pt-2">
+          <Button type="submit" fullWidth disabled={!email.trim() || !password.trim() || loading} className="h-11">
+            {loading ? "Creating account…" : (
+              <>
+                Continue
+                <FiChevronRight className="ml-1.5 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+
+      <p className="mt-5 text-sm text-zinc-500">
+        Already have an account?{" "}
+        <Link href="/auth" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
+          Sign in →
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+/* ── Step 1: Name Collection ─────────────────────────────────── */
+function NameStep({ onNext, onBack }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -119,6 +263,7 @@ function NameStep({ onNext }) {
       await upsertUserProfile({
         first_name: normalizedFirst,
         last_name: normalizedLast || null,
+        onboarding_step: 2,
       });
 
       onNext(normalizedFirst);
@@ -133,6 +278,11 @@ function NameStep({ onNext }) {
 
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
+      {onBack && (
+        <div className="mb-5 self-start">
+          <BackButton onClick={onBack} />
+        </div>
+      )}
       <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
         What should we call you?
       </h1>
@@ -178,25 +328,17 @@ function NameStep({ onNext }) {
   );
 }
 
-/* ── Step 1: Welcome ─────────────────────────────────────────── */
-function WelcomeStep({ firstName, onNext }) {
-  return (
-    <div className="flex flex-col items-center text-center">
-      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
-        Hey {firstName},<br />let&apos;s get started.
-      </h1>
-      <p className="mt-4 text-base text-zinc-500">Connect your first account to get going.</p>
-      <Button onClick={onNext} className="mt-10 h-11 px-8 cursor-pointer">
-        Get started
-        <FiChevronRight className="ml-1.5 h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
-
 /* ── Step 2: Account Type ────────────────────────────────────── */
 function AccountTypeStep({ onSelect, onBack }) {
   const [selected, setSelected] = useState(null);
+
+  const handleSelect = async (type) => {
+    // Save progress before Plaid opens
+    try {
+      await upsertUserProfile({ onboarding_step: 3 });
+    } catch {}
+    onSelect(type);
+  };
 
   return (
     <div className="w-full max-w-sm">
@@ -237,7 +379,7 @@ function AccountTypeStep({ onSelect, onBack }) {
       </div>
       <div className="mt-6">
         <Button
-          onClick={() => onSelect(selected)}
+          onClick={() => selected && handleSelect(selected)}
           disabled={!selected}
           className="w-full h-11"
         >
@@ -558,28 +700,24 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
 }
 
 /* ── Main component ─────────────────────────────────────────── */
-export default function AccountSetupFlow({ userName, onComplete = null, onFlowStart = null }) {
-  const [step, setStep] = useState(0);
+/**
+ * AccountSetupFlow
+ *
+ * Props:
+ *   initialStep   - which step to start on (0=email/pw, 1=name, 2=account type, 3=connecting, 4=connected)
+ *   userName      - pre-resolved first name (skips to the appropriate step if already named)
+ *   onComplete    - called when the user finishes the flow
+ *   onFlowStart   - called when Plaid link is about to open
+ */
+export default function AccountSetupFlow({ initialStep = 0, userName, onComplete = null, onFlowStart = null }) {
+  const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
   const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
-  // Resolved first name — either from props (returning user) or entered in step 0
   const [resolvedFirstName, setResolvedFirstName] = useState(() => {
     if (!userName) return null;
     return capitalizeFirstOnly(String(userName).split(" ")[0]);
   });
-
-  // If we already have a name (returning user who somehow landed here), skip step 0
-  const effectiveStartStep = resolvedFirstName ? 1 : 0;
-  const [initialized, setInitialized] = useState(false);
-  useEffect(() => {
-    if (!initialized) {
-      if (resolvedFirstName) {
-        setStep(1);
-      }
-      setInitialized(true);
-    }
-  }, [resolvedFirstName, initialized]);
 
   const firstName = resolvedFirstName || "there";
 
@@ -588,9 +726,14 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
     setStep(nextStep);
   };
 
+  const handleEmailPasswordNext = (email) => {
+    // Account created, move to Name step
+    goTo(1);
+  };
+
   const handleNameNext = (name) => {
     setResolvedFirstName(name);
-    goTo(1);
+    goTo(2);
   };
 
   const handleAccountTypeSelect = (type) => {
@@ -621,17 +764,17 @@ export default function AccountSetupFlow({ userName, onComplete = null, onFlowSt
     switch (step) {
       case 0:
         return (
-          <NameStep
-            key="name"
-            onNext={handleNameNext}
+          <EmailPasswordStep
+            key="email-password"
+            onNext={handleEmailPasswordNext}
           />
         );
       case 1:
         return (
-          <WelcomeStep
-            key="welcome"
-            firstName={firstName}
-            onNext={() => goTo(2)}
+          <NameStep
+            key="name"
+            onNext={handleNameNext}
+            onBack={step > initialStep ? () => goTo(0) : null}
           />
         );
       case 2:

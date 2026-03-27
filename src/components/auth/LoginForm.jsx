@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
@@ -17,7 +16,6 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { setToast } = useToast();
-  const router = useRouter();
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -26,9 +24,9 @@ export default function LoginForm() {
     if (error) {
       setToast({ title: "Sign in failed", description: error.message, variant: "error" });
       setIsLoading(false);
-    } else {
-      router.push("/dashboard");
     }
+    // On success, UserProvider's onAuthStateChange SIGNED_IN handler takes over:
+    // it checks for accounts and routes to /dashboard or /setup accordingly.
   };
 
   return (

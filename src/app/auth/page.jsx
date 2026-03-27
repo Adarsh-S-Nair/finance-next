@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Tabs from "../../components/ui/Tabs";
 import LoginForm from "../../components/auth/LoginForm";
-import SignupForm from "../../components/auth/SignupForm";
 import PublicRoute from "../../components/PublicRoute";
 import RouteTransition from "../../components/RouteTransition";
 import { LandingNav } from "../page";
@@ -32,21 +30,21 @@ export default function AuthPage() {
                   </p>
                 </div>
 
-                {/* Right form panel — open layout, no card */}
+                {/* Right form panel */}
                 <div className="w-full max-w-md lg:ml-auto">
                   <div className="mb-6">
-                    <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
-                    <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>
+                    <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome back</h2>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">Sign in to your account to continue.</p>
                   </div>
 
-                  <Tabs
-                    tabs={[
-                      { key: "login", label: "Sign in", content: <LoginForm /> },
-                      { key: "signup", label: "Create account", content: <SignupForm /> },
-                    ]}
-                    initialKey="login"
-                    variant="zinc"
-                  />
+                  <LoginForm />
+
+                  <p className="mt-5 text-sm text-zinc-500">
+                    Don&apos;t have an account?{" "}
+                    <Link href="/setup" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
+                      Get started →
+                    </Link>
+                  </p>
 
                   <p className="mt-6 text-xs leading-5 text-zinc-400">
                     By continuing, you agree to our{" "}
