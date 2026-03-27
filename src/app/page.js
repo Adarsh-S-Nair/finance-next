@@ -8,7 +8,7 @@ import PublicRoute from "../components/PublicRoute";
 
 export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md">
+    <header className="fixed top-0 left-0 right-0 z-50">
       <div className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-3">
           <span
@@ -153,12 +153,10 @@ export default function Home() {
       `}</style>
 
       <main className="min-h-screen bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white">
+        <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+
         {/* Hero */}
         <section className="relative flex h-screen flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.04),transparent_50%)]">
-          <div className="relative z-10">
-            <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-          </div>
-
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
             <h1
               className="lp-heading-gradient lp-fade-1 text-3xl font-medium leading-[1.1] max-w-3xl sm:text-4xl md:text-5xl lg:text-6xl"
