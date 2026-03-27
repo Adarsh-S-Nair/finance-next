@@ -15,8 +15,9 @@ export default function ForgotPasswordForm() {
   const { setToast } = useToast();
 
   const redirectTo = useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    return `${window.location.origin}/auth/reset-password`;
+    const base = process.env.NEXT_PUBLIC_APP_URL
+      || (typeof window !== "undefined" ? window.location.origin : "");
+    return `${base}/auth/callback?next=/auth/reset-password`;
   }, []);
 
   const onSubmit = async (e) => {

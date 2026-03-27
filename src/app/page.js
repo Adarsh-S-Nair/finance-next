@@ -131,6 +131,13 @@ export default function Home() {
     root.style.removeProperty("--color-accent");
     root.style.removeProperty("--color-accent-hover");
     root.style.removeProperty("--color-on-accent");
+
+    // Handle Supabase auth codes that land on the root URL
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (code) {
+      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/auth/reset-password`);
+    }
   }, []);
 
   return (
