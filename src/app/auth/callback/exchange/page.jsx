@@ -1,29 +1,35 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../../lib/supabase/client";
 
 function ExchangeHandler() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const attempted = useRef(false);
 
   useEffect(() => {
+    if (attempted.current) return;
+    attempted.current = true;
+
     const code = searchParams.get("code");
     const next = searchParams.get("next") || "/auth/reset-password";
 
     if (!code) {
-      router.replace("/auth");
+      window.location.replace("/auth");
       return;
     }
 
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        console.error("[auth/callback] Code exchange failed:", error.message);
+    (async () => {
+      try {
+        await supabase.auth.exchangeCodeForSession(code);
+      } catch (err) {
+        console.error("[auth/callback] Code exchange error:", err);
       }
-      router.replace(next);
-    });
-  }, [searchParams, router]);
+      // Always redirect — reset-password page handles invalid/expired sessions
+      window.location.replace(next);
+    })();
+  }, [searchParams]);
 
   return null;
 }
