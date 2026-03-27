@@ -9,7 +9,7 @@ import { upsertUserProfile, buildAvatarUrl } from "../../lib/user/profile";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const inputClassName =
-  "flex h-11 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:border-zinc-300 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-200/60 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function SignupForm() {
   const [email, setEmail] = useState("");

@@ -35,7 +35,7 @@ const TOTAL_STEPS = 5;
 
 const slideVariants = {
   enter: (direction) => ({
-    x: direction > 0 ? "60%" : "-60%",
+    x: direction > 0 ? "40%" : "-40%",
     opacity: 0,
   }),
   center: {
@@ -43,14 +43,14 @@ const slideVariants = {
     opacity: 1,
   },
   exit: (direction) => ({
-    x: direction < 0 ? "60%" : "-60%",
+    x: direction < 0 ? "20%" : "-20%",
     opacity: 0,
   }),
 };
 
 const slideTransition = {
   x: { type: "spring", stiffness: 300, damping: 30 },
-  opacity: { duration: 0.2 },
+  opacity: { duration: 0.1, ease: "easeIn" },
 };
 
 function PaginationDots({ current, total }) {
@@ -86,7 +86,7 @@ function BackButton({ onClick }) {
 }
 
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-200/80 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-200/60 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -169,13 +169,13 @@ function EmailPasswordStep({ onNext }) {
 
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
         Create your account
       </h1>
-      <p className="mt-3 text-base text-zinc-500">Get started with a free Zentari account.</p>
+      <p className="mt-2 text-sm text-zinc-500">Get started with a free Zentari account.</p>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left" noValidate>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-800">What&apos;s your email?</label>
           <input
             ref={emailRef}
@@ -195,7 +195,7 @@ function EmailPasswordStep({ onNext }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="mt-3 space-y-1.5"
+              className="mt-5 space-y-2"
             >
               <label className="text-sm font-medium text-zinc-800">Choose a password</label>
               <div className="relative">
@@ -243,7 +243,7 @@ function EmailPasswordStep({ onNext }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="mt-4"
+              className="mt-6"
             >
               <Button type="submit" fullWidth disabled={!canSubmit} className="h-11">
                 {loading ? "Creating account…" : (
@@ -258,7 +258,7 @@ function EmailPasswordStep({ onNext }) {
         </AnimatePresence>
       </form>
 
-      <p className="mt-5 text-sm text-zinc-500">
+      <p className="mt-7 text-sm text-zinc-500">
         Already have an account?{" "}
         <Link href="/auth" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
           Sign in
@@ -332,13 +332,13 @@ function NameStep({ onNext, onBack }) {
           <BackButton onClick={onBack} />
         </div>
       )}
-      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
         What&apos;s your first name?
       </h1>
-      <p className="mt-3 text-base text-zinc-500">We&apos;ll use this to personalize your experience.</p>
+      <p className="mt-2 text-sm text-zinc-500">We&apos;ll use this to personalize your experience.</p>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-800">First name</label>
           <input
             ref={inputRef}
@@ -358,7 +358,7 @@ function NameStep({ onNext, onBack }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="mt-3 space-y-1.5"
+              className="mt-5 space-y-2"
             >
               <label className="text-sm font-medium text-zinc-800">
                 Last name <span className="font-normal text-zinc-400">(optional)</span>
@@ -382,7 +382,7 @@ function NameStep({ onNext, onBack }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="mt-4"
+              className="mt-6"
             >
               <Button type="submit" fullWidth disabled={!canSubmit} className="h-11">
                 {saving ? "Saving…" : (
@@ -884,7 +884,7 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   return (
     <div className="flex w-full max-w-lg flex-col items-center px-5 sm:px-6">
       {/* Step content with slide animation */}
-      <div className="relative w-full overflow-hidden">
+      <div className="relative w-full overflow-hidden px-4">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={step}

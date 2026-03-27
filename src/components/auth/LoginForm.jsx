@@ -8,7 +8,7 @@ import { useToast } from "../../components/providers/ToastProvider";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-200/80 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-all outline-none focus:bg-zinc-200/60 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -30,7 +30,7 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
+    <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <div className="space-y-2">
         <label className="text-sm font-medium text-zinc-800">Email</label>
         <input
