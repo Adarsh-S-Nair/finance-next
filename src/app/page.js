@@ -33,7 +33,7 @@ function LandingNav({ menuOpen, setMenuOpen }) {
             ZENTARI
           </span>
           {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
-            <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-400 border border-zinc-200 leading-none">
+            <span className="text-[9px] font-bold tracking-wide uppercase text-zinc-300 leading-none">
               TEST
             </span>
           )}
@@ -68,7 +68,7 @@ function LandingNav({ menuOpen, setMenuOpen }) {
         <div className="hidden md:flex">
           <Link
             href="/auth"
-            className="border border-zinc-300 text-zinc-500 hover:bg-zinc-900 hover:text-white uppercase tracking-[0.08em] text-sm rounded-md px-5 py-2.5 transition-all cursor-pointer"
+            className="border border-zinc-300 text-zinc-500 hover:bg-zinc-900 hover:text-white text-sm rounded-md px-5 py-2.5 transition-all cursor-pointer"
             style={{ fontFamily: "var(--font-outfit)" }}
           >
             Sign In
@@ -189,6 +189,32 @@ export default function Home() {
           -webkit-text-fill-color: transparent;
           background-clip: text;
         }
+
+        @keyframes floatUp {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-12px); }
+        }
+        @keyframes floatDown {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(8px); }
+        }
+        @keyframes drawLine {
+          from { stroke-dashoffset: 300; }
+          to { stroke-dashoffset: 0; }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.8; }
+        }
+        .lp-float-up { animation: floatUp 6s ease-in-out infinite; }
+        .lp-float-down { animation: floatDown 5s ease-in-out infinite; }
+        .lp-draw-line { stroke-dasharray: 300; animation: drawLine 2.5s ease-out forwards; }
+        .lp-fade-in { animation: fadeInUp 1s ease-out forwards; }
+        .lp-pulse { animation: pulseGlow 3s ease-in-out infinite; }
       `}</style>
 
       <main className="min-h-screen text-zinc-900 selection:bg-zinc-900 selection:text-white">
@@ -203,53 +229,116 @@ export default function Home() {
           </div>
 
           {/* Hero content */}
-          <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center rounded-full border border-zinc-200 bg-white/80 backdrop-blur-sm px-4 py-1.5 text-xs font-medium tracking-[0.1em] uppercase text-zinc-500">
-              Personal finance, reimagined
-            </div>
+          <div className="relative z-10 flex flex-1 items-center justify-center px-6">
+            <div className="mx-auto flex max-w-7xl w-full items-center gap-16 lg:gap-20">
+              {/* Left: text */}
+              <div className="flex-1 min-w-0 text-center lg:text-left">
+                <h1
+                  className="lp-heading-gradient text-4xl font-medium leading-[1.1] sm:text-5xl md:text-6xl lg:text-7xl"
+                  style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-outfit)" }}
+                >
+                  A clearer view of{" "}
+                  <br className="hidden md:block" />
+                  your money
+                </h1>
 
-            {/* H1 */}
-            <h1
-              className="lp-heading-gradient mt-6 text-5xl font-medium leading-[1.1] max-w-4xl md:text-6xl lg:text-7xl"
-              style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-outfit)" }}
-            >
-              A clearer view of your{" "}
-              <br className="hidden md:block" />
-              money
-            </h1>
+                <p className="mt-8 max-w-lg text-lg leading-relaxed text-zinc-500 md:text-xl mx-auto lg:mx-0">
+                  Track spending, understand cash flow, and plan ahead — all in one calm, focused workspace.
+                </p>
 
-            {/* Subheading */}
-            <p className="mt-8 max-w-xl text-lg leading-relaxed text-zinc-500 md:text-xl">
-              Track spending, understand cash flow, and plan ahead — all in one calm, focused workspace.
-            </p>
+                <div className="mt-10 flex flex-col items-center lg:items-start gap-4 sm:flex-row sm:justify-center lg:justify-start">
+                  <Link
+                    href="/auth"
+                    className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-8 py-3.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 cursor-pointer"
+                    style={{ fontFamily: "var(--font-outfit)" }}
+                  >
+                    Get Started
+                    <FiArrowRight className="ml-2" size={15} />
+                  </Link>
+                  <a
+                    href="#features"
+                    className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-8 py-3.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 cursor-pointer"
+                    style={{ fontFamily: "var(--font-outfit)" }}
+                  >
+                    See Features
+                  </a>
+                </div>
 
-            {/* CTA buttons */}
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link
-                href="/auth"
-                className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-8 py-3.5 text-sm font-medium uppercase tracking-[0.05em] text-white transition-colors hover:bg-zinc-800 cursor-pointer"
-                style={{ fontFamily: "var(--font-outfit)" }}
-              >
-                Get Started
-                <FiArrowRight className="ml-2" size={15} />
-              </Link>
-              <a
-                href="#features"
-                className="inline-flex items-center justify-center rounded-md border border-zinc-300 px-8 py-3.5 text-sm font-medium uppercase tracking-[0.05em] text-zinc-600 transition-colors hover:bg-zinc-100 cursor-pointer"
-                style={{ fontFamily: "var(--font-outfit)" }}
-              >
-                See Features
-              </a>
-            </div>
+                <div className="mt-10 flex flex-wrap items-center justify-center lg:justify-start gap-8 text-sm text-zinc-400">
+                  <span>Bank-level encryption</span>
+                  <span className="hidden sm:block text-zinc-300">•</span>
+                  <span>Instant account sync</span>
+                  <span className="hidden sm:block text-zinc-300">•</span>
+                  <span>No ads, ever</span>
+                </div>
+              </div>
 
-            {/* Trust indicators */}
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-8 text-sm text-zinc-400">
-              <span>Bank-level encryption</span>
-              <span className="hidden sm:block text-zinc-300">•</span>
-              <span>Instant account sync</span>
-              <span className="hidden sm:block text-zinc-300">•</span>
-              <span>No ads, ever</span>
+              {/* Right: animated chart visualization */}
+              <div className="hidden lg:flex items-center justify-center w-[420px] flex-shrink-0">
+                <div className="relative w-full h-[380px] lp-fade-in" style={{ animationDelay: "0.3s", opacity: 0 }}>
+                  {/* Floating card 1 — mini chart */}
+                  <div className="lp-float-up absolute top-4 left-4 w-52 rounded-xl bg-white/80 backdrop-blur-sm border border-zinc-200/60 shadow-sm p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-400 mb-1" style={{ fontFamily: "var(--font-outfit)" }}>Monthly Spending</div>
+                    <div className="text-2xl font-medium text-zinc-800" style={{ fontFamily: "var(--font-outfit)" }}>$2,847</div>
+                    <svg className="mt-3 w-full h-12" viewBox="0 0 180 48">
+                      <path className="lp-draw-line" d="M0,40 C20,38 35,32 50,28 C65,24 75,10 95,14 C115,18 130,8 150,12 C165,15 175,6 180,8" fill="none" stroke="hsl(210 70% 45%)" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M0,40 C20,38 35,32 50,28 C65,24 75,10 95,14 C115,18 130,8 150,12 C165,15 175,6 180,8 L180,48 L0,48 Z" fill="url(#chartGrad)" opacity="0.15" />
+                      <defs>
+                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(210 70% 45%)" />
+                          <stop offset="100%" stopColor="hsl(210 70% 45%)" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  </div>
+
+                  {/* Floating card 2 — budget ring */}
+                  <div className="lp-float-down absolute bottom-8 left-0 w-44 rounded-xl bg-white/80 backdrop-blur-sm border border-zinc-200/60 shadow-sm p-4" style={{ animationDelay: "1s" }}>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-400 mb-2" style={{ fontFamily: "var(--font-outfit)" }}>Budget</div>
+                    <div className="flex items-center gap-3">
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="hsl(220 10% 90%)" strokeWidth="3" />
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="hsl(210 70% 45%)" strokeWidth="3" strokeDasharray="72 100" strokeLinecap="round" transform="rotate(-90 20 20)" className="lp-draw-line" style={{ strokeDasharray: "72 100", strokeDashoffset: 0 }} />
+                      </svg>
+                      <div>
+                        <div className="text-lg font-medium text-zinc-800" style={{ fontFamily: "var(--font-outfit)" }}>72%</div>
+                        <div className="text-[10px] text-zinc-400">of $4,000</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Floating card 3 — recent transaction */}
+                  <div className="lp-float-up absolute top-6 right-0 w-48 rounded-xl bg-white/80 backdrop-blur-sm border border-zinc-200/60 shadow-sm p-4" style={{ animationDelay: "2s" }}>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-400 mb-2" style={{ fontFamily: "var(--font-outfit)" }}>Latest</div>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
+                        <FiTarget size={14} className="text-zinc-500" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-zinc-700">Whole Foods</div>
+                        <div className="text-[10px] text-zinc-400">Today</div>
+                      </div>
+                      <div className="ml-auto text-sm font-medium text-zinc-700">-$64</div>
+                    </div>
+                  </div>
+
+                  {/* Floating card 4 — cashflow indicator */}
+                  <div className="lp-float-down absolute bottom-2 right-4 w-40 rounded-xl bg-white/80 backdrop-blur-sm border border-zinc-200/60 shadow-sm p-3" style={{ animationDelay: "0.5s" }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 lp-pulse" />
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-400" style={{ fontFamily: "var(--font-outfit)" }}>Cashflow</span>
+                    </div>
+                    <div className="text-lg font-medium text-emerald-600 mt-1" style={{ fontFamily: "var(--font-outfit)" }}>+$1,253</div>
+                    <div className="text-[10px] text-zinc-400">This month</div>
+                  </div>
+
+                  {/* Background decorative dots */}
+                  <div className="absolute inset-0 -z-10">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-zinc-200/40 border-dashed" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border border-zinc-200/20 border-dashed" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
