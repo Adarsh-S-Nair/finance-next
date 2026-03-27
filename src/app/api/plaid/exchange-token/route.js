@@ -80,13 +80,24 @@ export async function POST(request) {
     if (actualInstitutionId) {
       try {
         institution = await getInstitution(actualInstitutionId);
+        // Resolve logo: prefer Plaid's logo, fall back to logo.dev from institution URL
+        let resolvedLogo = institution.logo || null;
+        if (!resolvedLogo && institution.url) {
+          try {
+            const domain = new URL(institution.url).hostname.replace(/^www\./, '');
+            const logoDevKey = process.env.LOGO_DEV_PUBLIC_KEY;
+            if (domain && logoDevKey) {
+              resolvedLogo = `https://img.logo.dev/${domain}?token=${logoDevKey}`;
+            }
+          } catch (_) { /* invalid URL, skip */ }
+        }
         // Upsert institution in database
         const { data: instData, error: institutionError } = await supabaseAdmin
           .from('institutions')
           .upsert({
             institution_id: institution.institution_id,
             name: institution.name,
-            logo: institution.logo,
+            logo: resolvedLogo,
             primary_color: institution.primary_color,
             url: institution.url,
           }, {
