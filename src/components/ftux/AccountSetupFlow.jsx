@@ -293,20 +293,28 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
           </div>
         </div>
 
-        {error && (
-          <div className="mt-3 rounded-md bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
-            {error === "duplicate" ? (
-              <>
-                This email is already registered.{" "}
-                <Link href="/auth" className="font-medium underline underline-offset-4 hover:text-red-900">
-                  Sign in instead
-                </Link>
-              </>
-            ) : (
-              error
-            )}
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="mt-4 rounded-lg bg-zinc-100/80 px-4 py-3 text-[13px] text-zinc-600"
+            >
+              {error === "duplicate" ? (
+                <>
+                  This email is already registered.{" "}
+                  <Link href="/auth" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
+                    Sign in instead
+                  </Link>
+                </>
+              ) : (
+                error
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {canSubmit && (
