@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../../../lib/supabase/client";
 
-export default function ExchangeCodePage() {
+function ExchangeHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -21,14 +21,20 @@ export default function ExchangeCodePage() {
       if (error) {
         console.error("[auth/callback] Code exchange failed:", error.message);
       }
-      // Redirect regardless — the reset-password page handles expired/invalid sessions
       router.replace(next);
     });
   }, [searchParams, router]);
 
+  return null;
+}
+
+export default function ExchangeCodePage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-900" />
+      <Suspense>
+        <ExchangeHandler />
+      </Suspense>
     </div>
   );
 }

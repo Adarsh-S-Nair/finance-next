@@ -44,7 +44,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
               <a
                 key={item}
                 href={`#${item.toLowerCase()}`}
-                className="text-sm tracking-wide text-zinc-400 transition-colors hover:text-zinc-900"
+                className="text-sm font-medium tracking-wide text-zinc-400 transition-colors hover:text-zinc-900"
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
                 {item}
@@ -57,7 +57,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
           <div className="hidden md:flex">
             <Link
               href="/auth"
-              className="border border-zinc-200 text-zinc-500 hover:bg-zinc-900 hover:text-white hover:border-zinc-900 text-sm rounded-md px-5 py-2.5 transition-all cursor-pointer"
+              className="bg-zinc-900 text-white text-sm font-medium rounded-md px-5 py-2.5 transition-all hover:bg-zinc-800 cursor-pointer"
               style={{ fontFamily: "var(--font-outfit)" }}
             >
               Sign In
