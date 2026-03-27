@@ -2,7 +2,8 @@
 
 import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX, FiCheck, FiAlertCircle, FiInfo } from "react-icons/fi";
+import { FaCircleXmark, FaCircleCheck } from "react-icons/fa6";
+import { RiErrorWarningFill } from "react-icons/ri";
 
 type ToastVariant = "success" | "error" | "warning" | "info";
 
@@ -30,29 +31,6 @@ export function useToast(): ToastContextValue {
   return ctx;
 }
 
-const VARIANT_CONFIG = {
-  success: {
-    icon: FiCheck,
-    iconBg: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-  },
-  error: {
-    icon: FiAlertCircle,
-    iconBg: "bg-red-50",
-    iconColor: "text-red-500",
-  },
-  warning: {
-    icon: FiAlertCircle,
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-500",
-  },
-  info: {
-    icon: FiInfo,
-    iconBg: "bg-zinc-100",
-    iconColor: "text-zinc-500",
-  },
-};
-
 export default function ToastProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timeoutMap = useRef<Map<string, number>>(new Map());
@@ -79,7 +57,7 @@ export default function ToastProvider({ children }: PropsWithChildren) {
         durationMs,
       };
       setToasts((prev) => [...prev, toast]);
-      const handle = window.setTimeout(() => removeToast(id), durationMs + 300);
+      const handle = window.setTimeout(() => removeToast(id), durationMs + 150);
       timeoutMap.current.set(id, handle);
     },
     [removeToast]
@@ -90,43 +68,63 @@ export default function ToastProvider({ children }: PropsWithChildren) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-5 right-5 z-[100] flex max-h-[100dvh] w-full max-w-[360px] flex-col-reverse gap-2.5">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex max-h-[100dvh] w-full max-w-sm flex-col gap-2">
         <AnimatePresence initial={false}>
           {toasts.map((t) => {
-            const config = VARIANT_CONFIG[t.variant];
-            const Icon = config.icon;
+            const bgColor =
+              t.variant === "success"
+                ? "var(--color-success)"
+                : t.variant === "error"
+                ? "var(--color-danger)"
+                : t.variant === "warning"
+                ? "var(--color-warn)"
+                : "var(--color-ring)";
+
 
             return (
               <motion.div
                 key={t.id}
-                layout
-                initial={{ opacity: 0, y: 16, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-                transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                className="pointer-events-auto relative flex items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3.5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.08)]"
+                initial={{ x: 24, y: 0, opacity: 0 }}
+                animate={{ x: 0, y: 0, opacity: 1 }}
+                exit={{ x: 24, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 520, damping: 40, mass: 0.6 }}
+                className="pointer-events-auto relative overflow-hidden rounded-lg shadow-lg"
+                style={{ backgroundColor: "rgba(24, 24, 27, 0.95)", borderLeft: `3px solid ${bgColor}` }}
                 role="status"
                 aria-live="polite"
               >
-                <div className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full ${config.iconBg}`}>
-                  <Icon className={`h-3.5 w-3.5 ${config.iconColor}`} strokeWidth={2.5} />
+                <div className="relative flex items-start gap-3 p-3 pr-8" style={{ color: "#fafafa" }}>
+                  <div className="mt-0.5" style={{ color: bgColor }}>
+                    {t.variant === "error" && <FaCircleXmark aria-hidden className="h-5 w-5" />}
+                    {t.variant === "warning" && <RiErrorWarningFill aria-hidden className="h-5 w-5" />}
+                    {t.variant === "success" && <FaCircleCheck aria-hidden className="h-5 w-5" />}
+                    {t.variant === "info" && <RiErrorWarningFill aria-hidden className="h-5 w-5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {t.title && <div className="text-sm font-semibold">{t.title}</div>}
+                    {t.description && <div className="mt-0.5 text-sm opacity-75">{t.description}</div>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeToast(t.id)}
+                    className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md hover:opacity-80"
+                    aria-label="Dismiss"
+                    style={{ color: "#fafafa" }}
+                  >
+                    ×
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  {t.title && (
-                    <div className="text-[13px] font-semibold text-zinc-900 leading-tight">{t.title}</div>
-                  )}
-                  {t.description && (
-                    <div className="mt-0.5 text-[13px] text-zinc-500 leading-snug">{t.description}</div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeToast(t.id)}
-                  className="mt-0.5 flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-md text-zinc-300 hover:text-zinc-500 transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <FiX className="h-3.5 w-3.5" />
-                </button>
+                <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ backgroundColor: "rgba(255,255,255,0.1)" }} />
+                <div
+                  className="absolute bottom-0 left-0 h-[3px]"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.25)",
+                    animationName: "toastProgress",
+                    animationTimingFunction: "linear",
+                    animationDuration: `${t.durationMs}ms`,
+                    animationFillMode: "forwards",
+                  }}
+                />
               </motion.div>
             );
           })}
@@ -135,3 +133,5 @@ export default function ToastProvider({ children }: PropsWithChildren) {
     </ToastContext.Provider>
   );
 }
+
+
