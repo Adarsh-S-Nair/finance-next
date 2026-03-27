@@ -57,7 +57,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
           <div className="hidden md:flex">
             <Link
               href="/auth"
-              className="bg-zinc-900 text-white text-sm font-medium rounded-md px-5 py-2.5 transition-all hover:bg-zinc-800 cursor-pointer"
+              className="bg-zinc-900 text-white text-sm font-medium rounded-md px-5 py-2.5 transition-all duration-150 hover:bg-zinc-800 hover:scale-[1.04] hover:shadow-lg active:scale-[0.97] cursor-pointer"
               style={{ fontFamily: "var(--font-outfit)" }}
             >
               Sign In
@@ -93,7 +93,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
               ))}
               <Link
                 href="/auth"
-                className="mt-2 inline-flex h-10 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white"
+                className="mt-2 inline-flex h-10 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white transition-all duration-150 hover:bg-zinc-800 hover:scale-[1.04] active:scale-[0.97]"
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
                 Sign In
@@ -144,7 +144,7 @@ export default function Home() {
     <PublicRoute>
       <style>{`
         .lp-heading-gradient {
-          background: linear-gradient(180deg, hsl(220 60% 12%) 0%, hsl(210 70% 45%) 100%);
+          background: linear-gradient(180deg, hsl(0 0% 9%) 0%, hsl(0 0% 40%) 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -163,7 +163,7 @@ export default function Home() {
         <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
 
         {/* Hero */}
-        <section className="relative flex h-screen flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.04),transparent_50%)]">
+        <section className="relative flex h-screen flex-col overflow-hidden">
           <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
             <h1
               className="lp-heading-gradient lp-fade-1 text-3xl font-medium leading-[1.1] max-w-3xl sm:text-4xl md:text-5xl lg:text-6xl"
@@ -181,14 +181,14 @@ export default function Home() {
             <div className="lp-fade-3 mt-10 flex flex-col items-center gap-4 sm:flex-row">
               <Link
                 href="/setup"
-                className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-8 py-3.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 cursor-pointer"
+                className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-8 py-3.5 text-sm font-medium text-white transition-all duration-150 hover:bg-zinc-800 hover:scale-[1.04] hover:shadow-lg active:scale-[0.97] cursor-pointer"
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
                 Get Started
               </Link>
               <a
                 href="#features"
-                className="inline-flex items-center justify-center rounded-md border border-zinc-200 px-8 py-3.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 cursor-pointer"
+                className="inline-flex items-center justify-center rounded-md border border-zinc-200 px-8 py-3.5 text-sm font-medium text-zinc-600 transition-all duration-150 hover:bg-zinc-50 hover:scale-[1.04] hover:shadow-md active:scale-[0.97] cursor-pointer"
                 style={{ fontFamily: "var(--font-outfit)" }}
               >
                 See Features
@@ -264,7 +264,7 @@ export default function Home() {
                 <div className="text-sm text-zinc-500">Ready to try it?</div>
                 <Link
                   href="/setup"
-                  className="mt-4 inline-flex h-11 cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+                  className="mt-4 inline-flex h-11 cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-5 text-sm font-medium text-white transition-all duration-150 hover:bg-zinc-800 hover:scale-[1.04] hover:shadow-lg active:scale-[0.97]"
                   style={{ fontFamily: "var(--font-outfit)" }}
                 >
                   Get started

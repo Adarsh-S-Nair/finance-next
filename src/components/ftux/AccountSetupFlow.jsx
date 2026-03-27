@@ -630,7 +630,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
           transition={{ delay: 0.7 }}
           className="mt-5 w-full max-w-xs"
         >
-          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 divide-y divide-zinc-100">
+          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 divide-y divide-zinc-100 overflow-hidden">
             {accounts.map((account, i) => (
               <motion.div
                 key={account.id || account.account_id || i}
