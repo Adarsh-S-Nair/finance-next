@@ -12,7 +12,7 @@ export default function Tabs({ tabs, initialKey, variant = "default" }) {
 
   return (
     <div className="w-full">
-      <div className={`mb-4 inline-flex items-center rounded-full p-1 ${isZinc ? "bg-zinc-100" : "bg-[var(--color-surface)]"}`}>
+      <div className={`mb-4 inline-flex items-center rounded-md p-1 ${isZinc ? "bg-zinc-100" : "bg-[var(--color-surface)]"}`}>
         <div className="relative min-w-[220px]">
           <div className="grid grid-cols-2">
             {tabs.map((t) => (
@@ -20,7 +20,7 @@ export default function Tabs({ tabs, initialKey, variant = "default" }) {
                 key={t.key}
                 type="button"
                 onClick={() => setActive(t.key)}
-                className={`relative z-10 rounded-full px-4 py-2 text-sm font-medium transition-colors hover:cursor-pointer ${
+                className={`relative z-10 rounded-md px-4 py-2 text-sm font-medium transition-colors hover:cursor-pointer ${
                   active === t.key
                     ? isZinc
                       ? "text-white"
@@ -37,7 +37,7 @@ export default function Tabs({ tabs, initialKey, variant = "default" }) {
           <motion.span
             layout
             transition={{ type: "spring", stiffness: 500, damping: 38 }}
-            className={`absolute inset-y-0 z-0 w-1/2 rounded-full ${isZinc ? "bg-zinc-900" : "bg-[var(--color-accent)]"}`}
+            className={`absolute inset-y-0 z-0 w-1/2 rounded-md ${isZinc ? "bg-zinc-900" : "bg-[var(--color-accent)]"}`}
             style={{ left: `${(100 / tabs.length) * activeIndex}%` }}
           />
         </div>

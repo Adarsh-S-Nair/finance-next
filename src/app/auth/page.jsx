@@ -16,7 +16,7 @@ export default function AuthPage() {
     <PublicRoute>
       <RouteTransition>
         <div className="min-h-screen bg-zinc-50 text-zinc-900 selection:bg-zinc-900 selection:text-white">
-          <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} showLinks={false} />
+          <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} showLinks={false} bgClass="bg-zinc-50" />
 
           <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl flex-col px-5 sm:px-6 lg:px-8">
             <div className="flex flex-1 items-center py-10 lg:py-14">
@@ -32,7 +32,7 @@ export default function AuthPage() {
                 </div>
 
                 <div className="w-full max-w-md lg:ml-auto">
-                  <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
                     <div>
                       <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Welcome</h2>
                       <p className="mt-2 text-sm leading-6 text-zinc-500">Use your email to sign in or create a new account.</p>

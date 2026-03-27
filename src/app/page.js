@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiArrowRight, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
-export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
+export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = "bg-white" }) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
+    <header className={`fixed top-0 left-0 right-0 z-50 ${bgClass}`}>
       <div className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-3">
           <span
