@@ -103,12 +103,10 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function NameStep({ onNext, onBack }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [firstNameBlurred, setFirstNameBlurred] = useState(false);
+  const [showLastName, setShowLastName] = useState(false);
   const inputRef = useRef(null);
   const lastNameRef = useRef(null);
 
-  // Reveal last name only after user presses Enter/Tab on first name, or genuinely blurs
-  const showLastName = firstNameBlurred && firstName.trim().length > 0;
   const canSubmit = firstName.trim().length > 0;
 
   useEffect(() => {
@@ -124,16 +122,17 @@ function NameStep({ onNext, onBack }) {
   }, [showLastName]);
 
   const handleFirstNameKeyDown = (e) => {
-    if ((e.key === 'Enter' || e.key === 'Tab') && firstName.trim().length > 0) {
+    if (e.key === 'Enter' && firstName.trim().length > 0) {
       e.preventDefault();
-      setFirstNameBlurred(true);
-    }
-  };
-
-  const handleFirstNameBlur = (e) => {
-    // Only reveal on genuine blur — not when focus stays on the same element (re-render artifact)
-    if (e.relatedTarget !== inputRef.current) {
-      setFirstNameBlurred(true);
+      if (!showLastName) {
+        setShowLastName(true);
+      } else {
+        // Last name already visible — submit the form
+        const trimmedFirst = firstName.trim();
+        const normalizedFirst = capitalizeFirstOnly(trimmedFirst);
+        const normalizedLast = capitalizeFirstOnly(lastName.trim());
+        onNext({ firstName: normalizedFirst, lastName: normalizedLast || null });
+      }
     }
   };
 
@@ -165,7 +164,6 @@ function NameStep({ onNext, onBack }) {
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             onKeyDown={handleFirstNameKeyDown}
-            onBlur={handleFirstNameBlur}
             required
           />
         </div>
@@ -222,13 +220,11 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [emailBlurred, setEmailBlurred] = useState(false);
+  const [showPasswordField, setShowPasswordField] = useState(false);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   const emailValid = EMAIL_REGEX.test(email.trim());
-  // Reveal password field only after user presses Enter/Tab on email, or genuinely blurs
-  const showPasswordField = emailBlurred && emailValid;
   const canSubmit = emailValid && password.trim().length >= 1 && !loading;
 
   useEffect(() => {
@@ -244,16 +240,11 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   }, [showPasswordField]);
 
   const handleEmailKeyDown = (e) => {
-    if ((e.key === 'Enter' || e.key === 'Tab') && emailValid) {
+    if (e.key === 'Enter' && emailValid) {
       e.preventDefault();
-      setEmailBlurred(true);
-    }
-  };
-
-  const handleEmailBlur = (e) => {
-    // Only reveal on genuine blur — not when focus stays on the same element (re-render artifact)
-    if (e.relatedTarget !== emailRef.current) {
-      setEmailBlurred(true);
+      if (!showPasswordField) {
+        setShowPasswordField(true);
+      }
     }
   };
 
@@ -341,7 +332,6 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
             onKeyDown={handleEmailKeyDown}
-            onBlur={handleEmailBlur}
             required
           />
         </div>
@@ -904,7 +894,7 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   return (
     <div className="flex w-full max-w-lg flex-col items-center px-5 sm:px-6">
       {/* Step content with slide animation */}
-      <div className="relative w-full overflow-hidden px-4">
+      <div className="relative w-full overflow-x-hidden px-4 py-1">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={step}
