@@ -17,6 +17,17 @@ function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setIsAuthenticated(Boolean(data?.user));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session?.user));
+    });
+    return () => sub.subscription?.unsubscribe?.();
+  }, []);
 
   return (
     <div className="h-screen overflow-hidden bg-zinc-50 text-zinc-900 relative">
@@ -51,16 +62,18 @@ function SetupShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {/* Bottom-left logout icon */}
-      <div className="absolute bottom-6 left-6 sm:left-8 z-10">
-        <button
-          onClick={() => setShowLogout(true)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
-          aria-label="Log out"
-        >
-          <LuLogOut className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Bottom-left logout icon — only show when authenticated */}
+      {isAuthenticated && (
+        <div className="absolute bottom-6 left-6 sm:left-8 z-10">
+          <button
+            onClick={() => setShowLogout(true)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+            aria-label="Log out"
+          >
+            <LuLogOut className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={showLogout}
@@ -92,6 +105,17 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setIsAuthenticated(Boolean(data?.user));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session?.user));
+    });
+    return () => sub.subscription?.unsubscribe?.();
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -123,15 +147,18 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex-1">{children}</div>
 
-        <div className="pt-6">
-          <button
-            onClick={() => setShowLogout(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-            aria-label="Log out"
-          >
-            <LuLogOut className="h-4.5 w-4.5" />
-          </button>
-        </div>
+        {/* Logout — only show when authenticated */}
+        {isAuthenticated && (
+          <div className="pt-6">
+            <button
+              onClick={() => setShowLogout(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+              aria-label="Log out"
+            >
+              <LuLogOut className="h-4.5 w-4.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       <ConfirmDialog

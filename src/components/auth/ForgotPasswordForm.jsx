@@ -7,7 +7,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
 
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 placeholder:font-medium transition-all outline-none focus:bg-zinc-200/60 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");

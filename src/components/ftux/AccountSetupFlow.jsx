@@ -53,6 +53,13 @@ const slideTransition = {
   opacity: { duration: 0.1, ease: "easeIn" },
 };
 
+// Spring animation for field reveal — bubbly, slight overshoot
+const revealTransition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 20,
+};
+
 function PaginationDots({ current, total }) {
   return (
     <div className="flex items-center justify-center gap-2">
@@ -71,22 +78,24 @@ function PaginationDots({ current, total }) {
   );
 }
 
+// Plain back arrow — no circle background
 function BackButton({ onClick }) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      className="h-9 w-9 rounded-full flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-700 transition-colors duration-150 cursor-pointer"
+      whileHover={{ x: -2 }}
+      whileTap={{ scale: 0.9 }}
+      className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-700 transition-colors duration-150 cursor-pointer"
     >
-      <FiChevronLeft className="h-4 w-4" />
+      <FiChevronLeft className="h-5 w-5" />
     </motion.button>
   );
 }
 
+// Input class: font-medium for typed text, no focus ring/outline
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 placeholder:font-medium transition-all outline-none focus:bg-zinc-200/60 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -94,10 +103,12 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function NameStep({ onNext, onBack }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [firstNameBlurred, setFirstNameBlurred] = useState(false);
   const inputRef = useRef(null);
   const lastNameRef = useRef(null);
 
-  const showLastName = firstName.trim().length > 0;
+  // Reveal last name only after first name field is blurred with content
+  const showLastName = firstNameBlurred && firstName.trim().length > 0;
   const canSubmit = firstName.trim().length > 0;
 
   useEffect(() => {
@@ -119,7 +130,6 @@ function NameStep({ onNext, onBack }) {
 
     const normalizedFirst = capitalizeFirstOnly(trimmedFirst);
     const normalizedLast = capitalizeFirstOnly(lastName.trim());
-    // Pass name data up — account not created yet
     onNext({ firstName: normalizedFirst, lastName: normalizedLast || null });
   };
 
@@ -140,6 +150,7 @@ function NameStep({ onNext, onBack }) {
             placeholder="Jane"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            onBlur={() => setFirstNameBlurred(true)}
             required
           />
         </div>
@@ -147,10 +158,10 @@ function NameStep({ onNext, onBack }) {
         <AnimatePresence>
           {showLastName && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              transition={revealTransition}
               className="mt-5 space-y-2"
             >
               <label className="text-sm font-medium text-zinc-800">
@@ -196,11 +207,13 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [emailBlurred, setEmailBlurred] = useState(false);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   const emailValid = EMAIL_REGEX.test(email.trim());
-  const showPasswordField = emailValid;
+  // Reveal password field only after email field is blurred with a valid email
+  const showPasswordField = emailBlurred && emailValid;
   const canSubmit = emailValid && password.trim().length >= 1 && !loading;
 
   useEffect(() => {
@@ -239,7 +252,6 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
       }
 
       // Supabase may return a user with empty identities if email already exists
-      // (happens when email confirmation is disabled)
       if (data?.user && (!data.user.identities || data.user.identities.length === 0)) {
         setError("duplicate");
         setLoading(false);
@@ -247,12 +259,10 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
       }
 
       if (data?.user) {
-        // Create profile and save name collected in step 0
         try {
           const { buildAvatarUrl } = await import("../../lib/user/profile");
           const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
 
-          // Save name to auth metadata
           if (pendingName?.firstName) {
             await supabase.auth.updateUser({
               data: {
@@ -262,7 +272,6 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             });
           }
 
-          // Upsert profile with name and onboarding_step=2 (completed steps 0+1)
           await upsertUserProfile({
             avatar_url: avatarUrl,
             first_name: pendingName?.firstName || null,
@@ -283,7 +292,8 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
 
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <div className="mb-5 self-start">
+      {/* Back button — plain, left-aligned above heading */}
+      <div className="mb-4 self-start">
         <BackButton onClick={onBack} />
       </div>
       <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
@@ -301,6 +311,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             placeholder="name@example.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
+            onBlur={() => setEmailBlurred(true)}
             required
           />
         </div>
@@ -308,10 +319,10 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
         <AnimatePresence>
           {showPasswordField && (
             <motion.div
-              initial={{ opacity: 0, y: -8 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              transition={revealTransition}
               className="mt-5 space-y-2"
             >
               <label className="text-sm font-medium text-zinc-800">Choose a password</label>
@@ -374,13 +385,6 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
           )}
         </AnimatePresence>
       </form>
-
-      <p className="mt-7 text-sm text-zinc-500">
-        Already have an account?{" "}
-        <Link href="/auth" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
-          Sign in
-        </Link>
-      </p>
     </div>
   );
 }
@@ -390,7 +394,6 @@ function AccountTypeStep({ onSelect, onBack }) {
   const [selected, setSelected] = useState(null);
 
   const handleSelect = async (type) => {
-    // Save progress before Plaid opens
     try {
       await upsertUserProfile({ onboarding_step: 3 });
     } catch {}
@@ -399,7 +402,7 @@ function AccountTypeStep({ onSelect, onBack }) {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="mb-5">
+      <div className="mb-4">
         <BackButton onClick={onBack} />
       </div>
       <h2 className="mb-5 text-center text-xl font-semibold tracking-tight text-zinc-900">
@@ -771,7 +774,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   const [direction, setDirection] = useState(1);
   const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
-  // Name collected in step 0, held in state until account is created in step 1
   const [pendingName, setPendingName] = useState(null);
   const [resolvedFirstName, setResolvedFirstName] = useState(() => {
     if (!userName) return null;
@@ -792,7 +794,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const handleEmailPasswordNext = (email) => {
-    // Account created and name saved, move to account type step
     goTo(2);
   };
 
@@ -894,6 +895,24 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
       <div className="mt-12">
         <PaginationDots current={step} total={TOTAL_STEPS} />
       </div>
+
+      {/* "Already have an account?" — quiet escape hatch, only on step 1 */}
+      <AnimatePresence>
+        {step === 1 && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mt-6 text-sm text-zinc-400"
+          >
+            Already have an account?{" "}
+            <Link href="/auth" className="font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-700">
+              Sign in
+            </Link>
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
