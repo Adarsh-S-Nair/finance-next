@@ -3,7 +3,6 @@
 import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
 import AccentPicker from "../../../components/AccentPicker";
-import Card from "../../../components/ui/Card";
 import { useState } from "react";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import Button from "../../../components/ui/Button";
@@ -52,7 +51,6 @@ export default function SettingsPage() {
       setIsResyncing(false);
     }
   };
-
 
   async function handleDeleteAccount() {
     try {
@@ -108,10 +106,7 @@ export default function SettingsPage() {
       const result = await response.json();
       console.log('Disconnect successful:', result);
 
-      // Refresh accounts to reflect the changes
       refreshAccounts();
-
-      // Close the modal
       setDisconnectModal({ isOpen: false, institution: null });
 
     } catch (error) {
@@ -126,7 +121,6 @@ export default function SettingsPage() {
     setDisconnectModal({ isOpen: false, institution: null });
   };
 
-  // Toggle expanded state for an institution
   const toggleInstitutionExpanded = (institutionId) => {
     setExpandedInstitutions(prev => ({
       ...prev,
@@ -134,7 +128,6 @@ export default function SettingsPage() {
     }));
   };
 
-  // Handle disconnect individual account
   const handleDisconnectAccount = (account, institution) => {
     setDisconnectAccountModal({ isOpen: true, account, institution });
   };
@@ -169,10 +162,7 @@ export default function SettingsPage() {
       const result = await response.json();
       console.log('Disconnect account successful:', result);
 
-      // Refresh accounts to reflect the changes
       refreshAccounts();
-
-      // Close the modal
       setDisconnectAccountModal({ isOpen: false, account: null, institution: null });
 
     } catch (error) {
@@ -188,7 +178,6 @@ export default function SettingsPage() {
   };
 
   const handleAddAccount = () => {
-    // Free users are limited to 1 connection — show upgrade modal if already connected
     if (!isPro && accounts.length >= 1) {
       setIsUpgradeModalOpen(true);
       return;
@@ -198,50 +187,90 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <div className="max-w-3xl mx-auto space-y-8">
+      <div className="max-w-3xl mx-auto space-y-10">
 
         {/* Profile Section */}
         <section aria-labelledby="profile-heading">
-          <h2 id="profile-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Profile</h2>
-          <Card>
-            <div className="flex items-center gap-4 py-3">
-              {/* Avatar */}
-              <div className="flex-shrink-0">
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Profile avatar"
-                    className="w-12 h-12 rounded-full object-cover border border-[var(--color-border)]"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-[var(--color-accent)]/20 border border-[var(--color-border)] flex items-center justify-center">
-                    <span className="text-lg font-semibold text-[var(--color-accent)]">
-                      {(profile?.first_name || user?.email || "?")[0].toUpperCase()}
-                    </span>
-                  </div>
-                )}
+          <h2 id="profile-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Profile</h2>
+          <div className="flex items-start gap-4 pb-6 border-b border-[var(--color-border)]">
+            {/* Avatar */}
+            <div className="flex-shrink-0 mt-1">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Profile avatar"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center">
+                  <span className="text-lg font-semibold text-[var(--color-accent)]">
+                    {(profile?.first_name || user?.email || "?")[0].toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* Name + Email */}
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              <div>
+                <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-0.5">Name</div>
+                <div className="text-sm text-[var(--color-fg)]">
+                  {[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "—"}
+                </div>
               </div>
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                {(profile?.first_name || profile?.last_name) && (
-                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                    {[profile.first_name, profile.last_name].filter(Boolean).join(" ")}
-                  </div>
-                )}
-                <div className="text-xs text-[var(--color-muted)] truncate mt-0.5">
-                  {user?.email || ""}
-                </div>
-                <div className="text-[11px] text-[var(--color-muted)]/60 mt-1">
-                  Signed in with Google · profile is read-only
-                </div>
+              <div>
+                <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-0.5">Email</div>
+                <div className="text-sm text-[var(--color-fg)] truncate">{user?.email || "—"}</div>
               </div>
             </div>
-          </Card>
+          </div>
         </section>
 
+        {/* Subscription Section */}
+        <section aria-labelledby="subscription-heading">
+          <h2 id="subscription-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Subscription</h2>
+          <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-medium text-[var(--color-fg)]">Current plan</div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                  isPro
+                    ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)]'
+                }`}>
+                  {isPro ? 'Pro' : 'Free'}
+                </span>
+              </div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                {isPro
+                  ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
+                  : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
+              </div>
+            </div>
+            <div className="ml-4 flex-shrink-0">
+              {isPro ? (
+                <button
+                  disabled
+                  className="text-xs text-[var(--color-muted)] cursor-not-allowed"
+                  title="Stripe portal coming soon"
+                >
+                  Manage
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className="text-xs font-medium text-[var(--color-accent)] hover:underline transition-colors"
+                >
+                  Upgrade to Pro
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Appearance Section */}
         <section aria-labelledby="appearance-heading">
-          <h2 id="appearance-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Appearance</h2>
-          <Card allowOverflow className="relative z-10">
+          <h2 id="appearance-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Appearance</h2>
+          <div className="divide-y divide-[var(--color-border)] border-b border-[var(--color-border)]">
             <div className="flex items-center justify-between py-3">
               <div>
                 <div className="text-sm font-medium text-[var(--color-fg)]">Theme</div>
@@ -249,19 +278,20 @@ export default function SettingsPage() {
               </div>
               <ThemeToggle />
             </div>
-            <div className="h-px w-full bg-[var(--color-border)]" />
-            <div className="flex items-center justify-between py-3">
+            {/* overflow-visible wrapper so AccentPicker dropdown isn't clipped */}
+            <div className="flex items-center justify-between py-3 overflow-visible relative z-10">
               <div>
                 <div className="text-sm font-medium text-[var(--color-fg)]">Accent color</div>
                 <div className="text-xs text-[var(--color-muted)] mt-0.5">Choose a highlight color for the UI.</div>
               </div>
               <AccentPicker />
             </div>
-          </Card>
+          </div>
         </section>
 
+        {/* Connected Institutions Section */}
         <section aria-labelledby="institutions-heading">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h2 id="institutions-heading" className="text-sm font-medium text-[var(--color-muted)] uppercase tracking-wider">Connected Institutions</h2>
             <Button
               onClick={handleAddAccount}
@@ -273,16 +303,16 @@ export default function SettingsPage() {
               Add Account
             </Button>
           </div>
-          <Card>
+          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
             {accountsLoading ? (
-              <div className="flex items-center justify-center py-4">
+              <div className="flex items-center justify-center py-6">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--color-accent)] mx-auto mb-2"></div>
                   <p className="text-xs text-[var(--color-muted)]">Loading...</p>
                 </div>
               </div>
             ) : accounts.length === 0 ? (
-              <div className="flex items-center justify-center py-4">
+              <div className="flex items-center justify-center py-6">
                 <div className="text-center">
                   <div className="w-8 h-8 rounded-full bg-[var(--color-surface)] flex items-center justify-center mx-auto mb-2 border border-[var(--color-border)]">
                     <PiBankFill className="h-4 w-4 text-[var(--color-muted)]" />
@@ -305,8 +335,8 @@ export default function SettingsPage() {
                   return (
                     <div key={institution.id} className="group">
                       {/* Institution Header Row */}
-                      <div 
-                        className="flex items-center gap-3 py-2.5 cursor-pointer transition-colors hover:bg-[var(--color-surface)]/40"
+                      <div
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-[var(--color-surface)]/40"
                         onClick={() => toggleInstitutionExpanded(institution.id)}
                       >
                         <div className="w-7 h-7 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -343,25 +373,25 @@ export default function SettingsPage() {
                             <IoUnlink className="h-3.5 w-3.5" />
                           </button>
                           <div className="p-1.5 text-[var(--color-muted)]">
-                            <HiChevronDown 
-                              className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`} 
+                            <HiChevronDown
+                              className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
                             />
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Animated Accounts List */}
-                      <div 
+                      <div
                         className={`grid transition-all duration-200 ease-out ${
                           isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                         }`}
                       >
                         <div className="overflow-hidden">
                           <div className="pb-2">
-                            {institution.accounts.map((account, idx) => (
-                              <div 
-                                key={account.id} 
-                                className="group/account flex items-center gap-3 py-2 pl-10 pr-1 hover:bg-[var(--color-surface)]/40 transition-colors"
+                            {institution.accounts.map((account) => (
+                              <div
+                                key={account.id}
+                                className="group/account flex items-center gap-3 py-2 pl-14 pr-4 hover:bg-[var(--color-surface)]/40 transition-colors"
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
@@ -416,127 +446,68 @@ export default function SettingsPage() {
                 })}
               </div>
             )}
-          </Card>
+          </div>
         </section>
 
-        {/* Subscription Section */}
-        <section aria-labelledby="subscription-heading">
-          <h2 id="subscription-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Subscription</h2>
-          <Card>
-            <div className="flex items-center justify-between py-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-medium text-[var(--color-fg)]">Current plan</div>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                    isPro
-                      ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                      : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)]'
-                  }`}>
-                    {isPro ? 'Pro' : 'Free'}
-                  </span>
-                </div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                  {isPro
-                    ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
-                    : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
-                </div>
-              </div>
-              <div className="ml-4 flex-shrink-0">
-                {isPro ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8"
-                    disabled
-                    title="Stripe portal coming soon"
-                  >
-                    Manage Subscription
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8 text-[var(--color-accent)] border-[var(--color-accent)]/40 hover:bg-[var(--color-accent)]/10"
-                    onClick={() => setIsUpgradeModalOpen(true)}
-                  >
-                    Upgrade to Pro
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        </section>
-
-        {/* Session Section (was "Account") */}
+        {/* Session Section */}
         <section aria-labelledby="session-heading">
-          <h2 id="session-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Session</h2>
-          <Card>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <div className="text-sm font-medium text-[var(--color-fg)]">Sign out</div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-8"
-                onClick={logout}
-              >
-                Sign Out
-              </Button>
+          <h2 id="session-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Session</h2>
+          <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
+            <div>
+              <div className="text-sm font-medium text-[var(--color-fg)]">Sign out</div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
             </div>
-          </Card>
+            <button
+              onClick={logout}
+              className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
         </section>
 
+        {/* Danger Zone */}
         <section aria-labelledby="danger-heading">
-          <h2 id="danger-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Danger Zone</h2>
-          <Card variant="danger">
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <div className="text-sm font-medium text-[var(--color-danger)]">Delete account</div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">This will permanently delete your account and all associated data.</div>
-              </div>
-              <Button
-                aria-label="Delete account"
-                title="Delete account"
-                variant="danger"
-                size="sm"
-                className="text-xs h-8"
-                onClick={() => setConfirmOpen(true)}
-              >
-                Delete Account
-              </Button>
+          <h2 id="danger-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Danger Zone</h2>
+          <div className="flex items-center justify-between py-3 border-b border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]">
+            <div>
+              <div className="text-sm font-medium text-[var(--color-fg)]">Delete account</div>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5">Permanently delete your account and all associated data.</div>
             </div>
-          </Card>
+            <button
+              onClick={() => setConfirmOpen(true)}
+              className="text-xs font-medium text-[var(--color-danger)] hover:underline transition-colors"
+            >
+              Delete Account
+            </button>
+          </div>
         </section>
 
+        {/* Debug Tools */}
         {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
           <section aria-labelledby="debug-heading">
-            <h2 id="debug-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Debug Tools</h2>
-            <Card variant="default" className="border-amber-500/20 bg-amber-500/5">
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
-                    <FiTool className="h-4 w-4" />
-                    Resync Transactions
-                  </div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                    Force a full re-download of all transaction history from Plaid.
-                  </div>
+            <h2 id="debug-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Debug Tools</h2>
+            <div className="flex items-center justify-between py-3 border-b border-amber-500/20">
+              <div>
+                <div className="text-sm font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
+                  <FiTool className="h-3.5 w-3.5" />
+                  Resync Transactions
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResync}
-                  disabled={isResyncing}
-                  className="border-amber-500/20 hover:bg-amber-500/10 text-amber-600 dark:text-amber-500 text-xs h-8"
-                >
-                  {isResyncing ? 'Syncing...' : 'Resync All'}
-                </Button>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                  Force a full re-download of all transaction history from Plaid.
+                </div>
               </div>
-            </Card>
+              <button
+                onClick={handleResync}
+                disabled={isResyncing}
+                className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:underline transition-colors disabled:opacity-50"
+              >
+                {isResyncing ? 'Syncing...' : 'Resync All'}
+              </button>
+            </div>
           </section>
         )}
+
       </div>
 
       <ConfirmDialog
