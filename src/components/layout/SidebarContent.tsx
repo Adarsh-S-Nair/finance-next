@@ -342,8 +342,8 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           onConfirm={async () => {
             try {
               setIsSigningOut(true);
-              logout();
               await supabase.auth.signOut();
+              logout();
               onNavigate?.();
               router.replace("/");
             } finally {

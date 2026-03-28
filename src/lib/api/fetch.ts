@@ -55,13 +55,21 @@ export async function authFetch(
 
   let response = await fetch(input, { ...init, headers });
 
-  // If auth wasn't ready yet and middleware returned 401, try one token refresh + retry.
+  // If auth wasn't ready yet and middleware returned 401, force a real token refresh + retry.
   if (!hadAuthHeader && response.status === 401) {
-    const retryToken = await getAccessToken();
-    if (retryToken) {
-      const retryHeaders = new Headers(init?.headers);
-      retryHeaders.set("Authorization", `Bearer ${retryToken}`);
-      response = await fetch(input, { ...init, headers: retryHeaders });
+    try {
+      const refreshResult = await Promise.race([
+        supabase.auth.refreshSession(),
+        new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+      ]);
+      const retryToken = refreshResult?.data?.session?.access_token ?? null;
+      if (retryToken) {
+        const retryHeaders = new Headers(init?.headers);
+        retryHeaders.set("Authorization", `Bearer ${retryToken}`);
+        response = await fetch(input, { ...init, headers: retryHeaders });
+      }
+    } catch {
+      // Refresh failed, return original 401 response
     }
   }
 

@@ -510,7 +510,11 @@ export default function SettingsPage() {
               <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
             </div>
             <Button
-              onClick={logout}
+              onClick={async () => {
+                await supabase.auth.signOut();
+                logout();
+                router.replace("/");
+              }}
               variant="primary"
               size="sm"
             >

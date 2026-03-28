@@ -334,7 +334,9 @@ export default function UserProvider({ children }) {
         return;
       }
       if (event === "SIGNED_OUT") {
+        clearStaleAuthData();
         setProfile(null);
+        setUser(null);
         // Apply default theme when logged out
         document.documentElement.classList.toggle("dark", false);
         applyAccent(null);
