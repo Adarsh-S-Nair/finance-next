@@ -759,7 +759,6 @@ export default function InvestmentsPage() {
       <PlaidLinkModal
         isOpen={showLinkModal}
         onClose={() => setShowLinkModal(false)}
-        defaultAccountType="investment"
         onSuccess={() => {
           setLoading(true);
           setIsRefreshingData(true);

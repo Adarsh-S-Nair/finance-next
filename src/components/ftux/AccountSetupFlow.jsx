@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
 import Link from "next/link";
@@ -12,26 +12,8 @@ import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
 
-const ACCOUNT_TYPES = [
-  {
-    id: "checking_savings",
-    label: "Checking & savings",
-    description: "Bank accounts and cash flow",
-  },
-  {
-    id: "credit_card",
-    label: "Credit cards",
-    description: "Card balances and spending",
-  },
-  {
-    id: "investment",
-    label: "Investments",
-    description: "Brokerage, IRA, and 401(k)",
-  },
-];
-
-// Steps: 0=Name, 1=Email+Password, 2=AccountType, 3=Connecting, 4=Connected
-const TOTAL_STEPS = 5;
+// Steps: 0=Name, 1=Email+Password, 2=Connecting, 3=Connected
+const TOTAL_STEPS = 4;
 
 const slideVariants = {
   enter: (direction) => ({
@@ -341,72 +323,10 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   );
 }
 
-/* ── Step 2: Account Type ────────────────────────────────────── */
-function AccountTypeStep({ onSelect, onBack }) {
-  const [selected, setSelected] = useState(null);
-
-  const handleSelect = async (type) => {
-    try {
-      await upsertUserProfile({ onboarding_step: 3 });
-    } catch {}
-    onSelect(type);
-  };
-
-  return (
-    <div className="w-full max-w-sm">
-      <div className="mb-4">
-        <BackButton onClick={onBack} />
-      </div>
-      <h2 className="mb-5 text-center text-xl font-semibold tracking-tight text-zinc-900">
-        What would you like to connect?
-      </h2>
-      <div className="flex flex-col divide-y divide-zinc-100">
-        {ACCOUNT_TYPES.map((type) => {
-          const isSelected = selected?.id === type.id;
-          return (
-            <motion.button
-              key={type.id}
-              type="button"
-              onClick={() => setSelected(type)}
-              whileHover={{ backgroundColor: "rgba(0,0,0,0.02)" }}
-              whileTap={{ scale: 0.99 }}
-              className={`flex w-full items-center justify-between py-4 px-3 text-left cursor-pointer transition-colors duration-150 ${
-                isSelected ? "bg-zinc-50" : ""
-              }`}
-            >
-              <div>
-                <div className="text-sm font-medium text-zinc-900">{type.label}</div>
-                <div className="mt-0.5 text-xs text-zinc-400">{type.description}</div>
-              </div>
-              <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200 ${
-                isSelected
-                  ? "border-zinc-900 bg-zinc-900"
-                  : "border-zinc-300"
-              }`}>
-                {isSelected && <FiCheck className="h-3 w-3 text-white" />}
-              </div>
-            </motion.button>
-          );
-        })}
-      </div>
-      <div className="mt-6">
-        <Button
-          onClick={() => selected && handleSelect(selected)}
-          disabled={!selected}
-          className="w-full h-11"
-        >
-          Continue
-          <FiChevronRight className="ml-1.5 h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/* ── Step 3: Connecting (uses Plaid) ────────────────────────── */
+/* ── Step 2: Connecting (uses Plaid) ────────────────────────── */
 const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
 
-function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
+function ConnectingStep({ onSuccess, onError, onBack }) {
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
   const [error, setError] = useState(null);
@@ -419,7 +339,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
       const response = await authFetch("/api/plaid/exchange-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicToken, accountType: accountType.id }),
+        body: JSON.stringify({ publicToken }),
       });
 
       if (!response.ok) throw new Error("Failed to exchange token");
@@ -465,7 +385,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
         const response = await authFetch("/api/plaid/link-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accountType: accountType.id }),
+          body: JSON.stringify({}),
         });
 
         if (!response.ok) throw new Error("Failed to create link token");
@@ -474,7 +394,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
         if (cancelled) return;
 
         if (isMockPlaid) {
-          await exchangeToken(`mock-public-${accountType.id}`);
+          await exchangeToken("mock-public-token");
         } else {
           setLinkToken(data.link_token);
         }
@@ -490,7 +410,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
     connect();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountType.id]);
+  }, []);
 
   useEffect(() => {
     if (!isMockPlaid && linkToken && ready && !error && !plaidExited) {
@@ -510,7 +430,7 @@ function ConnectingStep({ accountType, onSuccess, onError, onBack }) {
           className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
-          Try a different account
+          Go back
         </button>
       </div>
     );
@@ -724,7 +644,6 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
 export default function AccountSetupFlow({ initialStep = 0, userName, onComplete = null, onFlowStart = null }) {
   const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
-  const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
   const [pendingName, setPendingName] = useState(null);
   const [resolvedFirstName, setResolvedFirstName] = useState(() => {
@@ -746,18 +665,13 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const handleEmailPasswordNext = (email) => {
-    goTo(2);
-  };
-
-  const handleAccountTypeSelect = (type) => {
-    setSelectedAccountType(type);
     onFlowStart?.();
-    goTo(3);
+    goTo(2);
   };
 
   const handlePlaidSuccess = (data) => {
     setPlaidData(data);
-    goTo(4);
+    goTo(3);
   };
 
   const handlePlaidError = () => {
@@ -765,7 +679,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const handleAddMore = () => {
-    setSelectedAccountType(null);
     goTo(2);
   };
 
@@ -793,23 +706,14 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
         );
       case 2:
         return (
-          <AccountTypeStep
-            key="account-type"
-            onSelect={handleAccountTypeSelect}
+          <ConnectingStep
+            key="connecting"
+            onSuccess={handlePlaidSuccess}
+            onError={handlePlaidError}
             onBack={() => goTo(1)}
           />
         );
       case 3:
-        return (
-          <ConnectingStep
-            key={`connecting-${selectedAccountType?.id}`}
-            accountType={selectedAccountType}
-            onSuccess={handlePlaidSuccess}
-            onError={handlePlaidError}
-            onBack={() => goTo(2)}
-          />
-        );
-      case 4:
         return (
           <ConnectedStep
             key="connected"

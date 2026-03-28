@@ -9,51 +9,9 @@ import { useUser } from './providers/UserProvider';
 import { useAccounts } from './providers/AccountsProvider';
 import { authFetch } from '../lib/api/fetch';
 
-const ACCOUNT_TYPES = [
-  {
-    id: 'checking_savings',
-    label: 'Checking & savings',
-    description: 'Bank accounts for balances, cash flow, and transactions',
-  },
-  {
-    id: 'credit_card',
-    label: 'Credit cards',
-    description: 'Track card balances, spending, and payment activity',
-  },
-  {
-    id: 'investment',
-    label: 'Investments',
-    description: 'Brokerage, IRA, 401(k), and other investment accounts',
-  },
-];
-
-function AccountTypeRow({ accountType, selected, onSelect, disabled }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(accountType)}
-      disabled={disabled}
-      className={`flex w-full cursor-pointer items-start justify-between gap-4 border-b border-zinc-200 py-4 text-left transition-colors ${
-        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-50'
-      }`}
-    >
-      <div>
-        <div className="text-sm font-semibold text-zinc-900">{accountType.label}</div>
-        <div className="mt-1 text-sm leading-6 text-zinc-600">{accountType.description}</div>
-      </div>
-      <div className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border ${selected ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-transparent'}`}>
-        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
-    </button>
-  );
-}
-
-export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = null, onSuccess: onSuccessCallback = null }) {
+export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null }) {
   const { user } = useUser();
   const { addAccount, refreshAccounts } = useAccounts();
-  const [selectedAccountType, setSelectedAccountType] = useState(null);
   const [linkToken, setLinkToken] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -61,7 +19,6 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
 
   useEffect(() => {
     if (!isOpen) {
-      setSelectedAccountType(null);
       setLinkToken(null);
       setError(null);
       setSuccess(false);
@@ -77,10 +34,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          publicToken,
-          accountType: selectedAccountType?.id || null,
-        }),
+        body: JSON.stringify({ publicToken }),
       });
 
       if (!response.ok) {
@@ -97,17 +51,11 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       onSuccessCallback?.(data);
       setSuccess(true);
 
-      if (defaultAccountType) {
+      setTimeout(() => {
         onClose();
         setSuccess(false);
         setLinkToken(null);
-      } else {
-        setTimeout(() => {
-          onClose();
-          setSuccess(false);
-          setLinkToken(null);
-        }, 1200);
-      }
+      }, 1200);
     } catch (err) {
       console.error('Error exchanging token:', err);
       setError(err.message);
@@ -120,7 +68,6 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
     if (err) {
       console.error('Plaid Link error:', err);
       setError(err.message || 'An error occurred during account linking');
-      if (defaultAccountType) onClose();
     }
     setLoading(false);
   };
@@ -134,7 +81,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
     }
   }, [linkToken, ready, error, open]);
 
-  const fetchLinkTokenAndOpen = async (accountType) => {
+  const fetchLinkTokenAndOpen = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -142,7 +89,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       const response = await authFetch('/api/plaid/link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountType }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -158,39 +105,25 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
     }
   };
 
+  // Automatically fetch link token when modal opens
   useEffect(() => {
-    if (isOpen && defaultAccountType && !selectedAccountType && !linkToken && !loading && !error) {
-      const accountType = ACCOUNT_TYPES.find((type) => type.id === defaultAccountType);
-      if (accountType) {
-        setSelectedAccountType(accountType);
-        fetchLinkTokenAndOpen(accountType.id);
-      }
+    if (isOpen && !linkToken && !loading && !error && !success) {
+      fetchLinkTokenAndOpen();
     }
-  }, [isOpen, defaultAccountType, selectedAccountType, linkToken, loading, error]);
+  }, [isOpen]);
 
   const handleClose = () => {
     onClose();
     setError(null);
     setSuccess(false);
     setLinkToken(null);
-    setSelectedAccountType(null);
     setLoading(false);
   };
 
   const handleRetry = async () => {
     setError(null);
-    if (selectedAccountType) {
-      await fetchLinkTokenAndOpen(selectedAccountType.id);
-    }
+    await fetchLinkTokenAndOpen();
   };
-
-  const handleConnect = async () => {
-    if (selectedAccountType) {
-      await fetchLinkTokenAndOpen(selectedAccountType.id);
-    }
-  };
-
-  if (defaultAccountType) return null;
 
   const footer = success ? (
     <Button onClick={handleClose} className="w-full">Close</Button>
@@ -202,16 +135,6 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
   ) : (
     <div className="flex w-full gap-2">
       <Button variant="outline" onClick={handleClose} className="flex-1" disabled={loading}>Cancel</Button>
-      <Button onClick={handleConnect} disabled={!selectedAccountType || loading} className="flex-1">
-        {loading ? (
-          <>
-            <FiLoader className="mr-2 h-4 w-4 animate-spin" />
-            Connecting...
-          </>
-        ) : (
-          'Continue'
-        )}
-      </Button>
     </div>
   );
 
@@ -220,7 +143,7 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
       isOpen={isOpen}
       onClose={handleClose}
       title="Connect an account"
-      description="Choose what you want to connect first. You can always add more later."
+      description="Securely connect your bank, credit card, or investment accounts."
       size="md"
       footer={footer}
       className="sm:max-w-xl"
@@ -256,20 +179,6 @@ export default function PlaidLinkModal({ isOpen, onClose, defaultAccountType = n
                 <p className="mt-1 text-sm text-emerald-700">Your data is syncing now.</p>
               </div>
             </div>
-          </div>
-        )}
-
-        {!loading && !error && !success && (
-          <div className="border-t border-zinc-200">
-            {ACCOUNT_TYPES.map((accountType) => (
-              <AccountTypeRow
-                key={accountType.id}
-                accountType={accountType}
-                selected={selectedAccountType?.id === accountType.id}
-                onSelect={setSelectedAccountType}
-                disabled={loading}
-              />
-            ))}
           </div>
         )}
       </div>

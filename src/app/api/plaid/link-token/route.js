@@ -5,7 +5,7 @@ import { requireVerifiedUserId } from '../../../../lib/api/auth';
 export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
-    const { accountType, plaidItemId, additionalProducts } = await request.json();
+    const { plaidItemId, additionalProducts } = await request.json();
     // Verify user exists
     const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
     if (userError || !user) {
@@ -15,7 +15,6 @@ export async function POST(request) {
       );
     }
     // Update Mode: If plaidItemId is provided, we're requesting additional consent
-    let accessToken = null;
     if (plaidItemId) {
       const { data: plaidItem, error: itemError } = await supabaseAdmin
         .from('plaid_items')
@@ -29,9 +28,8 @@ export async function POST(request) {
           { status: 404 }
         );
       }
-      accessToken = plaidItem.access_token;
+      const accessToken = plaidItem.access_token;
       // For update mode, request transactions product consent
-      // (recurring_transactions is an add-on to transactions, not a standalone product)
       const products = additionalProducts || ['transactions'];
       const linkTokenResponse = await createLinkToken(userId, products, null, accessToken);
       return Response.json({
@@ -40,34 +38,10 @@ export async function POST(request) {
         updateMode: true,
       });
     }
-    // Normal Mode: Determine Plaid products and account filters based on account type
-    let products = ['transactions'];
-    let accountFilters = null;
-    if (accountType) {
-      if (accountType === 'investment') {
-        products = ['investments'];
-        accountFilters = {
-          investment: {
-            account_subtypes: ['all']
-          }
-        };
-      } else if (accountType === 'credit_card') {
-        products = ['transactions'];
-        accountFilters = {
-          credit: {
-            account_subtypes: ['credit card']
-          }
-        };
-      } else if (accountType === 'checking_savings') {
-        accountFilters = {
-          depository: {
-            account_subtypes: ['checking', 'savings']
-          }
-        };
-      }
-    }
-    // Create link token with appropriate product and account filters
-    const linkTokenResponse = await createLinkToken(userId, products, accountFilters);
+    // Normal Mode: Always request both transactions and investments products
+    // This creates a single Plaid Item that covers all account types at an institution
+    const products = ['transactions', 'investments'];
+    const linkTokenResponse = await createLinkToken(userId, products, null);
     return Response.json({
       link_token: linkTokenResponse.link_token,
       expiration: linkTokenResponse.expiration,
