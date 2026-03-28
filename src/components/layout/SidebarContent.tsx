@@ -78,7 +78,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   // Computed user display values
   const firstName = profile?.first_name ?? "";
   const lastName = profile?.last_name ?? "";
-  const fullName = [firstName, lastName].filter(Boolean).join(" ") || user?.email || "";
+  const rawName = [firstName, lastName].filter(Boolean).join(" ")
+    || (user as any)?.user_metadata?.name
+    || (user as any)?.user_metadata?.full_name
+    || "";
+  const fullName = rawName
+    ? rawName.trim().split(/\s+/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
+    : user?.email || "";
   const initials = firstName && lastName
     ? `${firstName[0]}${lastName[0]}`.toUpperCase()
     : firstName
@@ -90,8 +96,8 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
   const avatarEl = (
     <div
-      className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 overflow-hidden"
-      style={{ fontSize: "0.7rem" }}
+      className="relative h-9 w-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 overflow-hidden"
+      style={{ fontSize: "0.75rem" }}
     >
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -213,22 +219,22 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       </nav>
 
       {/* Profile Card / Bottom Section */}
-      <div className="p-3 border-t border-[var(--color-border)] relative">
-        {/* Popover Menu */}
+      <div className="p-4 pb-5 border-t border-[var(--color-border)] relative">
+        {/* Popover Menu — opens to the right */}
         <AnimatePresence>
           {showPopover && (
             <motion.div
               ref={popoverRef}
-              initial={{ opacity: 0, y: isCollapsed ? 0 : 8, x: isCollapsed ? -8 : 0 }}
-              animate={{ opacity: 1, y: 0, x: 0 }}
-              exit={{ opacity: 0, y: isCollapsed ? 0 : 8, x: isCollapsed ? -8 : 0 }}
+              initial={{ opacity: 0, x: -8, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -8, scale: 0.95 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="absolute rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl overflow-hidden z-50"
-              style={
-                isCollapsed
-                  ? { left: "calc(100% + 8px)", bottom: 8, minWidth: "180px" }
-                  : { left: 12, right: 12, bottom: "calc(100% + 8px)" }
-              }
+              className="fixed rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl overflow-hidden z-[60]"
+              style={{
+                left: isCollapsed ? "calc(5rem + 8px)" : "calc(16rem + 8px)",
+                bottom: "16px",
+                minWidth: "200px",
+              }}
             >
               {/* Settings */}
               <Link
@@ -272,7 +278,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-lg p-2 transition-colors duration-200 hover:bg-[var(--color-surface)] group"
+              className="w-full flex items-center justify-center rounded-lg p-2 transition-colors duration-200 hover:bg-[var(--color-surface)] group cursor-pointer"
             >
               {avatarEl}
             </button>
@@ -281,7 +287,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           <button
             ref={triggerRef}
             onClick={() => setShowPopover((v) => !v)}
-            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-[var(--color-surface)] group text-left"
+            className="w-full flex items-center gap-3 rounded-xl px-3 py-3 transition-colors duration-200 hover:bg-[var(--color-surface)] group text-left cursor-pointer"
           >
             {avatarEl}
             <div className="flex-1 min-w-0">
