@@ -136,29 +136,22 @@ export default function UserProvider({ children }) {
 
       refreshProfile().finally(() => {
         clearTimeout(timeout);
-        // Only clear loading if we've already navigated away from public routes
-        // Otherwise, keep spinning until the route change in the other effect branch handles it
-        const isPublic = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
-        if (!isPublic) {
-          setLoading(false);
-          setAuthTransition(false);
-        }
+        // Always clear loading once profile is resolved — the auth-transition
+        // redirect flow manages its own overlay via authTransition state
+        setLoading(false);
         profileLoadingRef.current = false;
       });
     } else if (user && profile) {
-      // If we have user and profile, ensure theme is correct based on route
-      // This handles the case where we navigate from Landing (public) -> Dashboard (protected)
+      // Apply theme/accent on protected routes
       const isPublicRoute = pathname === "/" || pathname.startsWith("/auth");
       if (!isPublicRoute) {
         if (profile.theme) applyTheme(profile.theme);
         if (Object.prototype.hasOwnProperty.call(profile, 'accent_color')) applyAccent(profile.accent_color);
-
-        // Ensure loading overlay is removed once we are on a protected route
-        if (loading || authTransition) {
-          setLoading(false);
-          setAuthTransition(false);
-        }
       }
+
+      // Always clear loading when we have both user and profile
+      if (loading) setLoading(false);
+      if (authTransition && !isPublicRoute) setAuthTransition(false);
     }
   }, [user, profile, pathname, applyTheme, applyAccent, refreshProfile]);
 
@@ -168,8 +161,8 @@ export default function UserProvider({ children }) {
       if (!document.hidden) {
         try {
           try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
-          // Rehydrate auth when tab becomes visible again
-          const u = await ensureUser();
+          // Rehydrate auth silently — don't trigger loading overlay
+          await ensureUser();
         } catch (e) {
           console.log("[UserProvider] visibilitychange error", e);
         }
@@ -180,26 +173,26 @@ export default function UserProvider({ children }) {
     const onFocus = async () => {
       try {
         try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
-        const u = await ensureUser();
+        await ensureUser();
       } catch { }
     };
     const onOnline = async () => {
       try {
         try { if (supabase?.auth && typeof supabase.auth.startAutoRefresh === 'function') supabase.auth.startAutoRefresh(); } catch { }
-        const u = await ensureUser();
+        await ensureUser();
       } catch { }
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
-    // Safety timeout: never show loading spinner for more than 8 seconds on init
+    // Safety timeout: never show loading spinner for more than 4 seconds on init
     const initTimeout = setTimeout(() => {
       if (isMounted) {
         setLoading(false);
         setAuthTransition(false);
       }
-    }, 8000);
+    }, 4000);
 
     (async () => {
       try {
@@ -242,8 +235,10 @@ export default function UserProvider({ children }) {
         if (data?.user) {
           if (!fetchedRef.current) {
             fetchedRef.current = true;
+            profileLoadingRef.current = true; // prevent [user,profile] effect from double-loading
             setLoading(true);
             await refreshProfile();
+            profileLoadingRef.current = false;
             setLoading(false);
           } else {
             setLoading(false);
@@ -300,25 +295,35 @@ export default function UserProvider({ children }) {
         setAuthTransition(true);
         setLoading(true);
         try {
-          const res = await authFetch("/api/plaid/accounts");
-          const body = res.ok ? await res.json() : { accounts: [] };
+          // Load profile in parallel with account check so it's ready after redirect
+          const [, res] = await Promise.all([
+            refreshProfile(),
+            authFetch("/api/plaid/accounts").catch(() => null),
+          ]);
+          const body = res?.ok ? await res.json() : { accounts: [] };
           const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
           router.replace(hasAccounts ? "/dashboard" : "/setup");
         } catch {
           router.replace("/setup");
         }
+        // Note: loading/authTransition will be cleared by the [user,profile] effect
+        // once the route changes to a protected route and profile is set
         return true;
       };
 
       if (event === "SIGNED_IN" && nextUser) {
         // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
-        fetchedRef.current = false;
-        profileLoadingRef.current = false;
+        fetchedRef.current = true; // mark as fetched so init IIFE doesn't double-fetch
+        profileLoadingRef.current = true;
         if (await redirectFromPublicRoute()) {
+          // Profile will be loaded by the [user,profile] effect after redirect
+          profileLoadingRef.current = false;
           setToast({ title: "Signed in", variant: "success" });
         } else {
           // Already on an authenticated route; refresh silently without global overlay
           await refreshProfile();
+          profileLoadingRef.current = false;
+          setLoading(false);
         }
         return;
       }
