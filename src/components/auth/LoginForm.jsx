@@ -31,7 +31,7 @@ function GoogleSignInButton({ loading, onClick, label = "Sign in with Google" })
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-800 shadow-none transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex h-11 w-full items-center justify-center gap-3 rounded-lg bg-zinc-100 px-4 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <GoogleIcon />
       {loading ? "Redirecting…" : label}
