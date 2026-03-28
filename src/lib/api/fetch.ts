@@ -1,17 +1,25 @@
 import { supabase } from "../supabase/client";
 
 async function getAccessToken(): Promise<string | null> {
+  // Use a timeout to prevent hanging if Supabase's internal lock is held
+  // (e.g. a pending getUser() call blocking getSession())
   try {
-    const { data } = await supabase.auth.getSession();
-    const token = data?.session?.access_token;
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+    ]);
+    const token = result?.data?.session?.access_token;
     if (token) return token;
   } catch {
     // fall through to refresh attempt
   }
 
   try {
-    const { data } = await supabase.auth.refreshSession();
-    return data?.session?.access_token ?? null;
+    const result = await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+    ]);
+    return result?.data?.session?.access_token ?? null;
   } catch {
     return null;
   }

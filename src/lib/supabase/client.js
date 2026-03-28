@@ -106,8 +106,11 @@ if (!isServer) {
 
         if (!hasAuth) {
           try {
-            const { data } = await supabase.auth.getSession();
-            const token = data?.session?.access_token;
+            const sessionResult = await Promise.race([
+              supabase.auth.getSession(),
+              new Promise((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
+            ]);
+            const token = sessionResult?.data?.session?.access_token;
             if (token) {
               const mergedHeaders = new Headers(input instanceof Request ? input.headers : init?.headers);
               mergedHeaders.set("Authorization", `Bearer ${token}`);

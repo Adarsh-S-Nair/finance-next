@@ -52,20 +52,27 @@ export default function UserProvider({ children }) {
     recoveringRef.current = true;
     try {
       let u = null;
+      // Prefer getSession (localStorage, no network) over getUser (network call that can hang)
       try {
-        const { data } = await supabase.auth.getUser();
-        u = data?.user ?? null;
+        const { data } = await supabase.auth.getSession();
+        u = data?.session?.user ?? null;
       } catch { }
       if (!u) {
         try {
-          const { data } = await supabase.auth.refreshSession();
-          u = data?.session?.user ?? null;
+          const result = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise((resolve) => setTimeout(() => resolve({ data: { user: null } }), 3000)),
+          ]);
+          u = result?.data?.user ?? null;
         } catch { }
       }
       if (!u) {
         try {
-          const { data } = await supabase.auth.getSession();
-          u = data?.session?.user ?? null;
+          const result = await Promise.race([
+            supabase.auth.refreshSession(),
+            new Promise((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+          ]);
+          u = result?.data?.session?.user ?? null;
         } catch { }
       }
       if (u) setUser(u);
@@ -198,64 +205,69 @@ export default function UserProvider({ children }) {
     (async () => {
       console.log("[UserProvider] Init IIFE starting");
       try {
-        // Pre-check: if there's a stale refresh token in localStorage, clear it
-        // before getUser() fires a network request that will fail loudly.
-        // This prevents the "Invalid Refresh Token" AuthApiError console noise.
-        let hasStaleSession = false;
+        // Step 1: Read session from localStorage (synchronous, no network)
+        let sessionUser = null;
         try {
           const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session) {
-            // We have a local session — validate it quickly with getUser()
-            // If the token is stale, getUser() will fail
-          } else {
-            // No local session at all — skip getUser(), go straight to logged-out state
-            hasStaleSession = false;
-          }
+          sessionUser = sessionData?.session?.user ?? null;
+          console.log("[UserProvider] getSession result:", { user: !!sessionUser });
         } catch {
-          hasStaleSession = true;
+          // No local session
         }
 
-        const { data, error } = await supabase.auth.getUser();
-        console.log("[UserProvider] getUser result:", { user: !!data?.user, error: error?.message });
-        if (!isMounted) return;
-
-        // Check for refresh token errors
-        if (error && error.message && (error.message.includes('Refresh Token') || error.message.includes('refresh_token'))) {
-          clearStaleAuthData();
+        if (!sessionUser) {
+          // No local session at all — user is logged out
+          console.log("[UserProvider] No session found, user is logged out");
           setProfile(null);
           setUser(null);
           document.documentElement.classList.toggle("dark", false);
           applyAccent(null);
           setLoading(false);
-          // Only show toast if user was previously logged in (not on fresh page load)
-          if (fetchedRef.current) {
-            setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
-          }
           return;
         }
 
-        setUser(data?.user ?? null);
-        if (data?.user) {
-          console.log("[UserProvider] User found, fetchedRef:", fetchedRef.current);
-          if (!fetchedRef.current) {
-            fetchedRef.current = true;
-            profileLoadingRef.current = true; // prevent [user,profile] effect from double-loading
-            setLoading(true);
-            await refreshProfile();
-            profileLoadingRef.current = false;
-            console.log("[UserProvider] Profile loaded, setting loading=false");
-            setLoading(false);
-          } else {
-            console.log("[UserProvider] Already fetched, setting loading=false");
-            setLoading(false);
-          }
+        // Step 2: We have a local session — use it immediately so components can fetch data.
+        // Then validate with getUser() in the background (with a timeout).
+        setUser(sessionUser);
+        if (!fetchedRef.current) {
+          fetchedRef.current = true;
+          profileLoadingRef.current = true;
+          await refreshProfile();
+          profileLoadingRef.current = false;
+          console.log("[UserProvider] Profile loaded, setting loading=false");
+          if (isMounted) setLoading(false);
         } else {
-          console.log("[UserProvider] No user found, setting loading=false");
-          setProfile(null);
-          // Apply default theme when logged out
-          document.documentElement.classList.toggle("dark", false);
-          applyAccent(null);
-          setLoading(false);
+          console.log("[UserProvider] Already fetched, setting loading=false");
+          if (isMounted) setLoading(false);
+        }
+
+        // Step 3: Background validation — verify the token is still valid server-side.
+        // If it fails, sign the user out. Use a timeout so it never blocks the UI.
+        try {
+          const getUserResult = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise((resolve) => setTimeout(() => resolve({ data: { user: null }, error: new Error("getUser timeout") }), 5000)),
+          ]);
+          console.log("[UserProvider] getUser validation:", { user: !!getUserResult?.data?.user, error: getUserResult?.error?.message });
+          if (!isMounted) return;
+
+          const validationError = getUserResult?.error;
+          if (validationError && validationError.message && (validationError.message.includes('Refresh Token') || validationError.message.includes('refresh_token'))) {
+            clearStaleAuthData();
+            setProfile(null);
+            setUser(null);
+            document.documentElement.classList.toggle("dark", false);
+            applyAccent(null);
+            setLoading(false);
+            if (fetchedRef.current) {
+              setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
+            }
+          }
+          // If getUser timed out or returned no user but we have a session, keep going —
+          // the session token is still valid for API calls via middleware
+        } catch (err) {
+          console.log("[UserProvider] getUser background validation error:", err?.message);
+          // Non-fatal — we already have a session, keep going
         }
       } catch (err) {
         // Handle AuthApiError for invalid refresh tokens
