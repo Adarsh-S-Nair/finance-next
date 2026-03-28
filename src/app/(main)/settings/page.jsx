@@ -504,6 +504,10 @@ export default function SettingsPage() {
       <PlaidLinkModal
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
+        onUpgradeNeeded={() => {
+          setIsPlaidModalOpen(false);
+          setIsUpgradeModalOpen(true);
+        }}
       />
 
       {/* Upgrade Modal */}

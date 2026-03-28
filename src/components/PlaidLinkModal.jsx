@@ -12,7 +12,7 @@ import { authFetch } from '../lib/api/fetch';
 
 const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === 'mock';
 
-export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null }) {
+export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null, onUpgradeNeeded = null }) {
   const { user } = useUser();
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
@@ -107,7 +107,14 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create link token');
+        const errorBody = await response.json().catch(() => ({}));
+        if (response.status === 403 && errorBody.error === 'connection_limit') {
+          setLoading(false);
+          onClose();
+          onUpgradeNeeded?.();
+          return;
+        }
+        throw new Error(errorBody.error || 'Failed to create link token');
       }
 
       const data = await response.json();
