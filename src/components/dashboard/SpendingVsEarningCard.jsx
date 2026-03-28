@@ -47,7 +47,7 @@ function AnimatedCounter({ value, duration = 1000, showCents = true }) {
   );
 }
 
-export default function SpendingVsEarningCard() {
+export default function SpendingVsEarningCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
@@ -80,8 +80,17 @@ export default function SpendingVsEarningCard() {
     return months;
   };
 
-  // Fetch data
+  // Fetch data (skipped when externalData is provided)
   useEffect(() => {
+    if (externalData) {
+      // Use data provided by parent (e.g. dashboard summary pre-fetch)
+      const data = externalData.data || [];
+      let monthsParam = selectedPeriod === 'ytd' ? (new Date().getMonth() + 1).toString() : selectedPeriod;
+      setChartData(data.length > 0 ? data : generatePlaceholderMonths(parseInt(monthsParam) || 6));
+      setIsLoading(false);
+      return;
+    }
+
     if (authLoading) return;
     if (!user?.id) { setIsLoading(false); return; }
     const fetchData = async () => {
@@ -107,7 +116,7 @@ export default function SpendingVsEarningCard() {
       }
     };
     fetchData();
-  }, [authLoading, user?.id, selectedPeriod]);
+  }, [authLoading, user?.id, selectedPeriod, externalData]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {

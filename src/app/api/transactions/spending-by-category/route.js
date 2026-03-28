@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
@@ -165,46 +166,8 @@ export async function GET(request) {
       );
     }
 
-    // Logic to identify and exclude internal transfers (consistent with spending-earning)
-    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
-    const TRANSFER_LABELS = ['Credit Card Payment'];
-    const isTransfer = (tx) => {
-      const groupName = tx.system_categories?.category_groups?.name;
-      const label = tx.system_categories?.label;
-      return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
-    };
-
-    const matchedIds = new Set();
-
-    // First pass: Identify matches for transfers
-    for (let i = 0; i < transactions.length; i++) {
-      const tx = transactions[i];
-      if (matchedIds.has(tx.id)) continue;
-
-      if (isTransfer(tx)) {
-        const txDate = new Date(tx.date || new Date().toISOString());
-        const targetAmount = -parseFloat(tx.amount);
-
-        for (let j = i + 1; j < transactions.length; j++) {
-          const candidate = transactions[j];
-          if (matchedIds.has(candidate.id)) continue;
-
-          // Simple date check (assuming sorted or close enough, but explicit diff is safer)
-          // Note: spending-earning query orders by date, here we didn't explicitly order but likely okay for small sets.
-          // Ideally we should verify sorting, but raw DB order often reflects insert time ~ date time.
-          const candidateDate = new Date(candidate.date || new Date().toISOString());
-          const diffDays = Math.abs((candidateDate - txDate) / (1000 * 60 * 60 * 24));
-
-          if (diffDays > 3) continue; // Check reasonably close window
-
-          if (Math.abs(parseFloat(candidate.amount) - targetAmount) < 0.01) {
-            matchedIds.add(tx.id);
-            matchedIds.add(candidate.id);
-            break;
-          }
-        }
-      }
-    }
+    // Identify and exclude internal transfers using shared utility
+    const { matchedIds } = identifyTransfers(transactions);
 
     // Group transactions by category and calculate totals
     const categoryData = {};

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 
 // Helper function to fetch and process transactions for a given month
 async function getMonthData(userId, year, month, excludedCategoryIds) {
@@ -32,46 +33,8 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
     return null;
   }
 
-  // Identify transfer categories
-  const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
-  const TRANSFER_LABELS = ['Credit Card Payment'];
-
-  // Helper to check if a transaction is a transfer type
-  const isTransfer = (tx) => {
-    const groupName = tx.system_categories?.category_groups?.name;
-    const label = tx.system_categories?.label;
-    return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
-  };
-
-  // Set of matched transaction IDs to skip
-  const matchedIds = new Set();
-
-  // First pass: Identify matches for transfers
-  for (let i = 0; i < transactions.length; i++) {
-    const tx = transactions[i];
-    if (matchedIds.has(tx.id)) continue;
-
-    if (isTransfer(tx)) {
-      const txDate = new Date(tx.date);
-      const targetAmount = -parseFloat(tx.amount);
-
-      for (let j = i + 1; j < transactions.length; j++) {
-        const candidate = transactions[j];
-        if (matchedIds.has(candidate.id)) continue;
-
-        const candidateDate = new Date(candidate.date);
-        const diffDays = (candidateDate - txDate) / (1000 * 60 * 60 * 24);
-
-        if (diffDays > 3) break;
-
-        if (Math.abs(parseFloat(candidate.amount) - targetAmount) < 0.01) {
-          matchedIds.add(tx.id);
-          matchedIds.add(candidate.id);
-          break;
-        }
-      }
-    }
-  }
+  // Identify matched transfer pairs using shared utility
+  const { matchedIds } = identifyTransfers(transactions);
 
   // Initialize map for daily totals
   const dailyTotals = new Map();

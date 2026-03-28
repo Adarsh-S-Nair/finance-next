@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
+import { authFetch } from "../../../lib/api/fetch";
 import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
@@ -27,9 +28,10 @@ const componentMap = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
+  const [summaryData, setSummaryData] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -47,6 +49,15 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  // Fetch consolidated dashboard summary (single DB round-trip for both chart cards)
+  useEffect(() => {
+    if (authLoading || !user?.id) return;
+    authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setSummaryData(data); })
+      .catch(err => console.error('[dashboard] summary fetch error:', err));
+  }, [authLoading, user?.id]);
+
   // Whether a component is a "main content" component (no card wrapper)
   const mainContentComponents = new Set([
     'MonthlyOverviewCard',
@@ -54,6 +65,12 @@ export default function DashboardPage() {
     'TopCategoriesCard',
     'RecentTransactionsCard',
   ]);
+
+  // Components that receive pre-fetched summary data from the dashboard
+  const summaryDataMap = {
+    'SpendingVsEarningCard': summaryData?.spendingEarning,
+    'TopCategoriesCard': summaryData?.spendingByCategory,
+  };
 
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
@@ -67,12 +84,15 @@ export default function DashboardPage() {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
             const isMain = mainContentComponents.has(subItem.component);
+            const extraProps = summaryDataMap[subItem.component]
+              ? { data: summaryDataMap[subItem.component] }
+              : {};
             return (
               <div
                 key={subItem.id}
                 className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''} ${isMain ? 'border-b border-zinc-100 pb-8 lg:border-b-0 lg:pb-0 lg:border-r lg:border-zinc-100 lg:pr-8 last:border-0 last:pb-0 last:pr-0' : ''}`}
               >
-                <Component {...(subItem.props || {})} />
+                <Component {...(subItem.props || {})} {...extraProps} />
               </div>
             );
           })}
@@ -82,10 +102,13 @@ export default function DashboardPage() {
 
     const Component = componentMap[item.component];
     if (!Component) return null;
+    const extraProps = summaryDataMap[item.component]
+      ? { data: summaryDataMap[item.component] }
+      : {};
 
     return (
       <div key={item.id} className={item.height || ''}>
-        <Component {...(item.props || {})} />
+        <Component {...(item.props || {})} {...extraProps} />
       </div>
     );
   };

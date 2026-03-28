@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
@@ -119,72 +120,11 @@ export async function GET(request) {
       );
     }
 
-    // Identify transfer categories
-    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
-    const TRANSFER_LABELS = ['Credit Card Payment'];
-
-    // Helper to check if a transaction is a transfer type
-    const isTransfer = (tx) => {
-      const groupName = tx.system_categories?.category_groups?.name;
-      const label = tx.system_categories?.label;
-      return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
-    };
-
-    // Set of matched transaction IDs to skip
-    const matchedIds = new Set();
+    // Identify matched transfer pairs using shared utility
+    const { matchedIds } = identifyTransfers(transactions);
 
     // Group transactions by month and calculate spending/earning
     const monthlyData = {};
-
-    // First pass: Identify matches for transfers
-    // We iterate through all transactions. If it's a transfer and not matched yet, try to find a match.
-    for (let i = 0; i < transactions.length; i++) {
-      const tx = transactions[i];
-      if (matchedIds.has(tx.id)) continue;
-
-      if (isTransfer(tx)) {
-        // Look for a match
-        // Match criteria:
-        // 1. Different ID
-        // 2. Not already matched
-        // 3. Amount is opposite (tx.amount + match.amount === 0)
-        // 4. Date within +/- 3 days
-
-        const txDate = new Date(tx.date);
-        const targetAmount = -parseFloat(tx.amount); // Look for opposite amount
-
-        // We search in the whole array. 
-        // Optimization: Since array is sorted by date, we can search locally around index i.
-        // But for simplicity and correctness with small-ish N (thousands), linear scan or bounded scan is fine.
-        // Let's do a bounded scan since it's sorted by date.
-
-        let matchFound = false;
-
-        // Scan forward
-        for (let j = i + 1; j < transactions.length; j++) {
-          const candidate = transactions[j];
-          if (matchedIds.has(candidate.id)) continue;
-
-          const candidateDate = new Date(candidate.date);
-          const diffDays = (candidateDate - txDate) / (1000 * 60 * 60 * 24);
-
-          if (diffDays > 3) break; // Too far in future, stop searching forward
-
-          // Check amount match (using small epsilon for float comparison if needed, but usually exact for currency)
-          if (Math.abs(parseFloat(candidate.amount) - targetAmount) < 0.01) {
-            // Found a match!
-            matchedIds.add(tx.id);
-            matchedIds.add(candidate.id);
-            matchFound = true;
-            break;
-          }
-        }
-
-        // If not found forward, we don't need to scan backward because if a match existed backward, 
-        // it would have found *this* transaction when *that* transaction was processed (since we iterate i from 0).
-        // So forward scan is sufficient.
-      }
-    }
 
     // Second pass: Aggregate data
     transactions.forEach(transaction => {

@@ -21,7 +21,7 @@ function generateAccentShades(accentColor, count) {
   return shades;
 }
 
-export default function TopCategoriesCard() {
+export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, profile, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
@@ -54,6 +54,15 @@ export default function TopCategoriesCard() {
   const containerRef = React.useRef(null);
 
   useEffect(() => {
+    // If externalData is provided for the default period, use it
+    if (externalData && selectedPeriod === 'thisMonth') {
+      const topCategories = (externalData.categories || []).slice(0, 10);
+      setCategories(topCategories);
+      setTotalSpending(externalData.totalSpending || 0);
+      setLoading(false);
+      return;
+    }
+
     if (authLoading) return;
     if (!user?.id) { setLoading(false); return; }
     async function fetchData() {
@@ -91,7 +100,7 @@ export default function TopCategoriesCard() {
     }
 
     fetchData();
-  }, [authLoading, user?.id, selectedPeriod]);
+  }, [authLoading, user?.id, selectedPeriod, externalData]);
 
   // Handle Mouse Leave Logic
   useEffect(() => {
