@@ -9,7 +9,7 @@
   },
   "crons": [
     {
-      "path": "/api/cron/portfolio-snapshots",
+      "path": "/api/cron/account-snapshots",
       "schedule": "30 14 * * *"
     },
     {
