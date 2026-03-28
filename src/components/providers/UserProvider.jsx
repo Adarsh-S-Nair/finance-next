@@ -315,6 +315,30 @@ export default function UserProvider({ children }) {
         // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
         fetchedRef.current = true; // mark as fetched so init IIFE doesn't double-fetch
         profileLoadingRef.current = true;
+
+        // For Google OAuth sign-ins, seed profile from user_metadata if no profile exists yet
+        const isGoogleProvider = nextUser.app_metadata?.provider === "google" ||
+          nextUser.identities?.some((id) => id.provider === "google");
+        if (isGoogleProvider) {
+          try {
+            const { fetchUserProfile: fetchP, upsertUserProfile: upsertP } = await import("../../lib/user/profile");
+            const { profile: existingProfile } = await fetchP();
+            if (!existingProfile || !existingProfile.first_name) {
+              const meta = nextUser.user_metadata || {};
+              const firstName = meta.given_name || meta.full_name?.split(" ")[0] || null;
+              const lastName = meta.family_name || (meta.full_name?.split(" ").slice(1).join(" ") || null);
+              const avatarUrl = meta.avatar_url || meta.picture || null;
+              await upsertP({
+                first_name: firstName || null,
+                last_name: lastName || null,
+                avatar_url: avatarUrl || null,
+              });
+            }
+          } catch (e) {
+            console.error("[UserProvider] Google profile seed error", e);
+          }
+        }
+
         if (await redirectFromPublicRoute()) {
           // Profile will be loaded by the [user,profile] effect after redirect
           profileLoadingRef.current = false;

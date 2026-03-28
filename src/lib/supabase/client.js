@@ -15,6 +15,7 @@ const createServerSafeStub = () => ({
     refreshSession: async () => ({ data: { session: null }, error: null }),
     signOut: async () => ({ error: null }),
     signInWithPassword: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
+    signInWithOAuth: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
     signUp: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
     updateUser: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),
     resetPasswordForEmail: async () => ({ data: null, error: new Error("Supabase client unavailable during server build") }),

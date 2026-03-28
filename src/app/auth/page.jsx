@@ -7,6 +7,8 @@ import PublicRoute from "../../components/PublicRoute";
 import RouteTransition from "../../components/RouteTransition";
 import { LandingNav } from "../page";
 
+const isMock = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
+
 export default function AuthPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -39,12 +41,14 @@ export default function AuthPage() {
 
                   <LoginForm />
 
-                  <p className="mt-5 text-sm text-zinc-500">
-                    Don&apos;t have an account?{" "}
-                    <Link href="/setup" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
-                      Get started
-                    </Link>
-                  </p>
+                  {isMock && (
+                    <p className="mt-5 text-sm text-zinc-500">
+                      Don&apos;t have an account?{" "}
+                      <Link href="/setup" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
+                        Get started
+                      </Link>
+                    </p>
+                  )}
 
                   <p className="mt-6 text-xs leading-5 text-zinc-400">
                     By continuing, you agree to our{" "}

@@ -12,10 +12,12 @@ import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
-
+import { GoogleSignInButton } from "../auth/LoginForm";
 
 // Steps: 0=Name, 1=Email+Password, 2=Connecting, 3=Connected
-const TOTAL_STEPS = 4;
+// In production (non-mock): steps 0+1 are skipped; only 2=Connecting, 3=Connected
+const isMockEnv = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
+const TOTAL_STEPS = isMockEnv ? 4 : 2;
 
 const slideVariants = {
   enter: (direction) => ({
@@ -326,7 +328,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
 }
 
 /* ── Step 2: Connecting (uses Plaid) ────────────────────────── */
-const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
+const isMockPlaid = isMockEnv;
 
 function ConnectingStep({ onSuccess, onError, onBack }) {
   const { addAccount, refreshAccounts } = useAccounts();
@@ -645,15 +647,53 @@ function ConnectedStep({ plaidData, onComplete }) {
   );
 }
 
+/* ── Production: Google sign-up gate (pre-auth) ─────────────── */
+function GoogleSignUpGate() {
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleSignUp = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback/exchange?next=/setup`,
+      },
+    });
+    if (error) {
+      console.error("[GoogleSignUpGate] OAuth error", error);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center text-center w-full max-w-sm">
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+        Create your account
+      </h1>
+      <p className="mt-2 text-sm text-zinc-500">
+        Sign up with Google to get started in seconds.
+      </p>
+      <div className="mt-8 w-full">
+        <GoogleSignInButton loading={loading} onClick={handleGoogleSignUp} label="Sign up with Google" />
+      </div>
+    </div>
+  );
+}
+
 /* ── Main component ─────────────────────────────────────────── */
 /**
  * AccountSetupFlow
  *
  * Props:
- *   initialStep   - which step to start on (0=name, 1=email/pw, 2=account type, 3=connecting, 4=connected)
+ *   initialStep   - which step to start on (0=name, 1=email/pw, 2=connecting, 3=connected)
  *   userName      - pre-resolved first name (used when resuming from step 2+)
  *   onComplete    - called when the user finishes the flow
  *   onFlowStart   - called when Plaid link is about to open
+ *
+ * Production mode (NEXT_PUBLIC_PLAID_ENV !== 'mock'):
+ *   - Steps 0 & 1 replaced with Google OAuth gate
+ *   - Authenticated users land directly at step 2 (Plaid connection)
+ *   - Pagination shows 2 dots: connect + connected
  */
 export default function AccountSetupFlow({ initialStep = 0, userName, onComplete = null, onFlowStart = null }) {
   const [step, setStep] = useState(initialStep);
@@ -697,6 +737,11 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const stepContent = () => {
+    // Production mode: steps 0 and 1 replaced by Google OAuth gate
+    if (!isMockEnv && step <= 1) {
+      return <GoogleSignUpGate key="google-signup" />;
+    }
+
     switch (step) {
       case 0:
         return (
@@ -720,7 +765,7 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
             key="connecting"
             onSuccess={handlePlaidSuccess}
             onError={handlePlaidError}
-            onBack={() => goTo(1)}
+            onBack={() => isMockEnv ? goTo(1) : undefined}
           />
         );
       case 3:
@@ -735,6 +780,10 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
         return null;
     }
   };
+
+  // In production: map step 2→dot 0, step 3→dot 1 (no dots for Google gate)
+  const showDots = isMockEnv ? true : step >= 2;
+  const dotCurrent = isMockEnv ? step : step - 2;
 
   return (
     <div className="flex w-full max-w-lg flex-col items-center px-5 sm:px-6">
@@ -756,10 +805,12 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
         </AnimatePresence>
       </div>
 
-      {/* Pagination dots */}
-      <div className="mt-12">
-        <PaginationDots current={step} total={TOTAL_STEPS} />
-      </div>
+      {/* Pagination dots — hidden for Google gate in production */}
+      {showDots && (
+        <div className="mt-12">
+          <PaginationDots current={dotCurrent} total={TOTAL_STEPS} />
+        </div>
+      )}
 
       {/* "Already have an account?" — fixed bottom-right, visible on pre-auth steps */}
       <AnimatePresence>
