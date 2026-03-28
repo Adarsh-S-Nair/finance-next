@@ -8,7 +8,7 @@ import { useUser } from '../providers/UserProvider';
 import { FiRefreshCw, FiAlertCircle, FiTag, FiLock } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
 import DynamicIcon from '../DynamicIcon';
-import UpgradeModal from '../UpgradeModal';
+import UpgradeOverlay from '../UpgradeOverlay';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -304,7 +304,7 @@ export default function RecurringTransactionsCard() {
             </button>
           </div>
         </Card>
-        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       </>
     );
   }

@@ -13,7 +13,7 @@ import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
-import UpgradeModal from "../../../components/UpgradeModal";
+import UpgradeOverlay from "../../../components/UpgradeOverlay";
 
 // Helper to format currency
 const formatCurrency = (amount) => {
@@ -405,7 +405,7 @@ export default function AccountsPage() {
             setIsUpgradeModalOpen(true);
           }}
         />
-        <UpgradeModal
+        <UpgradeOverlay
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
         />

@@ -15,6 +15,7 @@ import { useUser } from "../providers/UserProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import Tooltip from "../ui/Tooltip";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
+import UpgradeOverlay from "../UpgradeOverlay";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
@@ -24,6 +25,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const [showLogout, setShowLogout] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [showPopover, setShowPopover] = useState(false);
+  const [showUpgradeOverlay, setShowUpgradeOverlay] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -292,13 +294,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           >
             {avatarEl}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--color-fg)] truncate leading-tight">
-                {fullName || "User"}
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-[var(--color-fg)] truncate leading-tight">
+                  {fullName || "User"}
+                </p>
                 <span
                   className={clsx(
-                    "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none",
+                    "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0",
                     tier === "pro"
                       ? "bg-[var(--color-accent)]/20 text-[var(--color-accent)]"
                       : "bg-white/10 text-[var(--color-muted)]"
@@ -307,6 +309,14 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                   {tierLabel}
                 </span>
               </div>
+              {tier === "free" && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowUpgradeOverlay(true); }}
+                  className="text-[10px] text-[var(--color-accent)] hover:opacity-80 transition-opacity mt-0.5 cursor-pointer"
+                >
+                  Upgrade
+                </button>
+              )}
             </div>
             <svg
               className={clsx(
@@ -346,6 +356,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           variant="primary"
           busy={isSigningOut}
         />
+        <UpgradeOverlay isOpen={showUpgradeOverlay} onClose={() => setShowUpgradeOverlay(false)} />
       </div>
     </div>
   );

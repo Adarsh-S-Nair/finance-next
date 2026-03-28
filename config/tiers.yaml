@@ -14,7 +14,7 @@ tiers:
       - transactions
 
   pro:
-    connections: unlimited
+    connections: 5
     features:
       transactions: true
       budgets: true
