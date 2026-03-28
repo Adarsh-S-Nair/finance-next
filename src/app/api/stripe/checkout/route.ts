@@ -53,11 +53,11 @@ export async function POST(request: NextRequest) {
       });
       customerId = customer.id;
 
-      // Persist immediately so webhook can always resolve the user
+      // Persist immediately so webhook can always resolve the user.
+      // Use upsert so it creates the profile row if it doesn't exist yet.
       const { error: updateError } = await supabaseAdmin!
         .from('user_profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', userId);
+        .upsert({ id: userId, stripe_customer_id: customerId }, { onConflict: 'id' });
 
       if (updateError) {
         console.error('[stripe/checkout] failed to save customer ID:', updateError);
