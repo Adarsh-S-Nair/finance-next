@@ -50,7 +50,7 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
     }
 
     // Filter to only transfer-type transactions in memory
-    const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
     const TRANSFER_LABELS = ['Credit Card Payment'];
     const isTransfer = (tx) => {
       const groupName = tx.system_categories?.category_groups?.name;

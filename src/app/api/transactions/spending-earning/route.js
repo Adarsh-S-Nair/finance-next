@@ -120,7 +120,7 @@ export async function GET(request) {
     }
 
     // Identify transfer categories
-    const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
     const TRANSFER_LABELS = ['Credit Card Payment'];
 
     // Helper to check if a transaction is a transfer type

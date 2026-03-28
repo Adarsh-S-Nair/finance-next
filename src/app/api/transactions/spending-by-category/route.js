@@ -166,7 +166,7 @@ export async function GET(request) {
     }
 
     // Logic to identify and exclude internal transfers (consistent with spending-earning)
-    const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
     const TRANSFER_LABELS = ['Credit Card Payment'];
     const isTransfer = (tx) => {
       const groupName = tx.system_categories?.category_groups?.name;
