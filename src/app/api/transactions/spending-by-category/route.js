@@ -130,7 +130,8 @@ export async function GET(request) {
       `)
       .eq('accounts.user_id', userId)
       .not('system_categories', 'is', null)
-      .gte('date', effectiveSinceDate.toISOString().split('T')[0]);
+      .gte('date', effectiveSinceDate.toISOString().split('T')[0])
+      .order('date', { ascending: true });
 
     // Only apply end date filter for budget calculations (exclude current month)
     if (endDate) {
@@ -165,10 +166,12 @@ export async function GET(request) {
     }
 
     // Logic to identify and exclude internal transfers (consistent with spending-earning)
-    const transferCategories = ['Credit Card Payment', 'Transfer', 'Account Transfer'];
+    const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+    const TRANSFER_LABELS = ['Credit Card Payment'];
     const isTransfer = (tx) => {
+      const groupName = tx.system_categories?.category_groups?.name;
       const label = tx.system_categories?.label;
-      return label && transferCategories.includes(label);
+      return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
     };
 
     const matchedIds = new Set();

@@ -23,7 +23,11 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
         description,
         merchant_name,
         system_categories!inner (
-          label
+          id,
+          label,
+          category_groups (
+            name
+          )
         ),
         accounts!inner (
           user_id,
@@ -33,7 +37,7 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
       .eq('accounts.user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate)
-      .in('system_categories.label', ['Credit Card Payment', 'Transfer', 'Account Transfer']);
+      .not('system_categories', 'is', null);
 
     if (error) {
       console.error('Error fetching transactions for detection:', error);
@@ -45,12 +49,23 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
       return;
     }
 
-    console.log(`Found ${transactions.length} potential transfers to check.`);
+    // Filter to only transfer-type transactions in memory
+    const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+    const TRANSFER_LABELS = ['Credit Card Payment'];
+    const isTransfer = (tx) => {
+      const groupName = tx.system_categories?.category_groups?.name;
+      const label = tx.system_categories?.label;
+      return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
+    };
+
+    const transferTransactions = transactions.filter(isTransfer);
+
+    console.log(`Found ${transferTransactions.length} potential transfers to check (out of ${transactions.length} categorized transactions).`);
 
     // 2. For each transaction, check for a match
     const updates = [];
 
-    for (const tx of transactions) {
+    for (const tx of transferTransactions) {
       // Skip zero amount transactions
       if (tx.amount === 0) continue;
 

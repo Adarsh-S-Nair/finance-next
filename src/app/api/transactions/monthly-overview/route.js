@@ -14,7 +14,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Fetch transactions for the month
   let query = supabaseAdmin
     .from('transactions')
-    .select('id, amount, date, accounts!inner(user_id), system_categories(label), transaction_splits(amount, is_settled), transaction_repayments(id)')
+    .select('id, amount, date, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
     .eq('accounts.user_id', userId)
     .gte('date', startDateStr)
     .lte('date', endDateStr)
@@ -33,12 +33,14 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   }
 
   // Identify transfer categories
-  const transferCategories = ['Credit Card Payment', 'Transfer', 'Account Transfer'];
+  const TRANSFER_GROUPS = ['TRANSFER_IN', 'TRANSFER_OUT'];
+  const TRANSFER_LABELS = ['Credit Card Payment'];
 
   // Helper to check if a transaction is a transfer type
   const isTransfer = (tx) => {
+    const groupName = tx.system_categories?.category_groups?.name;
     const label = tx.system_categories?.label;
-    return label && transferCategories.includes(label);
+    return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
   };
 
   // Set of matched transaction IDs to skip
