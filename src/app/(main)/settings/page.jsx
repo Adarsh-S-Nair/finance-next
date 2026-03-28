@@ -185,9 +185,18 @@ export default function SettingsPage() {
     setIsPlaidModalOpen(true);
   };
 
+  const meta = user?.user_metadata ?? {};
+  const firstName = profile?.first_name || meta.first_name || "";
+  const lastName = profile?.last_name || meta.last_name || "";
+  const displayName = [firstName, lastName].filter(Boolean).join(" ")
+    || meta.name
+    || meta.full_name
+    || user?.email
+    || "—";
+
   return (
     <PageContainer title="Settings">
-      <div className="max-w-3xl mx-auto space-y-10">
+      <div className="max-w-5xl mx-auto space-y-10">
 
         {/* Profile Section */}
         <section aria-labelledby="profile-heading">
@@ -204,7 +213,7 @@ export default function SettingsPage() {
               ) : (
                 <div className="w-12 h-12 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center">
                   <span className="text-lg font-semibold text-[var(--color-accent)]">
-                    {(profile?.first_name || user?.email || "?")[0].toUpperCase()}
+                    {(displayName === "—" ? "?" : displayName)[0].toUpperCase()}
                   </span>
                 </div>
               )}
@@ -214,7 +223,7 @@ export default function SettingsPage() {
               <div>
                 <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-0.5">Name</div>
                 <div className="text-sm text-[var(--color-fg)]">
-                  {[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "—"}
+                  {displayName}
                 </div>
               </div>
               <div>
@@ -248,20 +257,22 @@ export default function SettingsPage() {
             </div>
             <div className="ml-4 flex-shrink-0">
               {isPro ? (
-                <button
+                <Button
                   disabled
-                  className="text-xs text-[var(--color-muted)] cursor-not-allowed"
+                  variant="primary"
+                  size="sm"
                   title="Stripe portal coming soon"
                 >
-                  Manage
-                </button>
+                  Manage Subscription
+                </Button>
               ) : (
-                <button
+                <Button
                   onClick={() => setIsUpgradeModalOpen(true)}
-                  className="text-xs font-medium text-[var(--color-accent)] hover:underline transition-colors"
+                  variant="primary"
+                  size="sm"
                 >
                   Upgrade to Pro
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -457,12 +468,13 @@ export default function SettingsPage() {
               <div className="text-sm font-medium text-[var(--color-fg)]">Sign out</div>
               <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
             </div>
-            <button
+            <Button
               onClick={logout}
-              className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+              variant="primary"
+              size="sm"
             >
               Sign Out
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -474,12 +486,13 @@ export default function SettingsPage() {
               <div className="text-sm font-medium text-[var(--color-fg)]">Delete account</div>
               <div className="text-xs text-[var(--color-muted)] mt-0.5">Permanently delete your account and all associated data.</div>
             </div>
-            <button
+            <Button
               onClick={() => setConfirmOpen(true)}
-              className="text-xs font-medium text-[var(--color-danger)] hover:underline transition-colors"
+              variant="danger"
+              size="sm"
             >
               Delete Account
-            </button>
+            </Button>
           </div>
         </section>
 
