@@ -191,6 +191,10 @@ export async function GET(request) {
       // Exclude matched transfers (pairs like credit card payment out + payment in)
       if (matchedIds.has(transaction.id)) return;
 
+      // Exclude ALL transfer-type transactions from cashflow (matched or unmatched)
+      // Transfers are just money moving between accounts, not real income/spending
+      if (isTransfer(transaction)) return;
+
       // Exclude repayment transactions from counting as income (or spending)
       if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
 

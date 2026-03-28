@@ -82,6 +82,8 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Aggregate transactions by day
   transactions.forEach(tx => {
     if (matchedIds.has(tx.id)) return;
+    // Exclude ALL transfer-type transactions (matched or unmatched)
+    if (isTransfer(tx)) return;
     if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
     if (!tx.date) return;
 

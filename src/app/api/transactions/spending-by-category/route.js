@@ -214,6 +214,9 @@ export async function GET(request) {
       // Exclude matched transfers (pairs like credit card payment out + payment in)
       if (matchedIds.has(transaction.id)) return;
 
+      // Exclude ALL transfer-type transactions (matched or unmatched)
+      if (isTransfer(transaction)) return;
+
       // Exclude repayments
       if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
 
