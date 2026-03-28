@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
 import Link from "next/link";
-import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus, FiEye, FiEyeOff } from "react-icons/fi";
+import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiEye, FiEyeOff } from "react-icons/fi";
 import Button from "../ui/Button";
 import MockPlaidLink from "../MockPlaidLink";
 import { useAccounts } from "../providers/AccountsProvider";
@@ -12,8 +12,7 @@ import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
-import { useUser } from "../providers/UserProvider";
-import UpgradeModal from "../UpgradeModal";
+
 
 // Steps: 0=Name, 1=Email+Password, 2=Connecting, 3=Connected
 const TOTAL_STEPS = 4;
@@ -524,7 +523,7 @@ function formatSubtype(subtype) {
   return SUBTYPE_LABELS[subtype] || subtype.charAt(0).toUpperCase() + subtype.slice(1);
 }
 
-function ConnectedStep({ plaidData, onAddMore, onComplete }) {
+function ConnectedStep({ plaidData, onComplete }) {
   const accounts = plaidData?.accounts || [];
   const institution = plaidData?.institution;
 
@@ -641,23 +640,7 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
           Continue to dashboard
           <FiChevronRight className="ml-1.5 h-4 w-4" />
         </Button>
-        <button
-          type="button"
-          onClick={onAddMore}
-          className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 active:scale-[0.97] transition-all duration-150 cursor-pointer"
-        >
-          <FiPlus className="h-4 w-4" />
-          Connect another account
-        </button>
       </motion.div>
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: accounts.length > 0 ? 0.9 + accounts.length * 0.05 : 0.8 }}
-        className="mt-5 text-xs text-zinc-400"
-      >
-        You can always add more from settings.
-      </motion.p>
     </div>
   );
 }
@@ -673,12 +656,10 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
  *   onFlowStart   - called when Plaid link is about to open
  */
 export default function AccountSetupFlow({ initialStep = 0, userName, onComplete = null, onFlowStart = null }) {
-  const { isPro } = useUser();
   const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
   const [plaidData, setPlaidData] = useState(null);
   const [pendingName, setPendingName] = useState(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [resolvedFirstName, setResolvedFirstName] = useState(() => {
     if (!userName) return null;
     return capitalizeFirstOnly(String(userName).split(" ")[0]);
@@ -709,15 +690,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
 
   const handlePlaidError = () => {
     // Error is displayed within ConnectingStep
-  };
-
-  const handleAddMore = () => {
-    // Free users can only have 1 connection — show upgrade modal
-    if (!isPro) {
-      setShowUpgradeModal(true);
-      return;
-    }
-    goTo(2);
   };
 
   const handleComplete = () => {
@@ -756,7 +728,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
           <ConnectedStep
             key="connected"
             plaidData={plaidData}
-            onAddMore={handleAddMore}
             onComplete={handleComplete}
           />
         );
@@ -789,12 +760,6 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
       <div className="mt-12">
         <PaginationDots current={step} total={TOTAL_STEPS} />
       </div>
-
-      {/* Upgrade Modal for free tier users */}
-      <UpgradeModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-      />
 
       {/* "Already have an account?" — fixed bottom-right, visible on pre-auth steps */}
       <AnimatePresence>
