@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
+import { FiCheck, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
 export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = "bg-white" }) {
@@ -268,13 +268,17 @@ export default function Home() {
                 <p className="mt-1 text-sm font-medium text-zinc-500" style={{ fontFamily: "var(--font-outfit)" }}>Free</p>
                 <p className="mt-4 text-sm text-zinc-500">Everything you need to get started.</p>
                 <ul className="mt-6 space-y-3 text-sm text-zinc-600">
-                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> Transactions</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> 1 connected account</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> Net worth history</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Transactions</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> 1 connected account</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Net worth history</li>
+                  <li className="flex items-center gap-2"><FiX className="text-zinc-300 shrink-0" size={14} /> Budgets</li>
+                  <li className="flex items-center gap-2"><FiX className="text-zinc-300 shrink-0" size={14} /> Investments</li>
+                  <li className="flex items-center gap-2"><FiX className="text-zinc-300 shrink-0" size={14} /> Recurring transactions</li>
+                  <li className="flex items-center gap-2"><FiX className="text-zinc-300 shrink-0" size={14} /> Paper trading</li>
                 </ul>
                 <Link
                   href="/setup"
-                  className="mt-8 inline-flex w-full items-center justify-center rounded-md border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-all duration-150 hover:bg-zinc-50 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  className="mt-8 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-zinc-800 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                   style={{ fontFamily: "var(--font-outfit)" }}
                 >
                   Get Started
@@ -282,19 +286,26 @@ export default function Home() {
               </div>
 
               {/* Pro tier */}
-              <div className="rounded-xl border border-zinc-900 bg-zinc-900 p-8">
+              <div className="relative overflow-hidden rounded-xl border-2 border-emerald-500 bg-zinc-900 p-8">
+                <span className="absolute top-0 right-6 px-3 py-1 rounded-b-lg text-[10px] font-bold uppercase tracking-wide text-white bg-emerald-500">
+                  Recommended
+                </span>
+                {/* Subtle emerald glow at top right */}
+                <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-emerald-500 opacity-[0.06] blur-2xl" />
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-semibold text-white" style={{ fontFamily: "var(--font-outfit)" }}>$9</span>
                   <span className="text-sm text-zinc-400">/mo</span>
                 </div>
                 <p className="mt-1 text-sm font-medium text-zinc-400" style={{ fontFamily: "var(--font-outfit)" }}>Pro</p>
-                <p className="mt-4 text-sm text-zinc-400">Everything in Free, plus:</p>
+                <p className="mt-4 text-sm text-zinc-400">Everything, unlocked.</p>
                 <ul className="mt-6 space-y-3 text-sm text-zinc-300">
-                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Budgets</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Investments</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Recurring transactions</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Paper trading</li>
-                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> 5 connected accounts</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Transactions</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> 1 connected account</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Net worth history</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Budgets</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Investments</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Recurring transactions</li>
+                  <li className="flex items-center gap-2"><FiCheck className="text-emerald-500 shrink-0" size={14} /> Paper trading</li>
                 </ul>
                 <Link
                   href="/setup"
