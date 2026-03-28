@@ -2,6 +2,7 @@ import { getPlaidClient } from '../../../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../../lib/logger';
 import { resolveUserId } from '../../../../../../lib/api/auth';
+import { canAccess } from '../../../../../../lib/tierConfig';
 
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 const logger = createLogger('holdings-sync');
@@ -141,6 +142,16 @@ export async function POST(request) {
     } = await request.json();
     plaidItemId = requestPlaidItemId;
     const userId = resolveUserId(request, bodyUserId);
+
+    // Gate: investments is a Pro feature
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'investments')) {
+      return Response.json({ error: 'feature_locked', feature: 'investments' }, { status: 403 });
+    }
 
     logger.info('Holdings sync request received', {
       plaidItemId,

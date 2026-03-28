@@ -1,0 +1,53 @@
+features:
+  paper_trading:
+    enabled_envs:
+      - development
+      - test
+    description: "AI paper trading (experimental)"
+
+  arbitrage:
+    enabled_envs:
+      - development
+      - test
+    description: "Crypto arbitrage scanner (experimental)"
+
+  ai_trading:
+    enabled_envs:
+      - development
+      - test
+    description: "AI trading strategies"
+
+  budgets:
+    enabled_envs:
+      - development
+      - test
+      - production
+    description: "Budget tracking and management"
+
+  investments:
+    enabled_envs:
+      - development
+      - test
+      - production
+    description: "Investment portfolio tracking"
+
+  recurring:
+    enabled_envs:
+      - development
+      - test
+      - production
+    description: "Recurring transaction detection"
+
+  transactions:
+    enabled_envs:
+      - development
+      - test
+      - production
+    description: "Transaction tracking"
+
+  net_worth_history:
+    enabled_envs:
+      - development
+      - test
+      - production
+    description: "Net worth history tracking"

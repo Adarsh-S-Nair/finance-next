@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { canAccess } from '../../../../lib/tierConfig';
 
 /**
  * GET /api/recurring/get
@@ -21,7 +22,8 @@ export async function GET(request) {
     .select('subscription_tier')
     .eq('id', userId)
     .maybeSingle();
-  if (!userProfile || userProfile.subscription_tier !== 'pro') {
+  const subscriptionTier = userProfile?.subscription_tier || 'free';
+  if (!canAccess(subscriptionTier, 'recurring')) {
     return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
   }
 

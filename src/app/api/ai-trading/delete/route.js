@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess } from '../../../../lib/tierConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,18 @@ function getSupabaseClient() {
 export async function DELETE(request) {
   try {
     const userId = requireVerifiedUserId(request);
+
+    // Gate: ai_trading is a Pro feature
+    const supabase = getSupabaseClient();
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'ai_trading')) {
+      return NextResponse.json({ error: 'feature_locked', feature: 'ai_trading' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const portfolioId = searchParams.get('portfolioId');
 
@@ -31,8 +44,6 @@ export async function DELETE(request) {
         { status: 400 }
       );
     }
-
-    const supabase = getSupabaseClient();
 
     // Verify the portfolio exists, is the right type, and belongs to this user
     const { data: portfolio, error: fetchError } = await supabase

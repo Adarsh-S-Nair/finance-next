@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase/client";
 import { fetchUserProfile, upsertUserProfile } from "../../lib/user/profile";
 import { useToast } from "./ToastProvider";
 import { authFetch } from "../../lib/api/fetch";
+import { canAccess } from "../../lib/tierConfigClient";
 
 const UserContext = createContext({
   user: null,
@@ -382,7 +383,9 @@ export default function UserProvider({ children }) {
     setUser(null);
   }, [applyTheme, applyAccent]);
 
-  const isPro = profile?.subscription_tier === 'pro';
+  // isPro derives from the centralized tier config — pro tier has access to budgets/investments etc.
+  // Using canAccess as the single source of truth for what "pro" means
+  const isPro = canAccess(profile?.subscription_tier || 'free', 'budgets');
 
   const value = useMemo(() => ({ user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout }), [user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout]);
 

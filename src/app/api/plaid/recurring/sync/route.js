@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../lib/logger';
 import { detectMissedRecurring } from '../../../../../lib/recurringGapFiller';
 import { resolveUserId } from '../../../../../lib/api/auth';
+import { canAccess } from '../../../../../lib/tierConfig';
 
 const logger = createLogger('plaid-recurring-sync');
 
@@ -21,7 +22,8 @@ export async function POST(request) {
       .select('subscription_tier')
       .eq('id', userId)
       .maybeSingle();
-    if (!userProfile || userProfile.subscription_tier !== 'pro') {
+    const subscriptionTier = userProfile?.subscription_tier || 'free';
+    if (!canAccess(subscriptionTier, 'recurring')) {
       return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
     }
 

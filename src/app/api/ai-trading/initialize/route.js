@@ -17,6 +17,7 @@ import { callGemini } from '../../../../lib/geminiClient';
 import { scrapeNasdaq100Constituents, fetchBulkStockData, fetchBulkTickerDetails, checkMarketStatus } from '../../../../lib/marketData';
 import { formatDateString } from '../../../../lib/portfolioUtils';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess } from '../../../../lib/tierConfig';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -136,9 +137,18 @@ async function createInitialPortfolioSnapshot(supabase, portfolio, assetType, cr
 export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
-    // Create Supabase client (lazy, only when actually needed)
+
+    // Gate: ai_trading is a Pro feature
     const supabase = getSupabaseClient();
-    
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'ai_trading')) {
+      return NextResponse.json({ error: 'feature_locked', feature: 'ai_trading' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, aiModel, startingCapital, assetType = 'stock', cryptoAssets } = body;
 

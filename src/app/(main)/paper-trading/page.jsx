@@ -12,6 +12,7 @@ import { SiGooglegemini, SiX } from "react-icons/si";
 import { FiLoader } from "react-icons/fi";
 import { useUser } from "../../../components/providers/UserProvider";
 import { supabase } from "../../../lib/supabase/client";
+import { isFeatureEnabled } from "../../../lib/tierConfigClient";
 import LineChart from "../../../components/ui/LineChart";
 import { usePaperTradingHeader } from "./PaperTradingHeaderContext";
 import { ChartSkeleton, CardSkeleton } from "../../../components/ui/Skeleton";
@@ -975,7 +976,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
 
 export default function PaperTradingPage() {
   const router = useRouter();
-  const { user, profile } = useUser();
+  const { user, profile, isPro } = useUser();
   const { setHeaderActions } = usePaperTradingHeader();
   const [portfolios, setPortfolios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1080,6 +1081,15 @@ export default function PaperTradingPage() {
       setIsDeleting(false);
     }
   };
+
+  // Feature flag: paper trading is hidden in production
+  if (!isFeatureEnabled('paper_trading')) {
+    return (
+      <div className="flex items-center justify-center h-64 text-[var(--color-muted)] text-sm">
+        This feature is not available in this environment.
+      </div>
+    );
+  }
 
   if (loading) {
     return (

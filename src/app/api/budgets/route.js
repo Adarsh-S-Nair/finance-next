@@ -1,10 +1,26 @@
 import { supabaseAdmin } from '../../../lib/supabase/admin';
 import { getBudgetProgress, upsertBudget, deleteBudget } from '../../../lib/spending';
 import { requireVerifiedUserId } from '../../../lib/api/auth';
+import { canAccess } from '../../../lib/tierConfig';
+
+async function requireTierAccess(userId, feature) {
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .maybeSingle();
+  const tier = userProfile?.subscription_tier || 'free';
+  if (!canAccess(tier, feature)) {
+    return Response.json({ error: 'feature_locked', feature }, { status: 403 });
+  }
+  return null;
+}
 
 export async function GET(request) {
   try {
     const userId = requireVerifiedUserId(request);
+    const tierError = await requireTierAccess(userId, 'budgets');
+    if (tierError) return tierError;
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month'); // Optional YYYY-MM-DD
 
@@ -20,6 +36,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
+    const tierError = await requireTierAccess(userId, 'budgets');
+    if (tierError) return tierError;
     const body = await request.json();
     const { userId: _ignoredUserId, ...budgetData } = body;
 
@@ -36,6 +54,8 @@ export async function POST(request) {
 export async function DELETE(request) {
   try {
     const userId = requireVerifiedUserId(request);
+    const tierError = await requireTierAccess(userId, 'budgets');
+    if (tierError) return tierError;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

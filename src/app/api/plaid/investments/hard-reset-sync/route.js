@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
 import { createLogger } from '../../../../../lib/logger';
 import { resolveUserId } from '../../../../../lib/api/auth';
+import { canAccess } from '../../../../../lib/tierConfig';
 
 const logger = createLogger('investment-hard-reset-sync');
 
@@ -11,6 +12,16 @@ export async function POST(request) {
     const { plaidItemId: requestPlaidItemId, userId: bodyUserId, includeHoldingsDebug = false } = await request.json();
     const userId = resolveUserId(request, bodyUserId);
     plaidItemId = requestPlaidItemId;
+
+    // Gate: investments is a Pro feature
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'investments')) {
+      return Response.json({ error: 'feature_locked', feature: 'investments' }, { status: 403 });
+    }
 
     if (!plaidItemId || !userId) {
       return Response.json(
