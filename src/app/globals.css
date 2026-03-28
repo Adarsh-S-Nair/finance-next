@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @import "../styles/colors.css";
 
-/* Global text selection */
-::selection {
-  background-color: #18181b; /* zinc-900 */
-  color: #ffffff;
-}
-
 /* App-wide utility tweaks */
 .container {
   max-width: 1400px;

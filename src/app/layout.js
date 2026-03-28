@@ -31,7 +31,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${outfit.variable} ${poppins.variable}`}>
-      <body className="font-light">
+      <body className="font-light selection:bg-zinc-900 selection:text-white">
         <DynamicFavicon />
         <ToastProvider>
           <UserProvider>
