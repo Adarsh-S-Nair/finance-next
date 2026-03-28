@@ -6,21 +6,10 @@ import { FiCheck, FiX } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { useToast } from "./providers/ToastProvider";
 import { authFetch } from "../lib/api/fetch";
+import { getTierDisplayFeatures } from "../lib/tierConfigClient";
 
-const FREE_FEATURES = [
-  "1 bank connection",
-  "Transaction history",
-  "Net worth tracking",
-];
-
-const PRO_FEATURES = [
-  "5 bank connections",
-  "Budget tracking",
-  "Investment portfolio tracking",
-  "Recurring transactions analysis",
-  "AI-powered financial insights",
-  "Priority support",
-];
+const FREE_FEATURES = getTierDisplayFeatures("free");
+const PRO_FEATURES = getTierDisplayFeatures("pro");
 
 interface UpgradeOverlayProps {
   isOpen: boolean;

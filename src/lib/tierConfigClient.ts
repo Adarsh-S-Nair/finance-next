@@ -60,8 +60,53 @@ const FEATURE_ENABLED_ENVS: Record<string, string[]> = {
 };
 
 // ---------------------------------------------------------------------------
+// Display labels for the upgrade overlay (feature key → human-readable label)
+// ---------------------------------------------------------------------------
+
+const FEATURE_LABELS: Record<string, string> = {
+  transactions: 'Transaction history',
+  budgets: 'Budget tracking',
+  investments: 'Investment portfolio tracking',
+  recurring: 'Recurring transactions analysis',
+  paper_trading: 'Paper trading simulator',
+  arbitrage: 'Arbitrage scanner',
+  ai_trading: 'AI-powered financial insights',
+  net_worth_history: 'Net worth tracking',
+};
+
+/** Extra perks not tied to a feature flag (shown on the Pro card). */
+const PRO_EXTRAS: string[] = [
+  'Priority support',
+];
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Build the display feature list for a tier's upgrade card.
+ * Includes the connection count + enabled features with human labels.
+ * For pro tier, also includes extra perks like "Priority support".
+ */
+export function getTierDisplayFeatures(tier: string): string[] {
+  const connections = TIER_CONNECTIONS[tier] ?? 0;
+  const features: string[] = [
+    `${connections} bank connection${connections !== 1 ? 's' : ''}`,
+  ];
+
+  const tierFeatures = TIER_FEATURES[tier] ?? {};
+  for (const [key, enabled] of Object.entries(tierFeatures)) {
+    if (enabled && FEATURE_LABELS[key]) {
+      features.push(FEATURE_LABELS[key]);
+    }
+  }
+
+  if (tier === 'pro') {
+    features.push(...PRO_EXTRAS);
+  }
+
+  return features;
+}
 
 /** Check whether a subscription tier has access to a given feature. */
 export function canAccess(tier: string, feature: string): boolean {
