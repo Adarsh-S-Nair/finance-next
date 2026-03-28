@@ -72,27 +72,27 @@ export default function UpgradeModal({ isOpen, onClose }) {
             {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
+              className="absolute top-5 right-5 p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors cursor-pointer"
               aria-label="Close"
             >
               <FiX className="h-4 w-4" />
             </button>
 
             {/* Header with price */}
-            <div className="px-6 pt-6 pb-4">
-              <h2 className="text-lg font-medium text-[var(--color-fg)] tracking-tight">
+            <div className="px-7 pt-7 pb-2">
+              <h2 className="text-lg font-medium text-[var(--color-fg)]">
                 Upgrade to Pro
               </h2>
-              <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-2xl font-semibold text-[var(--color-fg)]">$9</span>
-                <span className="text-sm text-[var(--color-muted)]">/month</span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-3xl font-semibold text-[var(--color-fg)]">$9</span>
+                <span className="text-base text-[var(--color-muted)]">/month</span>
               </div>
             </div>
 
             {/* Feature list */}
-            <div className="px-6 pb-4 space-y-2.5">
+            <div className="px-7 pt-6 pb-2 space-y-4">
               {PRO_FEATURES.map((feature) => (
-                <div key={feature} className="flex items-center gap-2.5">
+                <div key={feature} className="flex items-center gap-3">
                   <FiCheck className="h-4 w-4 flex-shrink-0 text-emerald-500" strokeWidth={2.5} />
                   <span className="text-sm text-[var(--color-muted)]">{feature}</span>
                 </div>
@@ -100,7 +100,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
             </div>
 
             {/* CTA */}
-            <div className="px-6 pb-6 pt-2">
+            <div className="px-7 pb-7 pt-6">
               <button
                 onClick={handleUpgrade}
                 disabled={loading}
@@ -112,7 +112,7 @@ export default function UpgradeModal({ isOpen, onClose }) {
                   "Upgrade"
                 )}
               </button>
-              <p className="mt-3 text-center text-xs text-[var(--color-muted)]">
+              <p className="mt-4 text-center text-xs text-[var(--color-muted)]">
                 Cancel anytime
               </p>
             </div>

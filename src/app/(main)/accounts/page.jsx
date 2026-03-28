@@ -106,7 +106,7 @@ const CategoryHeader = ({ title, count, total, isFirst }) => {
 
 export default function AccountsPage() {
   const router = useRouter();
-  const { profile } = useUser();
+  const { profile, isPro } = useUser();
   const {
     accounts, // Institutions
     allAccounts, // Flat list of accounts
@@ -118,6 +118,14 @@ export default function AccountsPage() {
 
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+  const handleConnectAccount = () => {
+    if (!isPro && accounts && accounts.length >= 1) {
+      setIsUpgradeModalOpen(true);
+    } else {
+      setShowLinkModal(true);
+    }
+  };
 
   // Redirect new users to setup page
   useEffect(() => {
@@ -273,7 +281,7 @@ export default function AccountsPage() {
                   <Button
                     size="sm"
                     variant="matte"
-                    onClick={() => setShowLinkModal(true)}
+                    onClick={handleConnectAccount}
                     className="gap-1.5 !rounded-full pl-3 pr-4"
                   >
                     <PiPlus className="w-3.5 h-3.5" />
@@ -382,7 +390,7 @@ export default function AccountsPage() {
               <p className="text-[var(--color-muted)] mb-8 max-w-md mx-auto">
                 Connect your bank accounts to see your net worth, track spending, and manage your finances in one place.
               </p>
-              <Button size="lg" onClick={() => setShowLinkModal(true)}>
+              <Button size="lg" onClick={handleConnectAccount}>
                 Connect Your First Account
               </Button>
             </div>
