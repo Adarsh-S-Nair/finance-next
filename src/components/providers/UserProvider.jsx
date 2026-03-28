@@ -189,12 +189,14 @@ export default function UserProvider({ children }) {
     // Safety timeout: never show loading spinner for more than 4 seconds on init
     const initTimeout = setTimeout(() => {
       if (isMounted) {
+        console.log("[UserProvider] Safety timeout fired — forcing loading=false");
         setLoading(false);
         setAuthTransition(false);
       }
     }, 4000);
 
     (async () => {
+      console.log("[UserProvider] Init IIFE starting");
       try {
         // Pre-check: if there's a stale refresh token in localStorage, clear it
         // before getUser() fires a network request that will fail loudly.
@@ -214,6 +216,7 @@ export default function UserProvider({ children }) {
         }
 
         const { data, error } = await supabase.auth.getUser();
+        console.log("[UserProvider] getUser result:", { user: !!data?.user, error: error?.message });
         if (!isMounted) return;
 
         // Check for refresh token errors
@@ -233,17 +236,21 @@ export default function UserProvider({ children }) {
 
         setUser(data?.user ?? null);
         if (data?.user) {
+          console.log("[UserProvider] User found, fetchedRef:", fetchedRef.current);
           if (!fetchedRef.current) {
             fetchedRef.current = true;
             profileLoadingRef.current = true; // prevent [user,profile] effect from double-loading
             setLoading(true);
             await refreshProfile();
             profileLoadingRef.current = false;
+            console.log("[UserProvider] Profile loaded, setting loading=false");
             setLoading(false);
           } else {
+            console.log("[UserProvider] Already fetched, setting loading=false");
             setLoading(false);
           }
         } else {
+          console.log("[UserProvider] No user found, setting loading=false");
           setProfile(null);
           // Apply default theme when logged out
           document.documentElement.classList.toggle("dark", false);
@@ -266,6 +273,7 @@ export default function UserProvider({ children }) {
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[UserProvider] onAuthStateChange:", event, "user:", !!session?.user);
       const nextUser = session?.user ?? null;
 
       // Handle token refresh failures gracefully

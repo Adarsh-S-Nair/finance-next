@@ -13,6 +13,7 @@ export default function BudgetsCard() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log("[BudgetsCard] effect: authLoading=", authLoading, "user=", !!user?.id);
     if (authLoading) return;
     if (!user?.id) { setLoading(false); return; }
     async function fetchBudgets() {
