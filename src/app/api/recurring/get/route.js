@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 
 /**
  * GET /api/recurring/get
@@ -13,6 +14,17 @@ export async function GET(request) {
     if (err instanceof Response) return err;
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Check subscription tier — recurring is a Pro feature
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!userProfile || userProfile.subscription_tier !== 'pro') {
+    return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const streamType = searchParams.get('streamType'); // 'inflow', 'outflow', or null for all
 

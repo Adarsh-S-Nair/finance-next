@@ -48,7 +48,7 @@ export async function fetchUserProfile() {
   if (!userId) return { userId: null, profile: null };
   const { data, error } = await supabase
     .from("user_profiles")
-    .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step")
+    .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier")
     .eq("id", userId)
     .maybeSingle();
   if (error) return { userId, profile: null };

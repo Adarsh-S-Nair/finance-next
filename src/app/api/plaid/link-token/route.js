@@ -14,6 +14,16 @@ export async function POST(request) {
         { status: 404 }
       );
     }
+
+    // Fetch subscription tier
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    const subscriptionTier = userProfile?.subscription_tier || 'free';
+    const isPro = subscriptionTier === 'pro';
+
     // Update Mode: If plaidItemId is provided, we're requesting additional consent
     if (plaidItemId) {
       const { data: plaidItem, error: itemError } = await supabaseAdmin
@@ -38,9 +48,25 @@ export async function POST(request) {
         updateMode: true,
       });
     }
-    // Normal Mode: Always request both transactions and investments products
-    // This creates a single Plaid Item that covers all account types at an institution
-    const products = ['transactions', 'investments'];
+
+    // Normal Mode: enforce free tier limits
+    if (!isPro) {
+      // Check if user already has >= 1 plaid_item
+      const { data: existingItems, error: itemsError } = await supabaseAdmin
+        .from('plaid_items')
+        .select('id')
+        .eq('user_id', userId);
+
+      if (!itemsError && existingItems && existingItems.length >= 1) {
+        return Response.json(
+          { error: 'connection_limit' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Free: transactions only; Pro: transactions + investments
+    const products = isPro ? ['transactions', 'investments'] : ['transactions'];
     const linkTokenResponse = await createLinkToken(userId, products, null);
     return Response.json({
       link_token: linkTokenResponse.link_token,

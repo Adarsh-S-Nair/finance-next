@@ -17,11 +17,12 @@ import { HiChevronDown } from "react-icons/hi2";
 import { IoUnlink } from "react-icons/io5";
 import { FiTool } from "react-icons/fi";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import UpgradeModal from "../../../components/UpgradeModal";
 import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { logout, profile } = useUser();
+  const { logout, profile, isPro } = useUser();
   const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,6 +30,7 @@ export default function SettingsPage() {
   const [disconnectAccountModal, setDisconnectAccountModal] = useState({ isOpen: false, account: null, institution: null });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
   const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
@@ -186,6 +188,11 @@ export default function SettingsPage() {
   };
 
   const handleAddAccount = () => {
+    // Free users are limited to 1 connection — show upgrade modal if already connected
+    if (!isPro && accounts.length >= 1) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     setIsPlaidModalOpen(true);
   };
 
@@ -497,6 +504,12 @@ export default function SettingsPage() {
       <PlaidLinkModal
         isOpen={isPlaidModalOpen}
         onClose={() => setIsPlaidModalOpen(false)}
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
       />
     </PageContainer>
   );

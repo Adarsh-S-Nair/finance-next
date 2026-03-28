@@ -15,6 +15,16 @@ export async function POST(request) {
     const { userId: bodyUserId, forceReset = false } = await request.json();
     const userId = resolveUserId(request, bodyUserId);
 
+    // Check subscription tier — recurring is a Pro feature
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!userProfile || userProfile.subscription_tier !== 'pro') {
+      return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
+    }
+
     logger.info('Starting recurring transactions sync', { userId, forceReset });
 
     // If forceReset, delete all existing recurring streams for this user
