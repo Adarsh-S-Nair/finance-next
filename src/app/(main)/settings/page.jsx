@@ -34,13 +34,24 @@ export default function SettingsPage() {
   const [isResyncing, setIsResyncing] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
 
-  // On return from Stripe Checkout (?upgraded=1), refresh profile to pick up new tier
+  // On return from Stripe Checkout (?upgraded=1), call sync endpoint as a fallback
+  // in case the webhook hasn't fired yet, then refresh the profile.
   useEffect(() => {
-    if (searchParams.get('upgraded') === '1') {
-      refreshProfile();
+    if (searchParams.get('upgraded') !== '1') return;
+
+    async function syncAndRefresh() {
+      try {
+        await authFetch('/api/stripe/sync', { method: 'POST' });
+      } catch (e) {
+        // Non-fatal — best-effort sync; webhook will eventually catch up
+        console.warn('[settings] stripe sync failed:', e);
+      }
+      await refreshProfile();
       // Remove the query param without reloading
       router.replace('/settings');
     }
+
+    syncAndRefresh();
   }, [searchParams, refreshProfile, router]);
   const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
