@@ -13,6 +13,7 @@ import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import UpgradeModal from "../../../components/UpgradeModal";
 
 // Helper to format currency
 const formatCurrency = (amount) => {
@@ -116,6 +117,7 @@ export default function AccountsPage() {
   } = useAccounts();
 
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   // Redirect new users to setup page
   useEffect(() => {
@@ -390,6 +392,14 @@ export default function AccountsPage() {
         <PlaidLinkModal
           isOpen={showLinkModal}
           onClose={() => setShowLinkModal(false)}
+          onUpgradeNeeded={() => {
+            setShowLinkModal(false);
+            setIsUpgradeModalOpen(true);
+          }}
+        />
+        <UpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
         />
       </PageContainer>
     </NetWorthHoverProvider>
