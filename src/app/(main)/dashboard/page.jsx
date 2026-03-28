@@ -47,6 +47,14 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  // Whether a component is a "main content" component (no card wrapper)
+  const mainContentComponents = new Set([
+    'MonthlyOverviewCard',
+    'SpendingVsEarningCard',
+    'TopCategoriesCard',
+    'RecentTransactionsCard',
+  ]);
+
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
@@ -58,10 +66,11 @@ export default function DashboardPage() {
           {item.items.map((subItem) => {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
+            const isMain = mainContentComponents.has(subItem.component);
             return (
               <div
                 key={subItem.id}
-                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
+                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''} ${isMain ? 'border-b border-zinc-100 pb-8 lg:border-b-0 lg:pb-0 lg:border-r lg:border-zinc-100 lg:pr-8 last:border-0 last:pb-0 last:pr-0' : ''}`}
               >
                 <Component {...(subItem.props || {})} />
               </div>

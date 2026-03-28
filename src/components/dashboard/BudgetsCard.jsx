@@ -53,7 +53,7 @@ export default function BudgetsCard() {
   // Loading state
   if (loading) {
     return (
-      <Card className="h-full flex flex-col">
+      <Card className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
         <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
@@ -72,7 +72,7 @@ export default function BudgetsCard() {
   // Empty state - clean with prominent CTA
   if (budgets.length === 0) {
     return (
-      <Card className="h-full flex flex-col">
+      <Card className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
         <div className="mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
@@ -110,7 +110,7 @@ export default function BudgetsCard() {
   };
 
   return (
-    <Card hover className="h-full flex flex-col">
+    <Card hover className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>

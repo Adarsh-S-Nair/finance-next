@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import Card from "../ui/Card";
 import LineChart from "../ui/LineChart";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../providers/UserProvider";
@@ -168,7 +167,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   // Skeleton Loader Component
   const SkeletonLoader = () => (
     <div className="flex flex-col h-full animate-pulse">
-      <div className="px-6 pt-6">
+      <div className="pt-0">
         <div className="flex justify-between items-start mb-6">
           <div className="h-5 w-32 bg-[var(--color-border)] rounded" />
           <div className="h-5 w-24 bg-[var(--color-border)] rounded" />
@@ -184,19 +183,19 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           </div>
         </div>
       </div>
-      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 mt-4 mx-6 rounded-lg" />
+      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 mt-4 rounded-lg" />
     </div>
   );
 
   return (
-    <Card padding="none" hover className="relative overflow-hidden h-full">
+    <div className="relative overflow-hidden h-full">
       {showLoading ? (
         <SkeletonLoader />
       ) : (
         <div className="flex flex-col h-full">
           {/* Custom Header */}
           {/* Custom Header */}
-          <div className="px-5 sm:px-8 pt-5 sm:pt-8 pb-3 flex justify-between items-start">
+          <div className="px-0 pt-0 pb-3 flex justify-between items-start">
             {/* Left Side: Title and Values */}
             <div>
               {/* Title */}
@@ -315,6 +314,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
