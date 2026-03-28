@@ -3,33 +3,34 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
 import { TbLogout } from "react-icons/tb";
 import { LuSettings, LuHeadphones } from "react-icons/lu";
-import Button from "../ui/Button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Tooltip from "../ui/Tooltip";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, logout } = useUser();
+  const { profile, logout, user } = useUser();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [showPopover, setShowPopover] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const groups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items.filter((item) => {
-        // Hide items whose feature flag is disabled in the current environment
         if (item.featureFlag && !isFeatureEnabled(item.featureFlag)) return false;
         return true;
       }),
@@ -38,13 +39,71 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
   const onLogout = () => {
     if (isSigningOut) return;
+    setShowPopover(false);
     setShowLogout(true);
   };
 
+  // Close popover on outside click
+  useEffect(() => {
+    if (!showPopover) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
+      ) {
+        setShowPopover(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showPopover]);
+
+  // Close popover on Escape
+  useEffect(() => {
+    if (!showPopover) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPopover(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [showPopover]);
+
+  // Close popover on navigation
+  useEffect(() => {
+    setShowPopover(false);
+  }, [pathname]);
+
+  // Computed user display values
+  const firstName = profile?.first_name ?? "";
+  const lastName = profile?.last_name ?? "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ") || user?.email || "";
+  const initials = firstName && lastName
+    ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+    : firstName
+    ? firstName[0].toUpperCase()
+    : user?.email?.[0]?.toUpperCase() ?? "?";
+  const tier = profile?.subscription_tier ?? "free";
+  const tierLabel = tier === "pro" ? "Pro" : "Free";
+  const avatarUrl = profile?.avatar_url;
+
+  const avatarEl = (
+    <div
+      className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 overflow-hidden"
+      style={{ fontSize: "0.7rem" }}
+    >
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+      ) : (
+        <span>{initials}</span>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
-      {/* Profile Section - Moved to Top */}
-      {/* Logo Section */}
       {/* Logo Section */}
       <div className="p-4 flex items-center justify-center h-16">
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
@@ -76,7 +135,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
         </div>
       </div>
 
-      {/* Navigation - Static, only hover/active animations */}
+      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
         {groups.map((g) => (
           <div
@@ -93,7 +152,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <ul className="space-y-0.5">
               {g.items.map((it) => {
                 const active = pathname.startsWith(it.href);
-                const isHovered = hoveredItem === it.href;
 
                 const content = (
                   <li key={it.href}>
@@ -119,7 +177,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                           : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                       )}
                     >
-                      {/* Enhanced active indicator - straight line */}
                       {active && (
                         <div
                           className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
@@ -155,122 +212,107 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
         ))}
       </nav>
 
-      {/* Bottom Actions Section */}
-      <div className="p-4 border-t border-[var(--color-border)] space-y-0.5">
-        {/* Settings */}
-        {isCollapsed ? (
-          <Tooltip content="Settings">
-            <Link
-              href="/settings"
-              onClick={() => onNavigate?.()}
-              onMouseEnter={() => setHoveredItem('/settings')}
-              onMouseLeave={() => setHoveredItem(null)}
-              className={clsx(
-                "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer",
-                pathname.startsWith('/settings')
-                  ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
-              )}
+      {/* Profile Card / Bottom Section */}
+      <div className="p-3 border-t border-[var(--color-border)] relative">
+        {/* Popover Menu */}
+        <AnimatePresence>
+          {showPopover && (
+            <motion.div
+              ref={popoverRef}
+              initial={{ opacity: 0, y: isCollapsed ? 0 : 8, x: isCollapsed ? -8 : 0 }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, y: isCollapsed ? 0 : 8, x: isCollapsed ? -8 : 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="absolute rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl overflow-hidden z-50"
+              style={
+                isCollapsed
+                  ? { left: "calc(100% + 8px)", bottom: 8, minWidth: "180px" }
+                  : { left: 12, right: 12, bottom: "calc(100% + 8px)" }
+              }
             >
-              {pathname.startsWith('/settings') && (
-                <div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
-                />
-              )}
-              <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                <span className="flex items-center justify-center">
-                  <LuSettings className="h-[18px] w-[18px]" />
-                </span>
-                {!isCollapsed && <span className="tracking-wide">Settings</span>}
-              </span>
-            </Link>
-          </Tooltip>
-        ) : (
-          <Link
-            href="/settings"
-            onClick={() => onNavigate?.()}
-            onMouseEnter={() => setHoveredItem('/settings')}
-            onMouseLeave={() => setHoveredItem(null)}
-            className={clsx(
-              "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer",
-              pathname.startsWith('/settings')
-                ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
-            )}
-          >
-            {pathname.startsWith('/settings') && (
-              <div
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
-              />
-            )}
-            <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-              <span className="flex items-center justify-center">
-                <LuSettings className="h-[18px] w-[18px]" />
-              </span>
-              {!isCollapsed && <span className="tracking-wide">Settings</span>}
-            </span>
-          </Link>
-        )}
+              {/* Settings */}
+              <Link
+                href="/settings"
+                onClick={() => { setShowPopover(false); onNavigate?.(); }}
+                className={clsx(
+                  "flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-150",
+                  pathname.startsWith("/settings")
+                    ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-white/5"
+                )}
+              >
+                <LuSettings className="h-4 w-4 flex-shrink-0" />
+                <span>Settings</span>
+              </Link>
 
-        {/* Help & Support (Locked) */}
-        {isCollapsed ? (
-          <Tooltip content="Help & Support">
-            <div
-              className="group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-not-allowed opacity-50 text-[var(--color-muted)]"
-            >
-              <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                <span className="flex items-center justify-center">
-                  <LuHeadphones className="h-[18px] w-[18px]" />
-                </span>
-                {!isCollapsed && <span className="tracking-wide">Help & Support</span>}
-              </span>
-              {!isCollapsed && <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60" />}
-            </div>
-          </Tooltip>
-        ) : (
-          <div
-            className="group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 cursor-not-allowed opacity-50 text-[var(--color-muted)]"
-          >
-            <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-              <span className="flex items-center justify-center">
-                <LuHeadphones className="h-[18px] w-[18px]" />
-              </span>
-              {!isCollapsed && <span className="tracking-wide">Help & Support</span>}
-            </span>
-            {!isCollapsed && <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60" />}
-          </div>
-        )}
+              {/* Help & Support (locked) */}
+              <div className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed">
+                <LuHeadphones className="h-4 w-4 flex-shrink-0" />
+                <span className="flex-1">Help &amp; Support</span>
+                <FaLock className="h-3 w-3 opacity-60" />
+              </div>
 
-        {/* Logout */}
+              <div className="border-t border-[var(--color-border)]" />
+
+              {/* Log out */}
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-white/5 transition-colors duration-150"
+              >
+                <TbLogout className="h-4 w-4 flex-shrink-0" />
+                <span>Log out</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Profile trigger button */}
         {isCollapsed ? (
-          <Tooltip content="Log out">
+          <Tooltip content={fullName || "Profile"}>
             <button
-              onClick={onLogout}
-              onMouseEnter={() => setHoveredItem('logout')}
-              onMouseLeave={() => setHoveredItem(null)}
-              className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+              ref={triggerRef}
+              onClick={() => setShowPopover((v) => !v)}
+              className="w-full flex items-center justify-center rounded-lg p-2 transition-colors duration-200 hover:bg-[var(--color-surface)] group"
             >
-              <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                <span className="flex items-center justify-center">
-                  <TbLogout className="h-[18px] w-[18px]" />
-                </span>
-                {!isCollapsed && <span className="tracking-wide">Log out</span>}
-              </span>
+              {avatarEl}
             </button>
           </Tooltip>
         ) : (
           <button
-            onClick={onLogout}
-            onMouseEnter={() => setHoveredItem('logout')}
-            onMouseLeave={() => setHoveredItem(null)}
-            className="w-full group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200 cursor-pointer text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+            ref={triggerRef}
+            onClick={() => setShowPopover((v) => !v)}
+            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-[var(--color-surface)] group text-left"
           >
-            <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-              <span className="flex items-center justify-center">
-                <TbLogout className="h-[18px] w-[18px]" />
-              </span>
-              {!isCollapsed && <span className="tracking-wide">Log out</span>}
-            </span>
+            {avatarEl}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--color-fg)] truncate leading-tight">
+                {fullName || "User"}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className={clsx(
+                    "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none",
+                    tier === "pro"
+                      ? "bg-[var(--color-accent)]/20 text-[var(--color-accent)]"
+                      : "bg-white/10 text-[var(--color-muted)]"
+                  )}
+                >
+                  {tierLabel}
+                </span>
+              </div>
+            </div>
+            <svg
+              className={clsx(
+                "h-3.5 w-3.5 text-[var(--color-muted)] transition-transform duration-200 flex-shrink-0",
+                showPopover && "rotate-180"
+              )}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+            </svg>
           </button>
         )}
 
