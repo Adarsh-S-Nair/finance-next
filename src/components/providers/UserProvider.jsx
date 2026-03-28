@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "../../lib/supabase/client";
+import { setAccessToken as cacheAccessToken } from "../../lib/supabase/tokenCache";
 import { fetchUserProfile, upsertUserProfile } from "../../lib/user/profile";
 import { useToast } from "./ToastProvider";
 import { authFetch } from "../../lib/api/fetch";
@@ -202,90 +203,24 @@ export default function UserProvider({ children }) {
       }
     }, 4000);
 
-    (async () => {
-      console.log("[UserProvider] Init IIFE starting");
-      try {
-        // Step 1: Read session from localStorage (synchronous, no network)
-        let sessionUser = null;
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          sessionUser = sessionData?.session?.user ?? null;
-          console.log("[UserProvider] getSession result:", { user: !!sessionUser });
-        } catch {
-          // No local session
-        }
-
-        if (!sessionUser) {
-          // No local session at all — user is logged out
-          console.log("[UserProvider] No session found, user is logged out");
-          setProfile(null);
-          setUser(null);
-          document.documentElement.classList.toggle("dark", false);
-          applyAccent(null);
-          setLoading(false);
-          return;
-        }
-
-        // Step 2: We have a local session — use it immediately so components can fetch data.
-        // Then validate with getUser() in the background (with a timeout).
-        setUser(sessionUser);
-        if (!fetchedRef.current) {
-          fetchedRef.current = true;
-          profileLoadingRef.current = true;
-          await refreshProfile();
-          profileLoadingRef.current = false;
-          console.log("[UserProvider] Profile loaded, setting loading=false");
-          if (isMounted) setLoading(false);
-        } else {
-          console.log("[UserProvider] Already fetched, setting loading=false");
-          if (isMounted) setLoading(false);
-        }
-
-        // Step 3: Background validation — verify the token is still valid server-side.
-        // If it fails, sign the user out. Use a timeout so it never blocks the UI.
-        try {
-          const getUserResult = await Promise.race([
-            supabase.auth.getUser(),
-            new Promise((resolve) => setTimeout(() => resolve({ data: { user: null }, error: new Error("getUser timeout") }), 5000)),
-          ]);
-          console.log("[UserProvider] getUser validation:", { user: !!getUserResult?.data?.user, error: getUserResult?.error?.message });
-          if (!isMounted) return;
-
-          const validationError = getUserResult?.error;
-          if (validationError && validationError.message && (validationError.message.includes('Refresh Token') || validationError.message.includes('refresh_token'))) {
-            clearStaleAuthData();
-            setProfile(null);
-            setUser(null);
-            document.documentElement.classList.toggle("dark", false);
-            applyAccent(null);
-            setLoading(false);
-            if (fetchedRef.current) {
-              setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
-            }
-          }
-          // If getUser timed out or returned no user but we have a session, keep going —
-          // the session token is still valid for API calls via middleware
-        } catch (err) {
-          console.log("[UserProvider] getUser background validation error:", err?.message);
-          // Non-fatal — we already have a session, keep going
-        }
-      } catch (err) {
-        // Handle AuthApiError for invalid refresh tokens
-        if (err && err.message && err.message.includes('Refresh Token')) {
-          console.log("[UserProvider] Invalid refresh token error caught, clearing stale data");
-          clearStaleAuthData();
-          setProfile(null);
-          setUser(null);
-          document.documentElement.classList.toggle("dark", false);
-          applyAccent(null);
-          setToast({ title: "Session expired", description: "Please sign in again", variant: "info" });
-        }
-        if (isMounted) setLoading(false);
-      }
-    })();
+    // The init IIFE is intentionally minimal now.
+    // We rely on onAuthStateChange (push-based, never blocks) for:
+    //   1. Getting the user object
+    //   2. Caching the access token
+    //   3. Loading the profile
+    // This avoids calling getSession()/getUser() which can deadlock
+    // due to Supabase's internal auth lock.
+    //
+    // If onAuthStateChange fires INITIAL_SESSION or SIGNED_IN with a user,
+    // the handler below sets the user, loads the profile, and clears loading.
+    // If it fires with no user, we clear everything.
+    //
+    // The safety timeout (above) guarantees loading=false within 4s no matter what.
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("[UserProvider] onAuthStateChange:", event, "user:", !!session?.user);
+      // Cache the access token immediately — this is push-based and never blocks
+      cacheAccessToken(session?.access_token ?? null);
       const nextUser = session?.user ?? null;
 
       // Handle token refresh failures gracefully
@@ -372,10 +307,30 @@ export default function UserProvider({ children }) {
         return;
       }
 
-      // Handle existing session on public routes (e.g. refreshing /auth while logged in).
+      // Handle existing session restoration.
       // Supabase fires INITIAL_SESSION (not SIGNED_IN) when restoring a session from storage.
       if (event === "INITIAL_SESSION" && nextUser) {
-        await redirectFromPublicRoute();
+        const didRedirect = await redirectFromPublicRoute();
+        if (!didRedirect) {
+          // Already on an authenticated route — load profile and clear loading
+          if (!fetchedRef.current) {
+            fetchedRef.current = true;
+            profileLoadingRef.current = true;
+            await refreshProfile();
+            profileLoadingRef.current = false;
+            console.log("[UserProvider] INITIAL_SESSION: profile loaded, setting loading=false");
+          }
+          setLoading(false);
+        }
+        return;
+      }
+      if (event === "INITIAL_SESSION" && !nextUser) {
+        // No session found — user is logged out
+        console.log("[UserProvider] INITIAL_SESSION: no user, setting loading=false");
+        setProfile(null);
+        document.documentElement.classList.toggle("dark", false);
+        applyAccent(null);
+        setLoading(false);
         return;
       }
       if (event === "SIGNED_OUT") {

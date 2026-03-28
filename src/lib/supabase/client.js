@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@supabase/supabase-js";
+import { getAccessToken as getCachedToken } from "./tokenCache";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -106,11 +107,15 @@ if (!isServer) {
 
         if (!hasAuth) {
           try {
-            const sessionResult = await Promise.race([
-              supabase.auth.getSession(),
-              new Promise((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
-            ]);
-            const token = sessionResult?.data?.session?.access_token;
+            // Use cached token first (instant), fall back to getSession with timeout
+            let token = getCachedToken();
+            if (!token) {
+              const sessionResult = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
+              ]);
+              token = sessionResult?.data?.session?.access_token;
+            }
             if (token) {
               const mergedHeaders = new Headers(input instanceof Request ? input.headers : init?.headers);
               mergedHeaders.set("Authorization", `Bearer ${token}`);

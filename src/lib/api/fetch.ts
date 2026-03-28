@@ -1,23 +1,29 @@
 import { supabase } from "../supabase/client";
+import { getAccessToken as getCachedToken } from "../supabase/tokenCache";
 
 async function getAccessToken(): Promise<string | null> {
-  // Use a timeout to prevent hanging if Supabase's internal lock is held
-  // (e.g. a pending getUser() call blocking getSession())
+  // 1. Try the push-based cache first (instant, never blocks)
+  const cached = getCachedToken();
+  if (cached) return cached;
+
+  // 2. Fallback: try getSession with a tight timeout
+  // (getSession can deadlock if Supabase's internal lock is held)
   try {
     const result = await Promise.race([
       supabase.auth.getSession(),
-      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
     ]);
     const token = result?.data?.session?.access_token;
     if (token) return token;
   } catch {
-    // fall through to refresh attempt
+    // fall through
   }
 
+  // 3. Last resort: try refresh with timeout
   try {
     const result = await Promise.race([
       supabase.auth.refreshSession(),
-      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
     ]);
     return result?.data?.session?.access_token ?? null;
   } catch {
@@ -39,8 +45,7 @@ export async function authFetch(
   const headers = new Headers(init?.headers);
   const hadAuthHeader = headers.has("Authorization");
 
-  // Inject auth if missing. On refresh/HMR, Supabase session restoration can lag a bit,
-  // so try getSession first, then a refreshSession fallback.
+  // Inject auth if missing
   if (!hadAuthHeader) {
     const token = await getAccessToken();
     if (token) {

@@ -3,27 +3,18 @@
 import { supabase } from "../supabase/client";
 
 export async function getCurrentUserId() {
-  // Prefer session cache (localStorage, instant) over getUser (network, can hang)
+  // Try getSession with a tight timeout — it can deadlock due to Supabase's internal lock
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const sessionId = sessionData?.session?.user?.id ?? null;
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise((resolve) => setTimeout(() => resolve({ data: null }), 2000)),
+    ]);
+    const sessionId = result?.data?.session?.user?.id ?? null;
     if (sessionId) return sessionId;
   } catch (sessErr) {
     console.log("[userProfile] getSession error", sessErr);
   }
-  // Fallback: try getUser with a timeout to prevent hanging
-  try {
-    const result = await Promise.race([
-      supabase.auth.getUser(),
-      new Promise((resolve) => setTimeout(() => resolve({ data: { user: null }, error: new Error("getUser timeout") }), 3000)),
-    ]);
-    const directId = result?.data?.user?.id ?? null;
-    if (result?.error) console.log("[userProfile] getUser error", result.error);
-    return directId;
-  } catch (err) {
-    console.log("[userProfile] getUser error", err);
-    return null;
-  }
+  return null;
 }
 
 async function resolveUserIdWithRefresh() {
