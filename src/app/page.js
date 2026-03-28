@@ -40,7 +40,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
 
         {showLinks && (
           <nav className="hidden items-center gap-8 md:flex">
-            {["Features", "Product", "Security"].map((item) => (
+            {["Features", "Product", "Pricing", "Security"].map((item) => (
               <a
                 key={item}
                 href={`#${item.toLowerCase()}`}
@@ -86,7 +86,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
             className="border-t border-zinc-100 bg-white/95 backdrop-blur-sm md:hidden"
           >
             <div className="mx-auto flex max-w-7xl flex-col gap-3 px-8 py-4">
-              {["Features", "Product", "Security"].map((item) => (
+              {["Features", "Product", "Pricing", "Security"].map((item) => (
                 <a key={item} href={`#${item.toLowerCase()}`} className="text-sm text-zinc-600" style={{ fontFamily: "var(--font-outfit)" }}>
                   {item}
                 </a>
@@ -108,16 +108,14 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
 
 function FeatureRow({ icon: Icon, title, description }) {
   return (
-    <div className="grid gap-3 border-t border-zinc-200 py-6 sm:grid-cols-[44px_minmax(0,1fr)] sm:items-start sm:gap-4">
-      <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
-        <Icon size={18} />
-      </div>
-      <div>
-        <h3 className="text-base font-semibold text-zinc-900" style={{ fontFamily: "var(--font-outfit)" }}>
+    <div className="flex flex-col gap-2 py-1">
+      <div className="flex items-center gap-2 text-zinc-700">
+        <Icon size={16} />
+        <h3 className="text-sm font-semibold text-zinc-900" style={{ fontFamily: "var(--font-outfit)" }}>
           {title}
         </h3>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{description}</p>
       </div>
+      <p className="text-sm leading-6 text-zinc-500">{description}</p>
     </div>
   );
 }
@@ -219,7 +217,7 @@ export default function Home() {
                 One place to understand your finances without noisy UI or overcomplicated workflows.
               </p>
             </div>
-            <div className="mt-8 border-b border-zinc-200">
+            <div className="mt-10 grid gap-8 sm:grid-cols-3">
               <FeatureRow icon={FiLink} title="Connected accounts" description="Bring in banking and investment data without manually maintaining everything." />
               <FeatureRow icon={FiTarget} title="Better budgeting" description="Keep your monthly plan grounded in what you actually spend." />
               <FeatureRow icon={FiTrendingUp} title="Investment visibility" description="Track portfolio performance alongside the rest of your financial picture." />
@@ -241,6 +239,71 @@ export default function Home() {
             <div className="space-y-6 text-sm leading-7 text-zinc-600 sm:text-base">
               <p>Zentari should feel more like a clean workspace than a noisy finance app. You should be able to open it, understand what matters, and move on.</p>
               <p>That means fewer gimmicks, simpler navigation, and a stronger focus on the handful of views you actually care about every week.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section id="pricing" className="scroll-mt-20 border-t border-zinc-100 py-20 sm:py-24">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <div className="max-w-2xl">
+              <p className="text-sm font-medium tracking-[0.18em] text-zinc-400" style={{ fontFamily: "var(--font-outfit)" }}>
+                Pricing
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl" style={{ fontFamily: "var(--font-outfit)" }}>
+                Simple, honest pricing.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-zinc-600">
+                Start free. Upgrade when you need more.
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2">
+              {/* Free tier */}
+              <div className="rounded-xl border border-zinc-200 p-8">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-semibold text-zinc-900" style={{ fontFamily: "var(--font-outfit)" }}>$0</span>
+                  <span className="text-sm text-zinc-400">/mo</span>
+                </div>
+                <p className="mt-1 text-sm font-medium text-zinc-500" style={{ fontFamily: "var(--font-outfit)" }}>Free</p>
+                <p className="mt-4 text-sm text-zinc-500">Everything you need to get started.</p>
+                <ul className="mt-6 space-y-3 text-sm text-zinc-600">
+                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> Transactions</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> 1 connected account</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-300">—</span> Net worth history</li>
+                </ul>
+                <Link
+                  href="/setup"
+                  className="mt-8 inline-flex w-full items-center justify-center rounded-md border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-all duration-150 hover:bg-zinc-50 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  style={{ fontFamily: "var(--font-outfit)" }}
+                >
+                  Get Started
+                </Link>
+              </div>
+
+              {/* Pro tier */}
+              <div className="rounded-xl border border-zinc-900 bg-zinc-900 p-8">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-semibold text-white" style={{ fontFamily: "var(--font-outfit)" }}>$9</span>
+                  <span className="text-sm text-zinc-400">/mo</span>
+                </div>
+                <p className="mt-1 text-sm font-medium text-zinc-400" style={{ fontFamily: "var(--font-outfit)" }}>Pro</p>
+                <p className="mt-4 text-sm text-zinc-400">Everything in Free, plus:</p>
+                <ul className="mt-6 space-y-3 text-sm text-zinc-300">
+                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Budgets</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Investments</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Recurring transactions</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> Paper trading</li>
+                  <li className="flex items-center gap-2"><span className="text-zinc-600">—</span> 5 connected accounts</li>
+                </ul>
+                <Link
+                  href="/setup"
+                  className="mt-8 inline-flex w-full items-center justify-center rounded-md bg-white px-5 py-2.5 text-sm font-medium text-zinc-900 transition-all duration-150 hover:bg-zinc-100 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  style={{ fontFamily: "var(--font-outfit)" }}
+                >
+                  Upgrade
+                </Link>
+              </div>
             </div>
           </div>
         </section>
