@@ -5,9 +5,10 @@ import { authFetch } from '../../lib/api/fetch';
 import { usePlaidLink } from 'react-plaid-link';
 import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
-import { FiRefreshCw, FiAlertCircle, FiTag } from 'react-icons/fi';
+import { FiRefreshCw, FiAlertCircle, FiTag, FiLock } from 'react-icons/fi';
 import Drawer from '../ui/Drawer';
 import DynamicIcon from '../DynamicIcon';
+import UpgradeModal from '../UpgradeModal';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -99,12 +100,13 @@ function getMonthlyAmount(amount, frequency) {
 }
 
 export default function RecurringTransactionsCard() {
-  const { user } = useUser();
+  const { user, isPro } = useUser();
   const [recurring, setRecurring] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const fetchRecurring = async () => {
     if (!user?.id) return;
@@ -275,6 +277,35 @@ export default function RecurringTransactionsCard() {
           <span className="text-xs">Click sync to fetch from your accounts.</span>
         </div>
       </Card>
+    );
+  }
+
+  // Free tier: show locked state
+  if (!isPro) {
+    return (
+      <>
+        <Card width="full" variant="glass" className="flex flex-col h-full">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-sm font-medium text-[var(--color-muted)]">Upcoming Bills</h3>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-4 text-center">
+            <div className="h-10 w-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center">
+              <FiLock className="h-5 w-5 text-[var(--color-muted)]" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[var(--color-fg)]">Pro Feature</p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">Upgrade to track recurring bills</p>
+            </div>
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="mt-1 text-xs font-medium text-[var(--color-accent)] hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              Upgrade to Pro →
+            </button>
+          </div>
+        </Card>
+        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      </>
     );
   }
 

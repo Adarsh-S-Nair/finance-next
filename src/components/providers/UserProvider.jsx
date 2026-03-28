@@ -11,6 +11,8 @@ const UserContext = createContext({
   user: null,
   profile: null,
   loading: true,
+  isPro: false,
+  refreshProfile: async () => { },
   setTheme: (_theme) => { },
   setAccentColor: (_hexOrNull) => { },
   logout: () => { },
@@ -380,7 +382,9 @@ export default function UserProvider({ children }) {
     setUser(null);
   }, [applyTheme, applyAccent]);
 
-  const value = useMemo(() => ({ user, profile, loading, setTheme, setAccentColor, logout }), [user, profile, loading, setTheme, setAccentColor, logout]);
+  const isPro = profile?.subscription_tier === 'pro';
+
+  const value = useMemo(() => ({ user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout }), [user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout]);
 
   return (
     <UserContext.Provider value={value}>

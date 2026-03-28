@@ -6,6 +6,7 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import UpgradeModal from "../../../components/UpgradeModal";
 import EmptyState from "../../../components/ui/EmptyState";
 import { PiBankFill } from "react-icons/pi";
 import { LuPlus } from "react-icons/lu";
@@ -178,7 +179,7 @@ function AnimatedCounter({ value, duration = 120 }) {
 // ============================================================================
 
 export default function InvestmentsPage() {
-  const { user, profile } = useUser();
+  const { user, profile, isPro } = useUser();
   const { setHeaderActions } = useInvestmentsHeader();
   const [investmentPortfolios, setInvestmentPortfolios] = useState([]);
   const [allHoldings, setAllHoldings] = useState([]);
@@ -186,6 +187,7 @@ export default function InvestmentsPage() {
   const [portfolioSnapshots, setPortfolioSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [chartTimeRange, setChartTimeRange] = useState('ALL');
   const [sparklineData, setSparklineData] = useState({});
@@ -704,6 +706,28 @@ export default function InvestmentsPage() {
           <CardSkeleton className="h-48" />
         </div>
       </div>
+    );
+  }
+
+  // Free tier users: show upgrade prompt
+  if (!isPro) {
+    return (
+      <>
+        <EmptyState>
+          <EmptyState.Hero
+            layout="split"
+            title="Investments — Pro Feature"
+            description="Upgrade to Pro to connect your brokerage accounts and track your investment portfolio, holdings, and performance in real time."
+            action={
+              <Button size="lg" onClick={() => setShowUpgradeModal(true)} className="gap-2">
+                Upgrade to Pro
+              </Button>
+            }
+            preview={<InvestmentsPreviewMockup />}
+          />
+        </EmptyState>
+        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      </>
     );
   }
 

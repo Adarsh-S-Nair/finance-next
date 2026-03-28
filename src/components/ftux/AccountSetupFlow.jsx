@@ -12,6 +12,8 @@ import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
+import { useUser } from "../providers/UserProvider";
+import UpgradeModal from "../UpgradeModal";
 
 // Steps: 0=Name, 1=Email+Password, 2=Connecting, 3=Connected
 const TOTAL_STEPS = 4;
@@ -671,10 +673,12 @@ function ConnectedStep({ plaidData, onAddMore, onComplete }) {
  *   onFlowStart   - called when Plaid link is about to open
  */
 export default function AccountSetupFlow({ initialStep = 0, userName, onComplete = null, onFlowStart = null }) {
+  const { isPro } = useUser();
   const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
   const [plaidData, setPlaidData] = useState(null);
   const [pendingName, setPendingName] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [resolvedFirstName, setResolvedFirstName] = useState(() => {
     if (!userName) return null;
     return capitalizeFirstOnly(String(userName).split(" ")[0]);
@@ -708,6 +712,11 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const handleAddMore = () => {
+    // Free users can only have 1 connection — show upgrade modal
+    if (!isPro) {
+      setShowUpgradeModal(true);
+      return;
+    }
     goTo(2);
   };
 
@@ -780,6 +789,12 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
       <div className="mt-12">
         <PaginationDots current={step} total={TOTAL_STEPS} />
       </div>
+
+      {/* Upgrade Modal for free tier users */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+      />
 
       {/* "Already have an account?" — fixed bottom-right, visible on pre-auth steps */}
       <AnimatePresence>
