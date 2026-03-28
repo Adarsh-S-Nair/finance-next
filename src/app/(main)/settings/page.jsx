@@ -3,11 +3,11 @@
 import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
 import AccentPicker from "../../../components/AccentPicker";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import Button from "../../../components/ui/Button";
 import { supabase } from "../../../lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
@@ -21,7 +21,8 @@ import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { logout, profile, isPro, user } = useUser();
+  const searchParams = useSearchParams();
+  const { logout, profile, isPro, user, refreshProfile } = useUser();
   const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,6 +32,16 @@ export default function SettingsPage() {
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
+
+  // On return from Stripe Checkout (?upgraded=1), refresh profile to pick up new tier
+  useEffect(() => {
+    if (searchParams.get('upgraded') === '1') {
+      refreshProfile();
+      // Remove the query param without reloading
+      router.replace('/settings');
+    }
+  }, [searchParams, refreshProfile, router]);
   const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
   const handleResync = async () => {
@@ -49,6 +60,25 @@ export default function SettingsPage() {
       alert(e.message);
     } finally {
       setIsResyncing(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setIsPortalLoading(true);
+    try {
+      const res = await authFetch('/api/stripe/portal', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        alert(body.error || 'Failed to open billing portal');
+        return;
+      }
+      if (body.url) {
+        window.location.href = body.url;
+      }
+    } catch (e) {
+      alert(e.message || 'Failed to open billing portal');
+    } finally {
+      setIsPortalLoading(false);
     }
   };
 
@@ -258,12 +288,12 @@ export default function SettingsPage() {
             <div className="ml-4 flex-shrink-0">
               {isPro ? (
                 <Button
-                  disabled
+                  onClick={handleManageSubscription}
+                  disabled={isPortalLoading}
                   variant="primary"
                   size="sm"
-                  title="Stripe portal coming soon"
                 >
-                  Manage Subscription
+                  {isPortalLoading ? 'Loading...' : 'Manage Subscription'}
                 </Button>
               ) : (
                 <Button

@@ -34,7 +34,7 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      const res = await authFetch("/api/subscription/upgrade", { method: "POST" });
+      const res = await authFetch("/api/stripe/checkout", { method: "POST" });
       const body = await res.json();
       if (!res.ok) {
         setToast({
@@ -44,12 +44,13 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
         });
         return;
       }
+      if (body.url) {
+        // Redirect to Stripe Checkout — page will navigate away
+        window.location.href = body.url;
+        return;
+      }
+      // Fallback: if no URL returned, refresh profile (shouldn't happen)
       await refreshProfile();
-      setToast({
-        title: "Welcome to Pro! 🎉",
-        description: "Your account has been upgraded.",
-        variant: "success",
-      });
       onClose();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";

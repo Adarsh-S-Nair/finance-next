@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // Routes that do NOT require user auth
 const PUBLIC_ROUTES = [
   '/api/plaid/webhook',
+  '/api/stripe/webhook',
   '/api/test-logs',
 ];
 
