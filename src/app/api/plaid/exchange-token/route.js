@@ -59,7 +59,12 @@ export async function POST(request) {
       try {
         institution = await getInstitution(actualInstitutionId);
         // Resolve logo: prefer Plaid's logo, fall back to logo.dev from institution URL
-        let resolvedLogo = institution.logo || null;
+        // Plaid returns logos as raw base64 — prefix with data URI so browsers can render them
+        let resolvedLogo = institution.logo
+          ? (institution.logo.startsWith('http') || institution.logo.startsWith('data:')
+              ? institution.logo
+              : `data:image/png;base64,${institution.logo}`)
+          : null;
         if (!resolvedLogo && institution.url) {
           try {
             const domain = new URL(institution.url).hostname.replace(/^www\./, '');

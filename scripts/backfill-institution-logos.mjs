@@ -147,7 +147,10 @@ async function main() {
     let resolvedLogo = null;
 
     if (plaidInst?.logo) {
-      resolvedLogo = plaidInst.logo;
+      // Plaid returns logos as raw base64 — prefix with data URI so browsers can render them
+      resolvedLogo = plaidInst.logo.startsWith('http') || plaidInst.logo.startsWith('data:')
+        ? plaidInst.logo
+        : `data:image/png;base64,${plaidInst.logo}`;
       console.log(`  ✅ Got logo from Plaid`);
     } else {
       // Try logo.dev fallback using URL from Plaid or existing DB row
