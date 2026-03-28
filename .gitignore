@@ -45,3 +45,6 @@ next-env.d.ts
 # claude code
 .claude/
 .env.prod
+
+# Internal pricing docs
+docs/pricing.md
