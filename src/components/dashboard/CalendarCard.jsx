@@ -144,7 +144,7 @@ const getOccurrencesForMonth = (stream, year, month) => {
 };
 
 export default function CalendarCard({ className = '' }) {
-  const { user } = useUser();
+  const { user, isPro } = useUser();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -174,10 +174,15 @@ export default function CalendarCard({ className = '' }) {
     });
   };
 
-  // Fetch recurring streams
+  // Fetch recurring streams (Pro only)
   useEffect(() => {
     const fetchRecurring = async () => {
       if (!user?.id) return;
+      if (!isPro) {
+        setRecurring([]);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         // Fetch all recurring streams (both inflow and outflow) by removing streamType filter
@@ -192,7 +197,7 @@ export default function CalendarCard({ className = '' }) {
       }
     };
     fetchRecurring();
-  }, [user?.id]);
+  }, [user?.id, isPro]);
 
   // Build calendar grid
   const calendarDays = useMemo(() => {
@@ -653,7 +658,11 @@ export default function CalendarCard({ className = '' }) {
 
           {recurring.length === 0 && (
             <div className="text-center py-10 text-[var(--color-muted)]">
-              No recurring transactions found
+              {isPro ? 'No recurring transactions found' : (
+                <span className="text-xs text-[var(--color-muted)]">
+                  Upgrade to Pro to see recurring transactions
+                </span>
+              )}
             </div>
           )}
         </div>
