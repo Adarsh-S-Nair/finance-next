@@ -76,25 +76,30 @@ export async function exchangePublicToken(publicToken) {
   const accessToken = _makeAccessToken();
   const itemId = _makeItemId();
 
-  // Decide account set based on token content (matches AccountSetupFlow token format: mock-public-<accountType>)
+  // Decide account set + institution based on token content (matches AccountSetupFlow token format: mock-public-<accountType>)
   const isInvestment = publicToken?.includes('invest');
   const isCreditCard = publicToken?.includes('credit_card');
   const isCheckingSavings = publicToken?.includes('checking_savings');
 
   let accounts;
+  let institutionId;
   if (isInvestment) {
     accounts = MOCK_ACCOUNTS_INVESTMENT;
+    institutionId = 'ins_mock_schwab';
   } else if (isCreditCard) {
     accounts = MOCK_ACCOUNTS_POWER_USER.filter(a => a.type === 'credit');
+    institutionId = DEFAULT_INSTITUTION_ID;
   } else if (isCheckingSavings) {
     accounts = MOCK_ACCOUNTS_POWER_USER.filter(a => a.type === 'depository');
+    institutionId = DEFAULT_INSTITUTION_ID;
   } else {
     accounts = MOCK_ACCOUNTS_POWER_USER;
+    institutionId = DEFAULT_INSTITUTION_ID;
   }
 
   _mockState.items.set(accessToken, {
     item_id: itemId,
-    institution_id: DEFAULT_INSTITUTION_ID,
+    institution_id: institutionId,
     accounts,
     cursor: null,
   });
