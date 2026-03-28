@@ -1,8 +1,22 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess } from '../../../../lib/tierConfig';
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
+
+    // Gate: ai_trading is a Pro feature
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'ai_trading')) {
+      return NextResponse.json({ error: 'feature_locked', feature: 'ai_trading' }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       startingCapital,

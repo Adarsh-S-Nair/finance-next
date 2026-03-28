@@ -10,6 +10,7 @@ import clsx from "clsx";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
+import { isFeatureEnabled } from "../../lib/tierConfigClient";
 
 export default function MobileNavBar() {
   const pathname = usePathname();
@@ -18,8 +19,11 @@ export default function MobileNavBar() {
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  // Flatten nav groups to get main items, filtering out disabled ones if needed
-  const mainItems = NAV_GROUPS.flatMap(g => g.items).filter(item => !item.disabled);
+  // Flatten nav groups to get main items, filtering out disabled and feature-flagged items
+  const mainItems = NAV_GROUPS
+    .flatMap(g => g.items)
+    .filter(item => !item.disabled)
+    .filter(item => !item.featureFlag || isFeatureEnabled(item.featureFlag));
 
   const navItems = [
     ...mainItems,

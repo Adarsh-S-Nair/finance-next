@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess } from '../../../../lib/tierConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,17 @@ export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
     const supabase = getSupabaseClient();
+
+    // Gate: arbitrage is a Pro feature
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'arbitrage')) {
+      return NextResponse.json({ error: 'feature_locked', feature: 'arbitrage' }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const {

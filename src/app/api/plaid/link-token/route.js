@@ -1,6 +1,7 @@
 import { createLinkToken } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess, getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
 
 export async function POST(request) {
   try {
@@ -22,7 +23,6 @@ export async function POST(request) {
       .eq('id', userId)
       .maybeSingle();
     const subscriptionTier = userProfile?.subscription_tier || 'free';
-    const isPro = subscriptionTier === 'pro';
 
     // Update Mode: If plaidItemId is provided, we're requesting additional consent
     if (plaidItemId) {
@@ -49,15 +49,15 @@ export async function POST(request) {
       });
     }
 
-    // Normal Mode: enforce free tier limits
-    if (!isPro) {
-      // Check if user already has >= 1 plaid_item
+    // Normal Mode: enforce connection limits per tier
+    const connectionLimit = getLimit(subscriptionTier, 'connections');
+    if (connectionLimit !== 'unlimited') {
       const { data: existingItems, error: itemsError } = await supabaseAdmin
         .from('plaid_items')
         .select('id')
         .eq('user_id', userId);
 
-      if (!itemsError && existingItems && existingItems.length >= 1) {
+      if (!itemsError && existingItems && existingItems.length >= connectionLimit) {
         return Response.json(
           { error: 'connection_limit' },
           { status: 403 }
@@ -65,8 +65,8 @@ export async function POST(request) {
       }
     }
 
-    // Free: transactions only; Pro: transactions + investments
-    const products = isPro ? ['transactions', 'investments'] : ['transactions'];
+    // Determine Plaid products based on tier
+    const products = getPlaidProducts(subscriptionTier);
     const linkTokenResponse = await createLinkToken(userId, products, null);
     return Response.json({
       link_token: linkTokenResponse.link_token,

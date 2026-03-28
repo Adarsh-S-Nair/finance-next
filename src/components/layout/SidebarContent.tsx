@@ -15,6 +15,7 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
 import { motion } from "framer-motion";
 import Tooltip from "../ui/Tooltip";
+import { isFeatureEnabled } from "../../lib/tierConfigClient";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
@@ -24,8 +25,16 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const [showLogout, setShowLogout] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-
-  const groups = useMemo(() => NAV_GROUPS, []);
+  const groups = useMemo(() => {
+    return NAV_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter((item) => {
+        // Hide items whose feature flag is disabled in the current environment
+        if (item.featureFlag && !isFeatureEnabled(item.featureFlag)) return false;
+        return true;
+      }),
+    })).filter((g) => g.items.length > 0);
+  }, []);
 
   const onLogout = () => {
     if (isSigningOut) return;

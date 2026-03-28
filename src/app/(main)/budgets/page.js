@@ -7,13 +7,16 @@ import BudgetCard from '../../../components/budgets/BudgetCard';
 import CreateBudgetModal from '../../../components/budgets/CreateBudgetModal';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
+import UpgradeModal from '../../../components/UpgradeModal';
+import EmptyState from '../../../components/ui/EmptyState';
 import { LuPlus, LuPiggyBank } from 'react-icons/lu';
 
 export default function BudgetsPage() {
-  const { user } = useUser();
+  const { user, isPro } = useUser();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const fetchBudgets = async () => {
     if (!user?.id) return;
@@ -43,6 +46,26 @@ export default function BudgetsPage() {
       alert('Failed to delete budget');
     }
   };
+
+  if (!isPro) {
+    return (
+      <>
+        <EmptyState>
+          <EmptyState.Hero
+            layout="split"
+            title="Budgets — Pro Feature"
+            description="Upgrade to Pro to create budgets, track spending by category, and get insights into your financial health."
+            action={
+              <Button size="lg" onClick={() => setShowUpgradeModal(true)} className="gap-2">
+                Upgrade to Pro
+              </Button>
+            }
+          />
+        </EmptyState>
+        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      </>
+    );
+  }
 
   return (
     <PageContainer
@@ -185,6 +208,7 @@ export default function BudgetsPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={fetchBudgets}
       />
+      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </PageContainer>
   );
 }

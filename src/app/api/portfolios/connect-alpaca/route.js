@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { canAccess } from '../../../../lib/tierConfig';
 
 // Mark route as dynamic
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,17 @@ export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
     const supabase = getSupabaseClient();
+
+    // Gate: paper_trading (Alpaca) is a Pro feature
+    const { data: userProfile } = await supabase
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'paper_trading')) {
+      return NextResponse.json({ error: 'feature_locked', feature: 'paper_trading' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, apiKey, secretKey } = body;
 
