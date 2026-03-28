@@ -16,6 +16,10 @@ import {
   MOCK_ACCOUNTS_POWER_USER,
   MOCK_ACCOUNTS_INVESTMENT,
   MOCK_ACCOUNTS_ALL,
+  MOCK_ACCOUNTS_CHASE,
+  MOCK_ACCOUNTS_BOFA,
+  MOCK_ACCOUNTS_SCHWAB,
+  MOCK_ACCOUNTS_WELLSFARGO,
 } from './mock-data/accounts.js';
 import {
   generateTransactions,
@@ -76,20 +80,31 @@ export async function exchangePublicToken(publicToken) {
   const accessToken = _makeAccessToken();
   const itemId = _makeItemId();
 
-  // Decide account set + institution based on token content (matches AccountSetupFlow token format: mock-public-<accountType>)
-  const isInvestment = publicToken?.includes('invest');
-  const isCreditCard = publicToken?.includes('credit_card');
-  const isCheckingSavings = publicToken?.includes('checking_savings');
-
+  // Decide account set + institution based on token content.
+  // Priority: institution ID in token (new picker format) > legacy account-type tokens
   let accounts;
   let institutionId;
-  if (isInvestment) {
+
+  if (publicToken?.includes('ins_mock_chase')) {
+    accounts = MOCK_ACCOUNTS_CHASE;
+    institutionId = 'ins_mock_chase';
+  } else if (publicToken?.includes('ins_mock_bofa')) {
+    accounts = MOCK_ACCOUNTS_BOFA;
+    institutionId = 'ins_mock_bofa';
+  } else if (publicToken?.includes('ins_mock_schwab')) {
+    accounts = MOCK_ACCOUNTS_SCHWAB;
+    institutionId = 'ins_mock_schwab';
+  } else if (publicToken?.includes('ins_mock_wellsfargo')) {
+    accounts = MOCK_ACCOUNTS_WELLSFARGO;
+    institutionId = 'ins_mock_wellsfargo';
+  } else if (publicToken?.includes('invest')) {
+    // Legacy token format
     accounts = MOCK_ACCOUNTS_INVESTMENT;
     institutionId = 'ins_mock_schwab';
-  } else if (isCreditCard) {
+  } else if (publicToken?.includes('credit_card')) {
     accounts = MOCK_ACCOUNTS_POWER_USER.filter(a => a.type === 'credit');
     institutionId = DEFAULT_INSTITUTION_ID;
-  } else if (isCheckingSavings) {
+  } else if (publicToken?.includes('checking_savings')) {
     accounts = MOCK_ACCOUNTS_POWER_USER.filter(a => a.type === 'depository');
     institutionId = DEFAULT_INSTITUTION_ID;
   } else {

@@ -5,9 +5,12 @@ import { usePlaidLink } from 'react-plaid-link';
 import { FiCheckCircle, FiLoader, FiXCircle } from 'react-icons/fi';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
+import MockPlaidLink from './MockPlaidLink';
 import { useUser } from './providers/UserProvider';
 import { useAccounts } from './providers/AccountsProvider';
 import { authFetch } from '../lib/api/fetch';
+
+const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === 'mock';
 
 export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null }) {
   const { user } = useUser();
@@ -16,6 +19,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [showMockPicker, setShowMockPicker] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -26,10 +30,11 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     }
   }, [isOpen]);
 
-  const onSuccess = async (publicToken) => {
+  const exchangeToken = async (publicToken) => {
     try {
       setLoading(true);
       setError(null);
+      setShowMockPicker(false);
 
       const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
@@ -64,6 +69,10 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     }
   };
 
+  const onSuccess = async (publicToken) => {
+    await exchangeToken(publicToken);
+  };
+
   const onExit = (err) => {
     if (err) {
       console.error('Plaid Link error:', err);
@@ -72,10 +81,15 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     setLoading(false);
   };
 
-  const { open, ready } = usePlaidLink({ token: linkToken, onSuccess, onExit });
+  const handleMockExit = () => {
+    setShowMockPicker(false);
+    setLoading(false);
+  };
+
+  const { open, ready } = usePlaidLink({ token: isMockPlaid ? null : linkToken, onSuccess, onExit });
 
   useEffect(() => {
-    if (linkToken && ready && !error) {
+    if (!isMockPlaid && linkToken && ready && !error) {
       setLoading(false);
       open();
     }
@@ -97,7 +111,13 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       }
 
       const data = await response.json();
-      setLinkToken(data.link_token);
+
+      if (isMockPlaid) {
+        setLoading(false);
+        setShowMockPicker(true);
+      } else {
+        setLinkToken(data.link_token);
+      }
     } catch (err) {
       console.error('Error fetching link token:', err);
       setError(err.message);
@@ -118,6 +138,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     setSuccess(false);
     setLinkToken(null);
     setLoading(false);
+    setShowMockPicker(false);
   };
 
   const handleRetry = async () => {
@@ -139,6 +160,14 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   );
 
   return (
+    <>
+      {/* Mock institution picker — rendered outside the Modal so it can cover everything */}
+      {isMockPlaid && showMockPicker && (
+        <MockPlaidLink
+          onSuccess={(token) => exchangeToken(token)}
+          onExit={handleMockExit}
+        />
+      )}
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -183,5 +212,6 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
         )}
       </div>
     </Modal>
+    </>
   );
 }

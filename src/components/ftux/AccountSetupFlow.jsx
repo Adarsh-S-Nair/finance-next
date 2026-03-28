@@ -6,6 +6,7 @@ import { usePlaidLink } from "react-plaid-link";
 import Link from "next/link";
 import { FiChevronRight, FiChevronLeft, FiCheck, FiAlertCircle, FiPlus, FiEye, FiEyeOff } from "react-icons/fi";
 import Button from "../ui/Button";
+import MockPlaidLink from "../MockPlaidLink";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
@@ -332,10 +333,12 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
   const [error, setError] = useState(null);
   const [exchanging, setExchanging] = useState(false);
   const [plaidExited, setPlaidExited] = useState(false);
+  const [showMockPicker, setShowMockPicker] = useState(false);
 
   const exchangeToken = async (publicToken) => {
     try {
       setExchanging(true);
+      setShowMockPicker(false);
       const response = await authFetch("/api/plaid/exchange-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -370,6 +373,11 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
     }
   };
 
+  const handleMockExit = () => {
+    setShowMockPicker(false);
+    setPlaidExited(true);
+  };
+
   const { open, ready } = usePlaidLink({
     token: isMockPlaid ? null : linkToken,
     onSuccess: (publicToken) => exchangeToken(publicToken),
@@ -394,7 +402,8 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
         if (cancelled) return;
 
         if (isMockPlaid) {
-          await exchangeToken("mock-public-token");
+          // Show institution picker instead of auto-connecting
+          setShowMockPicker(true);
         } else {
           setLinkToken(data.link_token);
         }
@@ -417,6 +426,16 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
       open();
     }
   }, [linkToken, ready, error, open, plaidExited]);
+
+  // Mock institution picker modal
+  if (isMockPlaid && showMockPicker) {
+    return (
+      <MockPlaidLink
+        onSuccess={(token) => exchangeToken(token)}
+        onExit={handleMockExit}
+      />
+    );
+  }
 
   if (error) {
     return (
@@ -450,7 +469,17 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
             <FiChevronLeft className="h-4 w-4" />
             Back
           </button>
-          <Button onClick={() => { setPlaidExited(false); open(); }} className="h-9 px-5 text-sm cursor-pointer">
+          <Button
+            onClick={() => {
+              setPlaidExited(false);
+              if (isMockPlaid) {
+                setShowMockPicker(true);
+              } else {
+                open();
+              }
+            }}
+            className="h-9 px-5 text-sm cursor-pointer"
+          >
             Try again
           </Button>
         </div>
