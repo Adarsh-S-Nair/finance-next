@@ -22,7 +22,7 @@ import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { logout, profile, isPro } = useUser();
+  const { logout, profile, isPro, user } = useUser();
   const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -198,7 +198,47 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <div className="max-w-3xl space-y-8">
+      <div className="max-w-3xl mx-auto space-y-8">
+
+        {/* Profile Section */}
+        <section aria-labelledby="profile-heading">
+          <h2 id="profile-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Profile</h2>
+          <Card>
+            <div className="flex items-center gap-4 py-3">
+              {/* Avatar */}
+              <div className="flex-shrink-0">
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile avatar"
+                    className="w-12 h-12 rounded-full object-cover border border-[var(--color-border)]"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[var(--color-accent)]/20 border border-[var(--color-border)] flex items-center justify-center">
+                    <span className="text-lg font-semibold text-[var(--color-accent)]">
+                      {(profile?.first_name || user?.email || "?")[0].toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                {(profile?.first_name || profile?.last_name) && (
+                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                    {[profile.first_name, profile.last_name].filter(Boolean).join(" ")}
+                  </div>
+                )}
+                <div className="text-xs text-[var(--color-muted)] truncate mt-0.5">
+                  {user?.email || ""}
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)]/60 mt-1">
+                  Signed in with Google · profile is read-only
+                </div>
+              </div>
+            </div>
+          </Card>
+        </section>
+
         <section aria-labelledby="appearance-heading">
           <h2 id="appearance-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Appearance</h2>
           <Card allowOverflow className="relative z-10">
@@ -379,8 +419,57 @@ export default function SettingsPage() {
           </Card>
         </section>
 
-        <section aria-labelledby="account-heading">
-          <h2 id="account-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Account</h2>
+        {/* Subscription Section */}
+        <section aria-labelledby="subscription-heading">
+          <h2 id="subscription-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Subscription</h2>
+          <Card>
+            <div className="flex items-center justify-between py-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-medium text-[var(--color-fg)]">Current plan</div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                    isPro
+                      ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)]'
+                  }`}>
+                    {isPro ? 'Pro' : 'Free'}
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                  {isPro
+                    ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
+                    : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
+                </div>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                {isPro ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    disabled
+                    title="Stripe portal coming soon"
+                  >
+                    Manage Subscription
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 text-[var(--color-accent)] border-[var(--color-accent)]/40 hover:bg-[var(--color-accent)]/10"
+                    onClick={() => setIsUpgradeModalOpen(true)}
+                  >
+                    Upgrade to Pro
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        </section>
+
+        {/* Session Section (was "Account") */}
+        <section aria-labelledby="session-heading">
+          <h2 id="session-heading" className="text-sm font-medium text-[var(--color-muted)] mb-3 uppercase tracking-wider">Session</h2>
           <Card>
             <div className="flex items-center justify-between py-3">
               <div>
