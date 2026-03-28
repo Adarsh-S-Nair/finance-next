@@ -168,7 +168,7 @@ export default function RecentTransactionsCard() {
     return (
       <div className="w-full">
         <div className="mb-4">
-          <div className="text-sm font-medium text-zinc-900">Recent Transactions</div>
+          <div className="card-header">Recent Transactions</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
@@ -193,7 +193,7 @@ export default function RecentTransactionsCard() {
     return (
       <div className="w-full">
         <div className="mb-4">
-          <div className="text-sm font-medium text-zinc-900">Recent Transactions</div>
+          <div className="card-header">Recent Transactions</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
@@ -214,13 +214,13 @@ export default function RecentTransactionsCard() {
   return (
     <div className="w-full">
       <div className="mb-4 flex justify-between items-center">
-        <h3 className="text-sm font-semibold text-zinc-900">Recent Transactions</h3>
+        <h3 className="card-header">Recent Transactions</h3>
         <Link href="/transactions" className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
           View all
         </Link>
       </div>
 
-      <div className="space-y-1 divide-y divide-zinc-100">
+      <div className="space-y-1">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
           const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-zinc-900';
@@ -228,7 +228,7 @@ export default function RecentTransactionsCard() {
           return (
             <div
               key={transaction.id || index}
-              className="flex items-center justify-between py-2.5 px-1 hover:bg-zinc-50 transition-colors"
+              className="flex items-center justify-between py-3 px-2"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <TransactionIconCircle transaction={transaction} />
