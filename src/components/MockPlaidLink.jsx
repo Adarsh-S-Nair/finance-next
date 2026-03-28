@@ -4,10 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
 
 const INSTITUTIONS = [
-  { id: "ins_mock_chase", name: "Chase", primary_color: "#117ACA" },
-  { id: "ins_mock_bofa", name: "Bank of America", primary_color: "#E31837" },
-  { id: "ins_mock_schwab", name: "Charles Schwab", primary_color: "#00A0DF" },
-  { id: "ins_mock_wellsfargo", name: "Wells Fargo", primary_color: "#D71E28" },
+  { id: "ins_mock_chase", name: "Chase", primary_color: "#117ACA", logo: "https://logo.clearbit.com/chase.com" },
+  { id: "ins_mock_bofa", name: "Bank of America", primary_color: "#E31837", logo: "https://logo.clearbit.com/bankofamerica.com" },
+  { id: "ins_mock_schwab", name: "Charles Schwab", primary_color: "#00A0DF", logo: "https://logo.clearbit.com/schwab.com" },
+  { id: "ins_mock_wellsfargo", name: "Wells Fargo", primary_color: "#D71E28", logo: "https://logo.clearbit.com/wellsfargo.com" },
 ];
 
 /**
@@ -97,11 +97,28 @@ export default function MockPlaidLink({ onSuccess, onExit }) {
                 onClick={() => handleSelect(inst)}
                 className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-zinc-50 active:bg-zinc-100 transition-colors cursor-pointer"
               >
-                {/* Colored dot */}
-                <span
-                  className="h-3 w-3 flex-shrink-0 rounded-full"
+                {/* Institution logo */}
+                <div
+                  className="h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center overflow-hidden"
                   style={{ backgroundColor: inst.primary_color }}
-                />
+                >
+                  <img
+                    src={inst.logo}
+                    alt={inst.name}
+                    className="h-8 w-8 rounded-full object-cover"
+                    onError={(e) => {
+                      // Fallback to colored circle with first letter
+                      e.target.style.display = "none";
+                      e.target.nextSibling.style.display = "flex";
+                    }}
+                  />
+                  <span
+                    className="h-8 w-8 items-center justify-center text-xs font-bold text-white"
+                    style={{ display: "none" }}
+                  >
+                    {inst.name.charAt(0)}
+                  </span>
+                </div>
                 <span className="text-sm font-medium text-zinc-800">{inst.name}</span>
               </button>
             ))
