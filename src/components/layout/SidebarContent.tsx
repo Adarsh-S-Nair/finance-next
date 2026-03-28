@@ -310,12 +310,15 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 </span>
               </div>
               {tier === "free" && (
-                <button
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => { e.stopPropagation(); setShowUpgradeOverlay(true); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setShowUpgradeOverlay(true); } }}
                   className="text-[10px] text-[var(--color-accent)] hover:opacity-80 transition-opacity mt-0.5 cursor-pointer"
                 >
                   Upgrade
-                </button>
+                </span>
               )}
             </div>
             <svg
