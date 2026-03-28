@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
 import { removeItem } from "../../../../lib/plaid/client";
 import { requireVerifiedUserId } from "../../../../lib/api/auth";
+import { stripe } from "../../../../lib/stripe/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,14 +58,53 @@ export async function POST(req: NextRequest) {
       console.log("No Plaid items found for user");
     }
 
-    // Step 3: Clean up profile data (optional; cascade can handle in DB if configured)
+    // Step 3: Clean up Stripe subscriptions and customer
+    try {
+      if (!stripe) {
+        console.log("Stripe not configured — skipping Stripe cleanup");
+      } else {
+        console.log(`Fetching Stripe customer ID for user: ${userId}`);
+        const { data: profileData, error: profileFetchErr } = await supabaseAdmin
+          .from("user_profiles")
+          .select("stripe_customer_id")
+          .eq("id", userId)
+          .single();
+
+        if (profileFetchErr && profileFetchErr.code !== "PGRST116") {
+          console.error("Error fetching user profile for Stripe cleanup:", profileFetchErr);
+        } else if (profileData?.stripe_customer_id) {
+          const customerId = profileData.stripe_customer_id;
+          console.log(`Found Stripe customer: ${customerId}`);
+
+          // Cancel all active subscriptions
+          const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "active" });
+          console.log(`Found ${subscriptions.data.length} active subscription(s) to cancel`);
+          for (const sub of subscriptions.data) {
+            console.log(`Cancelling subscription: ${sub.id}`);
+            await stripe.subscriptions.cancel(sub.id);
+            console.log(`Cancelled subscription: ${sub.id}`);
+          }
+
+          // Delete the Stripe customer
+          console.log(`Deleting Stripe customer: ${customerId}`);
+          await stripe.customers.del(customerId);
+          console.log(`Deleted Stripe customer: ${customerId}`);
+        } else {
+          console.log("No Stripe customer ID found for user — skipping Stripe cleanup");
+        }
+      }
+    } catch (stripeErr: any) {
+      console.error("Stripe cleanup failed (continuing with account deletion):", stripeErr?.message ?? stripeErr);
+    }
+
+    // Step 4: Clean up profile data (optional; cascade can handle in DB if configured)
     const { error: profileErr } = await supabaseAdmin.from("user_profiles").delete().eq("id", userId);
     if (profileErr && profileErr.code !== "PGRST116") {
       // ignore not-found; otherwise propagate
       return NextResponse.json({ error: profileErr.message }, { status: 400 });
     }
 
-    // Step 4: Delete auth user (only after all Plaid items are successfully removed)
+    // Step 5: Delete auth user (only after all Plaid items are successfully removed)
     const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteErr) {
       return NextResponse.json({ error: deleteErr.message }, { status: 400 });
