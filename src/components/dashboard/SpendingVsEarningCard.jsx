@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import Card from "../ui/Card";
 import SpendingEarningChart from "./SpendingEarningChartV2";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../providers/UserProvider";
@@ -176,9 +175,9 @@ export default function SpendingVsEarningCard() {
   const isPositiveCashflow = averageCashflow >= 0;
 
   return (
-    <Card padding="none" allowOverflow hover className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
+    <div className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
       {showLoading && (
-        <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
+        <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col pt-0 pb-0">
           {/* Header row — matches actual layout */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="min-w-0">
@@ -201,7 +200,7 @@ export default function SpendingVsEarningCard() {
 
       <div className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}>
         {/* Custom Header */}
-        <div className="px-5 sm:px-8 pt-5 sm:pt-8 pb-2 shrink-0">
+        <div className="px-0 pt-0 pb-2 shrink-0">
           <div className="flex items-start justify-between gap-2">
             {/* Title and Values */}
             <div className="min-w-0">
@@ -256,6 +255,6 @@ export default function SpendingVsEarningCard() {
           />
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

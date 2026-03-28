@@ -393,7 +393,7 @@ export default function CalendarCard({ className = '' }) {
 
   if (loading) {
     return (
-      <Card width="full" variant="glass" hover className={`flex flex-col ${className}`}>
+      <Card width="full" variant="default" hover className={`flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none ${className}`}>
         <div className="animate-pulse">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
@@ -424,7 +424,7 @@ export default function CalendarCard({ className = '' }) {
   }
 
   return (
-    <Card width="full" variant="glass" hover className={`flex flex-col ${className}`} allowOverflow>
+    <Card width="full" variant="default" hover className={`flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none ${className}`} allowOverflow>
 
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import Card from "../ui/Card";
 import Dropdown from "../ui/Dropdown";
 import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -182,10 +181,10 @@ export default function TopCategoriesCard() {
 
   if (loading) {
     return (
-      <Card padding="none" className="h-[440px]">
+      <div className="h-[440px]">
         <div className="animate-pulse flex flex-col h-full">
           {/* Header */}
-          <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+          <div className="pb-2 flex items-center justify-between">
             <div className="h-4 bg-[var(--color-border)] rounded w-32" />
             <div className="h-6 bg-[var(--color-border)] rounded w-24" />
           </div>
@@ -194,25 +193,25 @@ export default function TopCategoriesCard() {
             <div className="w-56 h-56 rounded-full border-[18px] border-[var(--color-border)] opacity-30" />
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="h-[400px]">
-        <div className="h-full flex items-center justify-center text-[var(--color-muted)]">
+      <div className="h-[400px]">
+        <div className="h-full flex items-center justify-center text-zinc-400">
           Failed to load data
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card padding="none" hover className="h-[440px] relative">
+    <div className="h-[440px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header with Dropdown */}
-        <div className="px-6 pt-8 pb-2 flex items-center justify-between">
+        <div className="pb-2 flex items-center justify-between">
           <div className="card-header">
             Top Spending
           </div>
@@ -305,6 +304,6 @@ export default function TopCategoriesCard() {
         </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

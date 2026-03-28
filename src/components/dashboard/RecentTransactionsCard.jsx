@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { authFetch } from '../../lib/api/fetch';
-import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
@@ -146,7 +145,7 @@ export default function RecentTransactionsCard() {
 
   if (loading) {
     return (
-      <Card width="full" className="animate-pulse" variant="glass">
+      <div className="w-full animate-pulse">
         <div className="mb-4 flex justify-between items-center">
           <div className="h-4 bg-[var(--color-border)] rounded w-32" />
         </div>
@@ -161,21 +160,20 @@ export default function RecentTransactionsCard() {
             </div>
           ))}
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card width="full" variant="glass">
+      <div className="w-full">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)] font-light">Recent Transactions</div>
-          <div className="text-lg font-light text-[var(--color-fg)]">Unable to load</div>
+          <div className="text-sm font-medium text-zinc-900">Recent Transactions</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
             <div className="text-center">
-              <div className="text-sm text-[var(--color-muted)] mb-2">
+              <div className="text-sm text-zinc-400 mb-2">
                 {error}
               </div>
               <button
@@ -187,61 +185,58 @@ export default function RecentTransactionsCard() {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (!transactions || transactions.length === 0) {
     return (
-      <Card width="full" variant="glass">
+      <div className="w-full">
         <div className="mb-4">
-          <div className="text-sm text-[var(--color-muted)] font-light">Recent Transactions</div>
-          <div className="text-lg font-light text-[var(--color-fg)]">No transactions</div>
+          <div className="text-sm font-medium text-zinc-900">Recent Transactions</div>
         </div>
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
             <div className="text-center">
-              <div className="text-sm text-[var(--color-muted)] mb-2">
+              <div className="text-sm text-zinc-400 mb-2">
                 No recent transactions found
               </div>
-              <div className="text-xs text-[var(--color-muted)]">
+              <div className="text-xs text-zinc-400">
                 Connect accounts to see your transaction history
               </div>
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card width="full" variant="glass" hover>
+    <div className="w-full">
       <div className="mb-4 flex justify-between items-center">
-        <h3 className="card-header">Recent Transactions</h3>
-        <Link href="/transactions" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+        <h3 className="text-sm font-semibold text-zinc-900">Recent Transactions</h3>
+        <Link href="/transactions" className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
           View all
         </Link>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 divide-y divide-zinc-100">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
-          // Use generic positive/neutral colors which map to neon in dark mode via CSS variables if configured,
-          // or explicit neon classes if we want to force it.
-          const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]';
+          const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-zinc-900';
 
           return (
             <div
               key={transaction.id || index}
-              className="flex items-center justify-between py-2 px-2 rounded-sm hover:bg-[var(--color-muted)]/5 transition-colors"
+              className="flex items-center justify-between py-2.5 px-1 hover:bg-zinc-50 transition-colors"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <TransactionIconCircle transaction={transaction} />
                 <div className="min-w-0 flex-1 mr-4">
-                  <div className="text-sm font-light text-[var(--color-fg)] truncate">
+                  <div className="text-sm font-medium text-zinc-900 truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
                   </div>
-                  <div className="text-xs text-[var(--color-muted)] font-light">
+                  <div className="text-xs text-zinc-400">
                     {formatDate(transaction.date || transaction.datetime)}
                   </div>
                 </div>
@@ -251,7 +246,7 @@ export default function RecentTransactionsCard() {
                   {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}
                 </div>
                 {transaction.pending && (
-                  <div className="text-xs text-[var(--color-muted)] italic font-light">
+                  <div className="text-xs text-zinc-400 italic">
                     Pending
                   </div>
                 )}
@@ -260,7 +255,6 @@ export default function RecentTransactionsCard() {
           );
         })}
       </div>
-
-    </Card>
+    </div>
   );
 }
