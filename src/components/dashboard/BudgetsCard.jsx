@@ -8,13 +8,15 @@ import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard() {
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const [budgets, setBudgets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setLoading(false); return; }
     async function fetchBudgets() {
-      if (!user?.id) return;
+      setLoading(true);
       try {
         const res = await authFetch(`/api/budgets`);
         const json = await res.json();
@@ -26,7 +28,7 @@ export default function BudgetsCard() {
       }
     }
     fetchBudgets();
-  }, [user?.id]);
+  }, [authLoading, user?.id]);
 
   // Calculate aggregate totals
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);

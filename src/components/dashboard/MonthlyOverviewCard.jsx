@@ -12,7 +12,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
   const [previousMonthName, setPreviousMonthName] = useState("");
 
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
 
   // Update selectedMonth if initialMonth changes (e.g. re-opening the card)
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const isLoadingState = (!chartData.length && !selectedMonth); // Simplified loading logic, ideally track fetch state
 
   // We need a local loading state to track fetch
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
 
   // Generate placeholder chart data for current month (all $0 values)
   const generatePlaceholderChartData = () => {
@@ -41,8 +41,10 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
   // Fetch available months
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setIsFetching(false); return; }
     const fetchAvailableMonths = async () => {
-      if (!user?.id) return;
+      setIsFetching(true);
       try {
         const response = await authFetch(`/api/transactions/available-months`);
         if (!response.ok) throw new Error('Failed to fetch available months');
@@ -66,12 +68,14 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     };
 
     fetchAvailableMonths();
-  }, [user?.id, initialMonth]);
+  }, [authLoading, user?.id, initialMonth]);
 
   // Fetch data for selected month
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setIsFetching(false); return; }
     const fetchMonthlyData = async () => {
-      if (!user?.id || !selectedMonth) return;
+      if (!selectedMonth) return;
 
       setIsFetching(true);
       try {
@@ -95,7 +99,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     };
 
     fetchMonthlyData();
-  }, [user?.id, selectedMonth]);
+  }, [authLoading, user?.id, selectedMonth]);
 
   const handleMouseMove = (data, index) => {
     setActiveIndex(index);

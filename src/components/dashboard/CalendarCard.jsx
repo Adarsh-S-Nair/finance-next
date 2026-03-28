@@ -144,12 +144,12 @@ const getOccurrencesForMonth = (stream, year, month) => {
 };
 
 export default function CalendarCard({ className = '' }) {
-  const { user, isPro } = useUser();
+  const { user, isPro, loading: authLoading } = useUser();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [recurring, setRecurring] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [hoveredDate, setHoveredDate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
@@ -176,8 +176,9 @@ export default function CalendarCard({ className = '' }) {
 
   // Fetch recurring streams (Pro only)
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setLoading(false); return; }
     const fetchRecurring = async () => {
-      if (!user?.id) return;
       if (!isPro) {
         setRecurring([]);
         setLoading(false);
@@ -197,7 +198,7 @@ export default function CalendarCard({ className = '' }) {
       }
     };
     fetchRecurring();
-  }, [user?.id, isPro]);
+  }, [authLoading, user?.id, isPro]);
 
   // Build calendar grid
   const calendarDays = useMemo(() => {

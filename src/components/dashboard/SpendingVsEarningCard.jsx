@@ -48,11 +48,11 @@ function AnimatedCounter({ value, duration = 1000, showCents = true }) {
 }
 
 export default function SpendingVsEarningCard() {
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
   const [chartData, setChartData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hoveredData, setHoveredData] = useState(null);
 
   // Period options
@@ -82,8 +82,9 @@ export default function SpendingVsEarningCard() {
 
   // Fetch data
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setIsLoading(false); return; }
     const fetchData = async () => {
-      if (!user?.id) return;
       setIsLoading(true);
       try {
         // Determine months parameter based on selectedPeriod
@@ -106,7 +107,7 @@ export default function SpendingVsEarningCard() {
       }
     };
     fetchData();
-  }, [user?.id, selectedPeriod]);
+  }, [authLoading, user?.id, selectedPeriod]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {

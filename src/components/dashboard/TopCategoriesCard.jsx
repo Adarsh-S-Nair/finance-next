@@ -22,11 +22,11 @@ function generateAccentShades(accentColor, count) {
 }
 
 export default function TopCategoriesCard() {
-  const { user, profile } = useUser();
+  const { user, profile, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth'); // 'thisMonth' or 'last30'
@@ -54,9 +54,9 @@ export default function TopCategoriesCard() {
   const containerRef = React.useRef(null);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.id) { setLoading(false); return; }
     async function fetchData() {
-      if (!user?.id) return;
-
       try {
         setLoading(true);
 
@@ -91,7 +91,7 @@ export default function TopCategoriesCard() {
     }
 
     fetchData();
-  }, [user?.id, selectedPeriod]);
+  }, [authLoading, user?.id, selectedPeriod]);
 
   // Handle Mouse Leave Logic
   useEffect(() => {
