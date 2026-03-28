@@ -69,20 +69,58 @@ export async function POST(request) {
             }
           } catch (_) { /* invalid URL, skip */ }
         }
-        // Upsert institution in database
-        const { data: instData, error: institutionError } = await supabaseAdmin
-          .from('institutions')
-          .upsert({
-            institution_id: institution.institution_id,
-            name: institution.name,
-            logo: resolvedLogo,
-            primary_color: institution.primary_color,
-            url: institution.url,
-          }, {
-            onConflict: 'institution_id'
-          })
-          .select()
-          .single();
+        // Upsert institution in database — never downgrade a populated logo to null
+        let instData, institutionError;
+        if (resolvedLogo !== null) {
+          // We have a logo — safe to upsert normally
+          ({ data: instData, error: institutionError } = await supabaseAdmin
+            .from('institutions')
+            .upsert({
+              institution_id: institution.institution_id,
+              name: institution.name,
+              logo: resolvedLogo,
+              primary_color: institution.primary_color,
+              url: institution.url,
+            }, {
+              onConflict: 'institution_id'
+            })
+            .select()
+            .single());
+        } else {
+          // No logo resolved — check if row already exists to avoid overwriting a good logo
+          const { data: existingInst } = await supabaseAdmin
+            .from('institutions')
+            .select('*')
+            .eq('institution_id', institution.institution_id)
+            .maybeSingle();
+
+          if (existingInst) {
+            // Row exists — update name/color/url but keep the existing logo
+            ({ data: instData, error: institutionError } = await supabaseAdmin
+              .from('institutions')
+              .update({
+                name: institution.name,
+                primary_color: institution.primary_color,
+                url: institution.url,
+              })
+              .eq('institution_id', institution.institution_id)
+              .select()
+              .single());
+          } else {
+            // New row — insert with null logo (nothing to preserve)
+            ({ data: instData, error: institutionError } = await supabaseAdmin
+              .from('institutions')
+              .insert({
+                institution_id: institution.institution_id,
+                name: institution.name,
+                logo: null,
+                primary_color: institution.primary_color,
+                url: institution.url,
+              })
+              .select()
+              .single());
+          }
+        }
         if (institutionError) {
           console.error('Error upserting institution:', institutionError);
         } else {
