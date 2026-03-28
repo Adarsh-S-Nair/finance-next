@@ -37,9 +37,9 @@ const TIER_FEATURES: Record<string, Record<string, boolean>> = {
   },
 };
 
-const TIER_CONNECTIONS: Record<string, number | 'unlimited'> = {
+const TIER_CONNECTIONS: Record<string, number> = {
   free: 1,
-  pro: 'unlimited',
+  pro: 5,
 };
 
 const TIER_PLAID_PRODUCTS: Record<string, string[]> = {
@@ -68,8 +68,8 @@ export function canAccess(tier: string, feature: string): boolean {
   return TIER_FEATURES[tier]?.[feature] === true;
 }
 
-/** Get a numeric/unlimited limit for a tier. */
-export function getLimit(tier: string, key: string): number | 'unlimited' {
+/** Get a numeric limit for a tier. */
+export function getLimit(tier: string, key: string): number {
   if (key === 'connections') return TIER_CONNECTIONS[tier] ?? 0;
   return 0;
 }

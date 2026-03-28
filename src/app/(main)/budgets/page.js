@@ -7,7 +7,7 @@ import BudgetCard from '../../../components/budgets/BudgetCard';
 import CreateBudgetModal from '../../../components/budgets/CreateBudgetModal';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
-import UpgradeModal from '../../../components/UpgradeModal';
+import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import EmptyState from '../../../components/ui/EmptyState';
 import { LuPlus, LuPiggyBank } from 'react-icons/lu';
 
@@ -62,7 +62,7 @@ export default function BudgetsPage() {
             }
           />
         </EmptyState>
-        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       </>
     );
   }
@@ -208,7 +208,7 @@ export default function BudgetsPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={fetchBudgets}
       />
-      <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+      <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
     </PageContainer>
   );
 }

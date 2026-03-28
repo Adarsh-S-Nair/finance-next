@@ -6,7 +6,7 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
-import UpgradeModal from "../../../components/UpgradeModal";
+import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import EmptyState from "../../../components/ui/EmptyState";
 import { PiBankFill } from "react-icons/pi";
 import { LuPlus } from "react-icons/lu";
@@ -726,7 +726,7 @@ export default function InvestmentsPage() {
             preview={<InvestmentsPreviewMockup />}
           />
         </EmptyState>
-        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       </>
     );
   }

@@ -17,7 +17,7 @@ import { HiChevronDown } from "react-icons/hi2";
 import { IoUnlink } from "react-icons/io5";
 import { FiTool } from "react-icons/fi";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
-import UpgradeModal from "../../../components/UpgradeModal";
+import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
@@ -511,7 +511,7 @@ export default function SettingsPage() {
       />
 
       {/* Upgrade Modal */}
-      <UpgradeModal
+      <UpgradeOverlay
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
       />
