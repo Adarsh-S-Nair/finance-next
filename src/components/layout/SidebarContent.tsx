@@ -75,12 +75,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     setShowPopover(false);
   }, [pathname]);
 
-  // Computed user display values
-  const firstName = profile?.first_name ?? "";
-  const lastName = profile?.last_name ?? "";
+  // Computed user display values — profile row may be empty, fall back to user_metadata from auth
+  const meta = (user as any)?.user_metadata ?? {};
+  const firstName = profile?.first_name || meta.first_name || "";
+  const lastName = profile?.last_name || meta.last_name || "";
   const rawName = [firstName, lastName].filter(Boolean).join(" ")
-    || (user as any)?.user_metadata?.name
-    || (user as any)?.user_metadata?.full_name
+    || meta.name
+    || meta.full_name
     || "";
   const fullName = rawName
     ? rawName.trim().split(/\s+/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
@@ -317,7 +318,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               stroke="currentColor"
               strokeWidth={2}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
         )}
