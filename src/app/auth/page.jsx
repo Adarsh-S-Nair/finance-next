@@ -13,7 +13,7 @@ export default function AuthPage() {
   return (
     <PublicRoute>
       <RouteTransition>
-        <div className="min-h-screen bg-zinc-50 text-zinc-900 selection:bg-zinc-900 selection:text-white">
+        <div className="min-h-screen bg-zinc-50 text-zinc-900">
           <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} showLinks={false} bgClass="bg-zinc-50" />
 
           <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl flex-col px-5 sm:px-6 lg:px-8">

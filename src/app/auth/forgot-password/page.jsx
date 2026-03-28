@@ -9,7 +9,7 @@ export default function ForgotPasswordPage() {
   return (
     <PublicRoute>
       <RouteTransition>
-        <div className="min-h-screen w-full flex bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white">
+        <div className="min-h-screen w-full flex bg-white text-zinc-900">
           <div className="hidden lg:flex w-1/2 bg-zinc-900 relative overflow-hidden items-center justify-center p-12">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#3f3f46,transparent)] opacity-40"></div>
             <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
