@@ -14,10 +14,10 @@ import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
 import { GoogleSignInButton } from "../auth/LoginForm";
 
-// Steps: 0=Name, 1=Email+Password, 2=Connecting, 3=Connected
-// In production (non-mock): steps 0+1 are skipped; only 2=Connecting, 3=Connected
+// Steps: 0=Name, 1=Email+Password, 2=Welcome, 3=Connecting, 4=Connected
+// In production (non-mock): steps 0+1 are replaced by Google OAuth gate; steps 2=Welcome, 3=Connecting, 4=Connected
 const isMockEnv = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
-const TOTAL_STEPS = isMockEnv ? 4 : 2;
+const TOTAL_STEPS = isMockEnv ? 5 : 3;
 
 const slideVariants = {
   enter: (direction) => ({
@@ -327,7 +327,28 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   );
 }
 
-/* ── Step 2: Connecting (uses Plaid) ────────────────────────── */
+/* ── Step 2: Welcome ────────────────────────────────────────── */
+function WelcomeStep({ firstName, onNext }) {
+  return (
+    <div className="flex flex-col items-center text-center w-full max-w-sm">
+      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+        Hey {firstName} 👋
+      </h1>
+      <p className="mt-3 text-sm text-zinc-500 leading-relaxed">
+        You&apos;re all set up. Now let&apos;s connect your bank account so we can
+        start tracking your finances automatically.
+      </p>
+      <div className="mt-8 w-full">
+        <Button fullWidth onClick={onNext} className="h-11">
+          Connect your bank
+          <FiChevronRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Step 3: Connecting (uses Plaid) ────────────────────────── */
 const isMockPlaid = isMockEnv;
 
 function ConnectingStep({ onSuccess, onError, onBack }) {
@@ -501,7 +522,7 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
   );
 }
 
-/* ── Step 4: Connected + Add More ───────────────────────────── */
+/* ── Step 4: Connected ──────────────────────────────────────── */
 
 const SUBTYPE_LABELS = {
   checking: "Checking",
@@ -719,13 +740,17 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
   };
 
   const handleEmailPasswordNext = (email) => {
-    onFlowStart?.();
     goTo(2);
+  };
+
+  const handleWelcomeNext = () => {
+    onFlowStart?.();
+    goTo(3);
   };
 
   const handlePlaidSuccess = (data) => {
     setPlaidData(data);
-    goTo(3);
+    goTo(4);
   };
 
   const handlePlaidError = () => {
@@ -761,14 +786,22 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
         );
       case 2:
         return (
+          <WelcomeStep
+            key="welcome"
+            firstName={firstName}
+            onNext={handleWelcomeNext}
+          />
+        );
+      case 3:
+        return (
           <ConnectingStep
             key="connecting"
             onSuccess={handlePlaidSuccess}
             onError={handlePlaidError}
-            onBack={() => isMockEnv ? goTo(1) : undefined}
+            onBack={() => goTo(2)}
           />
         );
-      case 3:
+      case 4:
         return (
           <ConnectedStep
             key="connected"
@@ -781,7 +814,7 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
     }
   };
 
-  // In production: map step 2→dot 0, step 3→dot 1 (no dots for Google gate)
+  // In production: map step 2→dot 0, step 3→dot 1, step 4→dot 2 (no dots for Google gate)
   const showDots = isMockEnv ? true : step >= 2;
   const dotCurrent = isMockEnv ? step : step - 2;
 
