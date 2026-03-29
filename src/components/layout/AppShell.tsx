@@ -12,6 +12,7 @@ import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import PlaidOAuthHandler from "../PlaidOAuthHandler";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
@@ -97,6 +98,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
         variant="primary"
         busy={isSigningOut}
       />
+      <PlaidOAuthHandler />
     </div>
   );
 }
@@ -183,6 +185,7 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
         variant="primary"
         busy={isSigningOut}
       />
+      <PlaidOAuthHandler />
     </div>
   );
 }
@@ -282,6 +285,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       <MobileNavBar />
+      <PlaidOAuthHandler />
     </div>
   );
 }
