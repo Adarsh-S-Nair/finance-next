@@ -114,9 +114,10 @@ export default function ConfirmDialog({
             type="submit"
             variant={variant === "danger" ? "danger" : "primary"}
             disabled={!meetsRequirement || busy || submitting}
+            loading={busy || submitting}
             className="flex-1"
           >
-            {busy || submitting ? busyLabel : confirmLabel}
+            {confirmLabel}
           </Button>
         </div>
       </form>
