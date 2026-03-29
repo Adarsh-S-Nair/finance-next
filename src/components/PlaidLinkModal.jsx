@@ -76,7 +76,14 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   const onExit = (err) => {
     if (err) {
       console.error('Plaid Link error:', err);
-      setError(err.message || 'An error occurred during account linking');
+      const errorMessage = err.display_message || err.error_message || err.message || 'An error occurred during account linking';
+      console.error('Plaid error details:', {
+        error_type: err.error_type,
+        error_code: err.error_code,
+        error_message: err.error_message,
+        display_message: err.display_message,
+      });
+      setError(errorMessage);
     }
     setLoading(false);
   };
