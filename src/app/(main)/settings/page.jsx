@@ -104,7 +104,17 @@ export default function SettingsPage() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j?.error || "Failed to delete account");
       }
-      await supabase.auth.signOut();
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+      if (typeof window !== 'undefined') {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-')) localStorage.removeItem(key);
+        }
+      }
+      logout();
       router.push("/");
     } catch (e) {
       console.error(e);
@@ -511,7 +521,16 @@ export default function SettingsPage() {
             </div>
             <Button
               onClick={async () => {
-                await supabase.auth.signOut();
+                await Promise.race([
+                  supabase.auth.signOut(),
+                  new Promise((resolve) => setTimeout(resolve, 3000)),
+                ]);
+                if (typeof window !== 'undefined') {
+                  for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('sb-')) localStorage.removeItem(key);
+                  }
+                }
                 logout();
                 router.replace("/");
               }}

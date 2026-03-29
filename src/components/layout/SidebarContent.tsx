@@ -342,7 +342,18 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           onConfirm={async () => {
             try {
               setIsSigningOut(true);
-              await supabase.auth.signOut();
+              // signOut can hang if Supabase's internal auth lock is held — add timeout
+              await Promise.race([
+                supabase.auth.signOut(),
+                new Promise((resolve) => setTimeout(resolve, 3000)),
+              ]);
+              // Clear localStorage auth data manually in case signOut didn't complete
+              if (typeof window !== 'undefined') {
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                  const key = localStorage.key(i);
+                  if (key && key.startsWith('sb-')) localStorage.removeItem(key);
+                }
+              }
               logout();
               onNavigate?.();
               router.replace("/");
