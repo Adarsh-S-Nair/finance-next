@@ -14,28 +14,38 @@ function ExchangeHandler() {
     const code = searchParams.get("code");
     const next = searchParams.get("next") || "/auth/reset-password";
 
+    console.log("[exchange] Starting. code:", !!code, "next:", next);
+
     if (!code) {
+      console.log("[exchange] No code found, redirecting to /auth");
       window.location.replace("/auth");
       return;
     }
 
     // Safety timeout — if exchange takes too long, redirect anyway
     const timeout = setTimeout(() => {
-      console.warn("[auth/callback] Exchange timed out, redirecting anyway");
+      console.warn("[exchange] Exchange timed out after 8s, redirecting to", next);
       window.location.replace(next);
     }, 8000);
 
+    const t0 = Date.now();
     // Dynamic import to avoid any module-level errors blocking the page
     import("../../../../lib/supabase/client")
-      .then(({ supabase }) => supabase.auth.exchangeCodeForSession(code))
-      .then(({ error }) => {
-        if (error) console.error("[auth/callback] Exchange error:", error.message);
+      .then(({ supabase }) => {
+        console.log("[exchange] Calling exchangeCodeForSession...");
+        return supabase.auth.exchangeCodeForSession(code);
+      })
+      .then(({ data, error }) => {
+        console.log("[exchange] Exchange completed in", Date.now() - t0, "ms");
+        if (error) console.error("[exchange] Exchange error:", error.message);
+        else console.log("[exchange] Exchange success. user:", !!data?.user, "session:", !!data?.session);
       })
       .catch((err) => {
-        console.error("[auth/callback] Exchange failed:", err);
+        console.error("[exchange] Exchange failed:", err);
       })
       .finally(() => {
         clearTimeout(timeout);
+        console.log("[exchange] Redirecting to", next);
         window.location.replace(next);
       });
   }, [searchParams]);

@@ -219,8 +219,11 @@ export default function UserProvider({ children }) {
     //
     // The safety timeout (above) guarantees loading=false within 4s no matter what.
 
+    const upT0 = Date.now();
+    console.log("[UserProvider] Mounting. pathname:", window.location.pathname, "loading:", true);
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("[UserProvider] onAuthStateChange:", event, "user:", !!session?.user);
+      console.log("[UserProvider] onAuthStateChange:", event, "user:", !!session?.user, "elapsed:", Date.now() - upT0, "ms");
       // Cache the access token immediately — this is push-based and never blocks
       cacheAccessToken(session?.access_token ?? null);
       const nextUser = session?.user ?? null;
@@ -247,6 +250,7 @@ export default function UserProvider({ children }) {
       const redirectFromPublicRoute = async () => {
         const isOnPublicRoute = typeof window !== "undefined" &&
           (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
+        console.log("[UserProvider] redirectFromPublicRoute: pathname:", window.location.pathname, "isPublic:", isOnPublicRoute);
         if (!isOnPublicRoute) return false;
 
         if (!safetyFiredRef.current) {
@@ -254,23 +258,25 @@ export default function UserProvider({ children }) {
           setLoading(true);
         }
         try {
-          // Load profile in parallel with account check so it's ready after redirect
+          console.log("[UserProvider] redirectFromPublicRoute: fetching profile + accounts...");
           const [, res] = await Promise.all([
             refreshProfile(),
             authFetch("/api/plaid/accounts").catch(() => null),
           ]);
           const body = res?.ok ? await res.json() : { accounts: [] };
           const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
-          router.replace(hasAccounts ? "/dashboard" : "/setup");
-        } catch {
+          const dest = hasAccounts ? "/dashboard" : "/setup";
+          console.log("[UserProvider] redirectFromPublicRoute: redirecting to", dest, "hasAccounts:", hasAccounts);
+          router.replace(dest);
+        } catch (err) {
+          console.error("[UserProvider] redirectFromPublicRoute error:", err);
           router.replace("/setup");
         }
-        // Note: loading/authTransition will be cleared by the [user,profile] effect
-        // once the route changes to a protected route and profile is set
         return true;
       };
 
       if (event === "SIGNED_IN" && nextUser) {
+        console.log("[UserProvider] SIGNED_IN handler start. pathname:", window.location.pathname);
         // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
         fetchedRef.current = true; // mark as fetched so init IIFE doesn't double-fetch
         profileLoadingRef.current = true;
@@ -278,35 +284,44 @@ export default function UserProvider({ children }) {
         // For Google OAuth sign-ins, seed profile from user_metadata if no profile exists yet
         const isGoogleProvider = nextUser.app_metadata?.provider === "google" ||
           nextUser.identities?.some((id) => id.provider === "google");
+        console.log("[UserProvider] SIGNED_IN: isGoogle:", isGoogleProvider);
         if (isGoogleProvider) {
           try {
+            console.log("[UserProvider] SIGNED_IN: seeding Google profile...");
             const { fetchUserProfile: fetchP, upsertUserProfile: upsertP } = await import("../../lib/user/profile");
             const { profile: existingProfile } = await fetchP();
+            console.log("[UserProvider] SIGNED_IN: existing profile:", !!existingProfile, "first_name:", existingProfile?.first_name);
             if (!existingProfile || !existingProfile.first_name) {
               const meta = nextUser.user_metadata || {};
               const firstName = meta.given_name || meta.full_name?.split(" ")[0] || null;
               const lastName = meta.family_name || (meta.full_name?.split(" ").slice(1).join(" ") || null);
               const avatarUrl = meta.avatar_url || meta.picture || null;
+              console.log("[UserProvider] SIGNED_IN: upserting Google profile. name:", firstName, lastName);
               await upsertP({
                 first_name: firstName || null,
                 last_name: lastName || null,
                 avatar_url: avatarUrl || null,
               });
+              console.log("[UserProvider] SIGNED_IN: Google profile upserted");
             }
           } catch (e) {
             console.error("[UserProvider] Google profile seed error", e);
           }
         }
 
+        console.log("[UserProvider] SIGNED_IN: calling redirectFromPublicRoute...");
         if (await redirectFromPublicRoute()) {
+          console.log("[UserProvider] SIGNED_IN: redirect initiated");
           // Profile will be loaded by the [user,profile] effect after redirect
           profileLoadingRef.current = false;
           setToast({ title: "Signed in", variant: "success" });
         } else {
+          console.log("[UserProvider] SIGNED_IN: no redirect needed, refreshing profile...");
           // Already on an authenticated route; refresh silently without global overlay
           await refreshProfile();
           profileLoadingRef.current = false;
           setLoading(false);
+          console.log("[UserProvider] SIGNED_IN: done, loading=false");
         }
         return;
       }
@@ -314,12 +329,15 @@ export default function UserProvider({ children }) {
       // Handle existing session restoration.
       // Supabase fires INITIAL_SESSION (not SIGNED_IN) when restoring a session from storage.
       if (event === "INITIAL_SESSION" && nextUser) {
+        console.log("[UserProvider] INITIAL_SESSION with user. pathname:", window.location.pathname, "fetchedRef:", fetchedRef.current);
         const didRedirect = await redirectFromPublicRoute();
+        console.log("[UserProvider] INITIAL_SESSION: didRedirect:", didRedirect);
         if (!didRedirect) {
           // Already on an authenticated route — load profile and clear loading
           if (!fetchedRef.current) {
             fetchedRef.current = true;
             profileLoadingRef.current = true;
+            console.log("[UserProvider] INITIAL_SESSION: loading profile...");
             await refreshProfile();
             profileLoadingRef.current = false;
             console.log("[UserProvider] INITIAL_SESSION: profile loaded, setting loading=false");

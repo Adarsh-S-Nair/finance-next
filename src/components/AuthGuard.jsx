@@ -21,28 +21,32 @@ export default function AuthGuard({ children }) {
     // Set up the auth state listener FIRST so we never miss INITIAL_SESSION events.
     // On a hard-refresh Supabase emits INITIAL_SESSION once it restores from localStorage;
     // if the listener isn't wired up yet that event is lost and isChecking stays true forever.
+    console.log("[AuthGuard] Setting up auth check, pathname:", pathname);
+    const t0 = Date.now();
+
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return;
+        console.log("[AuthGuard] onAuthStateChange:", event, "user:", !!session?.user, "elapsed:", Date.now() - t0, "ms");
 
         if (event === "SIGNED_OUT") {
           router.replace("/");
         } else if (session?.user) {
+          console.log("[AuthGuard] Authenticated via", event);
           setIsAuthenticated(true);
           setIsChecking(false);
         } else if (!session?.user && event === "INITIAL_SESSION") {
-          // INITIAL_SESSION with no session means the user is not authenticated
+          console.log("[AuthGuard] No session on INITIAL_SESSION, redirecting");
           router.replace("/");
         }
       }
     );
 
-    // Primary check: getSession() reads from localStorage synchronously — no network
-    // round-trip needed — so it reliably resolves on hard-refresh before any tokens
-    // have been refreshed over the network.
     const checkAuth = async () => {
       try {
+        console.log("[AuthGuard] checkAuth: calling getSession...");
         const { data: sessionData } = await supabase.auth.getSession();
+        console.log("[AuthGuard] checkAuth: getSession returned in", Date.now() - t0, "ms, user:", !!sessionData?.session?.user);
         if (!isMounted) return;
 
         if (sessionData?.session?.user) {
@@ -51,12 +55,12 @@ export default function AuthGuard({ children }) {
           return;
         }
 
-        // Fallback: validate with the server (handles edge cases like expired sessions)
+        console.log("[AuthGuard] checkAuth: no session, calling getUser...");
         const { data, error } = await supabase.auth.getUser();
+        console.log("[AuthGuard] checkAuth: getUser returned in", Date.now() - t0, "ms, user:", !!data?.user, "error:", error?.message);
         if (!isMounted) return;
 
         if (error && error.message && error.message.includes('Refresh Token')) {
-          // Stale refresh token — redirect silently without console error
           router.replace("/");
           return;
         }
@@ -65,12 +69,12 @@ export default function AuthGuard({ children }) {
           setIsAuthenticated(true);
           setIsChecking(false);
         } else {
-          // Not authenticated - redirect to landing page
+          console.log("[AuthGuard] checkAuth: no user found, redirecting to /");
           router.replace("/");
         }
       } catch (error) {
+        console.error("[AuthGuard] checkAuth error:", error);
         if (isMounted) {
-          // On error, redirect to landing page for safety
           router.replace("/");
         }
       }
