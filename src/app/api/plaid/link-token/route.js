@@ -39,13 +39,14 @@ export async function POST(request) {
         );
       }
       const accessToken = plaidItem.access_token;
-      // For update mode, request transactions product consent
-      const products = additionalProducts || ['transactions'];
+      // For update mode, request the additional products (default to investments for upgrade flow)
+      const products = additionalProducts || ['investments'];
       const linkTokenResponse = await createLinkToken(userId, products, null, accessToken);
       return Response.json({
         link_token: linkTokenResponse.link_token,
         expiration: linkTokenResponse.expiration,
         updateMode: true,
+        plaidItemId,
       });
     }
 
