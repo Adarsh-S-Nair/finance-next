@@ -10,7 +10,7 @@ import * as Icons from "lucide-react";
 export default function BudgetsCard() {
   const { user, loading: authLoading } = useUser();
   const [budgets, setBudgets] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     console.log("[BudgetsCard] effect: authLoading=", authLoading, "user=", !!user?.id);

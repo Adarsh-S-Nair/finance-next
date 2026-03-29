@@ -149,7 +149,7 @@ export default function CalendarCard({ className = '' }) {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [recurring, setRecurring] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [hoveredDate, setHoveredDate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';

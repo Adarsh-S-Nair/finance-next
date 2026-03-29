@@ -24,7 +24,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const isLoadingState = (!chartData.length && !selectedMonth); // Simplified loading logic, ideally track fetch state
 
   // We need a local loading state to track fetch
-  const [isFetching, setIsFetching] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   // Generate placeholder chart data for current month (all $0 values)
   const generatePlaceholderChartData = () => {

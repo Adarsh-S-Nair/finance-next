@@ -52,7 +52,7 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
   const router = useRouter();
   const [selectedPeriod, setSelectedPeriod] = useState('6');
   const [chartData, setChartData] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [hoveredData, setHoveredData] = useState(null);
 
   // Period options
