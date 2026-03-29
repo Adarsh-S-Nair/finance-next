@@ -401,7 +401,7 @@ export default function UserProvider({ children }) {
 
   return (
     <UserContext.Provider value={value}>
-      {(loading || authTransition) && (
+      {authTransition && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-muted)] border-t-[var(--color-accent)]" />
         </div>
