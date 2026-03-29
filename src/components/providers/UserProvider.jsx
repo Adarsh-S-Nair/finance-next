@@ -258,13 +258,14 @@ export default function UserProvider({ children }) {
           setLoading(true);
         }
         try {
-          console.log("[UserProvider] redirectFromPublicRoute: fetching profile + accounts...");
-          const [, res] = await Promise.all([
-            refreshProfile(),
-            authFetch("/api/plaid/accounts").catch(() => null),
-          ]);
-          const body = res?.ok ? await res.json() : { accounts: [] };
-          const hasAccounts = Array.isArray(body.accounts) && body.accounts.length > 0;
+          // Check if user has linked accounts — use direct Supabase query to avoid auth lock
+          console.log("[UserProvider] redirectFromPublicRoute: checking accounts...");
+          const { data: accounts } = await supabase
+            .from("plaid_items")
+            .select("id")
+            .eq("user_id", nextUser.id)
+            .limit(1);
+          const hasAccounts = Array.isArray(accounts) && accounts.length > 0;
           const dest = hasAccounts ? "/dashboard" : "/setup";
           console.log("[UserProvider] redirectFromPublicRoute: redirecting to", dest, "hasAccounts:", hasAccounts);
           router.replace(dest);
@@ -278,18 +279,25 @@ export default function UserProvider({ children }) {
       if (event === "SIGNED_IN" && nextUser) {
         console.log("[UserProvider] SIGNED_IN handler start. pathname:", window.location.pathname);
         // Only reset refs on actual sign-in, not on INITIAL_SESSION/TOKEN_REFRESHED
-        fetchedRef.current = true; // mark as fetched so init IIFE doesn't double-fetch
+        fetchedRef.current = true;
         profileLoadingRef.current = true;
 
-        // For Google OAuth sign-ins, seed profile from user_metadata if no profile exists yet
+        // For Google OAuth sign-ins, seed profile from user_metadata if no profile exists yet.
+        // IMPORTANT: Do NOT call supabase.auth.getUser()/getSession() inside onAuthStateChange —
+        // Supabase holds an internal auth lock during this callback, so those calls deadlock.
+        // Use nextUser.id directly and query Supabase DB without going through auth helpers.
         const isGoogleProvider = nextUser.app_metadata?.provider === "google" ||
           nextUser.identities?.some((id) => id.provider === "google");
         console.log("[UserProvider] SIGNED_IN: isGoogle:", isGoogleProvider);
         if (isGoogleProvider) {
           try {
             console.log("[UserProvider] SIGNED_IN: seeding Google profile...");
-            const { fetchUserProfile: fetchP, upsertUserProfile: upsertP } = await import("../../lib/user/profile");
-            const { profile: existingProfile } = await fetchP();
+            // Query profile directly by user ID — avoids auth lock deadlock
+            const { data: existingProfile } = await supabase
+              .from("user_profiles")
+              .select("id, first_name")
+              .eq("id", nextUser.id)
+              .maybeSingle();
             console.log("[UserProvider] SIGNED_IN: existing profile:", !!existingProfile, "first_name:", existingProfile?.first_name);
             if (!existingProfile || !existingProfile.first_name) {
               const meta = nextUser.user_metadata || {};
@@ -297,11 +305,9 @@ export default function UserProvider({ children }) {
               const lastName = meta.family_name || (meta.full_name?.split(" ").slice(1).join(" ") || null);
               const avatarUrl = meta.avatar_url || meta.picture || null;
               console.log("[UserProvider] SIGNED_IN: upserting Google profile. name:", firstName, lastName);
-              await upsertP({
-                first_name: firstName || null,
-                last_name: lastName || null,
-                avatar_url: avatarUrl || null,
-              });
+              await supabase
+                .from("user_profiles")
+                .upsert({ id: nextUser.id, first_name: firstName, last_name: lastName, avatar_url: avatarUrl }, { onConflict: "id" });
               console.log("[UserProvider] SIGNED_IN: Google profile upserted");
             }
           } catch (e) {
@@ -309,16 +315,30 @@ export default function UserProvider({ children }) {
           }
         }
 
+        // Load profile directly without going through auth-dependent helpers
+        console.log("[UserProvider] SIGNED_IN: loading profile directly...");
+        try {
+          const { data: profileData } = await supabase
+            .from("user_profiles")
+            .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier")
+            .eq("id", nextUser.id)
+            .maybeSingle();
+          setProfile(profileData || {});
+          const isPublicRoute = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
+          if (!isPublicRoute && profileData?.theme) applyTheme(profileData.theme);
+          if (!isPublicRoute && profileData && Object.prototype.hasOwnProperty.call(profileData, 'accent_color')) applyAccent(profileData.accent_color);
+        } catch (e) {
+          console.error("[UserProvider] SIGNED_IN: profile load error", e);
+          setProfile({});
+        }
+
         console.log("[UserProvider] SIGNED_IN: calling redirectFromPublicRoute...");
         if (await redirectFromPublicRoute()) {
           console.log("[UserProvider] SIGNED_IN: redirect initiated");
-          // Profile will be loaded by the [user,profile] effect after redirect
           profileLoadingRef.current = false;
           setToast({ title: "Signed in", variant: "success" });
         } else {
-          console.log("[UserProvider] SIGNED_IN: no redirect needed, refreshing profile...");
-          // Already on an authenticated route; refresh silently without global overlay
-          await refreshProfile();
+          console.log("[UserProvider] SIGNED_IN: no redirect needed");
           profileLoadingRef.current = false;
           setLoading(false);
           console.log("[UserProvider] SIGNED_IN: done, loading=false");
@@ -330,18 +350,31 @@ export default function UserProvider({ children }) {
       // Supabase fires INITIAL_SESSION (not SIGNED_IN) when restoring a session from storage.
       if (event === "INITIAL_SESSION" && nextUser) {
         console.log("[UserProvider] INITIAL_SESSION with user. pathname:", window.location.pathname, "fetchedRef:", fetchedRef.current);
+        // Load profile directly — avoid auth lock deadlock
+        if (!fetchedRef.current) {
+          fetchedRef.current = true;
+          profileLoadingRef.current = true;
+          console.log("[UserProvider] INITIAL_SESSION: loading profile directly...");
+          try {
+            const { data: profileData } = await supabase
+              .from("user_profiles")
+              .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier")
+              .eq("id", nextUser.id)
+              .maybeSingle();
+            setProfile(profileData || {});
+            const isPublicRoute = window.location.pathname === "/" || window.location.pathname.startsWith("/auth");
+            if (!isPublicRoute && profileData?.theme) applyTheme(profileData.theme);
+            if (!isPublicRoute && profileData && Object.prototype.hasOwnProperty.call(profileData, 'accent_color')) applyAccent(profileData.accent_color);
+          } catch (e) {
+            console.error("[UserProvider] INITIAL_SESSION: profile load error", e);
+            setProfile({});
+          }
+          profileLoadingRef.current = false;
+          console.log("[UserProvider] INITIAL_SESSION: profile loaded");
+        }
         const didRedirect = await redirectFromPublicRoute();
         console.log("[UserProvider] INITIAL_SESSION: didRedirect:", didRedirect);
         if (!didRedirect) {
-          // Already on an authenticated route — load profile and clear loading
-          if (!fetchedRef.current) {
-            fetchedRef.current = true;
-            profileLoadingRef.current = true;
-            console.log("[UserProvider] INITIAL_SESSION: loading profile...");
-            await refreshProfile();
-            profileLoadingRef.current = false;
-            console.log("[UserProvider] INITIAL_SESSION: profile loaded, setting loading=false");
-          }
           setLoading(false);
         }
         return;

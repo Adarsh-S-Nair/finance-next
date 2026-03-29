@@ -42,48 +42,35 @@ export default function AuthGuard({ children }) {
       }
     );
 
-    const checkAuth = async () => {
-      try {
-        console.log("[AuthGuard] checkAuth: calling getSession...");
-        const { data: sessionData } = await supabase.auth.getSession();
-        console.log("[AuthGuard] checkAuth: getSession returned in", Date.now() - t0, "ms, user:", !!sessionData?.session?.user);
-        if (!isMounted) return;
-
-        if (sessionData?.session?.user) {
-          setIsAuthenticated(true);
-          setIsChecking(false);
-          return;
-        }
-
-        console.log("[AuthGuard] checkAuth: no session, calling getUser...");
-        const { data, error } = await supabase.auth.getUser();
-        console.log("[AuthGuard] checkAuth: getUser returned in", Date.now() - t0, "ms, user:", !!data?.user, "error:", error?.message);
-        if (!isMounted) return;
-
-        if (error && error.message && error.message.includes('Refresh Token')) {
-          router.replace("/");
-          return;
-        }
-
-        if (data?.user) {
-          setIsAuthenticated(true);
-          setIsChecking(false);
-        } else {
-          console.log("[AuthGuard] checkAuth: no user found, redirecting to /");
-          router.replace("/");
-        }
-      } catch (error) {
-        console.error("[AuthGuard] checkAuth error:", error);
-        if (isMounted) {
-          router.replace("/");
+    // Don't call getSession()/getUser() eagerly — they can deadlock if
+    // onAuthStateChange is already holding the Supabase auth lock.
+    // Rely solely on the onAuthStateChange listener above for auth state.
+    // Add a safety timeout so AuthGuard never spins forever.
+    const authGuardTimeout = setTimeout(() => {
+      if (!isMounted) return;
+      console.log("[AuthGuard] Safety timeout — checking localStorage for session");
+      // Last resort: check localStorage directly
+      let hasSession = false;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          hasSession = true;
+          break;
         }
       }
-    };
-
-    checkAuth();
+      if (hasSession) {
+        console.log("[AuthGuard] Found session in localStorage, allowing through");
+        setIsAuthenticated(true);
+        setIsChecking(false);
+      } else {
+        console.log("[AuthGuard] No session found, redirecting to /");
+        router.replace("/");
+      }
+    }, 3000);
 
     return () => {
       isMounted = false;
+      clearTimeout(authGuardTimeout);
       subscription.subscription?.unsubscribe?.();
     };
   }, [router, pathname]);
