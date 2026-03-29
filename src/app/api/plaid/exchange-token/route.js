@@ -2,29 +2,50 @@ import { exchangePublicToken, getAccounts, getInstitution } from '../../../../li
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { getPlaidProducts } from '../../../../lib/tierConfig';
 
 export async function POST(request) {
   try {
     const userId = requireVerifiedUserId(request);
-    const { publicToken } = await request.json();
+    const { publicToken, existingPlaidItemId } = await request.json();
     if (!publicToken) {
       return Response.json(
         { error: 'Public token is required' },
         { status: 400 }
       );
     }
+
+    // Fetch user's subscription tier for tier-based filtering
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('subscription_tier')
+      .eq('id', userId)
+      .maybeSingle();
+    const subscriptionTier = userProfile?.subscription_tier || 'free';
+    const tierPlaidProducts = getPlaidProducts(subscriptionTier);
+    const tierAllowsInvestments = tierPlaidProducts.includes('investments');
+
     // Exchange public token for access token
     const tokenResponse = await exchangePublicToken(publicToken);
     const { access_token, item_id } = tokenResponse;
     // Get accounts from Plaid
     const accountsResponse = await getAccounts(access_token);
-    const { accounts, institution_id } = accountsResponse;
-    console.log(`📊 Found ${accounts.length} total accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+    const { accounts: allAccounts, institution_id } = accountsResponse;
+    console.log(`📊 Found ${allAccounts.length} total accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+
+    // Filter out investment accounts if tier doesn't include investments product
+    const accounts = tierAllowsInvestments
+      ? allAccounts
+      : allAccounts.filter(a => a.type !== 'investment');
+
+    if (!tierAllowsInvestments && allAccounts.some(a => a.type === 'investment')) {
+      console.log(`🔒 Filtered out ${allAccounts.filter(a => a.type === 'investment').length} investment account(s) — tier "${subscriptionTier}" does not include investments`);
+    }
 
     if (accounts.length === 0) {
-      console.warn('⚠️ No accounts returned from Plaid');
+      console.warn('⚠️ No accounts available after tier filtering');
       return Response.json(
-        { error: 'No accounts found', details: 'Plaid returned no accounts for this institution.' },
+        { error: 'No accounts found', details: 'No eligible accounts found for your plan. Investment accounts require a Pro subscription.' },
         { status: 400 }
       );
     }
@@ -136,22 +157,54 @@ export async function POST(request) {
       }
     }
 
+    // Determine if this is an update-mode flow merging into an existing plaid_item
+    let existingPlaidItem = null;
+    if (existingPlaidItemId) {
+      const { data: existingItem } = await supabaseAdmin
+        .from('plaid_items')
+        .select('*')
+        .eq('id', existingPlaidItemId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      existingPlaidItem = existingItem || null;
+      if (existingPlaidItem) {
+        console.log(`🔄 Update mode: merging into existing plaid_item ${existingPlaidItemId} (item_id: ${existingPlaidItem.item_id})`);
+      }
+    }
+
     // First, create or update the plaid_item
-    const { data: plaidItemData, error: plaidItemError } = await supabaseAdmin
-      .from('plaid_items')
-      .upsert({
-        user_id: userId,
-        item_id: item_id,
-        access_token: access_token,
-        sync_status: 'idle',
-        products: products,
-        // recurring_ready: true for items that have transaction accounts
-        recurring_ready: hasTransactionAccounts,
-      }, {
-        onConflict: 'user_id,item_id'
-      })
-      .select()
-      .single();
+    // In update mode, we update the existing item's products and access_token rather than creating a new one
+    let plaidItemData, plaidItemError;
+    if (existingPlaidItem) {
+      // Update existing item — merge products and update access_token
+      const mergedProducts = Array.from(new Set([...(existingPlaidItem.products || []), ...products]));
+      ({ data: plaidItemData, error: plaidItemError } = await supabaseAdmin
+        .from('plaid_items')
+        .update({
+          access_token: access_token,
+          products: mergedProducts,
+          sync_status: 'idle',
+        })
+        .eq('id', existingPlaidItem.id)
+        .select()
+        .single());
+    } else {
+      ({ data: plaidItemData, error: plaidItemError } = await supabaseAdmin
+        .from('plaid_items')
+        .upsert({
+          user_id: userId,
+          item_id: item_id,
+          access_token: access_token,
+          sync_status: 'idle',
+          products: products,
+          // recurring_ready: true for items that have transaction accounts
+          recurring_ready: hasTransactionAccounts,
+        }, {
+          onConflict: 'user_id,item_id'
+        })
+        .select()
+        .single());
+    }
     if (plaidItemError) {
       console.error('Error upserting plaid item:', plaidItemError);
       return Response.json(
@@ -160,12 +213,15 @@ export async function POST(request) {
       );
     }
 
+    // In update mode, use the existing item's item_id so accounts are associated correctly
+    const effectiveItemId = existingPlaidItem ? existingPlaidItem.item_id : item_id;
+
     // Process and save all accounts
     const accountsToInsert = [];
     const accountsToUpdate = [];
 
     for (const account of accounts) {
-      const accountKey = `${item_id}_${account.account_id}`;
+      const accountKey = `${effectiveItemId}_${account.account_id}`;
       const isInvestmentAccount = account.type === 'investment';
 
       if (isInvestmentAccount) {
@@ -173,7 +229,7 @@ export async function POST(request) {
         let { data: existingAccount } = await supabaseAdmin
           .from('accounts')
           .select('*')
-          .eq('item_id', item_id)
+          .eq('item_id', effectiveItemId)
           .eq('account_id', account.account_id)
           .eq('user_id', userId)
           .maybeSingle();
@@ -183,7 +239,7 @@ export async function POST(request) {
           const { data: matchedAccount } = await supabaseAdmin
             .from('accounts')
             .select('*')
-            .eq('item_id', item_id)
+            .eq('item_id', effectiveItemId)
             .eq('name', account.name)
             .eq('type', 'investment')
             .eq('user_id', userId)
@@ -208,7 +264,7 @@ export async function POST(request) {
         } else {
           accountsToInsert.push({
             user_id: userId,
-            item_id: item_id,
+            item_id: effectiveItemId,
             account_id: account.account_id,
             name: account.name,
             mask: account.mask,
@@ -226,7 +282,7 @@ export async function POST(request) {
         // Depository / credit account
         accountsToInsert.push({
           user_id: userId,
-          item_id: item_id,
+          item_id: effectiveItemId,
           account_id: account.account_id,
           name: account.name,
           mask: account.mask,

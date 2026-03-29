@@ -31,6 +31,8 @@ export default function SettingsPage() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  // plaidItemId to pass into PlaidLinkModal for update-mode investment linking
+  const [upgradePlaidItemId, setUpgradePlaidItemId] = useState(null);
   const [isResyncing, setIsResyncing] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
 
@@ -237,6 +239,17 @@ export default function SettingsPage() {
       setIsUpgradeModalOpen(true);
       return;
     }
+    setUpgradePlaidItemId(null);
+    setIsPlaidModalOpen(true);
+  };
+
+  // Handler for adding investments to an existing connected institution (pro upgrade flow)
+  const handleAddInvestments = (institution) => {
+    if (!institution.plaidItemId) {
+      alert('Unable to add investments: Missing Plaid item information.');
+      return;
+    }
+    setUpgradePlaidItemId(institution.plaidItemId);
     setIsPlaidModalOpen(true);
   };
 
@@ -428,6 +441,20 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <div className="flex items-center">
+                          {/* Show "Add investments" button for pro users whose institution has no investment accounts */}
+                          {isPro && !institution.accounts.some(a => a.type === 'investment') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddInvestments(institution);
+                              }}
+                              className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-all text-[11px] font-medium mr-0.5 flex items-center gap-1"
+                              title="Add investment accounts"
+                            >
+                              <FaPlus className="h-2.5 w-2.5" />
+                              <span className="hidden sm:inline">Investments</span>
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -641,14 +668,19 @@ export default function SettingsPage() {
         busyLabel="Disconnecting..."
       />
 
-      {/* Plaid Link Modal */}
+      {/* Plaid Link Modal — also used for update-mode investment linking on existing institutions */}
       <PlaidLinkModal
         isOpen={isPlaidModalOpen}
-        onClose={() => setIsPlaidModalOpen(false)}
+        onClose={() => {
+          setIsPlaidModalOpen(false);
+          setUpgradePlaidItemId(null);
+        }}
         onUpgradeNeeded={() => {
           setIsPlaidModalOpen(false);
+          setUpgradePlaidItemId(null);
           setIsUpgradeModalOpen(true);
         }}
+        plaidItemId={upgradePlaidItemId}
       />
 
       {/* Upgrade Modal */}

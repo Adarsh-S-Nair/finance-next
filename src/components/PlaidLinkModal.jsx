@@ -12,7 +12,7 @@ import { authFetch } from '../lib/api/fetch';
 
 const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === 'mock';
 
-export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null, onUpgradeNeeded = null }) {
+export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null, onUpgradeNeeded = null, plaidItemId = null }) {
   const { user } = useUser();
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
@@ -20,6 +20,8 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [showMockPicker, setShowMockPicker] = useState(false);
+  // Track the plaidItemId returned from link-token in update mode
+  const [activePlaidItemId, setActivePlaidItemId] = useState(plaidItemId);
 
   useEffect(() => {
     if (!isOpen) {
@@ -27,8 +29,9 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setError(null);
       setSuccess(false);
       setLoading(false);
+      setActivePlaidItemId(plaidItemId);
     }
-  }, [isOpen]);
+  }, [isOpen, plaidItemId]);
 
   const exchangeToken = async (publicToken) => {
     try {
@@ -36,10 +39,16 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setError(null);
       setShowMockPicker(false);
 
+      const body = { publicToken };
+      // In update mode, pass the existing plaidItemId so the backend merges rather than creates
+      if (activePlaidItemId) {
+        body.existingPlaidItemId = activePlaidItemId;
+      }
+
       const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicToken }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -107,10 +116,17 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setLoading(true);
       setError(null);
 
+      const linkTokenBody = {};
+      // If a plaidItemId was passed as prop, request update mode (for pro upgrades adding investments)
+      if (activePlaidItemId) {
+        linkTokenBody.plaidItemId = activePlaidItemId;
+        linkTokenBody.additionalProducts = ['investments'];
+      }
+
       const response = await authFetch('/api/plaid/link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(linkTokenBody),
       });
 
       if (!response.ok) {
@@ -125,6 +141,11 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       }
 
       const data = await response.json();
+
+      // Capture plaidItemId from update mode response so exchange-token can merge correctly
+      if (data.plaidItemId) {
+        setActivePlaidItemId(data.plaidItemId);
+      }
 
       if (isMockPlaid) {
         setLoading(false);
@@ -153,6 +174,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     setLinkToken(null);
     setLoading(false);
     setShowMockPicker(false);
+    setActivePlaidItemId(plaidItemId);
   };
 
   const handleRetry = async () => {

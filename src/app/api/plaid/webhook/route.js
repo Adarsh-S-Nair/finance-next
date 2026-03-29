@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createPublicKey } from 'crypto';
 import { createLogger } from '../../../../lib/logger';
+import { getPlaidProducts } from '../../../../lib/tierConfig';
 
 const DISABLE_WEBHOOKS = process.env.NODE_ENV !== 'production' && process.env.DISABLE_WEBHOOKS === '1';
 
@@ -297,12 +298,35 @@ async function handleItemWebhook(webhookData, logger) {
       // New accounts are available, sync them
       itemLogger.info('New accounts available', { item_id });
       try {
+        // Look up user's tier to filter accounts appropriately
+        const { data: userProfile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('subscription_tier')
+          .eq('id', plaidItem.user_id)
+          .maybeSingle();
+        const subscriptionTier = userProfile?.subscription_tier || 'free';
+        const tierPlaidProducts = getPlaidProducts(subscriptionTier);
+        const tierAllowsInvestments = tierPlaidProducts.includes('investments');
+
         // Get fresh account data from Plaid
         const { getAccounts, getInstitution } = await import('../../../../lib/plaid/client');
         const accountsResponse = await getAccounts(plaidItem.access_token);
-        const { accounts, institution_id } = accountsResponse;
+        const { accounts: allAccounts, institution_id } = accountsResponse;
 
-        itemLogger.info('Fetched accounts from Plaid', { item_id, count: accounts.length });
+        // Filter out investment accounts if tier doesn't allow it
+        const accounts = tierAllowsInvestments
+          ? allAccounts
+          : allAccounts.filter(a => a.type !== 'investment');
+
+        if (!tierAllowsInvestments && allAccounts.some(a => a.type === 'investment')) {
+          itemLogger.info('Filtered investment accounts due to tier restrictions', {
+            item_id,
+            filtered_count: allAccounts.filter(a => a.type === 'investment').length,
+            tier: subscriptionTier,
+          });
+        }
+
+        itemLogger.info('Fetched accounts from Plaid', { item_id, total: allAccounts.length, eligible: accounts.length });
 
         // Get institution info (with fallback)
         let institutionData = null;
