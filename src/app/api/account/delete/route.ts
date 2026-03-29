@@ -27,33 +27,39 @@ export async function POST(req: NextRequest) {
       
       const plaidRemovalResults = [];
       
+      const DEAD_ITEM_CODES = ['ITEM_NOT_FOUND', 'INVALID_ACCESS_TOKEN', 'ITEM_LOGIN_REQUIRED'];
+
       for (const plaidItem of plaidItems) {
         try {
           console.log(`Removing Plaid item: ${plaidItem.item_id}`);
           await removeItem(plaidItem.access_token);
           plaidRemovalResults.push({ itemId: plaidItem.item_id, success: true });
           console.log(`Successfully removed Plaid item: ${plaidItem.item_id}`);
-        } catch (plaidError) {
-          console.error(`Failed to remove Plaid item ${plaidItem.item_id}:`, plaidError);
-          plaidRemovalResults.push({ 
-            itemId: plaidItem.item_id, 
-            success: false, 
-            error: plaidError.message || "Unknown error" 
-          });
+        } catch (plaidError: any) {
+          const plaidErrorCode = plaidError?.response?.data?.error_code;
+          if (DEAD_ITEM_CODES.includes(plaidErrorCode)) {
+            // Item already gone on Plaid's side — treat as success for account deletion
+            console.warn(`Plaid item ${plaidItem.item_id} already removed or invalid (${plaidErrorCode}). Treating as success.`);
+            plaidRemovalResults.push({ itemId: plaidItem.item_id, success: true });
+          } else {
+            // For account deletion, Plaid cleanup is best-effort — log and continue
+            console.error(`Failed to remove Plaid item ${plaidItem.item_id} (${plaidErrorCode ?? 'unknown'}):`, plaidError);
+            plaidRemovalResults.push({ 
+              itemId: plaidItem.item_id, 
+              success: false, 
+              error: plaidError.message || "Unknown error" 
+            });
+          }
         }
       }
 
-      // Check if all Plaid removals were successful
+      // For account deletion, Plaid cleanup is best-effort — log failures but don't block deletion
       const failedRemovals = plaidRemovalResults.filter(result => !result.success);
       if (failedRemovals.length > 0) {
-        console.error("Some Plaid items failed to remove:", failedRemovals);
-        return NextResponse.json({ 
-          error: "Failed to remove all Plaid items", 
-          details: failedRemovals 
-        }, { status: 500 });
+        console.warn("Some Plaid items could not be removed (best-effort, continuing with deletion):", failedRemovals);
+      } else {
+        console.log("All Plaid items removed successfully");
       }
-
-      console.log("All Plaid items removed successfully");
     } else {
       console.log("No Plaid items found for user");
     }

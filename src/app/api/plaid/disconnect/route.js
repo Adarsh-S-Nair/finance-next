@@ -34,14 +34,21 @@ export async function POST(request) {
       await removeItem(plaidItem.access_token);
       console.log('Plaid item/remove API call successful');
     } catch (plaidError) {
-      console.error('Plaid item/remove API failed:', plaidError);
-      return Response.json(
-        { 
-          error: 'Failed to disconnect from Plaid', 
-          details: plaidError.message || 'Unknown Plaid error' 
-        },
-        { status: 500 }
-      );
+      const plaidErrorCode = plaidError?.response?.data?.error_code;
+      const deadItemCodes = ['ITEM_NOT_FOUND', 'INVALID_ACCESS_TOKEN', 'ITEM_LOGIN_REQUIRED'];
+      if (deadItemCodes.includes(plaidErrorCode)) {
+        // Item is already gone on Plaid's side — treat as success and continue cleanup
+        console.warn(`Plaid item already removed or invalid (${plaidErrorCode}). Proceeding with DB cleanup.`);
+      } else {
+        console.error('Plaid item/remove API failed:', plaidError);
+        return Response.json(
+          { 
+            error: 'Failed to disconnect from Plaid', 
+            details: plaidError.message || 'Unknown Plaid error' 
+          },
+          { status: 500 }
+        );
+      }
     }
     // Step 2: Only if Plaid API succeeds, delete from our database
     console.log('Plaid API succeeded, now deleting from database...');
