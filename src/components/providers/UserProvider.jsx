@@ -35,6 +35,7 @@ export default function UserProvider({ children }) {
   const fetchedRef = useRef(false);
   const recoveringRef = useRef(false);
   const profileLoadingRef = useRef(false);
+  const safetyFiredRef = useRef(false);
 
   // Helper to clear stale Supabase auth data from localStorage
   const clearStaleAuthData = useCallback(() => {
@@ -133,7 +134,7 @@ export default function UserProvider({ children }) {
   useEffect(() => {
     if (user && !profile && !profileLoadingRef.current) {
       profileLoadingRef.current = true;
-      setLoading(true);
+      if (!safetyFiredRef.current) setLoading(true);
 
       // Safety timeout: never spin for more than 5 seconds
       const timeout = setTimeout(() => {
@@ -198,6 +199,7 @@ export default function UserProvider({ children }) {
     const initTimeout = setTimeout(() => {
       if (isMounted) {
         console.log("[UserProvider] Safety timeout fired — forcing loading=false");
+        safetyFiredRef.current = true;
         setLoading(false);
         setAuthTransition(false);
       }
@@ -247,8 +249,10 @@ export default function UserProvider({ children }) {
           (window.location.pathname === "/" || window.location.pathname.startsWith("/auth"));
         if (!isOnPublicRoute) return false;
 
-        setAuthTransition(true);
-        setLoading(true);
+        if (!safetyFiredRef.current) {
+          setAuthTransition(true);
+          setLoading(true);
+        }
         try {
           // Load profile in parallel with account check so it's ready after redirect
           const [, res] = await Promise.all([
