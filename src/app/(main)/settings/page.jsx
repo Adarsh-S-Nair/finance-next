@@ -36,8 +36,12 @@ export default function SettingsPage() {
 
   // On return from Stripe Checkout (?upgraded=1), call sync endpoint as a fallback
   // in case the webhook hasn't fired yet, then refresh the profile.
+  // Wait for `user` to be available — after the Stripe redirect, auth may not
+  // have rehydrated yet and refreshProfile would resolve with a null userId,
+  // leaving the profile as {} (free) even though the DB already says pro.
   useEffect(() => {
     if (searchParams.get('upgraded') !== '1') return;
+    if (!user) return; // wait until auth is ready
 
     async function syncAndRefresh() {
       try {
@@ -52,7 +56,7 @@ export default function SettingsPage() {
     }
 
     syncAndRefresh();
-  }, [searchParams, refreshProfile, router]);
+  }, [searchParams, user, refreshProfile, router]);
   const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
   const handleResync = async () => {
