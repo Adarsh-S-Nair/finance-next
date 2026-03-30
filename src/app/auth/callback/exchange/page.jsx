@@ -35,10 +35,36 @@ function ExchangeHandler() {
         console.log("[exchange] Calling exchangeCodeForSession...");
         return supabase.auth.exchangeCodeForSession(code);
       })
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         console.log("[exchange] Exchange completed in", Date.now() - t0, "ms");
-        if (error) console.error("[exchange] Exchange error:", error.message);
-        else console.log("[exchange] Exchange success. user:", !!data?.user, "session:", !!data?.session);
+        if (error) {
+          console.error("[exchange] Exchange error:", error.message);
+          return;
+        }
+        console.log("[exchange] Exchange success. user:", !!data?.user, "session:", !!data?.session);
+
+        // Sync Google profile photo + name into user_profiles
+        const user = data?.user;
+        if (user) {
+          try {
+            const meta = user.user_metadata || {};
+            const googleAvatar = meta.avatar_url || meta.picture || null;
+            const firstName = meta.full_name?.split(" ")[0] || meta.name?.split(" ")[0] || null;
+            const lastName = meta.full_name?.split(" ").slice(1).join(" ") || null;
+
+            if (googleAvatar || firstName) {
+              const { upsertUserProfile } = await import("../../../../lib/user/profile");
+              const updates = {};
+              if (googleAvatar) updates.avatar_url = googleAvatar;
+              if (firstName) updates.first_name = firstName;
+              if (lastName) updates.last_name = lastName;
+              await upsertUserProfile(updates);
+              console.log("[exchange] Synced Google profile to user_profiles:", Object.keys(updates));
+            }
+          } catch (err) {
+            console.error("[exchange] Failed to sync Google profile:", err);
+          }
+        }
       })
       .catch((err) => {
         console.error("[exchange] Exchange failed:", err);
