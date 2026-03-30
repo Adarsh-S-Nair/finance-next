@@ -330,20 +330,34 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
 /* ── Step 2: Welcome ────────────────────────────────────────── */
 function WelcomeStep({ firstName, onNext }) {
   return (
-    <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-        Hey {firstName} 👋
-      </h1>
-      <p className="mt-3 text-sm text-zinc-500 leading-relaxed">
-        You&apos;re all set up. Now let&apos;s connect your bank account so we can
-        start tracking your finances automatically.
-      </p>
-      <div className="mt-8 w-full">
-        <Button fullWidth onClick={onNext} className="h-11">
-          Connect your bank
+    <div className="flex flex-col items-center text-center w-full max-w-md">
+      <motion.h1
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900"
+      >
+        Welcome, {firstName}
+      </motion.h1>
+      <motion.p
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+        className="mt-4 text-base text-zinc-500 leading-relaxed max-w-xs"
+      >
+        Connect your accounts and get a complete picture of your finances in one place.
+      </motion.p>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+        className="mt-10 w-full max-w-xs"
+      >
+        <Button fullWidth onClick={onNext} className="h-12 text-base">
+          Get started
           <FiChevronRight className="ml-1.5 h-4 w-4" />
         </Button>
-      </div>
+      </motion.div>
     </div>
   );
 }
