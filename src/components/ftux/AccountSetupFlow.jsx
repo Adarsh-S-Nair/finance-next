@@ -335,7 +335,7 @@ function WelcomeStep({ firstName, onNext }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900"
+        className="text-2xl font-normal tracking-tight text-zinc-900"
       >
         Welcome, {firstName}
       </motion.h1>
