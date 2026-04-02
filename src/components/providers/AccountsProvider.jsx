@@ -134,10 +134,10 @@ export function AccountsProvider({ children }) {
   }, [user?.id, pathname]);
 
   // Add account to context (for when new accounts are added)
-  const addAccount = (newAccount) => {
-    // This function is now simplified since we refresh accounts after adding
-    // The actual account addition is handled by the database and refresh
-    refreshAccounts();
+  // Callers (ConnectingStep, PlaidOAuthHandler) already call refreshAccounts() after
+  // processing all accounts, so we don't call it here to avoid redundant fetches.
+  const addAccount = (_newAccount) => {
+    // no-op: callers handle refreshing
   };
 
   // Remove account from context

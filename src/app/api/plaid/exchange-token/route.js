@@ -357,68 +357,71 @@ export async function POST(request) {
       console.warn('Error creating account snapshots:', snapshotError);
     }
 
-    // Trigger transaction sync for depository/credit accounts
-    if (hasTransactionAccounts && accountsData.length > 0) {
-      try {
-        console.log('🔄 Starting transaction sync...');
-        const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
-        const syncRequest = {
-          headers: { get: () => null },
-          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
-        };
-        const syncResponse = await syncEndpoint(syncRequest);
-        if (!syncResponse.ok) {
-          const syncErrorBody = await syncResponse.json().catch(() => ({}));
-          console.error('⚠️ Transaction sync failed:', JSON.stringify(syncErrorBody));
-        } else {
-          const syncResult = await syncResponse.json();
-          console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
+    // Fire-and-forget: trigger syncs in the background without blocking the response
+    ;(async () => {
+      // Trigger transaction sync for depository/credit accounts
+      if (hasTransactionAccounts && accountsData.length > 0) {
+        try {
+          console.log('🔄 Starting transaction sync...');
+          const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+          const syncRequest = {
+            headers: { get: () => null },
+            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+          };
+          const syncResponse = await syncEndpoint(syncRequest);
+          if (!syncResponse.ok) {
+            const syncErrorBody = await syncResponse.json().catch(() => ({}));
+            console.error('⚠️ Transaction sync failed:', JSON.stringify(syncErrorBody));
+          } else {
+            const syncResult = await syncResponse.json();
+            console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
+          }
+        } catch (syncError) {
+          console.warn('Error triggering transaction sync:', syncError);
         }
-      } catch (syncError) {
-        console.warn('Error triggering transaction sync:', syncError);
-      }
-    }
-
-    // Trigger holdings and investment transactions sync for investment accounts
-    if (hasInvestmentAccounts && accountsData.length > 0) {
-      // Sync holdings
-      try {
-        console.log('🔄 Starting holdings sync...');
-        const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
-        const holdingsSyncRequest = {
-          headers: { get: () => null },
-          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
-        };
-        const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
-        if (!holdingsSyncResponse.ok) {
-          console.warn('⚠️ Holdings sync failed, but account linking succeeded');
-        } else {
-          const holdingsSyncResult = await holdingsSyncResponse.json();
-          console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced, ${holdingsSyncResult.portfolios_created} portfolios created`);
-        }
-      } catch (holdingsSyncError) {
-        console.warn('Error triggering holdings sync:', holdingsSyncError);
       }
 
-      // Sync investment transactions
-      try {
-        console.log('🔄 Starting investment transactions sync...');
-        const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
-        const invTxSyncRequest = {
-          headers: { get: () => null },
-          json: async () => ({ plaidItemId: plaidItemData.id, userId }),
-        };
-        const investmentTransactionsSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
-        if (!investmentTransactionsSyncResponse.ok) {
-          console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
-        } else {
-          const investmentTransactionsSyncResult = await investmentTransactionsSyncResponse.json();
-          console.log(`✅ Investment transactions sync completed: ${investmentTransactionsSyncResult.transactions_synced} transactions synced`);
+      // Trigger holdings and investment transactions sync for investment accounts
+      if (hasInvestmentAccounts && accountsData.length > 0) {
+        // Sync holdings
+        try {
+          console.log('🔄 Starting holdings sync...');
+          const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+          const holdingsSyncRequest = {
+            headers: { get: () => null },
+            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+          };
+          const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
+          if (!holdingsSyncResponse.ok) {
+            console.warn('⚠️ Holdings sync failed, but account linking succeeded');
+          } else {
+            const holdingsSyncResult = await holdingsSyncResponse.json();
+            console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced, ${holdingsSyncResult.portfolios_created} portfolios created`);
+          }
+        } catch (holdingsSyncError) {
+          console.warn('Error triggering holdings sync:', holdingsSyncError);
         }
-      } catch (investmentTransactionsSyncError) {
-        console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
+
+        // Sync investment transactions
+        try {
+          console.log('🔄 Starting investment transactions sync...');
+          const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
+          const invTxSyncRequest = {
+            headers: { get: () => null },
+            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+          };
+          const investmentTransactionsSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
+          if (!investmentTransactionsSyncResponse.ok) {
+            console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
+          } else {
+            const investmentTransactionsSyncResult = await investmentTransactionsSyncResponse.json();
+            console.log(`✅ Investment transactions sync completed: ${investmentTransactionsSyncResult.transactions_synced} transactions synced`);
+          }
+        } catch (investmentTransactionsSyncError) {
+          console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
+        }
       }
-    }
+    })();
 
     return Response.json({
       success: true,

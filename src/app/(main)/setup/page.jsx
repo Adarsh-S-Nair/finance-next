@@ -6,33 +6,26 @@ import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
-import { supabase } from "../../../lib/supabase/client";
 
 function SetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, profile } = useUser();
+  const { user, profile, loading: userLoading } = useUser();
   const { accounts, loading: accountsLoading, initialized: accountsInitialized, refreshAccounts } = useAccounts();
   const [completing, setCompleting] = useState(false);
   const [initialStep, setInitialStep] = useState(null); // null = still resolving
   const flowActiveRef = useRef(false);
 
-  // Determine starting step for unauthenticated users
+  // Derive the unauthenticated state from UserProvider to avoid deadlocking
+  // Supabase's internal auth lock via a direct getUser() call.
   useEffect(() => {
-    async function resolveForUnauthenticated() {
-      const { data } = await supabase.auth.getUser();
-      const currentUser = data?.user;
-
-      if (!currentUser) {
-        // Not logged in → start at step 0 (create account)
-        setInitialStep(0);
-      }
-      // If authenticated, the next useEffect will handle it
+    if (userLoading) return; // Wait until UserProvider has resolved
+    if (!user) {
+      // Not logged in → start at step 0 (create account)
+      setInitialStep(0);
     }
-
-    resolveForUnauthenticated();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // If authenticated, the next useEffect will handle it
+  }, [user, userLoading]);
 
   // Once accounts are initialized and user is known, determine proper step
   useEffect(() => {
