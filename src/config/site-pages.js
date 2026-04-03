@@ -30,4 +30,4 @@ export const SITE_PAGES = {
   // Add other routes as needed
 };
 
-export const DEFAULT_TITLE = 'Zentari';
+export const DEFAULT_TITLE = 'Zervo';

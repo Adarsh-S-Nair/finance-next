@@ -23,8 +23,8 @@ const poppins = Poppins({
 
 export const metadata = {
   title: {
-    template: "Zentari | %s",
-    default: "Zentari",
+    template: "Zervo | %s",
+    default: "Zervo",
   },
 };
 

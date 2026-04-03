@@ -26,7 +26,7 @@ import { generateTransactions } from '../../src/lib/plaid/mock-data/transactions
 async function main() {
   console.log('\n[seed] 🌱 Seeding power user...\n');
 
-  const email = 'test-power@zentari.test';
+  const email = 'test-power@zervo.test';
   const password = 'TestPower123!';
   const name = 'Sam (Power Test)';
 

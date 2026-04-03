@@ -27,7 +27,7 @@ export default function AppTopbar() {
           />
           <div className="hidden sm:flex items-center gap-2">
             <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
-              ZENTARI
+              ZERVO
             </h1>
             {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
               <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">

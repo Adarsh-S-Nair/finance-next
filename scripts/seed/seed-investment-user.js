@@ -39,7 +39,7 @@ import {
 async function main() {
   console.log('\n[seed] 🌱 Seeding investment user...\n');
 
-  const email = 'test-investor@zentari.test';
+  const email = 'test-investor@zervo.test';
   const password = 'TestInvest123!';
   const name = 'Morgan (Investor Test)';
 

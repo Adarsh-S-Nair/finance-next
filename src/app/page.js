@@ -29,7 +29,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = 
             className="text-sm font-medium tracking-[0.18em] text-zinc-900"
             style={{ fontFamily: "var(--font-outfit)" }}
           >
-            ZENTARI
+            ZERVO
           </span>
           {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
             <span className="text-[9px] font-bold tracking-wide uppercase text-zinc-300 leading-none">
@@ -237,7 +237,7 @@ export default function Home() {
               </h2>
             </div>
             <div className="space-y-6 text-sm leading-7 text-zinc-600 sm:text-base">
-              <p>Zentari should feel more like a clean workspace than a noisy finance app. You should be able to open it, understand what matters, and move on.</p>
+              <p>Zervo should feel more like a clean workspace than a noisy finance app. You should be able to open it, understand what matters, and move on.</p>
               <p>That means fewer gimmicks, simpler navigation, and a stronger focus on the handful of views you actually care about every week.</p>
             </div>
           </div>

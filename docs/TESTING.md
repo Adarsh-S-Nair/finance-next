@@ -1,6 +1,6 @@
-# Testing Guide — Zentari (finance-next)
+# Testing Guide — Zervo (finance-next)
 
-This document explains how to set up and use the local QA/test environment for Zentari. The test environment uses a **mock Plaid provider** and a **separate Supabase project** so you can test the full app without hitting real APIs or using real bank accounts.
+This document explains how to set up and use the local QA/test environment for Zervo. The test environment uses a **mock Plaid provider** and a **separate Supabase project** so you can test the full app without hitting real APIs or using real bank accounts.
 
 ---
 
@@ -66,7 +66,7 @@ The test environment uses a **completely separate Supabase project**. Never use 
 
 ### Setup Steps
 
-1. Go to [supabase.com](https://supabase.com) → New Project → Create a project named `zentari-test`
+1. Go to [supabase.com](https://supabase.com) → New Project → Create a project named `zervo-test`
 2. Once created, copy your project credentials from **Settings → API**:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -103,7 +103,7 @@ Seed scripts create reproducible test users in your test Supabase project. They 
 Creates a user with **no connected accounts** for testing the FTUX (first-time user experience) flow.
 
 ```
-Email:    test-ftux@zentari.test
+Email:    test-ftux@zervo.test
 Password: TestFTUX123!
 ```
 
@@ -117,7 +117,7 @@ Use this to test:
 Creates a power user with **4 accounts across 2 banks** and ~240 transactions.
 
 ```
-Email:    test-power@zentari.test
+Email:    test-power@zervo.test
 Password: TestPower123!
 
 Accounts:
@@ -138,7 +138,7 @@ Use this to test:
 Creates an investment-focused user with **brokerage and IRA accounts** at Charles Schwab.
 
 ```
-Email:    test-investor@zentari.test
+Email:    test-investor@zervo.test
 Password: TestInvest123!
 
 Accounts:

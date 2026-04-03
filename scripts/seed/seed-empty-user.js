@@ -18,7 +18,7 @@ import {
 async function main() {
   console.log('\n[seed] 🌱 Seeding empty/FTUX user...\n');
 
-  const email = 'test-ftux@zentari.test';
+  const email = 'test-ftux@zervo.test';
   const password = 'TestFTUX123!';
   const name = 'Alex (FTUX Test)';
 
