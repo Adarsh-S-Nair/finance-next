@@ -8,8 +8,8 @@ import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
-import { TbLogout } from "react-icons/tb";
-import { LuSettings, LuHeadphones } from "react-icons/lu";
+import { HiMiniCog6Tooth, HiMiniArrowRightOnRectangle } from "react-icons/hi2";
+import { RiHeadphoneFill } from "react-icons/ri";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -200,7 +200,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       </nav>
 
       {/* Profile Card / Bottom Section */}
-      <div className="p-3 pb-4 border-t border-[var(--color-border)] bg-[var(--color-sidebar-bg)]">
+      <div className="p-3 pb-4 border-t border-[var(--color-border)]">
         {/* Inline slide-up menu — expands above profile button */}
         <AnimatePresence>
           {showPopover && (
@@ -222,13 +222,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                     : "text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                 )}
               >
-                <LuSettings className="h-4 w-4 flex-shrink-0" />
+                <HiMiniCog6Tooth className="h-5 w-5 flex-shrink-0" />
                 <span>Settings</span>
               </Link>
 
               {/* Help & Support (locked) */}
               <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
-                <LuHeadphones className="h-4 w-4 flex-shrink-0" />
+                <RiHeadphoneFill className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1">Help &amp; Support</span>
                 <FaLock className="h-3 w-3 opacity-60" />
               </div>
@@ -238,7 +238,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 onClick={onLogout}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
               >
-                <TbLogout className="h-4 w-4 flex-shrink-0" />
+                <HiMiniArrowRightOnRectangle className="h-5 w-5 flex-shrink-0" />
                 <span>Log out</span>
               </button>
             </motion.div>
@@ -251,7 +251,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-2xl p-2.5 bg-[var(--color-surface)]/50 transition-colors duration-200 hover:bg-[var(--color-surface)] cursor-pointer"
+              className="w-full flex items-center justify-center rounded-xl p-2.5 transition-colors duration-200 hover:bg-[var(--color-surface)] cursor-pointer"
             >
               {avatarEl}
             </button>
@@ -261,7 +261,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             ref={triggerRef}
             onClick={() => setShowPopover((v) => !v)}
             className={clsx(
-              "w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group bg-[var(--color-surface)]/50",
+              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group",
               showPopover
                 ? "bg-[var(--color-surface)]"
                 : "hover:bg-[var(--color-surface)]"

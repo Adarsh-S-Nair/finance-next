@@ -1,4 +1,4 @@
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuFlaskConical } from "react-icons/lu";
+import { HiMiniSquares2X2, HiMiniWallet, HiMiniArrowsRightLeft, HiMiniBanknotes, HiMiniChartBar, HiMiniBeaker } from "react-icons/hi2";
 import { IconType } from "react-icons";
 
 export type NavItem = {
@@ -17,25 +17,25 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Overview",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LuLayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: HiMiniSquares2X2 },
     ],
   },
   {
     title: "Money",
     items: [
-      { href: "/accounts", label: "Accounts", icon: LuWallet },
-      { href: "/transactions", label: "Transactions", icon: LuArrowRightLeft },
-      { href: "/budgets", label: "Budgets", icon: LuPiggyBank, tierFeature: "budgets" },
+      { href: "/accounts", label: "Accounts", icon: HiMiniWallet },
+      { href: "/transactions", label: "Transactions", icon: HiMiniArrowsRightLeft },
+      { href: "/budgets", label: "Budgets", icon: HiMiniBanknotes, tierFeature: "budgets" },
     ],
   },
   {
     title: "Investing",
     items: [
-      { href: "/investments", label: "Portfolio", icon: LuChartLine, tierFeature: "investments" },
+      { href: "/investments", label: "Portfolio", icon: HiMiniChartBar, tierFeature: "investments" },
       {
         href: "/paper-trading",
         label: "Paper Trading",
-        icon: LuFlaskConical,
+        icon: HiMiniBeaker,
         featureFlag: "paper_trading",
         tierFeature: "paper_trading",
       },
