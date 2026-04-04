@@ -13,10 +13,10 @@ export const TRANSFER_LABELS = ['Credit Card Payment'];
  * to be present on the transaction object.
  */
 export function isTransfer(tx) {
-  const groupName = tx.system_categories?.category_groups?.name;
+  const groupName = tx.system_categories?.category_groups?.name?.toLowerCase();
   const label = tx.system_categories?.label;
   return (
-    (groupName && TRANSFER_GROUPS.includes(groupName)) ||
+    (groupName && TRANSFER_GROUPS.map(g => g.toLowerCase()).includes(groupName)) ||
     (label && TRANSFER_LABELS.includes(label))
   );
 }
