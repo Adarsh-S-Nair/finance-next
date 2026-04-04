@@ -117,7 +117,7 @@ export default function BudgetsCard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>
-        <Link href="/budgets" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+        <Link href="/budgets" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer">
           View all
         </Link>
       </div>

@@ -437,7 +437,7 @@ export default function CalendarCard({ className = '' }) {
         <h3 className="card-header">Recurring Transactions</h3>
         <button
           onClick={() => setIsDrawerOpen(true)}
-          className="text-xs font-medium text-[var(--color-accent)] hover:underline"
+          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
         >
           View all
         </button>

@@ -8,8 +8,8 @@ import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
-import { HiMiniCog6Tooth, HiMiniArrowRightOnRectangle } from "react-icons/hi2";
-import { RiHeadphoneFill } from "react-icons/ri";
+import { LuSettings, LuHeadphones } from "react-icons/lu";
+import { TbLogout } from "react-icons/tb";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -222,13 +222,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                     : "text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                 )}
               >
-                <HiMiniCog6Tooth className="h-5 w-5 flex-shrink-0" />
+                <LuSettings className="h-5 w-5 flex-shrink-0" />
                 <span>Settings</span>
               </Link>
 
               {/* Help & Support (locked) */}
               <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
-                <RiHeadphoneFill className="h-5 w-5 flex-shrink-0" />
+                <LuHeadphones className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1">Help &amp; Support</span>
                 <FaLock className="h-3 w-3 opacity-60" />
               </div>
@@ -238,7 +238,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 onClick={onLogout}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
               >
-                <HiMiniArrowRightOnRectangle className="h-5 w-5 flex-shrink-0" />
+                <TbLogout className="h-5 w-5 flex-shrink-0" />
                 <span>Log out</span>
               </button>
             </motion.div>

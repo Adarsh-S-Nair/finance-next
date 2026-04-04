@@ -215,7 +215,7 @@ export default function RecentTransactionsCard() {
     <div className="w-full">
       <div className="mb-4 flex justify-between items-center">
         <h3 className="card-header">Recent Transactions</h3>
-        <Link href="/transactions" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+        <Link href="/transactions" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer">
           View all
         </Link>
       </div>
