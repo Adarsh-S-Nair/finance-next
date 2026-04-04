@@ -94,7 +94,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   );
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
+    <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
       {/* Logo Section */}
       <div className="p-4 flex items-center justify-center h-16">
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
@@ -200,7 +200,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       </nav>
 
       {/* Profile Card / Bottom Section */}
-      <div className="p-3 pb-4 border-t border-[var(--color-border)]">
+      <div className="p-3 pb-4 border-t border-[var(--color-border)] bg-[var(--color-sidebar-bg)]">
         {/* Inline slide-up menu — expands above profile button */}
         <AnimatePresence>
           {showPopover && (
