@@ -6,6 +6,7 @@ import SpendingEarningChart from "./SpendingEarningChartV2";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
+import ViewAllLink from "../ui/ViewAllLink";
 
 
 // Animated counter component for smooth number transitions
@@ -235,12 +236,7 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
 
             {/* Right Side Actions */}
             <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
-              <button
-                onClick={() => router.push('/accounts')}
-                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
-              >
-                View Accounts
-              </button>
+              <ViewAllLink href="/accounts">View Accounts</ViewAllLink>
 
               {/* Legend - stacked on mobile, horizontal on desktop */}
               <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">

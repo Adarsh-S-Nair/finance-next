@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useRouter } from "next/navigation";
 import Button from "../ui/Button";
+import ViewAllLink from "../ui/ViewAllLink";
 import { PiBankFill } from "react-icons/pi";
 
 function formatCurrency(amount) {
@@ -48,12 +49,7 @@ export default function AccountsCard() {
     <Card width="1/3">
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm text-[var(--color-muted)]">Accounts</div>
-        <button
-          onClick={() => router.push('/accounts')}
-          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
-        >
-          View all
-        </button>
+        <ViewAllLink href="/accounts" />
       </div>
       
       {totalAccounts === 0 ? (

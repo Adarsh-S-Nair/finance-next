@@ -7,6 +7,7 @@ import { useUser } from '../providers/UserProvider';
 import { FiChevronLeft, FiChevronRight, FiTag, FiX } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import Drawer from '../ui/Drawer';
+import ViewAllLink from '../ui/ViewAllLink';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
@@ -435,12 +436,7 @@ export default function CalendarCard({ className = '' }) {
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="card-header">Recurring Transactions</h3>
-        <button
-          onClick={() => setIsDrawerOpen(true)}
-          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
-        >
-          View all
-        </button>
+        <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
       </div>
 
       {/* Bills Summary Header */}

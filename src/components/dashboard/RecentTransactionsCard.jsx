@@ -6,6 +6,7 @@ import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
 import Link from 'next/link';
+import ViewAllLink from '../ui/ViewAllLink';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -215,9 +216,7 @@ export default function RecentTransactionsCard() {
     <div className="w-full">
       <div className="mb-4 flex justify-between items-center">
         <h3 className="card-header">Recent Transactions</h3>
-        <Link href="/transactions" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer">
-          View all
-        </Link>
+        <ViewAllLink href="/transactions" />
       </div>
 
       <div className="space-y-1">

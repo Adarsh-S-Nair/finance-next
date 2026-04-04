@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
+import ViewAllLink from "../ui/ViewAllLink";
 import Card from "../ui/Card";
 import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
@@ -117,9 +118,7 @@ export default function BudgetsCard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>
-        <Link href="/budgets" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer">
-          View all
-        </Link>
+        <ViewAllLink href="/budgets" />
       </div>
 
       {/* Hero Section - Focus on Remaining */}
