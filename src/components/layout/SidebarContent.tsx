@@ -13,7 +13,7 @@ import { RiHeadphoneFill } from "react-icons/ri";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
 import { motion, AnimatePresence } from "framer-motion";
-import Tooltip from "../ui/Tooltip";
+import { Tooltip } from "@slate-ui/react";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import UpgradeOverlay from "../UpgradeOverlay";
 

@@ -9,7 +9,7 @@ import * as Icons from "lucide-react";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import Tooltip from "../ui/Tooltip";
+import { Tooltip } from "@slate-ui/react";
 
 export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   const { user } = useUser();

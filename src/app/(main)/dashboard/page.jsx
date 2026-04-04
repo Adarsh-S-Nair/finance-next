@@ -13,7 +13,7 @@ import RecentTransactionsCard from "../../../components/dashboard/RecentTransact
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
-import FadeIn from "../../../components/ui/FadeIn";
+import { FadeIn } from "@slate-ui/react";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 
 // Map string keys to actual components

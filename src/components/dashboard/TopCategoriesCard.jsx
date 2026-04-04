@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import Dropdown from "../ui/Dropdown";
+import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";

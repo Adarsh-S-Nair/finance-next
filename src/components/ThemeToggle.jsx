@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useUser } from "./providers/UserProvider";
-import Dropdown from "./ui/Dropdown";
+import { Dropdown } from "@slate-ui/react";
 
 export default function ThemeToggle() {
   const { profile, setTheme, loading } = useUser();

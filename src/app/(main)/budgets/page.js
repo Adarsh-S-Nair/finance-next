@@ -8,7 +8,7 @@ import CreateBudgetModal from '../../../components/budgets/CreateBudgetModal';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
-import EmptyState from '../../../components/ui/EmptyState';
+import { EmptyState } from "@slate-ui/react";
 import { LuPlus, LuPiggyBank } from 'react-icons/lu';
 
 export default function BudgetsPage() {

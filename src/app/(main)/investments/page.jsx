@@ -7,7 +7,7 @@ import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
-import EmptyState from "../../../components/ui/EmptyState";
+import { EmptyState } from "@slate-ui/react";
 import { PiBankFill } from "react-icons/pi";
 import { LuPlus } from "react-icons/lu";
 import { useUser } from "../../../components/providers/UserProvider";

@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import SpendingEarningChart from "./SpendingEarningChartV2";
-import Dropdown from "../ui/Dropdown";
+import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 
