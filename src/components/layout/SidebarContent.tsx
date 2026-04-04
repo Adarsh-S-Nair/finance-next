@@ -26,7 +26,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [showPopover, setShowPopover] = useState(false);
   const [showUpgradeOverlay, setShowUpgradeOverlay] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const groups = useMemo(() => {
@@ -45,24 +44,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     setShowLogout(true);
   };
 
-  // Close popover on outside click
-  useEffect(() => {
-    if (!showPopover) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        setShowPopover(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showPopover]);
-
-  // Close popover on Escape
+  // Close panel on Escape
   useEffect(() => {
     if (!showPopover) return;
     const handler = (e: KeyboardEvent) => {
@@ -95,7 +77,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     : user?.email?.[0]?.toUpperCase() ?? "?";
   const tier = profile?.subscription_tier ?? "free";
   const tierLabel = tier === "pro" ? "Pro" : "Free";
-  const avatarUrl = profile?.avatar_url;
+  const avatarUrl = profile?.avatar_url || meta.avatar_url || meta.picture || null;
 
   const avatarEl = (
     <div
@@ -222,31 +204,26 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       </nav>
 
       {/* Profile Card / Bottom Section */}
-      <div className="p-4 pb-5 border-t border-[var(--color-border)] relative">
-        {/* Popover Menu — opens above profile card */}
+      <div className="p-4 pb-5 border-t border-[var(--color-border)]">
+        {/* Inline slide-up menu — expands above profile button */}
         <AnimatePresence>
           {showPopover && (
             <motion.div
-              ref={popoverRef}
-              initial={{ opacity: 0, y: 8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.97 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="absolute left-0 right-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl overflow-hidden z-[60]"
-              style={{
-                bottom: "calc(100% + 8px)",
-                minWidth: "200px",
-              }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              style={{ overflow: "hidden" }}
             >
               {/* Settings */}
               <Link
                 href="/settings"
                 onClick={() => { setShowPopover(false); onNavigate?.(); }}
                 className={clsx(
-                  "flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-150",
+                  "flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors duration-150",
                   pathname.startsWith("/settings")
                     ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-white/5"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                 )}
               >
                 <LuSettings className="h-4 w-4 flex-shrink-0" />
@@ -254,18 +231,16 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               </Link>
 
               {/* Help & Support (locked) */}
-              <div className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed">
+              <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
                 <LuHeadphones className="h-4 w-4 flex-shrink-0" />
                 <span className="flex-1">Help &amp; Support</span>
                 <FaLock className="h-3 w-3 opacity-60" />
               </div>
 
-              <div className="border-t border-[var(--color-border)]" />
-
               {/* Log out */}
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-white/5 transition-colors duration-150"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
               >
                 <TbLogout className="h-4 w-4 flex-shrink-0" />
                 <span>Log out</span>
