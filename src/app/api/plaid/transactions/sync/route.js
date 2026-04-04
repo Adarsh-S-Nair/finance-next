@@ -459,6 +459,53 @@ export async function POST(request) {
 
           if (DEBUG) console.log(`✅ Successfully created ${newSystemCategories.length} new system categories`);
         }
+
+        // Backfill plaid_category_key for any existing system categories that are missing it
+        // (e.g., categories created from seed data before plaid_category_key was tracked)
+        if (DEBUG) console.log('🔧 Backfilling plaid_category_key for seed categories...');
+        const groupNameToId = new Map(allCategoryGroups.map(g => [g.name, g.id]));
+        const backfillMap = new Map(); // plaid_category_key -> { label, group_id }
+        for (const tx of transactionsToUpsert) {
+          const pfc = tx.personal_finance_category;
+          if (!pfc?.detailed || !pfc?.primary) continue;
+          const groupId = groupNameToId.get(pfc.primary);
+          if (!groupId) continue;
+          // Compute the label the same way getNewSystemCategories does
+          const { formatCategoryName } = await import('../../../../../lib/categoryUtils');
+          const cleanedDetailed = pfc.detailed.startsWith(pfc.primary + '_')
+            ? pfc.detailed.substring(pfc.primary.length + 1)
+            : pfc.detailed;
+          const label = formatCategoryName(cleanedDetailed);
+          const key = `${label}__${groupId}`;
+          if (!backfillMap.has(key)) {
+            backfillMap.set(key, { label, group_id: groupId, plaid_category_key: pfc.detailed });
+          }
+        }
+        if (backfillMap.size > 0) {
+          // Find system categories with matching label+group_id but null plaid_category_key
+          const { data: categoriesToBackfill } = await supabaseAdmin
+            .from('system_categories')
+            .select('id, label, group_id')
+            .is('plaid_category_key', null);
+
+          if (categoriesToBackfill && categoriesToBackfill.length > 0) {
+            for (const cat of categoriesToBackfill) {
+              const key = `${cat.label}__${cat.group_id}`;
+              const backfillData = backfillMap.get(key);
+              if (backfillData) {
+                const { error: backfillError } = await supabaseAdmin
+                  .from('system_categories')
+                  .update({ plaid_category_key: backfillData.plaid_category_key })
+                  .eq('id', cat.id);
+                if (backfillError) {
+                  console.warn(`⚠️ Failed to backfill plaid_category_key for system category "${cat.label}":`, backfillError);
+                } else if (DEBUG) {
+                  console.log(`🔧 Backfilled plaid_category_key="${backfillData.plaid_category_key}" for category "${cat.label}"`);
+                }
+              }
+            }
+          }
+        }
       }
     }
 
