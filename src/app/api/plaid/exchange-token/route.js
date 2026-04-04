@@ -1,4 +1,4 @@
-import { waitUntil } from 'next/server';
+import { after } from 'next/server';
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
@@ -358,8 +358,8 @@ export async function POST(request) {
       console.warn('Error creating account snapshots:', snapshotError);
     }
 
-    // Use waitUntil to keep the serverless function alive until syncs complete
-    waitUntil((async () => {
+    // Use after() to keep the serverless function alive until syncs complete
+    after(async () => {
       // Trigger transaction sync for depository/credit accounts
       if (hasTransactionAccounts && accountsData.length > 0) {
         try {
@@ -422,7 +422,7 @@ export async function POST(request) {
           console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
         }
       }
-    })());
+    });
 
     return Response.json({
       success: true,
