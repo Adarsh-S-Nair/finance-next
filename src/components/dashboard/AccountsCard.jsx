@@ -50,7 +50,7 @@ export default function AccountsCard() {
         <div className="text-sm text-[var(--color-muted)]">Accounts</div>
         <button
           onClick={() => router.push('/accounts')}
-          className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 transition-colors"
+          className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
         >
           View all
         </button>

@@ -12,13 +12,13 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const baseStyles =
-  "inline-flex select-none items-center justify-center rounded-md text-sm font-medium transition-all duration-150 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:scale-[0.97] hover:scale-[1.01]";
+  "inline-flex select-none items-center justify-center rounded-md text-sm font-medium transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer active:scale-[0.95] hover:scale-[1.02]";
 
 const variants: Record<string, string> = {
   primary:
-    "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] hover:bg-[var(--color-accent-hover)]",
+    "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] hover:bg-[var(--color-accent-hover)] hover:shadow-lg hover:shadow-[var(--color-accent)]/10",
   accent:
-    "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] hover:bg-[var(--color-accent-hover)]",
+    "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] hover:bg-[var(--color-accent-hover)] hover:shadow-lg hover:shadow-[var(--color-accent)]/10",
   secondary:
     "bg-transparent text-[var(--color-fg)] hover:text-[color-mix(in_oklab,var(--color-fg),var(--color-bg)_30%)]",
   ghost:
@@ -32,7 +32,7 @@ const variants: Record<string, string> = {
   glass:
     "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/20 hover:border-[var(--color-accent)]/30 backdrop-blur-sm shadow-sm shadow-[var(--color-accent)]/5 transition-all duration-200",
   matte:
-    "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none",
+    "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none hover:shadow-md hover:shadow-[var(--color-accent)]/10",
   minimal:
     "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]/50 border-none shadow-none",
 };
