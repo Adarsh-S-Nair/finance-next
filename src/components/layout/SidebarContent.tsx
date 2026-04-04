@@ -94,7 +94,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   );
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-content-bg)]">
+    <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
       {/* Logo Section */}
       <div className="p-4 flex items-center justify-center h-16">
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
@@ -128,18 +128,14 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
-        {groups.map((g) => (
+        {groups.map((g, idx) => (
           <div
             key={g.title}
-            className="mb-6 last:mb-0"
+            className="mb-4 last:mb-0"
           >
-            <div className={`px-3 mb-2 text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider ${isCollapsed ? 'text-center' : ''}`}>
-              {isCollapsed ? (
-                <span className="block w-full border-b border-[var(--color-border)] my-2" />
-              ) : (
-                g.title
-              )}
-            </div>
+            {idx > 0 && (
+              <div className="border-t border-[var(--color-border)]/60 mb-4" />
+            )}
             <ul className="space-y-0.5">
               {g.items.map((it) => {
                 const active = pathname.startsWith(it.href);
@@ -159,13 +155,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                       onMouseLeave={() => setHoveredItem(null)}
                       aria-disabled={it.disabled || undefined}
                       className={clsx(
-                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-normal transition-all duration-200",
+                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
                         it.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "cursor-pointer",
                         active
-                          ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                          : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+                          ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
+                          : "text-[var(--color-fg)]/70 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                       )}
                     >
                       {active && (
@@ -176,7 +172,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
                       <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
                         <span className="flex items-center justify-center">
-                          {it.icon && <it.icon className="h-[18px] w-[18px]" />}
+                          {it.icon && <it.icon className="h-5 w-5" />}
                         </span>
                         {!isCollapsed && (
                           <span className="tracking-wide">
@@ -204,7 +200,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       </nav>
 
       {/* Profile Card / Bottom Section */}
-      <div className="p-4 pb-5 border-t border-[var(--color-border)]">
+      <div className="p-3 pb-4 border-t border-[var(--color-border)]">
         {/* Inline slide-up menu — expands above profile button */}
         <AnimatePresence>
           {showPopover && (
@@ -222,8 +218,8 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 className={clsx(
                   "flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors duration-150",
                   pathname.startsWith("/settings")
-                    ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+                    ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
+                    : "text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
                 )}
               >
                 <LuSettings className="h-4 w-4 flex-shrink-0" />
@@ -240,7 +236,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               {/* Log out */}
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
               >
                 <TbLogout className="h-4 w-4 flex-shrink-0" />
                 <span>Log out</span>
@@ -255,7 +251,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-xl p-2.5 transition-colors duration-200 hover:bg-[var(--color-surface)] cursor-pointer"
+              className="w-full flex items-center justify-center rounded-2xl p-2.5 bg-[var(--color-surface)]/50 transition-colors duration-200 hover:bg-[var(--color-surface)] cursor-pointer"
             >
               {avatarEl}
             </button>
@@ -265,7 +261,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             ref={triggerRef}
             onClick={() => setShowPopover((v) => !v)}
             className={clsx(
-              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group",
+              "w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group bg-[var(--color-surface)]/50",
               showPopover
                 ? "bg-[var(--color-surface)]"
                 : "hover:bg-[var(--color-surface)]"

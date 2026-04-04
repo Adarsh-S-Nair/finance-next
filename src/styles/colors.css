@@ -48,8 +48,10 @@
 
   --color-content-bg: #fafafa;
   /* Matches bg */
-  --color-sidebar-active: #f4f4f5;
-  /* Zinc 100 - subtle selection */
+  --color-sidebar-bg: #f0f0f2;
+  /* Slightly darker than bg for sidebar depth */
+  --color-sidebar-active: #e8e8ec;
+  /* Slightly stronger tint for active items */
 
   /* Glassmorphism helpers - Light Mode - Reduced Shadows for Matte look */
   --glass-bg: rgba(255, 255, 255, 0.9);
@@ -129,7 +131,10 @@
 
   --color-content-bg: #1e1e21;
   /* Matches bg */
-  --color-sidebar-active: var(--color-surface);
+  --color-sidebar-bg: #1a1a1d;
+  /* Slightly darker than bg for sidebar depth */
+  --color-sidebar-active: #2a2a2f;
+  /* More visible active state */
 
   /* Glassmorphism helpers - Dark Mode */
   --glass-bg: rgba(33, 33, 37, 0.85);
