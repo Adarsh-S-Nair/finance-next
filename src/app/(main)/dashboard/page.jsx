@@ -150,7 +150,20 @@ export default function DashboardPage() {
 
   return (
     <PageContainer title={greeting} documentTitle="Dashboard">
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+      {/* Subtle page-level ambient glow */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute opacity-[0.04] dark:opacity-[0.07]"
+          style={{
+            width: '120%',
+            height: '60%',
+            top: '15%',
+            left: '-10%',
+            background: 'radial-gradient(ellipse at 50% 50%, var(--color-chart-primary), transparent 70%)',
+          }}
+        />
+      </div>
+      <div className="relative grid grid-cols-1 lg:grid-cols-10 gap-8">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-8">
           {dashboardLayout.main.map((item, i) => (

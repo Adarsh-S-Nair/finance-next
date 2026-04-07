@@ -216,14 +216,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
 
   return (
     <div className="h-[440px] relative">
-      {/* Ambient glow behind donut */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
-        style={{
-          background: 'radial-gradient(ellipse 50% 40% at 50% 45%, var(--color-chart-primary), transparent)',
-        }}
-      />
-      <div ref={containerRef} className="relative flex flex-col h-full">
+      <div ref={containerRef} className="flex flex-col h-full">
         {/* Custom Header with Dropdown */}
         <div className="pb-2 flex items-center justify-between">
           <div className="card-header">
@@ -250,8 +243,17 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
             <PieChart>
               <defs>
                 <filter id="donut-glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2.5" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                {/* Depth filter — subtle bevel with top-left highlight */}
+                <filter id="donut-depth" x="-5%" y="-5%" width="110%" height="110%">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="shadow" />
+                  <feOffset dx="0" dy="1" in="shadow" result="offsetShadow" />
+                  <feComposite in="SourceGraphic" in2="offsetShadow" operator="over" />
                 </filter>
               </defs>
               {/* Visible Pie Layer */}
@@ -262,7 +264,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 innerRadius={110}
                 outerRadius={128}
                 paddingAngle={4}
-                cornerRadius={3}
+                cornerRadius={4}
                 dataKey="total_spent"
                 stroke="none"
                 isAnimationActive={false}
@@ -276,12 +278,12 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                     <Cell
                       key={`cell-${index}`}
                       fill={isActive || isIdle ? color : 'var(--color-border)'}
-                      opacity={isActive ? 1 : isIdle ? 0.55 : 0.35}
-                      filter={isActive ? 'url(#donut-glow)' : undefined}
+                      opacity={isActive ? 1 : isIdle ? 0.65 : 0.35}
+                      filter={isActive ? 'url(#donut-glow)' : 'url(#donut-depth)'}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         outline: 'none',
-                        transform: isActive ? 'scale(1.03)' : 'scale(1)',
+                        transform: isActive ? 'scale(1.04)' : 'scale(1)',
                         transformOrigin: 'center center',
                         transformBox: 'fill-box'
                       }}

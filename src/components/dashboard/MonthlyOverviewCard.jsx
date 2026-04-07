@@ -201,17 +201,10 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
   return (
     <div className="relative h-full">
-      {/* Ambient glow behind chart area */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.07] dark:opacity-[0.12]"
-        style={{
-          background: 'radial-gradient(ellipse 70% 50% at 70% 80%, var(--color-chart-primary), transparent)',
-        }}
-      />
       {showLoading ? (
         <SkeletonLoader />
       ) : (
-        <div className="relative flex flex-col h-full">
+        <div className="flex flex-col h-full">
           {/* Custom Header */}
           {/* Custom Header */}
           <div className="px-0 pt-0 pb-3 flex justify-between items-start">
