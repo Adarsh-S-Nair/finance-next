@@ -241,6 +241,12 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         <div className="flex-1 min-h-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              <defs>
+                <filter id="donut-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
               {/* Visible Pie Layer */}
               <Pie
                 data={categories}
@@ -253,7 +259,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 dataKey="total_spent"
                 stroke="none"
                 isAnimationActive={false}
-                style={{ pointerEvents: 'none' }} // Pass events through
+                style={{ pointerEvents: 'none', filter: 'url(#donut-glow)' }}
               >
                 {categories.map((entry, index) => {
                   const color = sliceColors[index] || FALLBACK_COLOR;

@@ -240,6 +240,13 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
           style={{ minWidth: width }}
           onMouseLeave={onLeave}
         >
+          <defs>
+            <filter id="bar-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
           {/* Grid Lines & Y-Axis */}
           <g>
             {ticks.map((tick) => {
@@ -306,10 +313,12 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   <path
                     d={incBarPath}
                     fill="var(--color-cashflow-income)"
+                    filter="url(#bar-glow)"
                   />
                   <path
                     d={spdBarPath}
                     fill="var(--color-cashflow-spending)"
+                    filter="url(#bar-glow)"
                   />
 
                   {/* Invisible hover rect for the whole group */}

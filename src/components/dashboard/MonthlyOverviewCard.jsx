@@ -308,7 +308,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   strokeOpacity: 1,
                   showArea: true,
                   areaOpacity: 0.1,
-                  gradientId: "monthlyOverviewSpending"
+                  gradientId: "monthlyOverviewSpending",
+                  fadeIn: true,
+                  endpointGlow: true,
                 }
               ]}
               showDots={false}

@@ -61,6 +61,10 @@ interface LineChartProps {
     gradientId?: string;
     showArea?: boolean;
     areaOpacity?: number;
+    /** Show a soft glow at the last non-null data point */
+    endpointGlow?: boolean;
+    /** Fade stroke opacity from near-zero on the left to full on the right */
+    fadeIn?: boolean;
   }[];
   yAxisDomain?: [number | string, number | string];
   xAxisInterval?: number | 'preserveStart' | 'preserveEnd' | 'preserveStartEnd';
@@ -118,6 +122,8 @@ export default function LineChart({
         gradientId: line.gradientId || `${gradientId}-${index}`,
         showArea: line.showArea !== undefined ? line.showArea : showArea,
         areaOpacity: line.areaOpacity !== undefined ? line.areaOpacity : areaOpacity,
+        endpointGlow: line.endpointGlow || false,
+        fadeIn: line.fadeIn || false,
       }));
     }
     return [{
@@ -129,6 +135,8 @@ export default function LineChart({
       gradientId,
       showArea,
       areaOpacity,
+      endpointGlow: false,
+      fadeIn: false,
     }];
   }, [lines, dataKey, strokeColor, strokeWidth, strokeOpacity, gradientId, showArea, areaOpacity]);
 
@@ -231,10 +239,28 @@ export default function LineChart({
         >
           <defs>
             {chartLines.map((line) => (
-              <linearGradient key={line.gradientId} id={line.gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
-                <stop offset="95%" stopColor={line.strokeColor} stopOpacity={0} />
-              </linearGradient>
+              <React.Fragment key={line.gradientId}>
+                <linearGradient id={line.gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
+                  <stop offset="95%" stopColor={line.strokeColor} stopOpacity={0} />
+                </linearGradient>
+                {line.fadeIn && (
+                  <linearGradient id={`${line.gradientId}-fadeIn`} x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor={line.strokeColor} stopOpacity={0.1} />
+                    <stop offset="60%" stopColor={line.strokeColor} stopOpacity={0.6} />
+                    <stop offset="100%" stopColor={line.strokeColor} stopOpacity={1} />
+                  </linearGradient>
+                )}
+                {line.endpointGlow && (
+                  <filter id={`${line.gradientId}-glow`} x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                )}
+              </React.Fragment>
             ))}
           </defs>
 
@@ -282,9 +308,9 @@ export default function LineChart({
               key={line.dataKey}
               type={curveType}
               dataKey={line.dataKey}
-              stroke={line.strokeColor}
+              stroke={line.fadeIn ? `url(#${line.gradientId}-fadeIn)` : line.strokeColor}
               strokeWidth={line.strokeWidth}
-              strokeOpacity={line.strokeOpacity}
+              strokeOpacity={line.fadeIn ? 1 : line.strokeOpacity}
               strokeDasharray={line.strokeDasharray}
               fill={line.showArea ? `url(#${line.gradientId})` : 'none'}
               baseValue="dataMin"
@@ -298,6 +324,27 @@ export default function LineChart({
               } : false}
             />
           ))}
+
+          {/* Glowing endpoint dot — always visible on the last data point */}
+          {chartLines.map((line) => {
+            if (!line.endpointGlow) return null;
+            // Find last non-null data point
+            let lastIdx = data.length - 1;
+            while (lastIdx >= 0 && (data[lastIdx][line.dataKey] == null)) lastIdx--;
+            if (lastIdx < 0) return null;
+            return (
+              <ReferenceDot
+                key={`glow-${line.dataKey}`}
+                x={data[lastIdx][xAxisDataKey]}
+                y={data[lastIdx][line.dataKey]}
+                r={5}
+                fill={line.strokeColor}
+                stroke={line.strokeColor}
+                strokeWidth={0}
+                filter={`url(#${line.gradientId}-glow)`}
+              />
+            );
+          })}
 
           {/* Manual Active Visuals */}
           {activeIndex !== null && data[activeIndex] && (
