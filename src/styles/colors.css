@@ -80,7 +80,7 @@
 
 .dark {
   /* Matte Dark Mode - Balanced & Comfortable */
-  --color-bg: #1f1f1f;
+  --color-bg: #131313;
   /* Base layer — sidebar sits on this, content panel on top */
   --color-surface: #212125;
   /* Very subtle contrast with bg */
@@ -133,7 +133,7 @@
   --color-dropdown-bg: var(--color-surface-alt);
 
   --color-content-bg: #181818;
-  --color-sidebar-bg: #1f1f1f;
+  --color-sidebar-bg: #131313;
   --color-sidebar-active: #313131;
 
   /* Glassmorphism helpers - Dark Mode */
