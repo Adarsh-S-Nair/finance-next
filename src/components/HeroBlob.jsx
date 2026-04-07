@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
@@ -43,14 +43,27 @@ function createNoise() {
   };
 }
 
-export default function HeroBlob() {
+// Variants control camera angle and blob position
+const VARIANTS = {
+  landing: {
+    camera: { pos: [0, 0, 4.5], lookAt: [0, 0, 0] },
+    blob: { pos: [2.2, -0.3, 0], scale: 1.0 },
+  },
+  auth: {
+    camera: { pos: [0, 4.5, 1.5], lookAt: [0, 0, 0] },
+    blob: { pos: [0, 0, 0], scale: 1.8 },
+  },
+};
+
+export default function HeroBlob({ variant = "landing" }) {
   const containerRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const cfg = VARIANTS[variant] || VARIANTS.landing;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // The canvas sits on top of a CSS radial gradient glow (see render below)
     const canvasWrap = container.querySelector("[data-blob-canvas]");
     if (!canvasWrap) return;
 
@@ -59,7 +72,8 @@ export default function HeroBlob() {
     // Scene setup
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-    camera.position.z = 4.5;
+    camera.position.set(...cfg.camera.pos);
+    camera.lookAt(...cfg.camera.lookAt);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -69,27 +83,25 @@ export default function HeroBlob() {
     renderer.toneMappingExposure = 1.2;
     canvasWrap.appendChild(renderer.domElement);
 
-    // Post-processing — bloom for soft edge glow
+    // Post-processing
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     composer.renderToScreen = true;
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      0.35,  // strength — gentle edge glow
-      1.5,   // radius — spread it wide
-      0.18   // threshold
+      0.35, 1.5, 0.18
     );
     composer.addPass(bloomPass);
 
-    // Blob geometry — merge vertices for smooth shading, then compute smooth normals
+    // Blob geometry
     const rawGeometry = new THREE.IcosahedronGeometry(1.8, 40);
     const geometry = mergeVertices(rawGeometry);
     geometry.computeVertexNormals();
     rawGeometry.dispose();
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Gradient shader material — lighter blue with depth
+    // Gradient shader material
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
@@ -118,36 +130,28 @@ export default function HeroBlob() {
         varying float vFresnel;
 
         void main() {
-          // Base gradient: dark blue core to lighter blue at edges
           vec3 deepBlue = vec3(0.03, 0.06, 0.14);
           vec3 midBlue = vec3(0.06, 0.16, 0.38);
           vec3 lightBlue = vec3(0.12, 0.30, 0.58);
           vec3 highlight = vec3(0.25, 0.50, 0.80);
 
-          // Fresnel-based gradient — edges are lighter
           float f = pow(vFresnel, 1.5);
           vec3 baseColor = mix(midBlue, lightBlue, f);
 
-          // Diffuse lighting from two light sources
           vec3 lightDir1 = normalize(uLightPos1 - vWorldPos);
           vec3 lightDir2 = normalize(uLightPos2 - vWorldPos);
           float diff1 = max(dot(vNormal, lightDir1), 0.0);
           float diff2 = max(dot(vNormal, lightDir2), 0.0);
           float diffuse = diff1 * 0.7 + diff2 * 0.4;
 
-          // Blend diffuse lighting into color
           vec3 color = mix(deepBlue, baseColor, 0.4 + diffuse * 0.6);
 
-          // Specular highlight — soft, broad
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
           vec3 halfDir1 = normalize(lightDir1 + viewDir);
           float spec = pow(max(dot(vNormal, halfDir1), 0.0), 25.0) * 0.35;
           color += highlight * spec;
 
-          // Fresnel rim glow
           color += lightBlue * pow(vFresnel, 3.0) * 0.35;
-
-          // Subtle emissive so it doesn't go full black in shadow
           color += deepBlue * 0.3;
 
           gl_FragColor = vec4(color, 1.0);
@@ -156,21 +160,19 @@ export default function HeroBlob() {
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(2.2, -0.3, 0);
+    mesh.position.set(...cfg.blob.pos);
+    mesh.scale.setScalar(cfg.blob.scale);
     scene.add(mesh);
 
-    // Lights (for bloom interaction — the shader handles its own lighting)
+    // Lights
     const ambient = new THREE.AmbientLight(0x2a3a5a, 0.5);
     scene.add(ambient);
-
     const light1 = new THREE.PointLight(0x4488cc, 50, 30);
     light1.position.set(4, 2, 4);
     scene.add(light1);
-
     const light2 = new THREE.PointLight(0x2255aa, 35, 30);
     light2.position.set(-3, -1, 3);
     scene.add(light2);
-
     const light3 = new THREE.PointLight(0x3366aa, 25, 30);
     light3.position.set(0, 3, -2);
     scene.add(light3);
@@ -179,19 +181,19 @@ export default function HeroBlob() {
     let animId;
     const pos = geometry.attributes.position;
 
+    let firstFrame = true;
     function animate() {
       animId = requestAnimationFrame(animate);
       const t = performance.now() * 0.0004;
 
-      // Morph vertices — original blobby displacement
       for (let i = 0; i < pos.count; i++) {
         const ix = i * 3;
         const bx = basePositions[ix], by = basePositions[ix + 1], bz = basePositions[ix + 2];
         const displacement = noise(bx * 1.5 + t, by * 1.5 + t * 0.7, bz * 1.5 + t * 0.5);
-        const scale = 1 + displacement * 0.22;
-        pos.array[ix] = bx * scale;
-        pos.array[ix + 1] = by * scale;
-        pos.array[ix + 2] = bz * scale;
+        const s = 1 + displacement * 0.22;
+        pos.array[ix] = bx * s;
+        pos.array[ix + 1] = by * s;
+        pos.array[ix + 2] = bz * s;
       }
       pos.needsUpdate = true;
       geometry.computeVertexNormals();
@@ -201,10 +203,14 @@ export default function HeroBlob() {
       mesh.rotation.x = Math.sin(t * 0.5) * 0.15;
 
       composer.render();
+
+      if (firstFrame) {
+        firstFrame = false;
+        setReady(true);
+      }
     }
     animate();
 
-    // Resize handler
     function onResize() {
       const w = container.clientWidth;
       const h = container.clientHeight;
@@ -231,20 +237,34 @@ export default function HeroBlob() {
   }, []);
 
   return (
-    <div ref={containerRef} className="absolute inset-0">
-      {/* WebGL canvas layer — renders first, behind glow */}
+    <div
+      ref={containerRef}
+      className="absolute inset-0 transition-all duration-1000 ease-out"
+      style={{
+        opacity: ready ? 1 : 0,
+        transform: ready ? "scale(1)" : "scale(0.92)",
+      }}
+    >
       <div data-blob-canvas className="absolute inset-0" />
-      {/* Wide ambient glow on top of canvas, covers full background */}
+      {/* Glow layers */}
       <div
         className="absolute pointer-events-none inset-0"
         style={{
-          background: "radial-gradient(ellipse 90% 80% at 65% 50%, rgba(25,90,200,0.40) 0%, rgba(18,70,155,0.25) 25%, rgba(12,50,115,0.14) 45%, rgba(6,25,70,0.06) 65%, transparent 85%)",
+          background: variant === "auth"
+            ? "radial-gradient(ellipse 100% 70% at 50% 80%, rgba(25,90,200,0.35) 0%, rgba(18,70,155,0.20) 30%, rgba(10,40,100,0.08) 55%, transparent 80%)"
+            : "radial-gradient(ellipse 90% 80% at 65% 50%, rgba(25,90,200,0.40) 0%, rgba(18,70,155,0.25) 25%, rgba(12,50,115,0.14) 45%, rgba(6,25,70,0.06) 65%, transparent 85%)",
         }}
       />
-      {/* Tighter glow centered on the blob */}
       <div
         className="absolute pointer-events-none"
-        style={{
+        style={variant === "auth" ? {
+          bottom: "-30%",
+          left: "-10%",
+          width: "120%",
+          height: "80%",
+          background: "radial-gradient(ellipse at center, rgba(35,110,220,0.30) 0%, rgba(25,80,175,0.15) 30%, transparent 60%)",
+          filter: "blur(80px)",
+        } : {
           top: "-20%",
           right: "-25%",
           width: "100%",
@@ -253,13 +273,15 @@ export default function HeroBlob() {
           filter: "blur(80px)",
         }}
       />
-      {/* Left-side fade to protect text readability */}
-      <div
-        className="absolute pointer-events-none inset-0"
-        style={{
-          background: "linear-gradient(to right, rgba(9,9,11,0.95) 0%, rgba(9,9,11,0.7) 35%, rgba(9,9,11,0.3) 50%, transparent 65%)",
-        }}
-      />
+      {/* Text protection — only on landing */}
+      {variant === "landing" && (
+        <div
+          className="absolute pointer-events-none inset-0"
+          style={{
+            background: "linear-gradient(to right, rgba(9,9,11,0.95) 0%, rgba(9,9,11,0.7) 35%, rgba(9,9,11,0.3) 50%, transparent 65%)",
+          }}
+        />
+      )}
     </div>
   );
 }
