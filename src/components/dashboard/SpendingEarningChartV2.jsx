@@ -188,24 +188,15 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
             zIndex: 1000,
           }}
         >
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs shadow-lg whitespace-nowrap">
-            <div className="font-medium mb-1.5 text-[var(--color-muted)] text-[10px] uppercase tracking-wide">
-              {tooltipInfo.month}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Net</span>
-                <span className={`font-medium ${tooltipInfo.net >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
-                  {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
-                </span>
+          <div className="bg-[var(--color-fg)] dark:bg-[var(--color-fg)] rounded-md px-3 py-2.5 text-xs whitespace-nowrap">
+            <div className="text-[var(--color-bg)] dark:text-[var(--color-bg)]">
+              <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">{tooltipInfo.month}</span>
+              <div className={`text-sm font-semibold mt-1 ${tooltipInfo.net >= 0 ? '' : ''}`}>
+                {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Income</span>
-                <span className="font-medium text-[var(--color-fg)]">{formatCurrency(tooltipInfo.income)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Spending</span>
-                <span className="font-medium text-[var(--color-fg)]">{formatCurrency(tooltipInfo.spending)}</span>
+              <div className="flex items-center gap-3 mt-1.5 text-[10px] opacity-60">
+                <span>{formatCurrency(tooltipInfo.income)} in</span>
+                <span>{formatCurrency(tooltipInfo.spending)} out</span>
               </div>
             </div>
           </div>
