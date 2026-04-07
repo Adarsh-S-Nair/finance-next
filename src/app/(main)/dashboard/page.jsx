@@ -113,7 +113,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={subItem.id}
-                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''} ${isMain ? 'border-b border-zinc-100 pb-8 lg:border-b-0 lg:pb-0 lg:border-r lg:border-zinc-100 lg:pr-8 last:border-0 last:pb-0 last:pr-0' : ''}`}
+                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
                 <Component {...(subItem.props || {})} {...extraProps} />
               </div>
