@@ -82,7 +82,7 @@
   /* Matte Dark Mode - Balanced & Comfortable */
   --color-bg: #131313;
   /* Base layer — sidebar sits on this, content panel on top */
-  --color-surface: #212125;
+  --color-surface: #1a1a1a;
   /* Very subtle contrast with bg */
   --color-fg: #e4e4e7;
   /* Zinc 200 */
@@ -124,21 +124,21 @@
   /* Amber 400 */
   --color-on-warn: #09090b;
 
-  --color-input-bg: #212125;
-  /* Matches surface for consistency */
+  --color-input-bg: #1e1e1e;
+  /* Slightly lifted from surface */
   --color-input-fg: #e4e4e7;
   --color-input-placeholder: #71717a;
 
-  --color-surface-alt: #313131;
+  --color-surface-alt: #252525;
   --color-dropdown-bg: var(--color-surface-alt);
 
-  --color-content-bg: #181818;
+  --color-content-bg: #161616;
   --color-sidebar-bg: #131313;
-  --color-sidebar-active: #313131;
+  --color-sidebar-active: #252525;
 
   /* Glassmorphism helpers - Dark Mode */
-  --glass-bg: rgba(33, 33, 37, 0.85);
-  /* Matches surface */
+  --glass-bg: rgba(22, 22, 22, 0.85);
+  /* Matches content-bg */
   --glass-border: transparent;
   --glass-shadow: none;
 
