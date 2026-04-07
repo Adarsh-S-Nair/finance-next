@@ -85,21 +85,78 @@ export default function HeroBlob() {
     const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — subtle reflections, soft
-    const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0d1e35),
-      roughness: 0.55,
-      metalness: 0.3,
-      emissive: new THREE.Color(0x1a4080),
-      emissiveIntensity: 0.6,
+    // Gradient shader material — lighter blue with depth
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uLightPos1: { value: new THREE.Vector3(4, 2, 4) },
+        uLightPos2: { value: new THREE.Vector3(-3, -1, 3) },
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vWorldPos;
+        varying float vFresnel;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPos = worldPos.xyz;
+          vec3 viewDir = normalize(cameraPosition - worldPos.xyz);
+          vFresnel = 1.0 - max(dot(viewDir, vNormal), 0.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uLightPos1;
+        uniform vec3 uLightPos2;
+        varying vec3 vNormal;
+        varying vec3 vWorldPos;
+        varying float vFresnel;
+
+        void main() {
+          // Base gradient: dark blue core to lighter blue at edges
+          vec3 deepBlue = vec3(0.04, 0.08, 0.18);
+          vec3 midBlue = vec3(0.08, 0.22, 0.50);
+          vec3 lightBlue = vec3(0.15, 0.40, 0.75);
+          vec3 highlight = vec3(0.30, 0.55, 0.90);
+
+          // Fresnel-based gradient — edges are lighter
+          float f = pow(vFresnel, 1.5);
+          vec3 baseColor = mix(midBlue, lightBlue, f);
+
+          // Diffuse lighting from two light sources
+          vec3 lightDir1 = normalize(uLightPos1 - vWorldPos);
+          vec3 lightDir2 = normalize(uLightPos2 - vWorldPos);
+          float diff1 = max(dot(vNormal, lightDir1), 0.0);
+          float diff2 = max(dot(vNormal, lightDir2), 0.0);
+          float diffuse = diff1 * 0.7 + diff2 * 0.4;
+
+          // Blend diffuse lighting into color
+          vec3 color = mix(deepBlue, baseColor, 0.4 + diffuse * 0.6);
+
+          // Specular highlight — soft, broad
+          vec3 viewDir = normalize(cameraPosition - vWorldPos);
+          vec3 halfDir1 = normalize(lightDir1 + viewDir);
+          float spec = pow(max(dot(vNormal, halfDir1), 0.0), 20.0) * 0.4;
+          color += highlight * spec;
+
+          // Fresnel rim glow
+          color += lightBlue * pow(vFresnel, 3.0) * 0.5;
+
+          // Subtle emissive so it doesn't go full black in shadow
+          color += deepBlue * 0.3;
+
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(2.2, -0.3, 0);
     scene.add(mesh);
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0x2a3a5a, 1.5);
+    // Lights (for bloom interaction — the shader handles its own lighting)
+    const ambient = new THREE.AmbientLight(0x2a3a5a, 0.5);
     scene.add(ambient);
 
     const light1 = new THREE.PointLight(0x4488cc, 50, 30);
@@ -135,6 +192,7 @@ export default function HeroBlob() {
       pos.needsUpdate = true;
       geometry.computeVertexNormals();
 
+      material.uniforms.uTime.value = t;
       mesh.rotation.y = t * 0.3;
       mesh.rotation.x = Math.sin(t * 0.5) * 0.15;
 
