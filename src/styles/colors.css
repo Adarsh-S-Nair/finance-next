@@ -53,8 +53,8 @@
   --color-sidebar-active: var(--color-surface-alt);
 
   /* Glassmorphism helpers - Light Mode */
-  --glass-bg: rgba(255, 255, 255, 0.45);
-  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.7);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 
   --color-shadow: transparent;
@@ -137,9 +137,9 @@
   --color-sidebar-active: #252525;
 
   /* Glassmorphism helpers - Dark Mode */
-  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
 
   --color-shadow: transparent;
   --color-card-border: transparent;

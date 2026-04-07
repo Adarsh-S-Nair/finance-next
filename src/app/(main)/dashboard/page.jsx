@@ -16,6 +16,7 @@ import CalendarCard from "../../../components/dashboard/CalendarCard";
 import { FadeIn } from "@slate-ui/react";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
+import Card from "../../../components/ui/Card";
 
 // Map string keys to actual components
 const componentMap = {
@@ -81,14 +82,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id, mountRef.current]);
 
-  // Whether a component is a "main content" component (no card wrapper)
-  const mainContentComponents = new Set([
-    'MonthlyOverviewCard',
-    'SpendingVsEarningCard',
-    'TopCategoriesCard',
-    'RecentTransactionsCard',
-  ]);
-
   // Components that receive pre-fetched summary data from the dashboard
   const summaryDataMap = {
     'SpendingVsEarningCard': summaryData?.spendingEarning,
@@ -106,7 +99,6 @@ export default function DashboardPage() {
           {item.items.map((subItem) => {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
-            const isMain = mainContentComponents.has(subItem.component);
             const extraProps = summaryDataMap[subItem.component]
               ? { data: summaryDataMap[subItem.component] }
               : {};
@@ -115,7 +107,9 @@ export default function DashboardPage() {
                 key={subItem.id}
                 className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
-                <Component {...(subItem.props || {})} {...extraProps} />
+                <Card variant="glass" className="h-full">
+                  <Component {...(subItem.props || {})} {...extraProps} />
+                </Card>
               </div>
             );
           })}
@@ -131,7 +125,9 @@ export default function DashboardPage() {
 
     return (
       <div key={item.id} className={item.height || ''}>
-        <Component {...(item.props || {})} {...extraProps} />
+        <Card variant="glass" className="h-full">
+          <Component {...(item.props || {})} {...extraProps} />
+        </Card>
       </div>
     );
   };
