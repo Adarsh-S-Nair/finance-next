@@ -255,7 +255,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         showToggle={isTablet}
       />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-64 bg-[var(--color-content-bg)] dark:rounded-tl-2xl dark:rounded-bl-2xl">
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-72 bg-[var(--color-content-bg)] dark:rounded-tl-2xl dark:rounded-bl-2xl">
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
