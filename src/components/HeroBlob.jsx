@@ -39,6 +39,53 @@ function createNoise() {
   };
 }
 
+// Generate a smooth gradient environment map for reflections
+function createEnvMap(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+
+  const envScene = new THREE.Scene();
+
+  // Dark gradient background with subtle blue
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+
+  // Radial gradient — dark center, subtle blue edges
+  const grad = ctx.createRadialGradient(512, 256, 0, 512, 256, 512);
+  grad.addColorStop(0, "#0a0e18");
+  grad.addColorStop(0.4, "#0d1a2e");
+  grad.addColorStop(0.7, "#122844");
+  grad.addColorStop(1, "#1a3a66");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1024, 512);
+
+  // Add some subtle bright spots for interesting reflections
+  ctx.globalCompositeOperation = "screen";
+  for (const spot of [
+    { x: 200, y: 150, r: 120, color: "rgba(60,120,200,0.15)" },
+    { x: 700, y: 300, r: 150, color: "rgba(40,90,180,0.12)" },
+    { x: 500, y: 100, r: 100, color: "rgba(80,140,220,0.1)" },
+    { x: 850, y: 200, r: 80, color: "rgba(100,160,240,0.08)" },
+  ]) {
+    const g = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, spot.r);
+    g.addColorStop(0, spot.color);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1024, 512);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+
+  const envMap = pmrem.fromEquirectangular(texture).texture;
+  texture.dispose();
+  pmrem.dispose();
+
+  return envMap;
+}
+
 export default function HeroBlob() {
   const containerRef = useRef(null);
 
@@ -58,31 +105,36 @@ export default function HeroBlob() {
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.4;
     container.appendChild(renderer.domElement);
+
+    // Environment map for smooth reflections
+    const envMap = createEnvMap(renderer);
+    scene.environment = envMap;
 
     // Blob geometry — high subdivision for smooth surface
     const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — glossy dark with brighter blue reflections
+    // Material — glossy dark with smooth environment reflections
     const material = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(0x0f1f38),
-      roughness: 0.15,
-      metalness: 0.7,
+      roughness: 0.12,
+      metalness: 0.8,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.1,
+      clearcoatRoughness: 0.05,
       emissive: new THREE.Color(0x1a3a6a),
-      emissiveIntensity: 0.4,
-      reflectivity: 0.9,
+      emissiveIntensity: 0.3,
+      envMap: envMap,
+      envMapIntensity: 1.5,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(2.2, -0.3, 0); // Push blob to the right
+    mesh.position.set(2.2, -0.3, 0);
     scene.add(mesh);
 
-    // Lights — brighter for more definition
-    const ambient = new THREE.AmbientLight(0x2a3a5a, 0.8);
+    // Lights
+    const ambient = new THREE.AmbientLight(0x2a3a5a, 1.0);
     scene.add(ambient);
 
     const light1 = new THREE.PointLight(0x5599dd, 60, 30);
@@ -97,7 +149,6 @@ export default function HeroBlob() {
     light3.position.set(0, 3, -2);
     scene.add(light3);
 
-    // Subtle rim light from behind
     const light4 = new THREE.PointLight(0x6699cc, 20, 30);
     light4.position.set(2, -2, -3);
     scene.add(light4);
@@ -134,6 +185,7 @@ export default function HeroBlob() {
     function onResize() {
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
+      renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(container.clientWidth, container.clientHeight);
     }
     window.addEventListener("resize", onResize);
@@ -141,6 +193,7 @@ export default function HeroBlob() {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", onResize);
+      envMap.dispose();
       renderer.dispose();
       geometry.dispose();
       material.dispose();
