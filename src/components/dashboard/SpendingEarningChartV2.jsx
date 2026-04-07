@@ -318,7 +318,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   <path
                     d={barPath}
                     fill="var(--color-chart-primary)"
-                    opacity={isActive ? 1 : 0.3}
+                    opacity={isActive ? 1 : 0.6}
                     filter={isActive ? 'url(#bar-glow)' : 'url(#bar-shadow)'}
                     style={{ transition: 'all 0.3s ease' }}
                   />
