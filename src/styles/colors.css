@@ -80,8 +80,8 @@
 
 .dark {
   /* Matte Dark Mode - Balanced & Comfortable */
-  --color-bg: #1e1e21;
-  /* Custom - between Zinc 900 and 800 */
+  --color-bg: #1a1a1d;
+  /* Matches sidebar — content panel sits on top */
   --color-surface: #212125;
   /* Very subtle contrast with bg */
   --color-fg: #e4e4e7;
