@@ -249,13 +249,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)]">
+    <div className="min-h-screen bg-[var(--color-bg)] relative">
+      {/* Global ambient glow — right edge, full height */}
+      <div
+        className="fixed top-0 right-0 bottom-0 pointer-events-none opacity-[0.04] dark:opacity-[0.07]"
+        style={{
+          width: '50vw',
+          background: 'radial-gradient(ellipse 80% 60% at 90% 50%, var(--color-chart-primary), transparent)',
+        }}
+      />
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         showToggle={isTablet}
       />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-72">
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-72 relative">
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
