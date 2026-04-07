@@ -150,16 +150,16 @@ export default function DashboardPage() {
 
   return (
     <PageContainer title={greeting} documentTitle="Dashboard">
-      {/* Subtle page-level ambient glow — right-biased, fades before sidebar */}
+      {/* Subtle page-level ambient glow — far right, large and soft */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
-          className="absolute opacity-[0.035] dark:opacity-[0.06]"
+          className="absolute opacity-[0.04] dark:opacity-[0.07]"
           style={{
-            width: '55%',
-            height: '70%',
-            top: '10%',
-            right: '20%',
-            background: 'radial-gradient(ellipse at 60% 50%, var(--color-chart-primary), transparent 65%)',
+            width: '80%',
+            height: '90%',
+            top: '0%',
+            right: '-15%',
+            background: 'radial-gradient(ellipse 60% 70% at 70% 40%, var(--color-chart-primary), transparent)',
           }}
         />
       </div>

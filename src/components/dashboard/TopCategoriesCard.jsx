@@ -249,23 +249,34 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
-                {/* Depth filter — inner shadow for a raised/beveled look */}
-                <filter id="donut-depth" x="-10%" y="-10%" width="120%" height="120%">
-                  {/* Create inner shadow by inverting the alpha, blurring, then compositing */}
-                  <feComponentTransfer in="SourceAlpha" result="invert">
-                    <feFuncA type="table" tableValues="1 0" />
-                  </feComponentTransfer>
-                  <feGaussianBlur in="invert" stdDeviation="1.2" result="blur" />
-                  <feOffset dx="1" dy="1.5" in="blur" result="offsetBlur" />
-                  <feFlood floodColor="black" floodOpacity="0.2" result="shadowColor" />
-                  <feComposite in="shadowColor" in2="offsetBlur" operator="in" result="innerShadow" />
-                  <feComposite in="innerShadow" in2="SourceAlpha" operator="in" result="clippedShadow" />
-                  <feMerge>
-                    <feMergeNode in="SourceGraphic" />
-                    <feMergeNode in="clippedShadow" />
-                  </feMerge>
+                {/* Drop shadow for depth on idle segments */}
+                <filter id="donut-shadow" x="-15%" y="-15%" width="140%" height="140%">
+                  <feDropShadow dx="2" dy="2" stdDeviation="2.5" floodColor="black" floodOpacity="0.2" />
                 </filter>
               </defs>
+              {/* Shadow Pie Layer — offset dark shadow behind visible segments */}
+              <Pie
+                data={categories}
+                cx="50%"
+                cy="50%"
+                innerRadius={110}
+                outerRadius={128}
+                paddingAngle={4}
+                cornerRadius={4}
+                dataKey="total_spent"
+                stroke="none"
+                isAnimationActive={false}
+                style={{ pointerEvents: 'none' }}
+                filter="url(#donut-shadow)"
+              >
+                {categories.map((entry, index) => (
+                  <Cell
+                    key={`shadow-${index}`}
+                    fill="black"
+                    opacity={0}
+                  />
+                ))}
+              </Pie>
               {/* Visible Pie Layer */}
               <Pie
                 data={categories}
@@ -289,7 +300,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                       key={`cell-${index}`}
                       fill={isActive || isIdle ? color : 'var(--color-border)'}
                       opacity={isActive ? 1 : isIdle ? 0.65 : 0.35}
-                      filter={isActive ? 'url(#donut-glow)' : 'url(#donut-depth)'}
+                      filter={isActive ? 'url(#donut-glow)' : 'url(#donut-shadow)'}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         outline: 'none',
