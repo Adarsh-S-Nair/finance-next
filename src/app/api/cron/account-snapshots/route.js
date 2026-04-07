@@ -27,6 +27,7 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { verifyCronSecret } from '../../../../lib/api/cron';
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -130,13 +131,9 @@ function computeIdsToThin(snapshots, firstId, lastId) {
 // ---------------------------------------------------------------------------
 
 export async function GET(request) {
-  // Verify cron secret
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Verify cron secret (mandatory — refuses to run if CRON_SECRET is unset)
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   try {
     console.log('\n📸 ACCOUNT SNAPSHOTS CRON JOB');

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit } from './lib/api/rateLimit';
 
 // Routes that do NOT require user auth
 const PUBLIC_ROUTES = [
@@ -30,6 +31,14 @@ export async function middleware(request: NextRequest) {
   // Let public routes through
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
+  }
+
+  // Rate limit by IP (skip webhooks — they have their own retry logic)
+  const isWebhook = pathname.endsWith('/webhook');
+  if (!isWebhook) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const rateLimited = checkRateLimit(`ip:${ip}`, pathname);
+    if (rateLimited) return rateLimited;
   }
 
   // Try to get the token from Authorization header first, then cookies
@@ -99,6 +108,10 @@ export async function middleware(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Per-user rate limit (more precise than IP-only)
+    const userRateLimited = checkRateLimit(`user:${data.user.id}`, pathname);
+    if (userRateLimited) return userRateLimited;
 
     // Inject verified userId into request headers for downstream route handlers
     const requestHeaders = new Headers(request.headers);

@@ -19,6 +19,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyCronSecret } from '../../../../lib/api/cron';
 
 // Mark route as dynamic
 export const dynamic = 'force-dynamic';
@@ -36,16 +37,9 @@ function getSupabaseClient() {
 }
 
 export async function GET(request) {
-  // Verify cron secret if set (for security)
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
+  // Verify cron secret (mandatory — refuses to run if CRON_SECRET is unset)
+  const authError = verifyCronSecret(request);
+  if (authError) return authError;
 
   try {
     const supabase = getSupabaseClient();
