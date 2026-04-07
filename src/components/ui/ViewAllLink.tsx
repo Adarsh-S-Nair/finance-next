@@ -12,7 +12,7 @@ type ViewAllLinkProps = {
 
 export default function ViewAllLink({ href, onClick, children = "View all", className }: ViewAllLinkProps) {
   const styles = clsx(
-    "text-xs text-[var(--color-fg)]/50 hover:text-[var(--color-fg)] transition-colors cursor-pointer",
+    "text-xs font-medium text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] transition-colors cursor-pointer",
     className
   );
 
