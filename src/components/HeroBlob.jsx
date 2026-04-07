@@ -49,6 +49,10 @@ export default function HeroBlob() {
     const container = containerRef.current;
     if (!container) return;
 
+    // The canvas sits on top of a CSS radial gradient glow (see render below)
+    const canvasWrap = container.querySelector("[data-blob-canvas]");
+    if (!canvasWrap) return;
+
     const noise = createNoise();
 
     // Scene setup
@@ -62,25 +66,26 @@ export default function HeroBlob() {
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
-    container.appendChild(renderer.domElement);
+    canvasWrap.appendChild(renderer.domElement);
 
-    // Post-processing — bloom for glow effect
+    // Post-processing — bloom for soft edge glow
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
+    composer.renderToScreen = true;
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      1.5,   // strength
-      0.8,   // radius
-      0.2    // threshold
+      1.2,   // strength
+      1.0,   // radius — wide spread
+      0.25   // threshold
     );
     composer.addPass(bloomPass);
 
-    // Blob geometry — high subdivision, subtle displacement
+    // Blob geometry — high subdivision, full blobby displacement
     const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — subtle reflections, not mirror-like
+    // Material — subtle reflections, soft
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0d1e35),
       roughness: 0.55,
@@ -93,35 +98,7 @@ export default function HeroBlob() {
     mesh.position.set(2.2, -0.3, 0);
     scene.add(mesh);
 
-    // Glow shell — slightly larger, additive blended
-    const glowGeometry = new THREE.IcosahedronGeometry(1.85, 64);
-    const glowBasePositions = Float32Array.from(glowGeometry.attributes.position.array);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x3388dd),
-      transparent: true,
-      opacity: 0.22,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-    glowMesh.position.copy(mesh.position);
-    scene.add(glowMesh);
-
-    // Outer haze shell — even larger for atmospheric glow
-    const hazeGeometry = new THREE.IcosahedronGeometry(2.2, 32);
-    const hazeBasePositions = Float32Array.from(hazeGeometry.attributes.position.array);
-    const hazeMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x2266aa),
-      transparent: true,
-      opacity: 0.12,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const hazeMesh = new THREE.Mesh(hazeGeometry, hazeMaterial);
-    hazeMesh.position.copy(mesh.position);
-    scene.add(hazeMesh);
-
-    // Lights — soft, diffuse
+    // Lights
     const ambient = new THREE.AmbientLight(0x2a3a5a, 1.5);
     scene.add(ambient);
 
@@ -140,19 +117,17 @@ export default function HeroBlob() {
     // Animation
     let animId;
     const pos = geometry.attributes.position;
-    const glowPos = glowGeometry.attributes.position;
-    const hazePos = hazeGeometry.attributes.position;
 
     function animate() {
       animId = requestAnimationFrame(animate);
-      const t = performance.now() * 0.0003;
+      const t = performance.now() * 0.0004;
 
-      // Morph main blob vertices — subtle displacement (more spherical)
+      // Morph vertices — original blobby displacement
       for (let i = 0; i < pos.count; i++) {
         const ix = i * 3;
         const bx = basePositions[ix], by = basePositions[ix + 1], bz = basePositions[ix + 2];
-        const displacement = noise(bx * 1.2 + t, by * 1.2 + t * 0.6, bz * 1.2 + t * 0.4);
-        const scale = 1 + displacement * 0.1;
+        const displacement = noise(bx * 1.5 + t, by * 1.5 + t * 0.7, bz * 1.5 + t * 0.5);
+        const scale = 1 + displacement * 0.22;
         pos.array[ix] = bx * scale;
         pos.array[ix + 1] = by * scale;
         pos.array[ix + 2] = bz * scale;
@@ -160,38 +135,8 @@ export default function HeroBlob() {
       pos.needsUpdate = true;
       geometry.computeVertexNormals();
 
-      // Morph glow shell to follow the blob loosely
-      for (let i = 0; i < glowPos.count; i++) {
-        const ix = i * 3;
-        const bx = glowBasePositions[ix], by = glowBasePositions[ix + 1], bz = glowBasePositions[ix + 2];
-        const displacement = noise(bx * 1.0 + t * 0.8, by * 1.0 + t * 0.5, bz * 1.0 + t * 0.3);
-        const scale = 1 + displacement * 0.08;
-        glowPos.array[ix] = bx * scale;
-        glowPos.array[ix + 1] = by * scale;
-        glowPos.array[ix + 2] = bz * scale;
-      }
-      glowPos.needsUpdate = true;
-
-      // Morph haze
-      for (let i = 0; i < hazePos.count; i++) {
-        const ix = i * 3;
-        const bx = hazeBasePositions[ix], by = hazeBasePositions[ix + 1], bz = hazeBasePositions[ix + 2];
-        const displacement = noise(bx * 0.8 + t * 0.6, by * 0.8 + t * 0.4, bz * 0.8 + t * 0.2);
-        const scale = 1 + displacement * 0.06;
-        hazePos.array[ix] = bx * scale;
-        hazePos.array[ix + 1] = by * scale;
-        hazePos.array[ix + 2] = bz * scale;
-      }
-      hazePos.needsUpdate = true;
-
-      mesh.rotation.y = t * 0.25;
-      mesh.rotation.x = Math.sin(t * 0.4) * 0.1;
-      glowMesh.rotation.copy(mesh.rotation);
-      hazeMesh.rotation.copy(mesh.rotation);
-
-      // Pulse the glow
-      glowMaterial.opacity = 0.18 + Math.sin(t * 2) * 0.06;
-      hazeMaterial.opacity = 0.10 + Math.sin(t * 1.5 + 1) * 0.04;
+      mesh.rotation.y = t * 0.3;
+      mesh.rotation.x = Math.sin(t * 0.5) * 0.15;
 
       composer.render();
     }
@@ -216,16 +161,29 @@ export default function HeroBlob() {
       composer.dispose();
       renderer.dispose();
       geometry.dispose();
-      glowGeometry.dispose();
-      hazeGeometry.dispose();
       material.dispose();
-      glowMaterial.dispose();
-      hazeMaterial.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
+      if (canvasWrap.contains(renderer.domElement)) {
+        canvasWrap.removeChild(renderer.domElement);
       }
     };
   }, []);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div ref={containerRef} className="absolute inset-0">
+      {/* CSS radial gradient glow behind the blob */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          top: "10%",
+          right: "-10%",
+          width: "70%",
+          height: "80%",
+          background: "radial-gradient(ellipse at center, rgba(20,70,140,0.25) 0%, rgba(15,50,110,0.12) 30%, rgba(10,30,80,0.05) 55%, transparent 75%)",
+          filter: "blur(40px)",
+        }}
+      />
+      {/* WebGL canvas layer */}
+      <div data-blob-canvas className="absolute inset-0" />
+    </div>
+  );
 }
