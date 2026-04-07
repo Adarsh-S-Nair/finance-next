@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
@@ -8,6 +8,26 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 
 const FALLBACK_COLOR = '#71717a';
+
+// When multiple categories share a group color, shift lightness so
+// they read as "tints of the same family" rather than identical slices.
+function dedupeColors(categories) {
+  const seen = {};          // hex -> count of times seen so far
+  return categories.map((cat) => {
+    const base = (cat.hex_color || FALLBACK_COLOR).toLowerCase();
+    const n = seen[base] || 0;
+    seen[base] = n + 1;
+    if (n === 0) return base;
+    // Parse hex → RGB, then lighten/darken per occurrence
+    const r = parseInt(base.slice(1, 3), 16);
+    const g = parseInt(base.slice(3, 5), 16);
+    const b = parseInt(base.slice(5, 7), 16);
+    // Alternate: odd occurrences lighten, even darken — keeps them distinct
+    const shift = n % 2 === 1 ? 40 * Math.ceil(n / 2) : -30 * Math.ceil(n / 2);
+    const clamp = (v) => Math.max(0, Math.min(255, v + shift));
+    return `#${[r, g, b].map(clamp).map(v => v.toString(16).padStart(2, '0')).join('')}`;
+  });
+}
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
@@ -24,6 +44,9 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     { label: 'This Month', value: 'thisMonth' },
     { label: 'Last 30 Days', value: 'last30' },
   ];
+
+  // Resolve colors — shift lightness when siblings share a group color
+  const sliceColors = useMemo(() => dedupeColors(categories), [categories]);
 
 
   const containerRef = React.useRef(null);
@@ -233,7 +256,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 style={{ pointerEvents: 'none' }} // Pass events through
               >
                 {categories.map((entry, index) => {
-                  const color = entry.hex_color || FALLBACK_COLOR;
+                  const color = sliceColors[index] || FALLBACK_COLOR;
                   const dimmed = activeIndex !== null && activeIndex !== index;
                   return (
                     <Cell

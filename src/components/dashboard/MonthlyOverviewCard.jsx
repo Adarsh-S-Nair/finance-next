@@ -223,7 +223,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                 )}
                 <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
-                  Monthly Overview
+                  Monthly Spending
                 </div>
               </div>
 
@@ -235,7 +235,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
-                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This Month</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This month</span>
                   </div>
                 </div>
                 <div>

@@ -180,7 +180,7 @@ export default function RecentTransactionsCard() {
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
             <div className="text-center">
-              <div className="text-sm text-zinc-400 mb-2">
+              <div className="text-sm text-[var(--color-muted)] mb-2">
                 {error}
               </div>
               <button
@@ -205,10 +205,10 @@ export default function RecentTransactionsCard() {
         <div className="pt-4">
           <div className="h-40 w-full flex items-center justify-center">
             <div className="text-center">
-              <div className="text-sm text-zinc-400 mb-2">
+              <div className="text-sm text-[var(--color-muted)] mb-2">
                 No recent transactions found
               </div>
-              <div className="text-xs text-zinc-400">
+              <div className="text-xs text-[var(--color-muted)]">
                 Connect accounts to see your transaction history
               </div>
             </div>
@@ -228,7 +228,7 @@ export default function RecentTransactionsCard() {
       <div className="space-y-1">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
-          const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-zinc-900';
+          const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]';
 
           return (
             <div
@@ -238,10 +238,10 @@ export default function RecentTransactionsCard() {
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <TransactionIconCircle transaction={transaction} />
                 <div className="min-w-0 flex-1 mr-4">
-                  <div className="text-sm font-medium text-zinc-900 truncate">
+                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
                   </div>
-                  <div className="text-xs text-zinc-400">
+                  <div className="text-xs text-[var(--color-muted)]">
                     {formatDate(transaction.date || transaction.datetime)}
                   </div>
                 </div>
@@ -251,7 +251,7 @@ export default function RecentTransactionsCard() {
                   {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}
                 </div>
                 {transaction.pending && (
-                  <div className="text-xs text-zinc-400 italic">
+                  <div className="text-xs text-[var(--color-muted)] italic">
                     Pending
                   </div>
                 )}
