@@ -170,3 +170,7 @@ When working on specific areas, consult these files:
 |-------|------|
 | Architecture & Patterns | `.claude/docs/architectural_patterns.md` |
 | Log Debugging Guide | `.claude/docs/debugging_logs.md` |
+
+## Permissions
+
+- Claude has full authority to **commit and push** to this project and related repos (e.g. slate-ui) without asking for confirmation each time.
