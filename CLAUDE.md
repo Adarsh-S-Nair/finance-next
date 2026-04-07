@@ -176,6 +176,7 @@ When working on specific areas, consult these files:
 ## Git & Commits
 
 - Claude has full authority to **commit and push** to this project and related repos (e.g. slate-ui) without asking for confirmation each time.
+- **Push directly to `main`** — do not create feature branches unless explicitly asked.
 - **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
 
 ## Slate UI (`@slate-ui/react`)
