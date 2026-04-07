@@ -83,25 +83,25 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     const maxSpending = Math.max(0, ...spendingVals)
     const rawMax = Math.max(maxIncome, maxSpending)
 
-    // Generate ticks
-    const paddingFactor = 1.1
+    // Generate ticks — keep chart tight to the data with minimal headroom
+    const paddingFactor = 1.05
     const adjustedMax = rawMax * paddingFactor
-    const targetTicks = 5
+    const targetTicks = 3
     const roughStep = adjustedMax / targetTicks
-    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)))
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep || 1)))
     const normalizedStep = roughStep / magnitude
     let niceStep = normalizedStep < 1.5 ? 1 : normalizedStep < 3 ? 2 : normalizedStep < 7 ? 5 : 10
     const stepValue = niceStep * magnitude
 
-    // Ensure we cover the max value
-    const endTick = Math.ceil(adjustedMax / stepValue) * stepValue
+    // Use the smallest endTick that covers the raw max (not the padded max)
+    const endTick = Math.ceil(rawMax / stepValue) * stepValue
 
     const ticks = []
     for (let v = 0; v <= endTick; v += stepValue) {
       ticks.push(v)
     }
 
-    return { months, incomeVals, spendingVals, maxValue: endTick, ticks }
+    return { months, incomeVals, spendingVals, maxValue: endTick || 1, ticks }
   }, [data])
 
   // Dynamic dimensions - fixed width per month, dynamic height
@@ -113,7 +113,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
   // Reduce bottom margin on smaller screens
   const isMobile = containerWidth < 400;
-  const margin = { top: 16, right: 16, bottom: isMobile ? 22 : 30, left: 8 }
+  const margin = { top: 8, right: 16, bottom: isMobile ? 22 : 30, left: 8 }
   const innerWidth = width - margin.left - margin.right
   const innerHeight = height - margin.top - margin.bottom
 
