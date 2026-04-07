@@ -99,7 +99,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       <div className="p-4 flex items-center justify-center h-16">
         <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
           <div
-            className="h-8 w-8 bg-[var(--color-fg)]"
+            className="h-7 w-7 bg-[var(--color-fg)]"
             style={{
               maskImage: 'url(/logo.svg)',
               maskSize: 'contain',
@@ -113,7 +113,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           />
           {!isCollapsed && (
             <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+              <h1 className="text-xs font-semibold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
                 ZERVO
               </h1>
               {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
@@ -155,13 +155,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                       onMouseLeave={() => setHoveredItem(null)}
                       aria-disabled={it.disabled || undefined}
                       className={clsx(
-                        "group relative flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
+                        "group relative flex items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
                         it.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "cursor-pointer",
                         active
                           ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                          : "text-[var(--color-fg)]/70 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+                          : "text-[var(--color-fg)]/60 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)]"
                       )}
                     >
                       {active && (
@@ -170,12 +170,12 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                         />
                       )}
 
-                      <span className={`flex items-center gap-3 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
+                      <span className={`flex items-center gap-2.5 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
                         <span className="flex items-center justify-center">
-                          {it.icon && <it.icon className="h-5 w-5" />}
+                          {it.icon && <it.icon className="h-[18px] w-[18px]" />}
                         </span>
                         {!isCollapsed && (
-                          <span className="tracking-wide">
+                          <span className="tracking-normal">
                             {it.label}
                           </span>
                         )}
@@ -216,19 +216,19 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 href="/settings"
                 onClick={() => { setShowPopover(false); onNavigate?.(); }}
                 className={clsx(
-                  "flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors duration-150",
+                  "flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-colors duration-150",
                   pathname.startsWith("/settings")
                     ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]"
+                    : "text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)]"
                 )}
               >
-                <LuSettings className="h-5 w-5 flex-shrink-0" />
+                <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
                 <span>Settings</span>
               </Link>
 
               {/* Help & Support (locked) */}
-              <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
-                <LuHeadphones className="h-5 w-5 flex-shrink-0" />
+              <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
+                <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
                 <span className="flex-1">Help &amp; Support</span>
                 <FaLock className="h-3 w-3 opacity-60" />
               </div>
@@ -236,9 +236,9 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               {/* Log out */}
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors duration-150 rounded-lg mb-1"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)] transition-colors duration-150 rounded-lg mb-1"
               >
-                <TbLogout className="h-5 w-5 flex-shrink-0" />
+                <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
                 <span>Log out</span>
               </button>
             </motion.div>
