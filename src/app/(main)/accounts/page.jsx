@@ -195,10 +195,66 @@ export default function AccountsPage() {
   if (loading) {
     return (
       <PageContainer title="Accounts">
-        <div className="flex items-center justify-center py-32">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)] mx-auto mb-4" />
-            <p className="text-[var(--color-muted)]">Loading accounts...</p>
+        <div className="space-y-8 animate-pulse">
+          {/* Summary cards skeleton */}
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className="lg:w-2/3">
+              <Card variant="glass" className="h-[260px]">
+                <div className="h-4 bg-[var(--color-border)] rounded w-24 mb-4" />
+                <div className="h-8 bg-[var(--color-border)] rounded w-40 mb-2" />
+                <div className="h-3 bg-[var(--color-border)] rounded w-20 mb-6" />
+                <div className="flex-1 bg-[var(--color-border)] opacity-30 rounded-lg h-[120px]" />
+              </Card>
+            </div>
+            <div className="lg:w-1/3 flex flex-col gap-6">
+              <Card variant="glass">
+                <div className="h-3 bg-[var(--color-border)] rounded w-12 mb-4" />
+                <div className="h-6 bg-[var(--color-border)] rounded w-28 mb-4" />
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+                      <div className="h-4 bg-[var(--color-border)] rounded w-16" />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+              <Card variant="glass" className="hidden lg:block">
+                <div className="h-3 bg-[var(--color-border)] rounded w-16 mb-4" />
+                <div className="h-6 bg-[var(--color-border)] rounded w-28 mb-4" />
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <div className="h-4 bg-[var(--color-border)] rounded w-24" />
+                      <div className="h-4 bg-[var(--color-border)] rounded w-16" />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          {/* Accounts list skeleton */}
+          <div className="pt-4">
+            <div className="mb-6 px-1 flex items-end justify-between">
+              <div className="h-5 bg-[var(--color-border)] rounded w-28" />
+              <div className="h-8 bg-[var(--color-border)] rounded-full w-24" />
+            </div>
+            <div className="space-y-1">
+              <div className="h-4 bg-[var(--color-border)] rounded w-32 mx-5 mb-2" />
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between px-5 py-3.5">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-[var(--color-border)]" />
+                    <div>
+                      <div className="h-4 bg-[var(--color-border)] rounded w-32 mb-1.5" />
+                      <div className="h-3 bg-[var(--color-border)] rounded w-40" />
+                    </div>
+                  </div>
+                  <div className="h-4 bg-[var(--color-border)] rounded w-20" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </PageContainer>

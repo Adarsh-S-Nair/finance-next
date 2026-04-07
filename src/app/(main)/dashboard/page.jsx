@@ -13,7 +13,6 @@ import RecentTransactionsCard from "../../../components/dashboard/RecentTransact
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
-import { FadeIn } from "@slate-ui/react";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 import Card from "../../../components/ui/Card";
@@ -149,27 +148,23 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-8">
-          {dashboardLayout.main.map((item, i) => (
-            <FadeIn key={item.id} delay={0.1 + i * 0.1}>
+          {dashboardLayout.main.map((item) => (
+            <div key={item.id}>
               {renderItem(item)}
-            </FadeIn>
+            </div>
           ))}
         </div>
 
         {/* Sidebar */}
         <div className="lg:col-span-3 space-y-8">
-          {!isPro && (
-            <FadeIn delay={0.2}>
-              <UpgradeBanner />
-            </FadeIn>
-          )}
-          {dashboardLayout.sidebar.map((item, i) => {
+          {!isPro && <UpgradeBanner />}
+          {dashboardLayout.sidebar.map((item) => {
             // Hide pro-only cards (budgets, calendar) for free users
             if (!isPro && item.id === 'sidebar-group') return null;
             return (
-              <FadeIn key={item.id} delay={isPro ? 0.2 + i * 0.15 : 0.3 + i * 0.15}>
+              <div key={item.id}>
                 {renderItem(item)}
-              </FadeIn>
+              </div>
             );
           })}
         </div>
