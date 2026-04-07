@@ -129,12 +129,12 @@
   --color-input-fg: #e4e4e7;
   --color-input-placeholder: #71717a;
 
-  --color-surface-alt: #262629;
+  --color-surface-alt: #313131;
   --color-dropdown-bg: var(--color-surface-alt);
 
   --color-content-bg: #181818;
   --color-sidebar-bg: #1f1f1f;
-  --color-sidebar-active: #2a2a2f;
+  --color-sidebar-active: #313131;
 
   /* Glassmorphism helpers - Dark Mode */
   --glass-bg: rgba(33, 33, 37, 0.85);
