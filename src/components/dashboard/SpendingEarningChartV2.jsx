@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useUser } from '../providers/UserProvider';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -12,18 +11,24 @@ function formatCurrency(amount) {
   }).format(amount);
 }
 
-function roundedRectPath(x, y, w, h, r) {
-  const r2 = Math.min(r, w / 2, h / 2);
+// Rounded top corners (positive bars — grow upward)
+function roundedTopPath(x, y, w, h, r) {
+  const r2 = Math.min(r, w / 2, Math.abs(h) / 2);
   return `M ${x} ${y + h} L ${x} ${y + r2} Q ${x} ${y} ${x + r2} ${y} L ${x + w - r2} ${y} Q ${x + w} ${y} ${x + w} ${y + r2} L ${x + w} ${y + h} Z`;
 }
 
-// Fixed width per month group for consistent bar sizes
+// Rounded bottom corners (negative bars — grow downward)
+function roundedBottomPath(x, y, w, h, r) {
+  const r2 = Math.min(r, w / 2, Math.abs(h) / 2);
+  return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h - r2} Q ${x + w} ${y + h} ${x + w - r2} ${y + h} L ${x + r2} ${y + h} Q ${x} ${y + h} ${x} ${y + h - r2} Z`;
+}
+
+// Fixed width per month group
 const MONTH_GROUP_WIDTH = 80;
 
 export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = [] }) {
-  const { user } = useUser();
-  const [activeMonthIndex, setActiveMonthIndex] = useState(null)
-  const [tooltipInfo, setTooltipInfo] = useState(null); // { month, income, spending, left }
+  const [activeMonthIndex, setActiveMonthIndex] = useState(null);
+  const [tooltipInfo, setTooltipInfo] = useState(null);
   const containerRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(280);
@@ -31,10 +36,9 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
 
-  // Handle Resize - only track container height
+  // Handle Resize
   useEffect(() => {
     if (!containerRef.current) return;
-
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
@@ -42,7 +46,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         setContainerWidth(width);
       }
     });
-
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
@@ -59,7 +62,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   // Scroll to the right on mount to show most recent months
   useEffect(() => {
     if (scrollContainerRef.current && data.length > 0) {
-      // Small delay to ensure content is rendered
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
           scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
@@ -69,75 +71,63 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     }
   }, [data.length, containerWidth]);
 
-  // Process data
-  const { months, incomeVals, spendingVals, maxValue, ticks } = useMemo(() => {
+  // Process data — compute net cashflow per month
+  const { months, netVals, incomeVals, spendingVals, maxAbs, ticks } = useMemo(() => {
     if (!data || data.length === 0) {
-      return { months: [], incomeVals: [], spendingVals: [], maxValue: 0, ticks: [] }
+      return { months: [], netVals: [], incomeVals: [], spendingVals: [], maxAbs: 0, ticks: [] };
     }
 
-    const months = data.map(month => month.monthName.substring(0, 3))
-    const incomeVals = data.map(month => month.earning || 0)
-    const spendingVals = data.map(month => Math.abs(month.spending || 0)) // Treat spending as positive for side-by-side
+    const months = data.map(month => month.monthName.substring(0, 3));
+    const incomeVals = data.map(month => month.earning || 0);
+    const spendingVals = data.map(month => Math.abs(month.spending || 0));
+    const netVals = data.map((month, i) => incomeVals[i] - spendingVals[i]);
 
-    const maxIncome = Math.max(0, ...incomeVals)
-    const maxSpending = Math.max(0, ...spendingVals)
-    const rawMax = Math.max(maxIncome, maxSpending)
+    const rawMaxAbs = Math.max(1, ...netVals.map(Math.abs));
 
-    // Generate ticks — keep chart tight to the data with minimal headroom
-    const paddingFactor = 1.05
-    const adjustedMax = rawMax * paddingFactor
-    const targetTicks = 3
-    const roughStep = adjustedMax / targetTicks
-    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep || 1)))
-    const normalizedStep = roughStep / magnitude
-    let niceStep = normalizedStep < 1.5 ? 1 : normalizedStep < 3 ? 2 : normalizedStep < 7 ? 5 : 10
-    const stepValue = niceStep * magnitude
+    // Generate symmetric ticks around zero
+    const paddingFactor = 1.1;
+    const adjusted = rawMaxAbs * paddingFactor;
+    const targetTicks = 2; // ticks per side
+    const roughStep = adjusted / targetTicks;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep || 1)));
+    const norm = roughStep / magnitude;
+    const niceStep = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+    const stepValue = niceStep * magnitude;
+    const maxTick = Math.ceil(rawMaxAbs / stepValue) * stepValue;
 
-    // Use the smallest endTick that covers the raw max (not the padded max)
-    const endTick = Math.ceil(rawMax / stepValue) * stepValue
-
-    const ticks = []
-    for (let v = 0; v <= endTick; v += stepValue) {
-      ticks.push(v)
+    const ticks = [];
+    for (let v = -maxTick; v <= maxTick; v += stepValue) {
+      ticks.push(v);
     }
 
-    return { months, incomeVals, spendingVals, maxValue: endTick || 1, ticks }
-  }, [data])
+    return { months, netVals, incomeVals, spendingVals, maxAbs: maxTick, ticks };
+  }, [data]);
 
-  // Dynamic dimensions - fixed width per month, dynamic height
+  // Dimensions
   const height = containerHeight;
-  // Calculate if we need scrolling
   const minChartWidth = months.length * MONTH_GROUP_WIDTH;
   const needsScroll = minChartWidth > containerWidth;
   const width = needsScroll ? minChartWidth : containerWidth;
 
-  // Reduce bottom margin on smaller screens
   const isMobile = containerWidth < 400;
-  const margin = { top: 8, right: 16, bottom: isMobile ? 22 : 30, left: 8 }
-  const innerWidth = width - margin.left - margin.right
-  const innerHeight = height - margin.top - margin.bottom
-
-  const scaleY = innerHeight / (maxValue || 1)
+  const margin = { top: 8, right: 16, bottom: isMobile ? 22 : 30, left: 8 };
+  const innerHeight = height - margin.top - margin.bottom;
   const stepX = MONTH_GROUP_WIDTH;
 
-  // Bar dimensions - fixed sizing
-  const groupPadding = stepX * 0.25 // Space between groups
-  const barGap = 4 // Fixed gap between bars in a group
-  const availableWidth = stepX - groupPadding
-  const barWidth = (availableWidth - barGap) / 2
-  const finalBarWidth = Math.min(barWidth, 22) // Cap max width at 22px
+  // Single bar — wider than the old paired bars
+  const barWidth = Math.min(28, stepX * 0.4);
+  const barOffset = (stepX - barWidth) / 2;
 
-  // Re-center bars within the group
-  const totalGroupWidth = (finalBarWidth * 2) + barGap
-  const offset = (stepX - totalGroupWidth) / 2
+  // Y scaling — symmetric around zero baseline
+  const baseline = margin.top + innerHeight / 2;
+  const halfHeight = innerHeight / 2;
+  const scaleY = maxAbs > 0 ? halfHeight / maxAbs : 1;
 
-  const yFromValue = (v) => height - margin.bottom - (v * scaleY)
-  const hFromValue = (v) => v * scaleY
+  const yFromValue = (v) => baseline - v * scaleY;
 
-  const onMove = (e, month, inc, spd, fullData, index) => {
-    setActiveMonthIndex(index)
+  const onMove = (e, month, index) => {
+    setActiveMonthIndex(index);
 
-    // Calculate tooltip position relative to container
     if (scrollContainerRef.current) {
       const scrollLeft = scrollContainerRef.current.scrollLeft;
       const cx = margin.left + stepX * index + stepX / 2;
@@ -145,28 +135,27 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
       setTooltipInfo({
         month,
-        income: inc,
-        spending: spd,
-        left: tooltipLeft
+        net: netVals[index],
+        income: incomeVals[index],
+        spending: spendingVals[index],
+        left: tooltipLeft,
       });
     }
 
     if (onHover) {
       onHover({
-        monthName: fullData.monthName,
-        earning: inc,
-        spending: spd
-      })
+        monthName: data[index].monthName,
+        earning: incomeVals[index],
+        spending: spendingVals[index],
+      });
     }
-  }
+  };
 
   const onLeave = () => {
-    setActiveMonthIndex(null)
+    setActiveMonthIndex(null);
     setTooltipInfo(null);
-    if (onHover) {
-      onHover(null)
-    }
-  }
+    if (onHover) onHover(null);
+  };
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
@@ -175,7 +164,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none transition-opacity duration-300"
         style={{
           opacity: showLeftFade ? 1 : 0,
-          background: 'linear-gradient(to right, var(--color-surface), transparent)'
+          background: 'linear-gradient(to right, var(--color-surface), transparent)',
         }}
       />
 
@@ -184,11 +173,11 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none transition-opacity duration-300"
         style={{
           opacity: showRightFade ? 1 : 0,
-          background: 'linear-gradient(to left, var(--color-surface), transparent)'
+          background: 'linear-gradient(to left, var(--color-surface), transparent)',
         }}
       />
 
-      {/* Tooltip - positioned outside scroll container so it can overflow */}
+      {/* Tooltip */}
       {tooltipInfo && (
         <div
           className="absolute pointer-events-none tooltip-pop"
@@ -204,6 +193,12 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               {tooltipInfo.month}
             </div>
             <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[var(--color-muted)]">Net</span>
+                <span className={`font-medium ${tooltipInfo.net >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                  {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
+                </span>
+              </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[var(--color-muted)]">Income</span>
                 <span className="font-medium text-[var(--color-fg)]">{formatCurrency(tooltipInfo.income)}</span>
@@ -223,12 +218,11 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         style={{ scrollBehavior: 'smooth' }}
         onScroll={() => {
           updateFadeIndicators();
-          // Update tooltip position on scroll
           if (activeMonthIndex !== null && scrollContainerRef.current) {
             const scrollLeft = scrollContainerRef.current.scrollLeft;
             const cx = margin.left + stepX * activeMonthIndex + stepX / 2;
             const tooltipLeft = cx - scrollLeft;
-            setTooltipInfo(prev => prev ? { ...prev, left: tooltipLeft } : null);
+            setTooltipInfo((prev) => (prev ? { ...prev, left: tooltipLeft } : null));
           }
         }}
       >
@@ -247,103 +241,94 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
             </filter>
           </defs>
 
-          {/* Grid Lines & Y-Axis */}
+          {/* Grid lines */}
           <g>
             {ticks.map((tick) => {
-              const y = yFromValue(tick)
+              const y = yFromValue(tick);
               return (
-                <g key={`tick-${tick}`}>
-                  <line
-                    x1={margin.left}
-                    x2={width - margin.right}
-                    y1={y}
-                    y2={y}
-                    stroke="var(--color-border)"
-                    strokeWidth="1"
-                    strokeDasharray="4 4"
-                    opacity="0.5"
-                  />
-                </g>
-              )
+                <line
+                  key={`tick-${tick}`}
+                  x1={margin.left}
+                  x2={width - margin.right}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--color-border)"
+                  strokeWidth="1"
+                  strokeDasharray={tick === 0 ? undefined : '4 4'}
+                  opacity={tick === 0 ? 0.6 : 0.3}
+                />
+              );
             })}
           </g>
 
           {/* Month labels */}
           <g>
             {months.map((m, i) => {
-              const cx = margin.left + stepX * i + stepX / 2
+              const cx = margin.left + stepX * i + stepX / 2;
               return (
-                <text key={`lbl-${m}-${i}`} x={cx} y={height - 10} textAnchor="middle" fontSize="10" fill="var(--color-muted)" fontWeight="300">
+                <text
+                  key={`lbl-${m}-${i}`}
+                  x={cx}
+                  y={height - 10}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="var(--color-muted)"
+                  fontWeight="300"
+                >
                   {m}
                 </text>
-              )
+              );
             })}
           </g>
 
-          {/* Bars */}
+          {/* Net cashflow bars */}
           <g>
             {months.map((m, i) => {
-              const groupX = margin.left + stepX * i + offset
+              const net = netVals[i];
+              const barX = margin.left + stepX * i + barOffset;
+              const isPositive = net >= 0;
+              const barH = Math.max(2, Math.abs(net) * scaleY); // min 2px so zero months are visible
+              const barY = isPositive ? baseline - barH : baseline;
 
-              const inc = incomeVals[i] || 0
-              const spd = spendingVals[i] || 0
+              const barPath = isPositive
+                ? roundedTopPath(barX, barY, barWidth, barH, 4)
+                : roundedBottomPath(barX, barY, barWidth, barH, 4);
 
-              const incH = hFromValue(inc)
-              const spdH = hFromValue(spd)
-
-              const incY = yFromValue(inc)
-              const spdY = yFromValue(spd)
-
-              const isActive = activeMonthIndex === i
-
-              // Income Bar (Left)
-              const incBarPath = roundedRectPath(groupX, incY, finalBarWidth, incH, 4)
-
-              // Spending Bar (Right)
-              const spdBarPath = roundedRectPath(groupX + finalBarWidth + barGap, spdY, finalBarWidth, spdH, 4)
+              const isActive = activeMonthIndex === i;
 
               return (
                 <g
                   key={`bar-${m}-${i}`}
                   style={{
                     opacity: activeMonthIndex !== null && !isActive ? 0.4 : 1,
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.3s ease',
                   }}
                 >
                   <path
-                    d={incBarPath}
-                    fill={isActive ? "var(--color-cashflow-income)" : "var(--color-chart-spending-bar)"}
-                    filter={isActive ? "url(#bar-glow)" : undefined}
-                    style={{ transition: 'fill 0.3s ease' }}
-                  />
-                  <path
-                    d={spdBarPath}
-                    fill={isActive ? "var(--color-cashflow-spending)" : "var(--color-chart-spending-bar)"}
-                    filter={isActive ? "url(#bar-glow)" : undefined}
+                    d={barPath}
+                    fill={isActive ? 'var(--color-accent)' : 'var(--color-chart-spending-bar)'}
+                    filter={isActive ? 'url(#bar-glow)' : undefined}
                     style={{ transition: 'fill 0.3s ease' }}
                   />
 
-                  {/* Invisible hover rect for the whole group */}
+                  {/* Invisible hover rect */}
                   <rect
                     x={margin.left + stepX * i}
                     y={margin.top}
                     width={stepX}
                     height={innerHeight}
                     fill="transparent"
-                    onMouseMove={(e) => onMove(e, m, inc, spd, data[i], i)}
-                    onMouseEnter={(e) => onMove(e, m, inc, spd, data[i], i)}
+                    onMouseMove={(e) => onMove(e, m, i)}
+                    onMouseEnter={(e) => onMove(e, m, i)}
                     onClick={() => onSelectMonth && onSelectMonth(data[i])}
                     style={{ cursor: 'pointer' }}
                   />
                 </g>
-              )
+              );
             })}
           </g>
-
-
         </svg>
       </div>
     </div>
-  )
+  );
 }
-

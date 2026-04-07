@@ -237,18 +237,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
             {/* Right Side Actions */}
             <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
               <ViewAllLink href="/accounts">View Accounts</ViewAllLink>
-
-              {/* Legend - stacked on mobile, horizontal on desktop */}
-              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-income)]" />
-                  <span className="text-xs text-[var(--color-muted)]">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-[var(--color-cashflow-spending)]" />
-                  <span className="text-xs text-[var(--color-muted)]">Spending</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
