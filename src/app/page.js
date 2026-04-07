@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
+import dynamic from "next/dynamic";
 import PublicRoute from "../components/PublicRoute";
+
+const HeroBlob = dynamic(() => import("../components/HeroBlob"), { ssr: false });
 
 export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass }) {
   const [scrolled, setScrolled] = useState(false);
@@ -175,19 +178,8 @@ export default function Home() {
 
         {/* Hero */}
         <section className="relative flex h-screen flex-col overflow-hidden">
-          {/* Background video */}
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="absolute inset-0 h-full w-full object-cover"
-            poster="/hero-bg.png"
-          >
-            <source src="/hero-bg.mp4" type="video/mp4" />
-          </video>
-          {/* Dark overlay for text readability on left */}
-          <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/60 to-transparent" />
+          {/* 3D animated blob */}
+          <HeroBlob />
 
           <div className="relative z-10 flex flex-1 flex-col items-start justify-center px-6 sm:px-12 lg:px-20 max-w-7xl mx-auto w-full">
             <h1
