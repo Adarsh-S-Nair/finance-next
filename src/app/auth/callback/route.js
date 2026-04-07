@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") || "/auth/reset-password";
+  const next = searchParams.get("next") || "/dashboard";
 
   // Pass code + next to the client-side page via query params
   if (code) {

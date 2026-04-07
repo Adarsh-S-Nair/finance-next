@@ -149,7 +149,7 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code) {
-      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/auth/reset-password`);
+      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/dashboard`);
     }
   }, []);
 

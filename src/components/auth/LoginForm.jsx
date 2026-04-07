@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
@@ -103,9 +102,6 @@ export default function LoginForm({ dark = false }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <label className={`text-sm font-medium ${dark ? "text-zinc-300" : "text-zinc-800"}`}>Password</label>
-          <Link href="/auth/forgot-password" className={`text-xs font-medium ${dark ? "text-zinc-500 hover:text-zinc-300" : "text-zinc-500 hover:text-zinc-900"}`}>
-            Forgot password?
-          </Link>
         </div>
         <div className="relative">
           <input

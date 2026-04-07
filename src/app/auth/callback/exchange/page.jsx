@@ -12,7 +12,7 @@ function ExchangeHandler() {
     attempted.current = true;
 
     const code = searchParams.get("code");
-    const next = searchParams.get("next") || "/auth/reset-password";
+    const next = searchParams.get("next") || "/dashboard";
 
     console.log("[exchange] Starting. code:", !!code, "next:", next);
 
