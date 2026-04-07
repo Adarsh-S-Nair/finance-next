@@ -684,7 +684,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
                   onClick={() => handleCryptoToggle(crypto.symbol)}
                   className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${isSelected
                     ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                    : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-alt)] cursor-pointer'
                     }`}
                 >
                   {logoUrl ? (
@@ -826,7 +826,7 @@ function CreatePortfolioDrawer({ isOpen, onClose, onCreated }) {
                             ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed'
                             : isSelected
                               ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 cursor-pointer'
-                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface)] cursor-pointer'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-alt)] cursor-pointer'
                             }`}
                         >
                           <div>

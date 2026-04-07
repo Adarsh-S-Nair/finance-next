@@ -719,7 +719,7 @@ function BacktestResultsContent() {
                       return (
                         <div
                           key={`${trade.ticker}-${trade.entry_date}-${index}`}
-                          className="px-4 py-3 grid grid-cols-6 gap-2 items-center border-b border-[var(--color-border)]/20 last:border-b-0 hover:bg-[var(--color-surface)]/30 transition-colors"
+                          className="px-4 py-3 grid grid-cols-6 gap-2 items-center border-b border-[var(--color-border)]/20 last:border-b-0 hover:bg-[var(--color-surface-alt)]/30 transition-colors"
                         >
                           {/* Symbol */}
                           <div className="flex items-center gap-2">
@@ -869,7 +869,7 @@ function BacktestResultsContent() {
                   return (
                     <div
                       key={holding.ticker || index}
-                      className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
+                      className="px-5 py-3 hover:bg-[var(--color-surface-alt)]/20 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">

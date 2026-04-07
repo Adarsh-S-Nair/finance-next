@@ -74,7 +74,7 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-colors cursor-pointer z-10"
+            className="absolute top-5 right-5 p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer z-10"
             aria-label="Close"
           >
             <FiX className="h-5 w-5" />

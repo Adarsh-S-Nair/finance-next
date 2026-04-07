@@ -101,7 +101,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
             size="icon"
             aria-label="Refresh Transactions"
             disabled={loading}
-            className="hover:bg-[var(--color-surface)]"
+            className="hover:bg-[var(--color-surface-alt)]"
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
@@ -110,7 +110,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
             size="icon"
             aria-label="Filter Transactions"
             onClick={onOpenFilters}
-            className="hover:bg-[var(--color-surface)] relative"
+            className="hover:bg-[var(--color-surface-alt)] relative"
           >
             <FiFilter className="h-4 w-4" />
             {activeFilterCount > 0 && (
@@ -478,7 +478,7 @@ const FiltersContent = ({
                 return (
                   <div key={group.id} className="group/container">
                     {/* Group Header */}
-                    <div className="flex items-center justify-between py-1.5 px-1 rounded-lg hover:bg-[var(--color-surface)] transition-colors duration-200">
+                    <div className="flex items-center justify-between py-1.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)] transition-colors duration-200">
                       <button
                         onClick={() => toggleGroupExpand(group.id)}
                         className="flex items-center gap-2.5 text-left flex-1 min-w-0 group/header"
@@ -517,7 +517,7 @@ const FiltersContent = ({
                             ? 'bg-[var(--color-accent)] text-white shadow-sm scale-100'
                             : isPartiallySelected
                               ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                              : 'text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]'
+                              : 'text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]'
                             }`}
                         >
                           {isGroupSelected ? (
@@ -530,7 +530,7 @@ const FiltersContent = ({
                         </button>
                         <button
                           onClick={() => toggleGroupExpand(group.id)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-all duration-200 ${isExpanded ? 'rotate-180 bg-[var(--color-surface)]' : ''}`}
+                          className={`w-7 h-7 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-all duration-200 ${isExpanded ? 'rotate-180 bg-[var(--color-surface)]' : ''}`}
                         >
                           <FiChevronDown className="w-3.5 h-3.5" />
                         </button>

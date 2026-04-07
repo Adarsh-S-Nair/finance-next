@@ -136,7 +136,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               {/* Category Row */}
               <div
                 onClick={onCategoryClick}
-                className="group flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--color-surface)]/50 transition-colors"
+                className="group flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--color-surface-alt)]/50 transition-colors"
               >
                 <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider flex-shrink-0">Category</span>
                 <div className="flex items-center gap-2 group-hover:translate-x-[-2px] transition-transform min-w-0 flex-1 justify-end pl-4">
@@ -194,7 +194,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               <Card variant="glass" padding="none" className="overflow-hidden">
                 <div className="divide-y divide-[var(--color-border)]/40">
                   {transaction.transaction_splits.map((split, idx) => (
-                    <div key={idx} className="group flex items-center justify-between p-4 hover:bg-[var(--color-surface)]/50 transition-colors cursor-pointer">
+                    <div key={idx} className="group flex items-center justify-between p-4 hover:bg-[var(--color-surface-alt)]/50 transition-colors cursor-pointer">
                       <div className="flex items-center gap-3 min-w-0">
                         {split.contacts?.avatar_url ? (
                           <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm flex-shrink-0">
@@ -253,7 +253,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                     return (
                       <div
                         key={repayment.id || idx}
-                        className="group flex items-center justify-between p-4 hover:bg-[var(--color-surface)]/50 transition-colors cursor-pointer"
+                        className="group flex items-center justify-between p-4 hover:bg-[var(--color-surface-alt)]/50 transition-colors cursor-pointer"
                         onClick={() => onTransactionLinkClick && onTransactionLinkClick(originalTx.id)}
                       >
                         <div className="flex-1 min-w-0 mr-4">

@@ -1638,7 +1638,7 @@ export default function PortfolioDetailPage() {
                           return (
                             <div
                               key={symbol}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50 backdrop-blur-sm hover:bg-[var(--color-surface)]/70 transition-colors"
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50 backdrop-blur-sm hover:bg-[var(--color-surface-alt)]/70 transition-colors"
                             >
                               <div
                                 className="w-2 h-2 rounded-full flex-shrink-0"
@@ -2134,7 +2134,7 @@ export default function PortfolioDetailPage() {
                     return (
                       <div
                         key={trade.id}
-                        className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
+                        className="px-5 py-3 hover:bg-[var(--color-surface-alt)]/20 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           {/* Left: Logo + Ticker + Details */}
@@ -2217,7 +2217,7 @@ export default function PortfolioDetailPage() {
                     return (
                       <div
                         key={trade.id}
-                        className="px-5 py-3 hover:bg-[var(--color-surface)]/20 transition-colors"
+                        className="px-5 py-3 hover:bg-[var(--color-surface-alt)]/20 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           {/* Left: Logo + Ticker + Details */}
@@ -2400,7 +2400,7 @@ export default function PortfolioDetailPage() {
                   return (
                     <div
                       key={holding.id}
-                      className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--color-surface)]/20 transition-colors"
+                      className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--color-surface-alt)]/20 transition-colors"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div

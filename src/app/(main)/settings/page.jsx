@@ -415,7 +415,7 @@ export default function SettingsPage() {
                     <div key={institution.id} className="group">
                       {/* Institution Header Row */}
                       <div
-                        className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-[var(--color-surface)]/40"
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]/40"
                         onClick={() => toggleInstitutionExpanded(institution.id)}
                       >
                         <div className="w-7 h-7 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -484,7 +484,7 @@ export default function SettingsPage() {
                             {institution.accounts.map((account) => (
                               <div
                                 key={account.id}
-                                className="group/account flex items-center gap-3 py-2 pl-14 pr-4 hover:bg-[var(--color-surface)]/40 transition-colors"
+                                className="group/account flex items-center gap-3 py-2 pl-14 pr-4 hover:bg-[var(--color-surface-alt)]/40 transition-colors"
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">

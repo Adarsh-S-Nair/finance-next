@@ -651,7 +651,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                         .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
                         .slice(0, 4)
                         .map(tx => (
-                          <div key={tx.id} className="flex items-center justify-between py-2 px-2 hover:bg-[var(--color-surface)] rounded-lg transition-colors group">
+                          <div key={tx.id} className="flex items-center justify-between py-2 px-2 hover:bg-[var(--color-surface-alt)] rounded-lg transition-colors group">
                             <div className="flex items-center gap-3 overflow-hidden">
                               {/* Icon / Logo */}
                               <div

@@ -1351,7 +1351,7 @@ function HoldingRow({ holding, sparkline, showBorder = true }) {
 
   return (
     <div
-      className={`grid grid-cols-[1fr_90px_140px] items-center gap-6 px-4 py-3 hover:bg-[var(--color-surface)]/20 transition-colors ${showBorder ? 'border-b border-white/5 dark:border-white/[0.02] last:border-b-0' : ''}`}
+      className={`grid grid-cols-[1fr_90px_140px] items-center gap-6 px-4 py-3 hover:bg-[var(--color-surface-alt)]/20 transition-colors ${showBorder ? 'border-b border-white/5 dark:border-white/[0.02] last:border-b-0' : ''}`}
     >
       {/* Left section: Logo + ticker info */}
       <div className="flex items-center gap-3 min-w-0">

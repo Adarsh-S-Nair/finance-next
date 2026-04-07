@@ -41,16 +41,16 @@
   /* Amber 400 - softer */
   --color-on-warn: #18181b;
 
-  --color-input-bg: #ffffff;
+  --color-input-bg: #f1f1f1;
   --color-input-fg: #18181b;
   --color-input-placeholder: #a1a1aa;
 
-  --color-dropdown-bg: #f5f5f5;
+  --color-surface-alt: #f1f1f1;
+  --color-dropdown-bg: var(--color-surface-alt);
 
   --color-content-bg: #ffffff;
   --color-sidebar-bg: #ffffff;
-  --color-sidebar-active: #f1f1f1;
-  --color-sidebar-hover: #f1f1f1;
+  --color-sidebar-active: var(--color-surface-alt);
 
   /* Glassmorphism helpers - Light Mode - Reduced Shadows for Matte look */
   --glass-bg: rgba(255, 255, 255, 0.9);
@@ -128,15 +128,12 @@
   --color-input-fg: #e4e4e7;
   --color-input-placeholder: #71717a;
 
-  --color-dropdown-bg: #2a2a2f;
-  /* Slightly lighter than surface for dropdown contrast */
+  --color-surface-alt: #262629;
+  --color-dropdown-bg: var(--color-surface-alt);
 
   --color-content-bg: #1e1e21;
-  /* Matches bg */
   --color-sidebar-bg: #1a1a1d;
-  /* Slightly darker than bg for sidebar depth */
   --color-sidebar-active: #2a2a2f;
-  --color-sidebar-hover: #262629;
 
   /* Glassmorphism helpers - Dark Mode */
   --glass-bg: rgba(33, 33, 37, 0.85);

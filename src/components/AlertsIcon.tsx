@@ -76,7 +76,7 @@ export default function AlertsIcon() {
   return (
     <div className="relative" ref={containerRef}>
       <motion.button
-        className="relative p-2 rounded-full hover:bg-[var(--color-surface)] transition-colors duration-200 text-[var(--color-fg)] outline-none cursor-pointer"
+        className="relative p-2 rounded-full hover:bg-[var(--color-surface-alt)] transition-colors duration-200 text-[var(--color-fg)] outline-none cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
         whileHover="hover"
         whileTap="click"

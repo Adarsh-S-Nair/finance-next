@@ -97,7 +97,7 @@ export default function InvestmentsLayout({ children }) {
               {isDetailPage && headerActions.onSettingsClick && (
                 <button
                   onClick={headerActions.onSettingsClick}
-                  className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)] transition-all cursor-pointer"
+                  className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-all cursor-pointer"
                   title="Portfolio Settings"
                 >
                   <LuSettings className="w-4 h-4" />

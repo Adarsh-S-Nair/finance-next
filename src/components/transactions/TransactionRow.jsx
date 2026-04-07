@@ -23,7 +23,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 px-4 md:px-6'} hover:bg-[var(--color-surface)]/40 transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
+      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 px-4 md:px-6'} hover:bg-[var(--color-surface-alt)]/40 transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
       onClick={() => {
         if (selectable && onSelect) {
           onSelect(!selected);

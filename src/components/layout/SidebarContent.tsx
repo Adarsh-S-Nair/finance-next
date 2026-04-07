@@ -161,7 +161,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                           : "cursor-pointer",
                         active
                           ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                          : "text-[var(--color-fg)]/60 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)]"
+                          : "text-[var(--color-fg)]/60 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
                       )}
                     >
                       {active && (
@@ -219,7 +219,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                   "flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-colors duration-150",
                   pathname.startsWith("/settings")
                     ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)]"
+                    : "text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
                 )}
               >
                 <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
@@ -236,7 +236,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               {/* Log out */}
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-sidebar-hover)] transition-colors duration-150 rounded-lg mb-1"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors duration-150 rounded-lg mb-1"
               >
                 <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
                 <span>Log out</span>
@@ -251,7 +251,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-xl p-2.5 transition-colors duration-200 hover:bg-[var(--color-surface)] cursor-pointer"
+              className="w-full flex items-center justify-center rounded-xl p-2.5 transition-colors duration-200 hover:bg-[var(--color-surface-alt)] cursor-pointer"
             >
               {avatarEl}
             </button>
@@ -264,7 +264,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group",
               showPopover
                 ? "bg-[var(--color-surface)]"
-                : "hover:bg-[var(--color-surface)]"
+                : "hover:bg-[var(--color-surface-alt)]"
             )}
           >
             {/* Avatar with ring on open */}

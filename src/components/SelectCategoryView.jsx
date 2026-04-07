@@ -97,7 +97,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                   {/* Group Header - Clickable to expand */}
                   <button
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-surface)]/40 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-surface-alt)]/40 transition-colors"
                   >
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"

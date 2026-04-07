@@ -20,9 +20,9 @@ const variants: Record<string, string> = {
   accent:
     "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] hover:bg-[var(--color-accent-hover)] hover:shadow-lg hover:shadow-[var(--color-accent)]/10",
   secondary:
-    "bg-transparent text-[var(--color-fg)] hover:text-[color-mix(in_oklab,var(--color-fg),var(--color-bg)_30%)]",
+    "bg-[var(--color-surface-alt)] text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/80",
   ghost:
-    "bg-transparent text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)]",
+    "bg-transparent text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]",
   danger:
     "bg-[var(--color-danger)] text-[var(--color-on-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),black_12%)] focus-visible:ring-[var(--color-danger)]",
   dangerSubtle:
@@ -34,7 +34,7 @@ const variants: Record<string, string> = {
   matte:
     "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none hover:shadow-md hover:shadow-[var(--color-accent)]/10",
   minimal:
-    "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]/50 border-none shadow-none",
+    "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/50 border-none shadow-none",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
