@@ -81,7 +81,7 @@ export default function Card({
       {background}
 
       {variant === 'glass' && (
-        <div className="absolute inset-0 pointer-events-none border border-white/5 dark:border-white/[0.02] rounded-xl" />
+        <div className="absolute inset-0 pointer-events-none rounded-xl border border-white/20 dark:border-white/[0.06]" />
       )}
 
       {/* Header Section */}

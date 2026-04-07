@@ -52,10 +52,10 @@
   --color-sidebar-bg: #ffffff;
   --color-sidebar-active: var(--color-surface-alt);
 
-  /* Glassmorphism helpers - Light Mode - Reduced Shadows for Matte look */
-  --glass-bg: rgba(255, 255, 255, 0.9);
-  --glass-border: rgba(0, 0, 0, 0.05);
-  --glass-shadow: none;
+  /* Glassmorphism helpers - Light Mode */
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 
   --color-shadow: transparent;
   --color-card-border: rgba(0, 0, 0, 0.04);
@@ -137,10 +137,9 @@
   --color-sidebar-active: #252525;
 
   /* Glassmorphism helpers - Dark Mode */
-  --glass-bg: rgba(22, 22, 22, 0.85);
-  /* Matches content-bg */
-  --glass-border: transparent;
-  --glass-shadow: none;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 
   --color-shadow: transparent;
   --color-card-border: transparent;
