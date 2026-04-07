@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
@@ -51,13 +51,35 @@ export default function DashboardPage() {
   }, [user]);
 
   // Fetch consolidated dashboard summary (single DB round-trip for both chart cards)
+  // Uses a mount counter to ensure refetch on every navigation back to dashboard
+  const mountRef = useRef(0);
   useEffect(() => {
+    mountRef.current += 1;
     if (authLoading || !user?.id) return;
-    authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data) setSummaryData(data); })
-      .catch(err => console.error('[dashboard] summary fetch error:', err));
-  }, [authLoading, user?.id]);
+    let cancelled = false;
+    const attempt = (retries = 2) => {
+      authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (cancelled) return;
+          if (data) {
+            setSummaryData(data);
+          } else if (retries > 0) {
+            setTimeout(() => { if (!cancelled) attempt(retries - 1); }, 1500);
+          }
+        })
+        .catch(err => {
+          if (cancelled) return;
+          console.error('[dashboard] summary fetch error:', err);
+          if (retries > 0) {
+            setTimeout(() => { if (!cancelled) attempt(retries - 1); }, 1500);
+          }
+        });
+    };
+    attempt();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, mountRef.current]);
 
   // Whether a component is a "main content" component (no card wrapper)
   const mainContentComponents = new Set([

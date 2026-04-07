@@ -39,15 +39,17 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }));
   };
 
-  // Fetch available months
+  // Fetch available months (with retry on failure)
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) { setIsFetching(false); return; }
-    const fetchAvailableMonths = async () => {
+    let cancelled = false;
+    const fetchAvailableMonths = async (retries = 2) => {
       setIsFetching(true);
       try {
         const response = await authFetch(`/api/transactions/available-months`);
         if (!response.ok) throw new Error('Failed to fetch available months');
+        if (cancelled) return;
         const result = await response.json();
         const months = result.months || [];
         setAvailableMonths(months);
@@ -62,12 +64,18 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           setIsFetching(false);
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Error fetching available months:", error);
+        if (retries > 0) {
+          setTimeout(() => { if (!cancelled) fetchAvailableMonths(retries - 1); }, 1500);
+          return;
+        }
         setIsFetching(false);
       }
     };
 
     fetchAvailableMonths();
+    return () => { cancelled = true; };
   }, [authLoading, user?.id, initialMonth]);
 
   // Fetch data for selected month

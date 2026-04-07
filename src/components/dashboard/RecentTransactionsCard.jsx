@@ -102,9 +102,10 @@ export default function RecentTransactionsCard() {
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
 
-  // Fetch recent transactions
+  // Fetch recent transactions with retry on failure
+  const retryTimerRef = useRef(null);
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchTransactions = async (retries = 2) => {
       if (!user?.id) return;
 
       try {
@@ -132,6 +133,10 @@ export default function RecentTransactionsCard() {
       } catch (err) {
         if (err?.name === 'AbortError') return;
         console.error('Error fetching transactions:', err);
+        if (retries > 0) {
+          retryTimerRef.current = setTimeout(() => fetchTransactions(retries - 1), 1500);
+          return;
+        }
         setError(err.message);
       } finally {
         setLoading(false);
@@ -141,6 +146,7 @@ export default function RecentTransactionsCard() {
     fetchTransactions();
     return () => {
       if (abortRef.current) abortRef.current.abort();
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
   }, [user?.id]);
 
