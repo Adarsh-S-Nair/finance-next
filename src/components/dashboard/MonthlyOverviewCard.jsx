@@ -173,7 +173,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
   const showLoading = isFetching;
 
-  // Dynamic Date Display
+  // Derive the selected month's display name from the "YYYY-MM" value
+  const selectedMonthName = useMemo(() => {
+    if (!selectedMonth) return '';
+    const [y, m] = selectedMonth.split('-');
+    return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
+  }, [selectedMonth]);
 
 
   // Skeleton Loader Component
@@ -235,7 +240,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
-                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">This month</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{selectedMonthName || 'This month'}</span>
                   </div>
                 </div>
                 <div>

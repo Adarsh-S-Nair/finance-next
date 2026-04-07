@@ -145,11 +145,8 @@ export async function GET(request) {
     // Create previous month name for display
     const prevMonthName = new Date(prevYear, prevMonth, 1).toLocaleDateString('en-US', { month: 'long' });
 
-    // Determine max days for x-axis (max of current month days and previous month days)
-    const maxDays = Math.max(
-      currentMonthResult.daysInMonth,
-      prevMonthResult?.daysInMonth || 0
-    );
+    // Cap x-axis at the selected month's day count to avoid overflow into the next month
+    const maxDays = currentMonthResult.daysInMonth;
 
     // Build merged data array with length = maxDays
     // Current month: only show spending up to currentDay if this is the current month
@@ -190,11 +187,16 @@ export async function GET(request) {
         }
       }
 
-      // For previous month: if the day exceeds the previous month's length,
-      // extend the line at the final cumulative value (flat line)
+      // For previous month: if this is the last displayed day and the previous month
+      // had more days, snap to the final cumulative value so the full month total is shown.
+      // If the day exceeds the previous month's length, extend flat at the final value.
       let previousSpending;
       if (prevDayData) {
-        previousSpending = prevDayData.spending;
+        if (day === maxDays && prevMonthResult && prevMonthResult.daysInMonth > maxDays && prevMonthFinalSpending !== null) {
+          previousSpending = prevMonthFinalSpending;
+        } else {
+          previousSpending = prevDayData.spending;
+        }
       } else if (prevMonthResult && day > prevMonthResult.daysInMonth && prevMonthFinalSpending !== null) {
         previousSpending = prevMonthFinalSpending;
       } else {
