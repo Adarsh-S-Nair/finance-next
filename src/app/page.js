@@ -183,8 +183,8 @@ export default function Home() {
 
           <div className="relative z-10 flex flex-1 flex-col items-start justify-center px-6 sm:px-12 lg:px-20 max-w-7xl mx-auto w-full">
             <h1
-              className="lp-heading-gradient lp-fade-1 text-3xl font-medium leading-[1.1] max-w-2xl sm:text-4xl md:text-5xl lg:text-6xl"
-              style={{ letterSpacing: "-0.04em", fontFamily: "var(--font-outfit)" }}
+              className="lp-heading-gradient lp-fade-1 text-2xl font-light leading-[1.2] max-w-2xl uppercase sm:text-3xl md:text-4xl lg:text-5xl"
+              style={{ letterSpacing: "0.12em", fontFamily: "var(--font-outfit)" }}
             >
               A clearer view of{" "}
               <br className="hidden md:block" />

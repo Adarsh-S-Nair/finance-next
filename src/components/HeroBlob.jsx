@@ -54,45 +54,53 @@ export default function HeroBlob() {
     camera.position.z = 4.5;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
 
-    // Blob geometry
-    const geometry = new THREE.IcosahedronGeometry(1.8, 64);
+    // Blob geometry — high subdivision for smooth surface
+    const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — dark with blue-ish rim lighting
+    // Material — glossy dark with brighter blue reflections
     const material = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0x0a1628),
-      roughness: 0.25,
-      metalness: 0.6,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.2,
-      emissive: new THREE.Color(0x0d2847),
-      emissiveIntensity: 0.3,
+      color: new THREE.Color(0x0f1f38),
+      roughness: 0.15,
+      metalness: 0.7,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
+      emissive: new THREE.Color(0x1a3a6a),
+      emissiveIntensity: 0.4,
+      reflectivity: 0.9,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(2.2, -0.3, 0); // Push blob to the right
     scene.add(mesh);
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0x1a2a4a, 0.6);
+    // Lights — brighter for more definition
+    const ambient = new THREE.AmbientLight(0x2a3a5a, 0.8);
     scene.add(ambient);
 
-    const light1 = new THREE.PointLight(0x4488cc, 40, 25);
+    const light1 = new THREE.PointLight(0x5599dd, 60, 30);
     light1.position.set(4, 2, 4);
     scene.add(light1);
 
-    const light2 = new THREE.PointLight(0x2255aa, 25, 25);
+    const light2 = new THREE.PointLight(0x3366bb, 40, 30);
     light2.position.set(-3, -1, 3);
     scene.add(light2);
 
-    const light3 = new THREE.PointLight(0x112244, 20, 25);
+    const light3 = new THREE.PointLight(0x224466, 30, 30);
     light3.position.set(0, 3, -2);
     scene.add(light3);
+
+    // Subtle rim light from behind
+    const light4 = new THREE.PointLight(0x6699cc, 20, 30);
+    light4.position.set(2, -2, -3);
+    scene.add(light4);
 
     // Animation
     let animId;
