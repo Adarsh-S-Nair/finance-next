@@ -53,9 +53,9 @@
   --color-sidebar-active: var(--color-surface-alt);
 
   /* Glassmorphism helpers - Light Mode */
-  --glass-bg: rgba(255, 255, 255, 0.45);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-shadow: 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --glass-bg: rgba(0, 0, 0, 0.03);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 
   --color-shadow: transparent;
   --color-card-border: rgba(0, 0, 0, 0.04);
