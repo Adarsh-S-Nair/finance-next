@@ -250,12 +250,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] relative">
-      {/* Global ambient glow — right edge, full height */}
+      {/* Global ambient glow — right edge, layered on top of everything */}
       <div
-        className="fixed top-0 right-0 bottom-0 pointer-events-none opacity-[0.04] dark:opacity-[0.07]"
+        className="fixed inset-0 pointer-events-none opacity-[0.04] dark:opacity-[0.07]"
         style={{
-          width: '50vw',
-          background: 'radial-gradient(ellipse 80% 60% at 90% 50%, var(--color-chart-primary), transparent)',
+          zIndex: 9999,
+          background: 'linear-gradient(to left, var(--color-chart-primary) 0%, transparent 60%)',
         }}
       />
       <Sidebar
