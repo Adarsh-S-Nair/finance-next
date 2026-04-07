@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { isLiabilityAccount } from '../../../../lib/accountUtils';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
@@ -103,18 +104,3 @@ export async function GET(request) {
   }
 }
 
-// Helper function to determine if an account is a liability
-function isLiabilityAccount(account) {
-  const liabilityTypes = [
-    'credit card',
-    'credit',
-    'loan',
-    'mortgage',
-    'line of credit',
-    'overdraft',
-    'other'
-  ];
-  
-  const accountType = (account.subtype || account.type || '').toLowerCase();
-  return liabilityTypes.some(type => accountType.includes(type));
-}

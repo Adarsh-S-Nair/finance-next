@@ -23,7 +23,7 @@ async function logDecisionToServer(symbol, timestamp, decision, reason, details)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, timestamp, decision, reason, details }),
-    }).catch(() => { });
+    }).catch((err) => console.warn('Decision log failed:', err.message));
   } catch (error) {
     // Ignore errors - logging is optional
   }

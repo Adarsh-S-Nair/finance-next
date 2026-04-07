@@ -16,7 +16,7 @@ export async function GET(request) {
     const startDateParam = searchParams.get('startDate'); // YYYY-MM-DD format
     const endDateParam = searchParams.get('endDate'); // YYYY-MM-DD format
 
-    if (true) console.log(`Fetching ${type} by category for user:`, userId, 'days:', daysParam, 'forBudget:', forBudget, 'startDate:', startDateParam, 'endDate:', endDateParam);
+    if (DEBUG) console.log(`Fetching ${type} by category for user:`, userId, 'days:', daysParam, 'forBudget:', forBudget, 'startDate:', startDateParam, 'endDate:', endDateParam);
 
     // Get transactions grouped by category
     const now = new Date();
@@ -253,7 +253,7 @@ export async function GET(request) {
       }))
       .filter(category => category.percentage >= 1.0); // Only include categories >= 1%
 
-    if (true) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} completeMonths=${completeMonths}`, filteredCategories.slice(0, 3));
+    if (DEBUG) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} completeMonths=${completeMonths}`, filteredCategories.slice(0, 3));
 
     return Response.json({
       categories: filteredCategories,

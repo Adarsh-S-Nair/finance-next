@@ -59,7 +59,7 @@ if (!isServer) {
     if (event === 'TOKEN_REFRESHED' && !session) {
       clearStaleAuthData();
       // Force a clean sign-out so no component is left waiting for auth
-      supabase.auth.signOut().catch(() => {});
+      supabase.auth.signOut().catch((err) => console.warn('Sign-out after failed token refresh:', err.message));
     }
   });
 

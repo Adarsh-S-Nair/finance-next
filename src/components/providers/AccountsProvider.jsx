@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
+import { isLiabilityAccount } from '../../lib/accountUtils';
 
 const AccountsContext = createContext();
 
@@ -157,22 +158,6 @@ export function AccountsProvider({ children }) {
 
   // Get all accounts as a flat array
   const allAccounts = accounts.flatMap(institution => institution.accounts);
-
-  // Helper function to determine if an account is a liability
-  const isLiabilityAccount = (account) => {
-    const liabilityTypes = [
-      'credit card',
-      'credit',
-      'loan',
-      'mortgage',
-      'line of credit',
-      'overdraft',
-      'other'
-    ];
-    
-    const accountType = (account.type || '').toLowerCase();
-    return liabilityTypes.some(type => accountType.includes(type));
-  };
 
   // Assets: positive balance accounts that are NOT liability types
   const totalAssets = allAccounts
