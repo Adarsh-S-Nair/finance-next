@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
@@ -75,14 +76,17 @@ export default function HeroBlob() {
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      1.2,   // strength
-      1.0,   // radius — wide spread
-      0.25   // threshold
+      0.35,  // strength — gentle edge glow
+      1.5,   // radius — spread it wide
+      0.18   // threshold
     );
     composer.addPass(bloomPass);
 
-    // Blob geometry — high subdivision, full blobby displacement
-    const geometry = new THREE.IcosahedronGeometry(1.8, 128);
+    // Blob geometry — merge vertices for smooth shading, then compute smooth normals
+    const rawGeometry = new THREE.IcosahedronGeometry(1.8, 40);
+    const geometry = mergeVertices(rawGeometry);
+    geometry.computeVertexNormals();
+    rawGeometry.dispose();
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
     // Gradient shader material — lighter blue with depth
@@ -115,10 +119,10 @@ export default function HeroBlob() {
 
         void main() {
           // Base gradient: dark blue core to lighter blue at edges
-          vec3 deepBlue = vec3(0.04, 0.08, 0.18);
-          vec3 midBlue = vec3(0.08, 0.22, 0.50);
-          vec3 lightBlue = vec3(0.15, 0.40, 0.75);
-          vec3 highlight = vec3(0.30, 0.55, 0.90);
+          vec3 deepBlue = vec3(0.03, 0.06, 0.14);
+          vec3 midBlue = vec3(0.06, 0.16, 0.38);
+          vec3 lightBlue = vec3(0.12, 0.30, 0.58);
+          vec3 highlight = vec3(0.25, 0.50, 0.80);
 
           // Fresnel-based gradient — edges are lighter
           float f = pow(vFresnel, 1.5);
@@ -137,11 +141,11 @@ export default function HeroBlob() {
           // Specular highlight — soft, broad
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
           vec3 halfDir1 = normalize(lightDir1 + viewDir);
-          float spec = pow(max(dot(vNormal, halfDir1), 0.0), 20.0) * 0.4;
+          float spec = pow(max(dot(vNormal, halfDir1), 0.0), 25.0) * 0.35;
           color += highlight * spec;
 
           // Fresnel rim glow
-          color += lightBlue * pow(vFresnel, 3.0) * 0.5;
+          color += lightBlue * pow(vFresnel, 3.0) * 0.35;
 
           // Subtle emissive so it doesn't go full black in shadow
           color += deepBlue * 0.3;
@@ -228,20 +232,34 @@ export default function HeroBlob() {
 
   return (
     <div ref={containerRef} className="absolute inset-0">
-      {/* CSS radial gradient glow behind the blob */}
+      {/* WebGL canvas layer — renders first, behind glow */}
+      <div data-blob-canvas className="absolute inset-0" />
+      {/* Wide ambient glow on top of canvas, covers full background */}
+      <div
+        className="absolute pointer-events-none inset-0"
+        style={{
+          background: "radial-gradient(ellipse 90% 80% at 65% 50%, rgba(25,90,200,0.40) 0%, rgba(18,70,155,0.25) 25%, rgba(12,50,115,0.14) 45%, rgba(6,25,70,0.06) 65%, transparent 85%)",
+        }}
+      />
+      {/* Tighter glow centered on the blob */}
       <div
         className="absolute pointer-events-none"
         style={{
-          top: "10%",
-          right: "-10%",
-          width: "70%",
-          height: "80%",
-          background: "radial-gradient(ellipse at center, rgba(20,70,140,0.25) 0%, rgba(15,50,110,0.12) 30%, rgba(10,30,80,0.05) 55%, transparent 75%)",
-          filter: "blur(40px)",
+          top: "-20%",
+          right: "-25%",
+          width: "100%",
+          height: "140%",
+          background: "radial-gradient(ellipse at center, rgba(35,110,220,0.30) 0%, rgba(25,80,175,0.15) 30%, transparent 60%)",
+          filter: "blur(80px)",
         }}
       />
-      {/* WebGL canvas layer */}
-      <div data-blob-canvas className="absolute inset-0" />
+      {/* Left-side fade to protect text readability */}
+      <div
+        className="absolute pointer-events-none inset-0"
+        style={{
+          background: "linear-gradient(to right, rgba(9,9,11,0.95) 0%, rgba(9,9,11,0.7) 35%, rgba(9,9,11,0.3) 50%, transparent 65%)",
+        }}
+      />
     </div>
   );
 }
