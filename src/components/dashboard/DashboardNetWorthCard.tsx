@@ -6,15 +6,15 @@ import { useUser } from "../providers/UserProvider";
 import { useNetWorth } from "../providers/NetWorthProvider";
 
 // Animated counter component for smooth number transitions
-function AnimatedCounter({ value, duration = 1000 }) {
+function AnimatedCounter({ value, duration = 1000 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(value);
 
   useEffect(() => {
-    let startTimestamp = null;
+    let startTimestamp: number | null = null;
     const startValue = displayValue;
     const endValue = value;
 
-    const step = (timestamp) => {
+    const step = (timestamp: number) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
       const ease = 1 - Math.pow(1 - progress, 4);
@@ -44,7 +44,7 @@ function AnimatedCounter({ value, duration = 1000 }) {
 }
 
 // Helper for smooth Bezier curves
-const getControlPoint = (current, previous, next, reverse, smoothing = 0.2) => {
+const getControlPoint = (current: number[], previous: number[] | undefined, next: number[] | undefined, reverse: boolean, smoothing = 0.2) => {
   const p = previous || current;
   const n = next || current;
   const lengthX = n[0] - p[0];
@@ -56,10 +56,10 @@ const getControlPoint = (current, previous, next, reverse, smoothing = 0.2) => {
   return [x, y];
 };
 
-const generateSmoothPath = (points) => {
+const generateSmoothPath = (points: number[][]) => {
   if (!points || points.length === 0) return "";
 
-  return points.reduce((acc, point, i, a) => {
+  return points.reduce((acc: string, point: number[], i: number, a: number[][]) => {
     if (i === 0) return `M ${point[0]},${point[1]}`;
 
     const [cpsX, cpsY] = getControlPoint(a[i - 1], a[i - 2], point, false);
@@ -75,7 +75,7 @@ export default function DashboardNetWorthCard() {
 
   const chartData = useMemo(() => {
     if (!netWorthHistory?.length) return [];
-    return netWorthHistory.map(item => item.netWorth);
+    return netWorthHistory.map((item: any) => item.netWorth);
   }, [netWorthHistory]);
 
   const percentChange = useMemo(() => {
@@ -103,7 +103,7 @@ export default function DashboardNetWorthCard() {
     const adjustedRange = range + padding * 2;
     const stepX = width / (chartData.length - 1);
 
-    const points = chartData.map((val, i) => {
+    const points = chartData.map((val: number, i: number) => {
       const x = i * stepX;
       // Invert Y because SVG 0 is top
       const y = height - ((val - adjustedMin) / adjustedRange) * height;

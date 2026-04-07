@@ -9,9 +9,10 @@ Personal finance platform with AI-powered investment strategy, bank account inte
 - **Database**: Supabase (PostgreSQL with RLS)
 - **Styling**: Tailwind CSS 4 + CSS variables for theming
 - **Auth**: Supabase Auth with PKCE flow
-- **Charts**: Recharts, Nivo, Chart.js, Victory
+- **Charts**: Recharts
 - **Animation**: Framer Motion
 - **External APIs**: Plaid (banking), CoinGecko (crypto), Yahoo Finance (stocks), Finnhub (market data)
+- **Linting**: ESLint with eslint-config-next
 - **Testing**: Jest + React Testing Library
 
 ## Project Structure
@@ -65,6 +66,7 @@ npm run build            # Build for production
 npm run start            # Start production server
 
 # Testing
+npm run lint             # Run ESLint
 npm test                 # Run Jest tests
 npm test:watch           # Watch mode
 npm test:coverage        # Generate coverage report
@@ -171,6 +173,14 @@ When working on specific areas, consult these files:
 | Architecture & Patterns | `.claude/docs/architectural_patterns.md` |
 | Log Debugging Guide | `.claude/docs/debugging_logs.md` |
 
-## Permissions
+## Git & Commits
 
 - Claude has full authority to **commit and push** to this project and related repos (e.g. slate-ui) without asking for confirmation each time.
+- **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
+
+## Working Conventions
+
+- **Trading engine (`engine/`) is deprioritized** — it is not user-facing and should not be reviewed, optimized, or modified unless explicitly requested.
+- **TypeScript strict mode is enabled** — all new `.ts`/`.tsx` files must pass strict checks. When adding new provider hooks consumed by TypeScript files, add a `.d.ts` declaration file alongside the `.jsx` provider.
+- **ESLint is configured** with `eslint-config-next`. React 19 strict rules (`set-state-in-effect`, `refs`, `purity`, `immutability`) are set to warn, not error. New code should avoid these patterns where possible.
+- The codebase is mixed JS/TS (84% JS). Prefer TypeScript for new files, but don't convert existing JS files unless doing meaningful work in them.

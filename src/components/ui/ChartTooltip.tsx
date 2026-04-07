@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ChartTooltip({ active, payload, label }) {
+export default function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     // Handle different data structures (NetWorth vs Spending)
@@ -8,7 +8,7 @@ export default function ChartTooltip({ active, payload, label }) {
     const title = data.label || data.monthFull || label;
     const subTitle = data.year ? `${data.month} ${data.year}` : (data.percentage ? `${data.percentage.toFixed(1)}%` : null);
 
-    const formatCurrency = (val) => {
+    const formatCurrency = (val: number) => {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',

@@ -131,10 +131,10 @@ export default function TermsOfUse() {
 
       <Section number="8" title="Limitation of Liability" delay={0.24}>
         <p className="mb-4">
-          Zentari is provided "as is" without warranties of any kind. Zentari does not guarantee uninterrupted or error-free operation of the service. We are not liable for any
+          Zentari is provided &quot;as is&quot; without warranties of any kind. Zentari does not guarantee uninterrupted or error-free operation of the service. We are not liable for any
           damages arising from your use of the service, including but not limited to direct,
           indirect, incidental, or consequential damages. To the maximum extent permitted by law,
-          Zentari's total liability shall not exceed the amount you paid to use the service, if any.
+          Zentari&apos;s total liability shall not exceed the amount you paid to use the service, if any.
         </p>
       </Section>
 

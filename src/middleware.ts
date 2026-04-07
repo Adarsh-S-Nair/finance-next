@@ -10,7 +10,6 @@ const PUBLIC_ROUTES = [
 
 const PUBLIC_PREFIXES = [
   '/api/cron/',
-  '/api/debug/',
   '/api/market-data/',
 ];
 

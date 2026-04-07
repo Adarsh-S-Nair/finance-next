@@ -51,8 +51,8 @@ export default function DynamicIcon({ iconLib, iconName, className, fallback = F
       }
 
       try {
-        const module = await loader();
-        const Icon = module[iconName];
+        const iconModule = await loader();
+        const Icon = iconModule[iconName];
         if (isMounted) {
           if (Icon) {
             setIconComponent(() => Icon);

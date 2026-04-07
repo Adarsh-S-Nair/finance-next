@@ -10,10 +10,10 @@ import { useNetWorthHover } from "./NetWorthHoverContext";
 import LineChart from '../ui/LineChart';
 
 // Animated counter component for smooth number transitions
-function AnimatedCounter({ value, duration = 120 }) {
+function AnimatedCounter({ value, duration = 120 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(value);
   const [isAnimating, setIsAnimating] = useState(false);
-  const animationRef = useRef(null);
+  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (displayValue === value) return;
@@ -62,7 +62,7 @@ function AnimatedCounter({ value, duration = 120 }) {
   );
 }
 
-function formatCurrency(amount) {
+function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -72,7 +72,7 @@ function formatCurrency(amount) {
 }
 
 // Helper function to categorize account balances (same logic as AccountsSummaryCard)
-function categorizeAccount(account) {
+function categorizeAccount(account: any) {
   const accountType = (account.type || '').toLowerCase();
   const accountSubtype = (account.subtype || '').toLowerCase();
   const fullType = `${accountType} ${accountSubtype}`.trim();
@@ -108,8 +108,8 @@ function categorizeAccount(account) {
 }
 
 // Helper function to categorize account balances for historical data
-function categorizeAccountBalances(accountBalances, allAccounts) {
-  const categorized = {
+function categorizeAccountBalances(accountBalances: Record<string, number>, allAccounts: any[]) {
+  const categorized: Record<string, number> = {
     cash: 0,
     investments: 0,
     credit: 0,
@@ -117,8 +117,8 @@ function categorizeAccountBalances(accountBalances, allAccounts) {
   };
 
   // Create a map of account ID to account details for quick lookup
-  const accountMap = {};
-  allAccounts.forEach(account => {
+  const accountMap: Record<string, any> = {};
+  allAccounts.forEach((account: any) => {
     accountMap[account.id] = account;
   });
 
@@ -148,8 +148,8 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     refreshNetWorthData
   } = useNetWorth();
   const { setHoverData, clearHoverData } = useNetWorthHover();
-  const [hoveredData, setHoveredData] = useState(null);
-  const [activeIndex, setActiveIndex] = useState(null);
+  const [hoveredData, setHoveredData] = useState<any>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
 
   // Process net worth history data for the chart
@@ -367,7 +367,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
                 Unable to load historical data
               </div>
               <button
-                onClick={refreshNetWorthData}
+                onClick={() => refreshNetWorthData()}
                 className="text-sm text-[var(--color-accent)] hover:underline"
               >
                 Try again

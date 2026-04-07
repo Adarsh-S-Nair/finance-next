@@ -1,6 +1,5 @@
 "use client";
 
-import DebugMemoryStats from "../DebugMemoryStats";
 import AlertsIcon from "../AlertsIcon";
 import { motion } from "framer-motion";
 
@@ -37,7 +36,6 @@ export default function AppTopbar() {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' && <DebugMemoryStats />}
           <AlertsIcon />
         </div>
       </div>
