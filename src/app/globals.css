@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../node_modules/@slate-ui/react/dist";
 @import "../styles/colors.css";
 
 /* App-wide utility tweaks */
