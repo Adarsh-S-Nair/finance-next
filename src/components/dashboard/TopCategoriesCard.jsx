@@ -1,28 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 
-// Generate shades of accent color for donut slices
-function generateAccentShades(accentColor, count) {
-  if (!accentColor) {
-    return Array(count).fill("var(--color-muted)");
-  }
-  const shades = [];
-  for (let i = 0; i < count; i++) {
-    const opacities = [1, 0.85, 0.72, 0.60, 0.50, 0.42, 0.35, 0.30, 0.25, 0.22];
-    const opacity = opacities[i] ?? 0.20;
-    shades.push({ color: accentColor, opacity });
-  }
-  return shades;
-}
+const FALLBACK_COLOR = '#71717a';
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
-  const { user, profile, loading: authLoading } = useUser();
+  const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
@@ -37,19 +25,6 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     { label: 'Last 30 Days', value: 'last30' },
   ];
 
-  // Get accent color from profile or CSS variable
-  const accentColor = useMemo(() => {
-    if (profile?.accent_color) return profile.accent_color;
-    if (typeof window !== 'undefined') {
-      return getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#18181b';
-    }
-    return '#18181b';
-  }, [profile?.accent_color]);
-
-  // Generate shades for the categories
-  const accentShades = useMemo(() => {
-    return generateAccentShades(accentColor, categories.length);
-  }, [accentColor, categories.length]);
 
   const containerRef = React.useRef(null);
 
@@ -258,14 +233,13 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 style={{ pointerEvents: 'none' }} // Pass events through
               >
                 {categories.map((entry, index) => {
-                  const shade = accentShades[index] || { color: accentColor, opacity: 0.3 };
-                  const baseOpacity = shade.opacity;
-                  const hoverOpacity = activeIndex === index ? baseOpacity : (activeIndex !== null ? baseOpacity * 0.3 : baseOpacity);
+                  const color = entry.hex_color || FALLBACK_COLOR;
+                  const dimmed = activeIndex !== null && activeIndex !== index;
                   return (
                     <Cell
                       key={`cell-${index}`}
-                      fill={shade.color}
-                      opacity={hoverOpacity}
+                      fill={color}
+                      opacity={dimmed ? 0.25 : 1}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         outline: 'none',
