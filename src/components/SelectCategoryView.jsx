@@ -150,7 +150,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                                     "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all duration-150",
                                     isSelected
                                       ? "text-white"
-                                      : "bg-[var(--color-surface)] text-[var(--color-fg)] hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)]/30 font-light"
+                                      : "bg-[var(--color-surface)] text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] border border-[var(--color-border)]/30 font-light"
                                   )}
                                   style={isSelected ? { backgroundColor: group.hex_color || 'var(--color-accent)' } : {}}
                                 >

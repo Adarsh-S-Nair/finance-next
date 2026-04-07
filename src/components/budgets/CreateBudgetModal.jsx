@@ -507,7 +507,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                         <button
                           key={opt.id}
                           onClick={() => handleCategorySelect(opt)}
-                          className="w-48 shrink-0 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-hover)] transition-all text-left snap-start"
+                          className="w-48 shrink-0 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-alt)] transition-all text-left snap-start"
                         >
                           <div
                             className="w-10 h-10 rounded-full flex items-center justify-center mb-3"

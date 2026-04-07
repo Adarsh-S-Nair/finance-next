@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import ViewAllLink from "../ui/ViewAllLink";
-import Card from "../ui/Card";
 import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
 
@@ -57,7 +56,7 @@ export default function BudgetsCard() {
   // Loading state
   if (loading) {
     return (
-      <Card className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
+      <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
@@ -69,14 +68,14 @@ export default function BudgetsCard() {
             <div className="h-8 bg-[var(--color-border)] rounded" />
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   // Empty state - clean with prominent CTA
   if (budgets.length === 0) {
     return (
-      <Card className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
+      <div className="h-full flex flex-col">
         <div className="mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
@@ -97,7 +96,7 @@ export default function BudgetsCard() {
             </svg>
           </Link>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -114,7 +113,7 @@ export default function BudgetsCard() {
   };
 
   return (
-    <Card hover className="h-full flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none" variant="default">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>
@@ -133,7 +132,7 @@ export default function BudgetsCard() {
         </div>
 
         {/* Minimal Progress Bar */}
-        <div className="h-1.5 w-full bg-[var(--color-surface-hover)] rounded-full overflow-hidden mb-2">
+        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
           <div
             className={`h-full rounded-full transition-all duration-500 ease-out ${percentage >= 100 ? 'bg-rose-500' : percentage > 85 ? 'bg-amber-500' : 'bg-[var(--color-accent)]'
               }`}
@@ -150,7 +149,7 @@ export default function BudgetsCard() {
       {/* Budget List */}
       <div className="mt-auto space-y-4">
         {budgets.slice(0, 3).map((budget) => (
-          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-hover)] -mx-2 px-2 py-1.5 rounded-lg transition-colors">
+          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-1.5 rounded-lg transition-colors">
             <div className="flex items-center gap-3">
               <div className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
                 {getIcon(budget)}
@@ -163,6 +162,6 @@ export default function BudgetsCard() {
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }

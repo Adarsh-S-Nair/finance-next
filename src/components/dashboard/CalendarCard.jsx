@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { authFetch } from '../../lib/api/fetch';
-import Card from '../ui/Card';
 import { useUser } from '../providers/UserProvider';
 import { FiChevronLeft, FiChevronRight, FiTag, FiX } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
@@ -400,7 +399,7 @@ export default function CalendarCard({ className = '' }) {
 
   if (loading) {
     return (
-      <Card width="full" variant="default" hover className={`flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none ${className}`}>
+      <div className={`flex flex-col ${className}`}>
         <div className="animate-pulse">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
@@ -426,12 +425,12 @@ export default function CalendarCard({ className = '' }) {
             ))}
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card width="full" variant="default" hover className={`flex flex-col bg-zinc-50/50 border border-zinc-100 shadow-none ${className}`} allowOverflow>
+    <div className={`flex flex-col ${className}`}>
 
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">
@@ -454,7 +453,7 @@ export default function CalendarCard({ className = '' }) {
         </div>
 
         {/* Progress Bar */}
-        <div className="h-1.5 w-full bg-[var(--color-surface-hover)] rounded-full overflow-hidden mb-2">
+        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
           <div
             className="h-full rounded-full transition-all duration-500 ease-out bg-[var(--color-accent)]"
             style={{ width: `${monthlySummary.paidPercentage}%` }}
@@ -471,7 +470,7 @@ export default function CalendarCard({ className = '' }) {
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={goToPrevMonth}
-          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-hover)] transition-colors"
+          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
           aria-label="Previous month"
         >
           <FiChevronLeft className="w-4 h-4" />
@@ -483,7 +482,7 @@ export default function CalendarCard({ className = '' }) {
 
         <button
           onClick={goToNextMonth}
-          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-hover)] transition-colors"
+          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
           aria-label="Next month"
         >
           <FiChevronRight className="w-4 h-4" />
@@ -525,7 +524,7 @@ export default function CalendarCard({ className = '' }) {
                   ? 'bg-[var(--color-muted)]/15'
                   : ''
                 }
-                ${hasEvents ? 'cursor-pointer hover:bg-[var(--color-surface-hover)]' : ''}
+                ${hasEvents ? 'cursor-pointer hover:bg-[var(--color-surface-alt)]' : ''}
               `}
               onMouseEnter={() => hasEvents && setHoveredDate(dayData.date)}
               onMouseLeave={() => setHoveredDate(null)}
@@ -615,7 +614,7 @@ export default function CalendarCard({ className = '' }) {
             const dateB = b.predicted_next_date || b.last_date;
             return new Date(dateA) - new Date(dateB);
           }).map((stream, idx) => (
-            <div key={stream.id || idx} className="flex items-center gap-3 p-3 hover:bg-[var(--color-surface-hover)] rounded-xl transition-colors">
+            <div key={stream.id || idx} className="flex items-center gap-3 p-3 hover:bg-[var(--color-surface-alt)] rounded-xl transition-colors">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                 style={{
@@ -664,6 +663,6 @@ export default function CalendarCard({ className = '' }) {
           )}
         </div>
       </Drawer>
-    </Card>
+    </div>
   );
 }
