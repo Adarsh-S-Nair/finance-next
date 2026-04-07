@@ -259,20 +259,22 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 dataKey="total_spent"
                 stroke="none"
                 isAnimationActive={false}
-                style={{ pointerEvents: 'none', filter: 'url(#donut-glow)' }}
+                style={{ pointerEvents: 'none' }}
               >
                 {categories.map((entry, index) => {
                   const color = sliceColors[index] || FALLBACK_COLOR;
-                  const dimmed = activeIndex !== null && activeIndex !== index;
+                  const isActive = activeIndex === index;
+                  const isIdle = activeIndex === null;
                   return (
                     <Cell
                       key={`cell-${index}`}
-                      fill={color}
-                      opacity={dimmed ? 0.25 : 1}
+                      fill={isActive || isIdle ? color : 'var(--color-border)'}
+                      opacity={isActive ? 1 : isIdle ? 0.55 : 0.35}
+                      filter={isActive ? 'url(#donut-glow)' : undefined}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         outline: 'none',
-                        transform: activeIndex === index ? 'scale(1.03)' : 'scale(1)',
+                        transform: isActive ? 'scale(1.03)' : 'scale(1)',
                         transformOrigin: 'center center',
                         transformBox: 'fill-box'
                       }}

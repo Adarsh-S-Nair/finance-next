@@ -307,18 +307,20 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   key={`bar-${m}-${i}`}
                   style={{
                     opacity: activeMonthIndex !== null && !isActive ? 0.4 : 1,
-                    transition: 'opacity 0.2s ease'
+                    transition: 'all 0.3s ease'
                   }}
                 >
                   <path
                     d={incBarPath}
-                    fill="var(--color-cashflow-income)"
-                    filter="url(#bar-glow)"
+                    fill={isActive ? "var(--color-cashflow-income)" : "var(--color-chart-spending-bar)"}
+                    filter={isActive ? "url(#bar-glow)" : undefined}
+                    style={{ transition: 'fill 0.3s ease' }}
                   />
                   <path
                     d={spdBarPath}
-                    fill="var(--color-cashflow-spending)"
-                    filter="url(#bar-glow)"
+                    fill={isActive ? "var(--color-cashflow-spending)" : "var(--color-chart-spending-bar)"}
+                    filter={isActive ? "url(#bar-glow)" : undefined}
+                    style={{ transition: 'fill 0.3s ease' }}
                   />
 
                   {/* Invisible hover rect for the whole group */}
