@@ -239,6 +239,17 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
+            {/* Vertical gradient for bar depth — lighter left, darker right */}
+            <linearGradient id="bar-depth" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="white" stopOpacity="0.12" />
+              <stop offset="50%" stopColor="white" stopOpacity="0" />
+              <stop offset="100%" stopColor="black" stopOpacity="0.15" />
+            </linearGradient>
+            <linearGradient id="bar-depth-dark" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="white" stopOpacity="0.08" />
+              <stop offset="50%" stopColor="white" stopOpacity="0" />
+              <stop offset="100%" stopColor="black" stopOpacity="0.25" />
+            </linearGradient>
           </defs>
 
           {/* Grid lines */}
@@ -310,6 +321,21 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                     opacity={isActive ? 1 : 0.3}
                     filter={isActive ? 'url(#bar-glow)' : undefined}
                     style={{ transition: 'all 0.3s ease' }}
+                  />
+                  {/* Depth overlay — highlight left, shadow right */}
+                  <path
+                    d={barPath}
+                    fill="url(#bar-depth)"
+                    className="dark:hidden"
+                    opacity={isActive ? 1 : 0.6}
+                    style={{ transition: 'opacity 0.3s ease', pointerEvents: 'none' }}
+                  />
+                  <path
+                    d={barPath}
+                    fill="url(#bar-depth-dark)"
+                    className="hidden dark:block"
+                    opacity={isActive ? 1 : 0.6}
+                    style={{ transition: 'opacity 0.3s ease', pointerEvents: 'none' }}
                   />
 
                   {/* Invisible hover rect */}

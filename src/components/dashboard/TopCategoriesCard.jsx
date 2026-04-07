@@ -249,11 +249,21 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                     <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
-                {/* Depth filter — subtle bevel with top-left highlight */}
-                <filter id="donut-depth" x="-5%" y="-5%" width="110%" height="110%">
-                  <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="shadow" />
-                  <feOffset dx="0" dy="1" in="shadow" result="offsetShadow" />
-                  <feComposite in="SourceGraphic" in2="offsetShadow" operator="over" />
+                {/* Depth filter — inner shadow for a raised/beveled look */}
+                <filter id="donut-depth" x="-10%" y="-10%" width="120%" height="120%">
+                  {/* Create inner shadow by inverting the alpha, blurring, then compositing */}
+                  <feComponentTransfer in="SourceAlpha" result="invert">
+                    <feFuncA type="table" tableValues="1 0" />
+                  </feComponentTransfer>
+                  <feGaussianBlur in="invert" stdDeviation="1.2" result="blur" />
+                  <feOffset dx="1" dy="1.5" in="blur" result="offsetBlur" />
+                  <feFlood floodColor="black" floodOpacity="0.2" result="shadowColor" />
+                  <feComposite in="shadowColor" in2="offsetBlur" operator="in" result="innerShadow" />
+                  <feComposite in="innerShadow" in2="SourceAlpha" operator="in" result="clippedShadow" />
+                  <feMerge>
+                    <feMergeNode in="SourceGraphic" />
+                    <feMergeNode in="clippedShadow" />
+                  </feMerge>
                 </filter>
               </defs>
               {/* Visible Pie Layer */}
