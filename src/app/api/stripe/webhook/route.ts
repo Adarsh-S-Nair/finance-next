@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
         const userId = subscription.metadata?.supabase_user_id ?? null;
         const status = subscription.status;
 
-        // Treat active/trialing as pro; anything else reverts to free
-        const tier = status === 'active' || status === 'trialing' ? 'pro' : 'free';
+        // Active/trialing → pro; past_due keeps pro (grace period); anything else → free
+        const tier = status === 'active' || status === 'trialing' || status === 'past_due' ? 'pro' : 'free';
 
         await syncSubscriptionTier({
           userId,

@@ -7,6 +7,7 @@ export interface UserProfile {
   avatar_url: string | null;
   accent_color: string | null;
   subscription_tier: string;
+  subscription_status: string | null;
   theme: string | null;
   [key: string]: unknown;
 }
@@ -17,6 +18,7 @@ export interface UserContextValue {
   profile: UserProfile | null;
   loading: boolean;
   isPro: boolean;
+  subscriptionStatus: string | null;
   refreshProfile: () => Promise<void>;
   setTheme: (theme: string) => void;
   setAccentColor: (hexOrNull: string | null) => void;

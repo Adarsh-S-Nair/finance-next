@@ -7,13 +7,13 @@ import { fetchUserProfile, upsertUserProfile } from "../../lib/user/profile";
 import { useToast } from "./ToastProvider";
 import { useAuth } from "./AuthProvider";
 import { useTheme } from "./ThemeProvider";
-import { canAccess } from "../../lib/tierConfigClient";
 
 const UserContext = createContext({
   user: null,
   profile: null,
   loading: true,
   isPro: false,
+  subscriptionStatus: null,
   refreshProfile: async () => { },
   setTheme: (_theme) => { },
   setAccentColor: (_hexOrNull) => { },
@@ -54,7 +54,7 @@ export default function UserProvider({ children }) {
     try {
       const { data } = await supabase
         .from("user_profiles")
-        .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier")
+        .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier, subscription_status")
         .eq("id", userId)
         .maybeSingle();
       setProfile(data || {});
@@ -262,11 +262,13 @@ export default function UserProvider({ children }) {
   // Context value
   // -----------------------------------------------------------------------
 
-  const isPro = canAccess(profile?.subscription_tier || "free", "budgets");
+  const tier = profile?.subscription_tier || "free";
+  const isPro = tier === "pro";
+  const subscriptionStatus = profile?.subscription_status || null;
 
   const value = useMemo(
-    () => ({ user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout }),
-    [user, profile, loading, isPro, refreshProfile, setTheme, setAccentColor, logout],
+    () => ({ user, profile, loading, isPro, subscriptionStatus, refreshProfile, setTheme, setAccentColor, logout }),
+    [user, profile, loading, isPro, subscriptionStatus, refreshProfile, setTheme, setAccentColor, logout],
   );
 
   return (
