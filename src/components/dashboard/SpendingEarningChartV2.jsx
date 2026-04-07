@@ -306,9 +306,10 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                 >
                   <path
                     d={barPath}
-                    fill={isActive ? 'var(--color-accent)' : 'var(--color-chart-spending-bar)'}
+                    fill="var(--color-chart-primary)"
+                    opacity={isActive ? 1 : 0.3}
                     filter={isActive ? 'url(#bar-glow)' : undefined}
-                    style={{ transition: 'fill 0.3s ease' }}
+                    style={{ transition: 'all 0.3s ease' }}
                   />
 
                   {/* Invisible hover rect */}
