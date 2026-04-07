@@ -241,21 +241,25 @@ export default function LineChart({
             {chartLines.map((line) => (
               <React.Fragment key={line.gradientId}>
                 <linearGradient id={line.gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
-                  <stop offset="95%" stopColor={line.strokeColor} stopOpacity={0} />
+                  <stop offset="0%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
+                  <stop offset="40%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity * 0.5} />
+                  <stop offset="100%" stopColor={line.strokeColor} stopOpacity={0} />
                 </linearGradient>
                 {line.fadeIn && (
                   <linearGradient id={`${line.gradientId}-fadeIn`} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={line.strokeColor} stopOpacity={0.1} />
-                    <stop offset="60%" stopColor={line.strokeColor} stopOpacity={0.6} />
+                    <stop offset="0%" stopColor={line.strokeColor} stopOpacity={0.05} />
+                    <stop offset="40%" stopColor={line.strokeColor} stopOpacity={0.35} />
+                    <stop offset="75%" stopColor={line.strokeColor} stopOpacity={0.75} />
                     <stop offset="100%" stopColor={line.strokeColor} stopOpacity={1} />
                   </linearGradient>
                 )}
                 {line.endpointGlow && (
-                  <filter id={`${line.gradientId}-glow`} x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur stdDeviation="4" result="blur" />
+                  <filter id={`${line.gradientId}-glow`} x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="blur" in2="blur" operator="over" result="glow" />
                     <feMerge>
-                      <feMergeNode in="blur" />
+                      <feMergeNode in="glow" />
+                      <feMergeNode in="glow" />
                       <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
@@ -337,10 +341,11 @@ export default function LineChart({
                 key={`glow-${line.dataKey}`}
                 x={data[lastIdx][xAxisDataKey]}
                 y={data[lastIdx][line.dataKey]}
-                r={5}
+                r={6}
                 fill={line.strokeColor}
                 stroke={line.strokeColor}
-                strokeWidth={0}
+                strokeWidth={2}
+                strokeOpacity={0.5}
                 filter={`url(#${line.gradientId}-glow)`}
               />
             );

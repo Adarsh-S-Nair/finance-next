@@ -225,7 +225,7 @@ export default function RecentTransactionsCard() {
         <ViewAllLink href="/transactions" />
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;
           const amountColor = isPositive ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]';
@@ -233,25 +233,25 @@ export default function RecentTransactionsCard() {
           return (
             <div
               key={transaction.id || index}
-              className="flex items-center justify-between py-3 px-2"
+              className="flex items-center justify-between py-3.5 px-2"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <TransactionIconCircle transaction={transaction} />
                 <div className="min-w-0 flex-1 mr-4">
-                  <div className="text-sm font-medium text-[var(--color-fg)] truncate">
+                  <div className="text-[13px] text-[var(--color-fg)] truncate">
                     {transaction.merchant_name || transaction.description || transaction.name || 'Transaction'}
                   </div>
-                  <div className="text-xs text-[var(--color-muted)]">
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
                     {formatDate(transaction.date || transaction.datetime)}
                   </div>
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className={`text-sm font-medium ${amountColor}`}>
+                <div className={`text-[13px] tabular-nums ${amountColor}`}>
                   {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}
                 </div>
                 {transaction.pending && (
-                  <div className="text-xs text-[var(--color-muted)] italic">
+                  <div className="text-xs text-[var(--color-muted)] italic mt-0.5">
                     Pending
                   </div>
                 )}
