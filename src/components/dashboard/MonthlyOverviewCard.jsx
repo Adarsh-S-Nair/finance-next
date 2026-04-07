@@ -200,11 +200,18 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   );
 
   return (
-    <div className="relative overflow-hidden h-full">
+    <div className="relative h-full">
+      {/* Ambient glow behind chart area */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.07] dark:opacity-[0.12]"
+        style={{
+          background: 'radial-gradient(ellipse 70% 50% at 70% 80%, var(--color-chart-primary), transparent)',
+        }}
+      />
       {showLoading ? (
         <SkeletonLoader />
       ) : (
-        <div className="flex flex-col h-full">
+        <div className="relative flex flex-col h-full">
           {/* Custom Header */}
           {/* Custom Header */}
           <div className="px-0 pt-0 pb-3 flex justify-between items-start">
@@ -290,7 +297,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               data={chartData}
               width="100%"
               height="100%"
-              margin={{ top: 10, right: 16, bottom: 0, left: 16 }}
+              margin={{ top: 24, right: 16, bottom: 0, left: 16 }}
               lines={[
                 {
                   dataKey: "previousSpending",
@@ -307,7 +314,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   strokeWidth: 2.5,
                   strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.45,
+                  areaOpacity: 0.55,
                   gradientId: "monthlyOverviewSpending",
                   fadeIn: true,
                   endpointGlow: true,

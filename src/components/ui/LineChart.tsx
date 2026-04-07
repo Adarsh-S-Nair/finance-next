@@ -242,7 +242,8 @@ export default function LineChart({
               <React.Fragment key={line.gradientId}>
                 <linearGradient id={line.gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity} />
-                  <stop offset="40%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity * 0.5} />
+                  <stop offset="25%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity * 0.65} />
+                  <stop offset="60%" stopColor={line.strokeColor} stopOpacity={line.areaOpacity * 0.2} />
                   <stop offset="100%" stopColor={line.strokeColor} stopOpacity={0} />
                 </linearGradient>
                 {line.fadeIn && (
@@ -254,12 +255,11 @@ export default function LineChart({
                   </linearGradient>
                 )}
                 {line.endpointGlow && (
-                  <filter id={`${line.gradientId}-glow`} x="-100%" y="-100%" width="300%" height="300%">
-                    <feGaussianBlur stdDeviation="6" result="blur" />
-                    <feComposite in="blur" in2="blur" operator="over" result="glow" />
+                  <filter id={`${line.gradientId}-glow`} x="-200%" y="-200%" width="500%" height="500%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
                     <feMerge>
-                      <feMergeNode in="glow" />
-                      <feMergeNode in="glow" />
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="blur" />
                       <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
@@ -341,11 +341,10 @@ export default function LineChart({
                 key={`glow-${line.dataKey}`}
                 x={data[lastIdx][xAxisDataKey]}
                 y={data[lastIdx][line.dataKey]}
-                r={6}
+                r={3.5}
                 fill={line.strokeColor}
                 stroke={line.strokeColor}
-                strokeWidth={2}
-                strokeOpacity={0.5}
+                strokeWidth={0}
                 filter={`url(#${line.gradientId}-glow)`}
               />
             );

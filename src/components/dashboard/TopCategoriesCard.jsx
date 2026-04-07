@@ -216,7 +216,14 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
 
   return (
     <div className="h-[440px] relative">
-      <div ref={containerRef} className="flex flex-col h-full">
+      {/* Ambient glow behind donut */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.05] dark:opacity-[0.08]"
+        style={{
+          background: 'radial-gradient(ellipse 50% 40% at 50% 45%, var(--color-chart-primary), transparent)',
+        }}
+      />
+      <div ref={containerRef} className="relative flex flex-col h-full">
         {/* Custom Header with Dropdown */}
         <div className="pb-2 flex items-center justify-between">
           <div className="card-header">

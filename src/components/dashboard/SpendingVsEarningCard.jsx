@@ -188,6 +188,13 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
 
   return (
     <div className="h-full relative" style={{ zIndex: hoveredData ? 100 : 'auto' }}>
+      {/* Ambient glow behind chart */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06] dark:opacity-[0.10]"
+        style={{
+          background: 'radial-gradient(ellipse 60% 50% at 50% 75%, var(--color-cashflow-income), transparent)',
+        }}
+      />
       {showLoading && (
         <div className="absolute inset-0 z-20 animate-pulse pointer-events-none flex flex-col pt-0 pb-0">
           {/* Header row — matches actual layout */}
