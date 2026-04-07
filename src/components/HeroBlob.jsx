@@ -70,9 +70,9 @@ export default function HeroBlob() {
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      0.8,   // strength
-      0.6,   // radius
-      0.3    // threshold
+      1.5,   // strength
+      0.8,   // radius
+      0.2    // threshold
     );
     composer.addPass(bloomPass);
 
@@ -80,13 +80,13 @@ export default function HeroBlob() {
     const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — matte/emissive, no reflections
+    // Material — subtle reflections, not mirror-like
     const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0a1a30),
-      roughness: 0.85,
-      metalness: 0.1,
-      emissive: new THREE.Color(0x1a3a6a),
-      emissiveIntensity: 0.5,
+      color: new THREE.Color(0x0d1e35),
+      roughness: 0.55,
+      metalness: 0.3,
+      emissive: new THREE.Color(0x1a4080),
+      emissiveIntensity: 0.6,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -97,9 +97,9 @@ export default function HeroBlob() {
     const glowGeometry = new THREE.IcosahedronGeometry(1.85, 64);
     const glowBasePositions = Float32Array.from(glowGeometry.attributes.position.array);
     const glowMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x2266bb),
+      color: new THREE.Color(0x3388dd),
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.22,
       side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
     });
@@ -111,9 +111,9 @@ export default function HeroBlob() {
     const hazeGeometry = new THREE.IcosahedronGeometry(2.2, 32);
     const hazeBasePositions = Float32Array.from(hazeGeometry.attributes.position.array);
     const hazeMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0x1a4488),
+      color: new THREE.Color(0x2266aa),
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.12,
       side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
     });
@@ -190,8 +190,8 @@ export default function HeroBlob() {
       hazeMesh.rotation.copy(mesh.rotation);
 
       // Pulse the glow
-      glowMaterial.opacity = 0.10 + Math.sin(t * 2) * 0.03;
-      hazeMaterial.opacity = 0.05 + Math.sin(t * 1.5 + 1) * 0.02;
+      glowMaterial.opacity = 0.18 + Math.sin(t * 2) * 0.06;
+      hazeMaterial.opacity = 0.10 + Math.sin(t * 1.5 + 1) * 0.04;
 
       composer.render();
     }
