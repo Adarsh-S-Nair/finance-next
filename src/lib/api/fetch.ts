@@ -73,5 +73,21 @@ export async function authFetch(
     }
   }
 
+  // Retry on 429 (rate limited) — respect Retry-After header, up to 2 attempts
+  if (response.status === 429) {
+    const signal = init?.signal;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (signal?.aborted) break;
+      const retryAfter = response.headers.get("Retry-After");
+      const delayMs = retryAfter
+        ? Math.min(parseInt(retryAfter, 10) * 1000, 5000)
+        : 1000 * (attempt + 1);
+      await new Promise((r) => setTimeout(r, delayMs));
+      if (signal?.aborted) break;
+      response = await fetch(input, { ...init, headers });
+      if (response.status !== 429) break;
+    }
+  }
+
   return response;
 }
