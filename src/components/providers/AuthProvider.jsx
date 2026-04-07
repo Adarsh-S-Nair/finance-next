@@ -20,6 +20,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [lastEvent, setLastEvent] = useState(null); // { type, user, ts }
   const recoveringRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
 
   const clearStaleAuthData = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -32,7 +34,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const ensureUser = useCallback(async () => {
-    if (recoveringRef.current) return user;
+    if (recoveringRef.current) return userRef.current;
     recoveringRef.current = true;
     try {
       let u = null;
@@ -63,7 +65,7 @@ export function AuthProvider({ children }) {
     } finally {
       recoveringRef.current = false;
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     // Session recovery: rehydrate auth on visibility/focus/online
