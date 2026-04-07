@@ -188,16 +188,14 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
             zIndex: 1000,
           }}
         >
-          <div className="bg-[var(--color-fg)] dark:bg-[var(--color-fg)] rounded-md px-3 py-2.5 text-xs whitespace-nowrap">
-            <div className="text-[var(--color-bg)] dark:text-[var(--color-bg)]">
-              <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">{tooltipInfo.month}</span>
-              <div className={`text-sm font-semibold mt-1 ${tooltipInfo.net >= 0 ? '' : ''}`}>
-                {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
-              </div>
-              <div className="flex items-center gap-3 mt-1.5 text-[10px] opacity-60">
-                <span>{formatCurrency(tooltipInfo.income)} in</span>
-                <span>{formatCurrency(tooltipInfo.spending)} out</span>
-              </div>
+          <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 text-xs whitespace-nowrap">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{tooltipInfo.month}</span>
+            <div className="text-sm font-semibold mt-1 text-white">
+              {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
+            </div>
+            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-zinc-400">
+              <span>{formatCurrency(tooltipInfo.income)} in</span>
+              <span>{formatCurrency(tooltipInfo.spending)} out</span>
             </div>
           </div>
         </div>
