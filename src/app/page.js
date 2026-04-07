@@ -6,9 +6,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import PublicRoute from "../components/PublicRoute";
 
-export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass = "bg-transparent" }) {
+export function LandingNav({ menuOpen, setMenuOpen, showLinks = true, bgClass }) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const headerBg = bgClass ?? (scrolled ? "bg-zinc-950/95 backdrop-blur-md border-b border-white/5" : "bg-transparent");
+
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 ${bgClass}`}>
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${headerBg}`}>
       <div className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
         <Link href="/" className="flex items-center gap-3">
           <span
@@ -142,6 +153,7 @@ export default function Home() {
   return (
     <PublicRoute>
       <style>{`
+        html, body { background: #09090b !important; }
         .lp-heading-gradient {
           background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 40% 72%) 100%);
           -webkit-background-clip: text;
