@@ -178,6 +178,18 @@ When working on specific areas, consult these files:
 - Claude has full authority to **commit and push** to this project and related repos (e.g. slate-ui) without asking for confirmation each time.
 - **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
 
+## Slate UI (`@slate-ui/react`)
+
+Custom component library maintained in a sibling repo at `../slate-ui` (GitHub: `Adarsh-S-Nair/slate-ui`).
+
+- **Source**: `../slate-ui/src/components/` — TypeScript components built with Tailwind + CSS variables
+- **Build**: `npm run build` in the slate-ui repo (uses `tsup`), outputs to `dist/`
+- **Install in finance-next**: `npm install @slate-ui/react@github:Adarsh-S-Nair/slate-ui`
+- **Tailwind scanning**: finance-next must include `@source "../../node_modules/@slate-ui/react/dist"` in `globals.css` so Tailwind 4 JIT generates utility classes used by slate-ui components
+- **Theming**: Components consume CSS variables from `colors.css` (e.g. `--color-dropdown-bg`, `--color-fg`, `--color-surface`, `--color-accent`)
+- **Components**: Dropdown, Button, Card, Tooltip, EmptyState, and more
+- **Workflow**: Edit source in `../slate-ui/src/` → `npm run build` → commit + push slate-ui → `npm install` in finance-next to pull updated dist
+
 ## Working Conventions
 
 - **Trading engine (`engine/`) is deprioritized** — it is not user-facing and should not be reviewed, optimized, or modified unless explicitly requested.

@@ -15,6 +15,7 @@ import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
 import { FadeIn } from "@slate-ui/react";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
+import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 
 // Map string keys to actual components
 const componentMap = {
@@ -28,7 +29,7 @@ const componentMap = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useUser();
+  const { user, isPro, loading: authLoading } = useUser();
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
@@ -139,11 +140,20 @@ export default function DashboardPage() {
 
         {/* Sidebar */}
         <div className="lg:col-span-3 space-y-8">
-          {dashboardLayout.sidebar.map((item, i) => (
-            <FadeIn key={item.id} delay={0.2 + i * 0.15}>
-              {renderItem(item)}
+          {!isPro && (
+            <FadeIn delay={0.2}>
+              <UpgradeBanner />
             </FadeIn>
-          ))}
+          )}
+          {dashboardLayout.sidebar.map((item, i) => {
+            // Hide pro-only cards (budgets, calendar) for free users
+            if (!isPro && item.id === 'sidebar-group') return null;
+            return (
+              <FadeIn key={item.id} delay={isPro ? 0.2 + i * 0.15 : 0.3 + i * 0.15}>
+                {renderItem(item)}
+              </FadeIn>
+            );
+          })}
         </div>
       </div>
     </PageContainer>
