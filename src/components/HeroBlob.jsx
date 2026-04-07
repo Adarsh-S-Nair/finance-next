@@ -2,8 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
 
-// Simplex-style 3D noise (compact implementation)
+// Simplex-style 3D noise
 function createNoise() {
   const perm = new Uint8Array(512);
   const p = new Uint8Array(256);
@@ -39,53 +42,6 @@ function createNoise() {
   };
 }
 
-// Generate a smooth gradient environment map for reflections
-function createEnvMap(renderer) {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  pmrem.compileEquirectangularShader();
-
-  const envScene = new THREE.Scene();
-
-  // Dark gradient background with subtle blue
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext("2d");
-
-  // Radial gradient — dark center, subtle blue edges
-  const grad = ctx.createRadialGradient(512, 256, 0, 512, 256, 512);
-  grad.addColorStop(0, "#0a0e18");
-  grad.addColorStop(0.4, "#0d1a2e");
-  grad.addColorStop(0.7, "#122844");
-  grad.addColorStop(1, "#1a3a66");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 512);
-
-  // Add some subtle bright spots for interesting reflections
-  ctx.globalCompositeOperation = "screen";
-  for (const spot of [
-    { x: 200, y: 150, r: 120, color: "rgba(60,120,200,0.15)" },
-    { x: 700, y: 300, r: 150, color: "rgba(40,90,180,0.12)" },
-    { x: 500, y: 100, r: 100, color: "rgba(80,140,220,0.1)" },
-    { x: 850, y: 200, r: 80, color: "rgba(100,160,240,0.08)" },
-  ]) {
-    const g = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, spot.r);
-    g.addColorStop(0, spot.color);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 1024, 512);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.mapping = THREE.EquirectangularReflectionMapping;
-
-  const envMap = pmrem.fromEquirectangular(texture).texture;
-  texture.dispose();
-  pmrem.dispose();
-
-  return envMap;
-}
-
 export default function HeroBlob() {
   const containerRef = useRef(null);
 
@@ -105,68 +61,98 @@ export default function HeroBlob() {
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
 
-    // Environment map for smooth reflections
-    const envMap = createEnvMap(renderer);
-    scene.environment = envMap;
+    // Post-processing — bloom for glow effect
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
 
-    // Blob geometry — high subdivision for smooth surface
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(container.clientWidth, container.clientHeight),
+      0.8,   // strength
+      0.6,   // radius
+      0.3    // threshold
+    );
+    composer.addPass(bloomPass);
+
+    // Blob geometry — high subdivision, subtle displacement
     const geometry = new THREE.IcosahedronGeometry(1.8, 128);
     const basePositions = Float32Array.from(geometry.attributes.position.array);
 
-    // Material — glossy dark with smooth environment reflections
-    const material = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0x0f1f38),
-      roughness: 0.12,
-      metalness: 0.8,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
+    // Material — matte/emissive, no reflections
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0a1a30),
+      roughness: 0.85,
+      metalness: 0.1,
       emissive: new THREE.Color(0x1a3a6a),
-      emissiveIntensity: 0.3,
-      envMap: envMap,
-      envMapIntensity: 1.5,
+      emissiveIntensity: 0.5,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(2.2, -0.3, 0);
     scene.add(mesh);
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0x2a3a5a, 1.0);
+    // Glow shell — slightly larger, additive blended
+    const glowGeometry = new THREE.IcosahedronGeometry(1.85, 64);
+    const glowBasePositions = Float32Array.from(glowGeometry.attributes.position.array);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0x2266bb),
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+    glowMesh.position.copy(mesh.position);
+    scene.add(glowMesh);
+
+    // Outer haze shell — even larger for atmospheric glow
+    const hazeGeometry = new THREE.IcosahedronGeometry(2.2, 32);
+    const hazeBasePositions = Float32Array.from(hazeGeometry.attributes.position.array);
+    const hazeMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0x1a4488),
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const hazeMesh = new THREE.Mesh(hazeGeometry, hazeMaterial);
+    hazeMesh.position.copy(mesh.position);
+    scene.add(hazeMesh);
+
+    // Lights — soft, diffuse
+    const ambient = new THREE.AmbientLight(0x2a3a5a, 1.5);
     scene.add(ambient);
 
-    const light1 = new THREE.PointLight(0x5599dd, 60, 30);
+    const light1 = new THREE.PointLight(0x4488cc, 50, 30);
     light1.position.set(4, 2, 4);
     scene.add(light1);
 
-    const light2 = new THREE.PointLight(0x3366bb, 40, 30);
+    const light2 = new THREE.PointLight(0x2255aa, 35, 30);
     light2.position.set(-3, -1, 3);
     scene.add(light2);
 
-    const light3 = new THREE.PointLight(0x224466, 30, 30);
+    const light3 = new THREE.PointLight(0x3366aa, 25, 30);
     light3.position.set(0, 3, -2);
     scene.add(light3);
-
-    const light4 = new THREE.PointLight(0x6699cc, 20, 30);
-    light4.position.set(2, -2, -3);
-    scene.add(light4);
 
     // Animation
     let animId;
     const pos = geometry.attributes.position;
+    const glowPos = glowGeometry.attributes.position;
+    const hazePos = hazeGeometry.attributes.position;
 
     function animate() {
       animId = requestAnimationFrame(animate);
-      const t = performance.now() * 0.0004;
+      const t = performance.now() * 0.0003;
 
-      // Morph vertices with noise
+      // Morph main blob vertices — subtle displacement (more spherical)
       for (let i = 0; i < pos.count; i++) {
         const ix = i * 3;
         const bx = basePositions[ix], by = basePositions[ix + 1], bz = basePositions[ix + 2];
-        const displacement = noise(bx * 1.5 + t, by * 1.5 + t * 0.7, bz * 1.5 + t * 0.5);
-        const scale = 1 + displacement * 0.22;
+        const displacement = noise(bx * 1.2 + t, by * 1.2 + t * 0.6, bz * 1.2 + t * 0.4);
+        const scale = 1 + displacement * 0.1;
         pos.array[ix] = bx * scale;
         pos.array[ix + 1] = by * scale;
         pos.array[ix + 2] = bz * scale;
@@ -174,29 +160,67 @@ export default function HeroBlob() {
       pos.needsUpdate = true;
       geometry.computeVertexNormals();
 
-      mesh.rotation.y = t * 0.3;
-      mesh.rotation.x = Math.sin(t * 0.5) * 0.15;
+      // Morph glow shell to follow the blob loosely
+      for (let i = 0; i < glowPos.count; i++) {
+        const ix = i * 3;
+        const bx = glowBasePositions[ix], by = glowBasePositions[ix + 1], bz = glowBasePositions[ix + 2];
+        const displacement = noise(bx * 1.0 + t * 0.8, by * 1.0 + t * 0.5, bz * 1.0 + t * 0.3);
+        const scale = 1 + displacement * 0.08;
+        glowPos.array[ix] = bx * scale;
+        glowPos.array[ix + 1] = by * scale;
+        glowPos.array[ix + 2] = bz * scale;
+      }
+      glowPos.needsUpdate = true;
 
-      renderer.render(scene, camera);
+      // Morph haze
+      for (let i = 0; i < hazePos.count; i++) {
+        const ix = i * 3;
+        const bx = hazeBasePositions[ix], by = hazeBasePositions[ix + 1], bz = hazeBasePositions[ix + 2];
+        const displacement = noise(bx * 0.8 + t * 0.6, by * 0.8 + t * 0.4, bz * 0.8 + t * 0.2);
+        const scale = 1 + displacement * 0.06;
+        hazePos.array[ix] = bx * scale;
+        hazePos.array[ix + 1] = by * scale;
+        hazePos.array[ix + 2] = bz * scale;
+      }
+      hazePos.needsUpdate = true;
+
+      mesh.rotation.y = t * 0.25;
+      mesh.rotation.x = Math.sin(t * 0.4) * 0.1;
+      glowMesh.rotation.copy(mesh.rotation);
+      hazeMesh.rotation.copy(mesh.rotation);
+
+      // Pulse the glow
+      glowMaterial.opacity = 0.10 + Math.sin(t * 2) * 0.03;
+      hazeMaterial.opacity = 0.05 + Math.sin(t * 1.5 + 1) * 0.02;
+
+      composer.render();
     }
     animate();
 
     // Resize handler
     function onResize() {
-      camera.aspect = container.clientWidth / container.clientHeight;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(w, h);
+      composer.setSize(w, h);
+      bloomPass.resolution.set(w, h);
     }
     window.addEventListener("resize", onResize);
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", onResize);
-      envMap.dispose();
+      composer.dispose();
       renderer.dispose();
       geometry.dispose();
+      glowGeometry.dispose();
+      hazeGeometry.dispose();
       material.dispose();
+      glowMaterial.dispose();
+      hazeMaterial.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
