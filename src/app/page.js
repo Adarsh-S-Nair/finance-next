@@ -175,11 +175,17 @@ export default function Home() {
 
         {/* Hero */}
         <section className="relative flex h-screen flex-col overflow-hidden">
-          {/* Background image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: "url(/hero-bg.png)" }}
-          />
+          {/* Background video */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
+            poster="/hero-bg.png"
+          >
+            <source src="/hero-bg.mp4" type="video/mp4" />
+          </video>
           {/* Dark overlay for text readability on left */}
           <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/60 to-transparent" />
 
