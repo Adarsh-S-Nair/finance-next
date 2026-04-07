@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 export default function AppTopbar() {
   return (
-    <header id="app-topbar" className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col transition-all duration-300 ease-in-out left-0 md:left-20 xl:left-64">
+    <header id="app-topbar" className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col transition-all duration-300 ease-in-out left-0 md:left-20 xl:left-64 dark:rounded-tl-2xl">
       <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8 h-16 w-full flex items-center gap-3 shrink-0 relative">
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:static lg:translate-x-0 lg:translate-y-0 lg:flex-1 flex items-center gap-3 md:hidden">

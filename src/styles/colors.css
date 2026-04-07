@@ -76,23 +76,11 @@
   /* Spending Bar Color - Light Mode (Lighter Gray) */
   --color-chart-spending-bar: #d4d4d8;
   /* Zinc 300 */
-
-  /* Category Donut Palette — muted, same saturation/brightness family */
-  --color-cat-1: #6b83a5;
-  --color-cat-2: #7ba58c;
-  --color-cat-3: #a07db0;
-  --color-cat-4: #c49566;
-  --color-cat-5: #b07878;
-  --color-cat-6: #6a9fa8;
-  --color-cat-7: #8d8d66;
-  --color-cat-8: #8088b8;
-  --color-cat-9: #b08a6e;
-  --color-cat-10: #6aab9a;
 }
 
 .dark {
   /* Matte Dark Mode - Balanced & Comfortable */
-  --color-bg: #202024;
+  --color-bg: #1f1f1f;
   /* Base layer — sidebar sits on this, content panel on top */
   --color-surface: #212125;
   /* Very subtle contrast with bg */
@@ -145,7 +133,7 @@
   --color-dropdown-bg: var(--color-surface-alt);
 
   --color-content-bg: #181818;
-  --color-sidebar-bg: #202024;
+  --color-sidebar-bg: #1f1f1f;
   --color-sidebar-active: #2a2a2f;
 
   /* Glassmorphism helpers - Dark Mode */
@@ -173,18 +161,6 @@
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;
   /* Zinc 600 */
-
-  /* Category Donut Palette — brightened for dark bg */
-  --color-cat-1: #8aa0c0;
-  --color-cat-2: #8fbfa2;
-  --color-cat-3: #b898c6;
-  --color-cat-4: #d4a87a;
-  --color-cat-5: #c89090;
-  --color-cat-6: #80b8c0;
-  --color-cat-7: #a5a580;
-  --color-cat-8: #96a0d0;
-  --color-cat-9: #c8a088;
-  --color-cat-10: #80c4b0;
 }
 
 /* Base application colors */

@@ -164,12 +164,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                           : "text-[var(--color-fg)]/60 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
                       )}
                     >
-                      {active && (
-                        <div
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--color-accent)] rounded-r-md"
-                        />
-                      )}
-
                       <span className={`flex items-center gap-2.5 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
                         <span className="flex items-center justify-center">
                           {it.icon && <it.icon className="h-[18px] w-[18px]" />}
