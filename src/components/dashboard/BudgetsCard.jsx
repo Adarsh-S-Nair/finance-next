@@ -111,7 +111,7 @@ export default function BudgetsCard() {
           <h3 className="card-header">Budgets</h3>
         </div>
         <div className="animate-pulse">
-          <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+          <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
             <div className="h-7 bg-[var(--color-border)] rounded w-32 mx-auto mb-4" />
             <div className="flex gap-1">
               <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-[3]" />
@@ -150,8 +150,7 @@ export default function BudgetsCard() {
     }) || [];
 
     const totalBudgetSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
-    const totalSpentSuggested = suggestedBudgets.reduce((s, b) => s + b.spent, 0);
-    const remainingSuggested = totalBudgetSuggested - totalSpentSuggested;
+    const remainingSuggested = totalBudgetSuggested - suggestedBudgets.reduce((s, b) => s + b.spent, 0);
     const hasSuggestions = suggestedBudgets.length > 0;
 
     return (
@@ -163,8 +162,8 @@ export default function BudgetsCard() {
         {hasSuggestions ? (
           <div className="flex-1 flex flex-col">
             {/* Hero card with number + segmented bar */}
-            <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-              <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
+            <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
+              <p className="text-center text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
                 {formatCurrencyWithCents(remainingSuggested)}
               </p>
               <SegmentedBar
@@ -182,25 +181,6 @@ export default function BudgetsCard() {
               getAmount={(b) => b.remaining}
               getColor={(b) => b.hexColor}
             />
-
-            {/* Footer */}
-            <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold text-[var(--color-fg)]">Total</span>
-                <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-                  {formatCurrencyWithCents(totalBudgetSuggested)}
-                </span>
-              </div>
-              <Link
-                href="/budgets"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
-              >
-                Set Up Budgets
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
-            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
@@ -237,8 +217,8 @@ export default function BudgetsCard() {
       </div>
 
       {/* Hero card with number + segmented bar */}
-      <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-        <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
+      <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
+        <p className="text-center text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
           {formatCurrencyWithCents(remaining)}
         </p>
         <SegmentedBar
@@ -256,16 +236,6 @@ export default function BudgetsCard() {
         getAmount={(b) => b.remaining || 0}
         getColor={(b) => b.category_groups?.hex_color}
       />
-
-      {/* Footer Total */}
-      <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-[var(--color-fg)]">Total</span>
-          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-            {formatCurrencyWithCents(totalBudget)}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }

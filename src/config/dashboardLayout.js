@@ -15,7 +15,7 @@ export const dashboardLayout = {
       component: 'MonthlyOverviewCard',
       height: 'h-[420px]'
     },
-    // Cashflow + Budgets (stacked on mobile, side-by-side on desktop)
+    // Cashflow + Top Categories (stacked on mobile, side-by-side on desktop)
     {
       id: 'cashflow-row',
       type: 'row',
@@ -27,8 +27,8 @@ export const dashboardLayout = {
           mobileHeight: 'h-[400px] lg:h-full'
         },
         {
-          id: 'budgets',
-          component: 'BudgetsCard',
+          id: 'top-categories',
+          component: 'TopCategoriesCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
           mobileHeight: 'h-[440px] lg:h-full'
         }
@@ -45,8 +45,8 @@ export const dashboardLayout = {
       className: 'flex flex-col md:flex-row lg:flex-col gap-8',
       items: [
         {
-          id: 'top-categories',
-          component: 'TopCategoriesCard'
+          id: 'budgets',
+          component: 'BudgetsCard'
         },
         {
           id: 'calendar',
