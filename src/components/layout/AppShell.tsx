@@ -267,7 +267,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-72 relative">
         <PaymentFailureBanner />
         <AppTopbar />
-        <main className="flex-1 pt-16 pb-24 md:pb-0">
+        <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
             <motion.div
               key={pathname}
