@@ -40,10 +40,6 @@ export const dashboardLayout = {
   // Sidebar (right side, narrower)
   sidebar: [
     {
-      id: 'recent-transactions',
-      component: 'RecentTransactionsCard'
-    },
-    {
       id: 'sidebar-group',
       type: 'row',
       className: 'flex flex-col md:flex-row lg:flex-col gap-8',
@@ -57,6 +53,10 @@ export const dashboardLayout = {
           component: 'CalendarCard'
         }
       ]
+    },
+    {
+      id: 'recent-transactions',
+      component: 'RecentTransactionsCard'
     }
   ]
 };
