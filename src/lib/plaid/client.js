@@ -73,7 +73,7 @@ export async function createLinkToken(userId, products = ['transactions'], accou
       user: {
         client_user_id: userId,
       },
-      client_name: 'Finance Next',
+      client_name: 'Zervo',
       country_codes: ['US'],
       language: 'en',
       webhook: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook` : undefined,
