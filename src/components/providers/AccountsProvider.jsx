@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
 import { isLiabilityAccount } from '../../lib/accountUtils';
@@ -10,7 +9,6 @@ const AccountsContext = createContext();
 
 export function AccountsProvider({ children }) {
   const { user } = useUser();
-  const pathname = usePathname();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -120,7 +118,7 @@ export function AccountsProvider({ children }) {
     if (initialized) retryCountRef.current = 0;
   }, [user?.id, initialized, loading]);
 
-  // Load accounts when user changes
+  // Load accounts when user changes (not on every navigation)
   useEffect(() => {
     retryCountRef.current = 0;
     if (user?.id) {
@@ -132,7 +130,8 @@ export function AccountsProvider({ children }) {
       setLastFetched(null);
       setInitialized(false);
     }
-  }, [user?.id, pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Add account to context (for when new accounts are added)
   // Callers (ConnectingStep, PlaidOAuthHandler) already call refreshAccounts() after

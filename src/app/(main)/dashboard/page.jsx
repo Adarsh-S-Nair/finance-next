@@ -80,35 +80,27 @@ export default function DashboardPage() {
   }, [user]);
 
   // Fetch consolidated dashboard summary (single DB round-trip for both chart cards)
-  // Uses a mount counter to ensure refetch on every navigation back to dashboard
-  const mountRef = useRef(0);
+  // Fetches once when the user is ready; the cleanup function prevents stale responses.
+  const summaryFetchedRef = useRef(false);
   useEffect(() => {
-    mountRef.current += 1;
     if (authLoading || !user?.id) return;
+    // Reset on each mount so navigating away and back refetches
+    summaryFetchedRef.current = false;
     let cancelled = false;
-    const attempt = (retries = 2) => {
-      authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (cancelled) return;
-          if (data) {
-            setSummaryData(data);
-          } else if (retries > 0) {
-            setTimeout(() => { if (!cancelled) attempt(retries - 1); }, 1500);
-          }
-        })
-        .catch(err => {
-          if (cancelled) return;
-          console.error('[dashboard] summary fetch error:', err);
-          if (retries > 0) {
-            setTimeout(() => { if (!cancelled) attempt(retries - 1); }, 1500);
-          }
-        });
-    };
-    attempt();
+    authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        if (data) {
+          setSummaryData(data);
+          summaryFetchedRef.current = true;
+        }
+      })
+      .catch(err => {
+        if (!cancelled) console.error('[dashboard] summary fetch error:', err);
+      });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id, mountRef.current]);
+  }, [authLoading, user?.id]);
 
   // Components that receive pre-fetched summary data from the dashboard
   const summaryDataMap = {
