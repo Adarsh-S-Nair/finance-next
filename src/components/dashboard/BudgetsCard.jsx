@@ -74,13 +74,13 @@ export default function BudgetsCard() {
   if (loading) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="card-header">Budgets</h3>
         </div>
-        <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-[var(--color-border)] rounded w-24" />
+        <div className="animate-pulse space-y-3">
+          <div className="h-8 bg-[var(--color-border)] rounded w-24" />
           <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
-          <div className="space-y-3 mt-6">
+          <div className="space-y-2 mt-4">
             <div className="h-8 bg-[var(--color-border)] rounded" />
             <div className="h-8 bg-[var(--color-border)] rounded" />
           </div>
@@ -91,10 +91,8 @@ export default function BudgetsCard() {
 
   // Empty state - show suggested budget preview based on spending
   if (budgets.length === 0) {
-    // Build suggested budget amounts from spending data
     const suggestedBudgets = suggestions?.categories?.map((cat) => {
       const monthlyAvg = cat.total_spent / suggestions.completeMonths;
-      // Round up to nearest $10 to give a comfortable buffer
       const suggestedAmount = Math.ceil(monthlyAvg / 10) * 10;
       return {
         label: cat.label,
@@ -103,106 +101,82 @@ export default function BudgetsCard() {
         hexColor: cat.hex_color,
         spent: Math.round(monthlyAvg),
         amount: suggestedAmount,
-        remaining: suggestedAmount - Math.round(monthlyAvg),
-        percentage: Math.min(100, (monthlyAvg / suggestedAmount) * 100),
       };
     }) || [];
 
-    const totalBudgetSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
-    const totalSpentSuggested = suggestedBudgets.reduce((s, b) => s + b.spent, 0);
-    const remainingSuggested = totalBudgetSuggested - totalSpentSuggested;
-    const percentageSuggested = totalBudgetSuggested > 0 ? Math.min(100, (totalSpentSuggested / totalBudgetSuggested) * 100) : 0;
-
+    const totalSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
     const hasSuggestions = suggestedBudgets.length > 0;
 
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="card-header">Budgets</h3>
         </div>
 
         {hasSuggestions ? (
-          <div className="flex-1 flex flex-col relative">
-            {/* Suggested budget preview - mirrors real layout but dimmed */}
-            <div className="opacity-50 pointer-events-none select-none">
-              {/* Hero Section */}
-              <div className="mb-8">
-                <div className="flex flex-col gap-1 mb-4">
-                  <span className="text-4xl font-semibold text-[var(--color-fg)] tracking-tight">
-                    {formatCurrency(remainingSuggested)}
-                  </span>
-                  <span className="text-sm text-[var(--color-muted)] font-medium">
-                    Remaining
-                  </span>
-                </div>
+          <div className="flex-1 flex flex-col">
+            <p className="text-xs text-[var(--color-muted)] mb-4">
+              Based on {suggestions.completeMonths} month{suggestions.completeMonths !== 1 ? 's' : ''} of spending
+            </p>
 
-                <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
-                  <div
-                    className="h-full rounded-full bg-[var(--color-accent)]"
-                    style={{ width: `${percentageSuggested}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-xs font-medium text-[var(--color-muted)] mt-2">
-                  <span>{formatCurrency(totalSpentSuggested)} spent</span>
-                  <span>{formatCurrency(totalBudgetSuggested)} total</span>
-                </div>
-              </div>
-
-              {/* Suggested budget list */}
-              <div className="space-y-4">
-                {suggestedBudgets.map((budget, i) => (
-                  <div key={i} className="flex items-center justify-between -mx-2 px-2 py-1.5">
-                    <div className="flex items-center gap-3">
-                      <div className="text-[var(--color-muted)]">
-                        <DynamicIcon iconLib={budget.iconLib} iconName={budget.iconName} className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
+            {/* Suggestion rows */}
+            <div className="space-y-1">
+              {suggestedBudgets.map((budget, i) => (
+                <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${budget.hexColor}18` }}
+                    >
+                      <DynamicIcon
+                        iconLib={budget.iconLib}
+                        iconName={budget.iconName}
+                        className="w-3.5 h-3.5"
+                        style={{ color: budget.hexColor }}
+                      />
                     </div>
-                    <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                      {formatCurrencyWithCents(budget.remaining)} left
-                    </span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
+                      <span className="text-xs text-[var(--color-muted)]">~{formatCurrency(budget.spent)}/mo</span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <span className="text-xs font-medium text-[var(--color-muted)] tabular-nums">
+                    {formatCurrency(budget.amount)}
+                  </span>
+                </div>
+              ))}
             </div>
 
-            {/* Overlay CTA */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--color-card-bg)]/60 backdrop-blur-[2px] rounded-lg">
-              <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
-                Based on your spending
-              </p>
-              <p className="text-xs text-[var(--color-muted)] mb-4 text-center px-4">
-                We suggest {suggestedBudgets.length} budget{suggestedBudgets.length !== 1 ? 's' : ''} totaling {formatCurrency(totalBudgetSuggested)}/mo
-              </p>
+            {/* Bottom bar */}
+            <div className="mt-auto pt-4 border-t border-[var(--color-border)]/50 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-[var(--color-muted)]">Suggested total</span>
+                <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">{formatCurrency(totalSuggested)}<span className="text-xs font-normal text-[var(--color-muted)]">/mo</span></span>
+              </div>
               <Link
                 href="/budgets"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
               >
-                Set Up Budgets
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+                Set Up
               </Link>
             </div>
           </div>
         ) : (
-          /* Fallback if no spending data available */
-          <div className="flex-1 flex flex-col justify-center">
-            <p className="text-sm text-[var(--color-fg)] mb-1">
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
+            <div className="w-10 h-10 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center mb-3">
+              <Icons.PiggyBank size={20} className="text-[var(--color-muted)]" />
+            </div>
+            <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
               No budgets yet
             </p>
-            <p className="text-xs text-[var(--color-muted)] mb-4">
-              Get started by creating your first budget.
+            <p className="text-xs text-[var(--color-muted)] mb-4 max-w-[200px]">
+              Create budgets to track spending against your goals.
             </p>
             <Link
               href="/budgets"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity w-fit"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
             >
-              Create a Budget
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+              Create Budget
             </Link>
           </div>
         )}
@@ -225,15 +199,15 @@ export default function BudgetsCard() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="card-header">Budgets</h3>
         <ViewAllLink href="/budgets" />
       </div>
 
       {/* Hero Section - Focus on Remaining */}
-      <div className="mb-8">
-        <div className="flex flex-col gap-1 mb-4">
-          <span className="text-4xl font-semibold text-[var(--color-fg)] tracking-tight">
+      <div className="mb-5">
+        <div className="flex flex-col mb-3">
+          <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
             {formatCurrency(remaining)}
           </span>
           <span className="text-sm text-[var(--color-muted)] font-medium">
@@ -250,16 +224,16 @@ export default function BudgetsCard() {
           />
         </div>
 
-        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)] mt-2">
+        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
           <span>{formatCurrency(totalSpent)} spent</span>
           <span>{formatCurrency(totalBudget)} total</span>
         </div>
       </div>
 
       {/* Budget List */}
-      <div className="mt-auto space-y-4">
+      <div className="mt-auto space-y-1">
         {budgets.slice(0, 3).map((budget) => (
-          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-1.5 rounded-lg transition-colors">
+          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-2.5 rounded-lg transition-colors">
             <div className="flex items-center gap-3">
               <div className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
                 {getIcon(budget)}
