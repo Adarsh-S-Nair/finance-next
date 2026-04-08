@@ -13,23 +13,17 @@ export type NavItem = {
   tierFeature?: string;
 };
 
-export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
   {
-    title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LuLayoutDashboard },
     ],
   },
   {
-    title: "Money",
+    title: "Finance",
     items: [
       { href: "/accounts", label: "Accounts", icon: LuWallet },
       { href: "/transactions", label: "Transactions", icon: LuArrowRightLeft },
-    ],
-  },
-  {
-    title: "Planning",
-    items: [
       { href: "/budgets", label: "Budgets", icon: LuPiggyBank, tierFeature: "budgets" },
     ],
   },
