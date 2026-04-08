@@ -6,6 +6,7 @@ import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
+import { CurrencyAmount } from "../../lib/formatCurrency";
 
 const FALLBACK_COLOR = '#71717a';
 
@@ -138,19 +139,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   };
 
   const renderFormattedAmount = (value) => {
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-    const [main, cents] = formatted.split('.');
-    return (
-      <span>
-        {main}
-        <span className="text-xl text-[var(--color-muted)] font-normal">.{cents}</span>
-      </span>
-    );
+    return <CurrencyAmount amount={value} cents />;
   };
 
   // Empty donut (single gray ring) for when there's no spending data
@@ -161,7 +150,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           <Pie
             data={[{ value: 1 }]}
             cx="50%"
-            cy="50%"
+            cy="48%"
             innerRadius={110}
             outerRadius={128}
             paddingAngle={0}
@@ -175,7 +164,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         </PieChart>
       </ResponsiveContainer>
       {/* Center Text */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-[4%]">
         <div className="text-3xl font-medium text-[var(--color-muted)] mb-1">
           {renderFormattedAmount(0)}
         </div>
@@ -258,7 +247,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
               <Pie
                 data={categories}
                 cx="50%"
-                cy="50%"
+                cy="48%"
                 innerRadius={110}
                 outerRadius={128}
                 paddingAngle={4}
@@ -281,7 +270,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
               <Pie
                 data={categories}
                 cx="50%"
-                cy="50%"
+                cy="48%"
                 innerRadius={110}
                 outerRadius={128}
                 paddingAngle={4}
@@ -317,7 +306,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
               <Pie
                 data={categories}
                 cx="50%"
-                cy="50%"
+                cy="48%"
                 innerRadius={90} // Start slightly inside
                 outerRadius={148} // Extend further out
                 paddingAngle={4}
@@ -334,7 +323,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           </ResponsiveContainer>
 
           {/* Center Text */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-[4%]">
             <div className="text-3xl font-medium text-[var(--color-fg)] mb-1">
               {(() => {
                 const value = activeIndex !== null ? categories[activeIndex].total_spent : totalSpending;

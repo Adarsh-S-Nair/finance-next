@@ -5,6 +5,7 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
+import { CurrencyAmount } from "../../lib/formatCurrency";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard() {
@@ -50,14 +51,6 @@ export default function BudgetsCard() {
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
-
-  const formatCurrencyWithCents = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   const getLabel = (budget) => {
     return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
@@ -106,7 +99,7 @@ export default function BudgetsCard() {
             <span className="text-[13px] text-[var(--color-fg)]">{labelFn(item)}</span>
           </div>
           <span className="text-[13px] text-[var(--color-fg)] tabular-nums">
-            {formatCurrencyWithCents(getAmount(item))}
+            <CurrencyAmount amount={getAmount(item)} cents />
           </span>
         </div>
       ))}
@@ -122,8 +115,7 @@ export default function BudgetsCard() {
         </div>
         <div className="animate-pulse">
           <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-            <div className="h-7 bg-[var(--color-border)] rounded w-32 mb-1.5" />
-            <div className="h-3.5 bg-[var(--color-border)] rounded w-16 mb-4" />
+            <div className="h-7 bg-[var(--color-border)] rounded w-40 mb-4" />
             <div className="flex gap-0.5">
               <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[3]" />
               <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[2]" />
@@ -174,10 +166,12 @@ export default function BudgetsCard() {
           <div className="flex-1 flex flex-col">
             {/* Hero card */}
             <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-              <p className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
-                {formatCurrencyWithCents(remainingSuggested)}
-              </p>
-              <p className="text-xs text-[var(--color-muted)] mb-4">Remaining</p>
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
+                  <CurrencyAmount amount={remainingSuggested} cents />
+                </span>
+                <span className="text-xs text-[var(--color-muted)]">remaining</span>
+              </div>
               <SegmentedBar
                 items={suggestedBudgets}
                 getSpent={(b) => b.spent}
@@ -231,10 +225,12 @@ export default function BudgetsCard() {
 
       {/* Hero card */}
       <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-        <p className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
-          {formatCurrencyWithCents(remaining)}
-        </p>
-        <p className="text-xs text-[var(--color-muted)] mb-4">Remaining</p>
+        <div className="flex items-baseline gap-2 mb-4">
+          <span className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
+            <CurrencyAmount amount={remaining} cents />
+          </span>
+          <span className="text-xs text-[var(--color-muted)]">remaining</span>
+        </div>
         <SegmentedBar
           items={displayBudgets}
           getSpent={(b) => Number(b.spent || 0)}
