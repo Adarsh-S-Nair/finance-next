@@ -223,8 +223,6 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           />
         </div>
 
-        <hr className="border-t border-[var(--color-border)]/40 -mx-5" />
-
         {/* Chart Section - empty donut when no categories */}
         {categories.length === 0 ? (
           <EmptyDonut />

@@ -225,8 +225,6 @@ export default function RecentTransactionsCard() {
         <ViewAllLink href="/transactions" />
       </div>
 
-      <hr className="border-t border-[var(--color-border)]/40 -mx-5 mb-2" />
-
       <div className="space-y-0.5">
         {transactions.map((transaction, index) => {
           const isPositive = transaction.amount > 0;

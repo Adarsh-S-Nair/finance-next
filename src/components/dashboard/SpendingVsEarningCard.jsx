@@ -234,8 +234,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
           </div>
         </div>
 
-        <hr className="border-t border-[var(--color-border)]/40 -mx-5" />
-
         {/* Chart - fills remaining space */}
         <div className="flex-1 min-h-0 w-full">
           <SpendingEarningChart

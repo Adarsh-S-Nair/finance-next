@@ -103,11 +103,6 @@ export default function Card({
         </div>
       )}
 
-      {/* Divider between header and content */}
-      {(title || action) && (
-        <hr className="border-t border-[var(--color-border)]/40 mx-0" />
-      )}
-
       <div className={clsx(
         "relative z-10 flex-1 min-h-0",
         // If header exists, reduce top padding of content

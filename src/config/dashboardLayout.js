@@ -40,10 +40,6 @@ export const dashboardLayout = {
   // Sidebar (right side, narrower)
   sidebar: [
     {
-      id: 'market-indices',
-      component: 'MarketIndicesCard',
-    },
-    {
       id: 'sidebar-group',
       type: 'row',
       className: 'flex flex-col md:flex-row lg:flex-col gap-5',

@@ -340,8 +340,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
             </div>
           </div>
 
-          <hr className="border-t border-[var(--color-border)]/40 -mx-5" />
-
           {/* Chart */}
           <div ref={chartContainerRef} className="relative flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
             <LineChart
