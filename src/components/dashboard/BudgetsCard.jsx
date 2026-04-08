@@ -98,13 +98,16 @@ export default function BudgetsCard() {
         label: cat.label,
         iconLib: cat.icon_lib,
         iconName: cat.icon_name,
-        hexColor: cat.hex_color,
         spent: Math.round(monthlyAvg),
         amount: suggestedAmount,
+        remaining: suggestedAmount - Math.round(monthlyAvg),
       };
     }) || [];
 
-    const totalSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
+    const totalBudgetSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
+    const totalSpentSuggested = suggestedBudgets.reduce((s, b) => s + b.spent, 0);
+    const remainingSuggested = totalBudgetSuggested - totalSpentSuggested;
+    const percentageSuggested = totalBudgetSuggested > 0 ? Math.min(100, (totalSpentSuggested / totalBudgetSuggested) * 100) : 0;
     const hasSuggestions = suggestedBudgets.length > 0;
 
     return (
@@ -114,50 +117,65 @@ export default function BudgetsCard() {
         </div>
 
         {hasSuggestions ? (
-          <div className="flex-1 flex flex-col">
-            <p className="text-xs text-[var(--color-muted)] mb-4">
-              Based on {suggestions.completeMonths} month{suggestions.completeMonths !== 1 ? 's' : ''} of spending
-            </p>
-
-            {/* Suggestion rows */}
-            <div className="space-y-1">
-              {suggestedBudgets.map((budget, i) => (
-                <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${budget.hexColor}18` }}
-                    >
-                      <DynamicIcon
-                        iconLib={budget.iconLib}
-                        iconName={budget.iconName}
-                        className="w-3.5 h-3.5"
-                        style={{ color: budget.hexColor }}
-                      />
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
-                      <span className="text-xs text-[var(--color-muted)]">~{formatCurrency(budget.spent)}/mo</span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-medium text-[var(--color-muted)] tabular-nums">
-                    {formatCurrency(budget.amount)}
+          <div className="flex-1 flex flex-col relative">
+            {/* Suggested budget preview - mirrors real layout but dimmed */}
+            <div className="opacity-40 pointer-events-none select-none">
+              <div className="mb-5">
+                <div className="flex flex-col mb-3">
+                  <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
+                    {formatCurrency(remainingSuggested)}
+                  </span>
+                  <span className="text-xs text-[var(--color-muted)] font-medium">
+                    Remaining
                   </span>
                 </div>
-              ))}
+
+                <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
+                  <div
+                    className="h-full rounded-full bg-[var(--color-accent)]"
+                    style={{ width: `${percentageSuggested}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
+                  <span>{formatCurrency(totalSpentSuggested)} spent</span>
+                  <span>{formatCurrency(totalBudgetSuggested)} total</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                {suggestedBudgets.map((budget, i) => (
+                  <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="text-[var(--color-muted)]">
+                        <DynamicIcon iconLib={budget.iconLib} iconName={budget.iconName} className="w-4 h-4" />
+                      </div>
+                      <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
+                    </div>
+                    <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                      {formatCurrencyWithCents(budget.remaining)} left
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Bottom bar */}
-            <div className="mt-auto pt-4 border-t border-[var(--color-border)]/50 flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs text-[var(--color-muted)]">Suggested total</span>
-                <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">{formatCurrency(totalSuggested)}<span className="text-xs font-normal text-[var(--color-muted)]">/mo</span></span>
-              </div>
+            {/* Overlay CTA */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
+                Based on your spending
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mb-4 text-center px-4">
+                We suggest {suggestedBudgets.length} budget{suggestedBudgets.length !== 1 ? 's' : ''} totaling {formatCurrency(totalBudgetSuggested)}/mo
+              </p>
               <Link
                 href="/budgets"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
               >
-                Set Up
+                Set Up Budgets
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </Link>
             </div>
           </div>
