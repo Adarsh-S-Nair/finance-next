@@ -186,12 +186,12 @@ export default function DashboardPage() {
   return (
     <PageContainer title={greeting} documentTitle="Dashboard">
       {insight && (
-        <div className={`mb-5 flex items-center gap-2.5 px-3.5 py-2 rounded-lg animate-fade-in ${
-          insight.tone === 'positive' ? 'bg-[var(--color-success)]/8 text-[var(--color-success)]' :
-          insight.tone === 'negative' ? 'bg-[var(--color-danger)]/8 text-[var(--color-danger)]' :
-          'bg-[var(--color-fg)]/[0.04] text-[var(--color-muted)]'
+        <div className={`mb-5 flex items-center px-4 py-3 rounded-lg animate-fade-in ${
+          insight.tone === 'positive' ? 'bg-[var(--color-success)]' :
+          insight.tone === 'negative' ? 'bg-[var(--color-danger)]' :
+          'bg-[var(--color-muted)]'
         }`}>
-          <span className="text-[13px] font-medium">{insight.message}</span>
+          <span className="text-[13px] text-white">{insight.message}</span>
         </div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
