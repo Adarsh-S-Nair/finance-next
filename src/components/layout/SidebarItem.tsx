@@ -45,13 +45,16 @@ export default function SidebarItem({
           isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
           active
-            ? "text-[var(--color-fg)] font-medium bg-[var(--color-chart-primary)]/[0.08] shadow-[inset_0_0_12px_rgba(96,165,250,0.06)]"
+            ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.06]"
             : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
         )}
       >
-        {/* Active accent bar — full height */}
+        {/* Active accent bar with subtle blue glow */}
         {active && (
-          <span className="absolute left-0 top-0 bottom-0 w-[2px] rounded-full bg-[var(--color-chart-primary)]" />
+          <>
+            <span className="absolute left-0 top-0 bottom-0 w-[2px] rounded-full bg-[var(--color-chart-primary)]" />
+            <span className="absolute left-0 top-0 bottom-0 w-6 rounded-l-lg bg-gradient-to-r from-[var(--color-chart-primary)]/[0.06] to-transparent pointer-events-none" />
+          </>
         )}
 
         {/* Icon */}

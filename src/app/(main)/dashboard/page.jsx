@@ -34,7 +34,6 @@ export default function DashboardPage() {
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
-  const [insight, setInsight] = useState(null);
 
   // Handle return from Stripe Checkout (?upgraded=1)
   useEffect(() => {
@@ -103,33 +102,10 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, [authLoading, user?.id]);
 
-  // Fetch insights in parallel with summary
-  useEffect(() => {
-    if (authLoading || !user?.id) return;
-    let cancelled = false;
-    authFetch('/api/dashboard/insights')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (cancelled) return;
-        if (data?.insights?.length > 0) {
-          setInsight(data.insights[0]);
-        }
-      })
-      .catch(err => {
-        if (!cancelled) console.warn('[dashboard] insights fetch error:', err);
-      });
-    return () => { cancelled = true; };
-  }, [authLoading, user?.id]);
-
   // Components that receive pre-fetched summary data from the dashboard
   const summaryDataMap = {
     'SpendingVsEarningCard': summaryData?.spendingEarning,
     'TopCategoriesCard': summaryData?.spendingByCategory,
-  };
-
-  // Extra props injected into specific components
-  const extraPropsMap = {
-    'MonthlyOverviewCard': insight ? { insight } : {},
   };
 
   // Helper to render a single item (or row of items)
@@ -143,17 +119,16 @@ export default function DashboardPage() {
           {item.items.map((subItem) => {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
-            const summaryProps = summaryDataMap[subItem.component]
+            const extraProps = summaryDataMap[subItem.component]
               ? { data: summaryDataMap[subItem.component] }
               : {};
-            const extra = extraPropsMap[subItem.component] || {};
             return (
               <div
                 key={subItem.id}
                 className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
                 <Card variant="glass" className="h-full">
-                  <Component {...(subItem.props || {})} {...summaryProps} {...extra} />
+                  <Component {...(subItem.props || {})} {...extraProps} />
                 </Card>
               </div>
             );
@@ -164,15 +139,14 @@ export default function DashboardPage() {
 
     const Component = componentMap[item.component];
     if (!Component) return null;
-    const summaryProps = summaryDataMap[item.component]
+    const extraProps = summaryDataMap[item.component]
       ? { data: summaryDataMap[item.component] }
       : {};
-    const extra = extraPropsMap[item.component] || {};
 
     return (
       <div key={item.id} className={item.height || ''}>
         <Card variant="glass" className="h-full">
-          <Component {...(item.props || {})} {...summaryProps} {...extra} />
+          <Component {...(item.props || {})} {...extraProps} />
         </Card>
       </div>
     );
