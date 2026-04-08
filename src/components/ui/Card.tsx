@@ -67,7 +67,7 @@ export default function Card({
     <div
       style={style}
       className={clsx(
-        "rounded-xl relative transition-all duration-300 flex flex-col",
+        "rounded-2xl relative transition-all duration-300 flex flex-col",
         hover && "hover:-translate-y-0.5 hover:shadow-md",
         allowOverflow ? "overflow-visible" : "overflow-hidden",
         widthClasses[width],
@@ -80,9 +80,7 @@ export default function Card({
     >
       {background}
 
-      {variant === 'glass' && (
-        <div className="absolute inset-0 pointer-events-none rounded-xl border-t border-white/15 dark:border-white/[0.05]" />
-      )}
+      {/* Glass panel highlight removed for cleaner flat look */}
 
       {/* Header Section */}
       {(title || action) && (
