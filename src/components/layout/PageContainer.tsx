@@ -7,7 +7,6 @@ import PageHeader from "./PageHeader";
 
 type Props = {
   title?: ReactNode;
-  subtitle?: ReactNode;
   documentTitle?: string; // Deprecated: handled by layout metadata
   children: ReactNode;
   action?: ReactNode;
@@ -23,7 +22,6 @@ const FRAME_CLASS: Record<NonNullable<Props["frame"]>, string> = {
 
 export default function PageContainer({
   title,
-  subtitle,
   children,
   action,
   frame = "default",
@@ -48,7 +46,7 @@ export default function PageContainer({
 
   return (
     <div className={frameClass}>
-      <PageHeader title={displayTitle} subtitle={subtitle} action={action} show={showHeader} />
+      <PageHeader title={displayTitle} action={action} show={showHeader} />
       {children}
     </div>
   );

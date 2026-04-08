@@ -15,7 +15,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Fetch transactions for the month
   let query = supabaseAdmin
     .from('transactions')
-    .select('id, amount, date, merchant_name, name, description, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
+    .select('id, amount, date, merchant_name, description, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
     .eq('accounts.user_id', userId)
     .gte('date', startDateStr)
     .lte('date', endDateStr)
@@ -69,7 +69,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
         current.spending += adjustedSpending;
         // Collect spending transaction details
         dailyTransactions.get(dayPart).push({
-          merchant: tx.merchant_name || tx.name || tx.description || 'Transaction',
+          merchant: tx.merchant_name || tx.description || 'Transaction',
           amount: adjustedSpending,
         });
       }
