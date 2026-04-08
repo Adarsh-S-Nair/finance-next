@@ -220,6 +220,33 @@ async function handleTransactionsWebhook(webhookData, logger) {
             transactions_synced: syncResult.transactions_synced,
             pending_transactions_updated: syncResult.pending_transactions_updated
           });
+
+          // After HISTORICAL_UPDATE or SYNC_UPDATES_AVAILABLE, auto-trigger
+          // recurring sync for this item — Plaid recommends calling
+          // /transactions/recurring/get once transaction history is available.
+          if (webhook_code === 'HISTORICAL_UPDATE' || webhook_code === 'SYNC_UPDATES_AVAILABLE') {
+            try {
+              const { POST: recurringSyncEndpoint } = await import('../recurring/sync/route.js');
+              const recurringSyncRequest = {
+                headers: { get: () => null },
+                json: async () => ({
+                  userId: plaidItem.user_id,
+                  plaidItemId: plaidItem.id,
+                }),
+              };
+              const recurringResponse = await recurringSyncEndpoint(recurringSyncRequest);
+              if (recurringResponse.ok) {
+                const recurringResult = await recurringResponse.json();
+                txLogger.info('Recurring sync completed after transaction sync', {
+                  item_id,
+                  synced: recurringResult.synced,
+                });
+              }
+            } catch (recurringError) {
+              // Non-fatal — recurring will be picked up by webhook later
+              txLogger.warn('Recurring sync failed after transaction sync', { item_id, error: recurringError.message });
+            }
+          }
         } else {
           const errorData = await syncResponse.json();
           txLogger.error('Transaction sync failed', null, { item_id, error: errorData });
@@ -589,14 +616,14 @@ async function handleRecurringTransactionsWebhook(webhookData, logger) {
       recurringLogger.info('Triggering recurring transactions sync', { item_id, webhook_code });
 
       try {
-        // Import and call the sync function directly
+        // Import and call the sync function directly — only for this item
         const { POST: syncEndpoint } = await import('../recurring/sync/route.js');
 
-        // Create a mock request object for the sync endpoint
         const syncRequest = {
           headers: { get: () => null },
           json: async () => ({
-            userId: plaidItem.user_id
+            userId: plaidItem.user_id,
+            plaidItemId: plaidItem.id,
           })
         };
 

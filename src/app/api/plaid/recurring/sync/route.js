@@ -13,7 +13,7 @@ const logger = createLogger('plaid-recurring-sync');
  */
 export async function POST(request) {
   try {
-    const { userId: bodyUserId, forceReset = false } = await request.json();
+    const { userId: bodyUserId, forceReset = false, plaidItemId = null } = await request.json();
     const userId = resolveUserId(request, bodyUserId);
 
     // Check subscription tier — recurring is a Pro feature
@@ -27,7 +27,7 @@ export async function POST(request) {
       return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
     }
 
-    logger.info('Starting recurring transactions sync', { userId, forceReset });
+    logger.info('Starting recurring transactions sync', { userId, forceReset, plaidItemId });
 
     // If forceReset, delete all existing recurring streams for this user
     if (forceReset) {
@@ -42,12 +42,19 @@ export async function POST(request) {
       }
     }
 
-    // Get all plaid items for this user that are ready for recurring transactions
-    // Items are marked ready when they receive HISTORICAL_UPDATE or SYNC_UPDATES_AVAILABLE webhook
-    const { data: allItems, error: allItemsError } = await supabaseAdmin
+    // Get plaid items — either a specific item or all items for the user.
+    // When plaidItemId is provided (e.g. from a webhook), we only sync that
+    // item instead of re-fetching recurring data for every connection.
+    let query = supabaseAdmin
       .from('plaid_items')
       .select('id, access_token, recurring_ready')
       .eq('user_id', userId);
+
+    if (plaidItemId) {
+      query = query.eq('id', plaidItemId);
+    }
+
+    const { data: allItems, error: allItemsError } = await query;
 
     if (allItemsError) {
       throw new Error(`Failed to fetch plaid items: ${allItemsError.message}`);
@@ -196,49 +203,61 @@ export async function POST(request) {
 
     await logger.flush();
 
-    // Collect all Plaid-detected merchant names for deduplication in gap filler
+    // Run gap filler only on the first recurring sync for each item.
+    // Once Plaid has had time to detect patterns, its ML-based detection
+    // is more reliable than our heuristic gap filler.
+    let customDetected = 0;
+
+    // Check which items already have Plaid-detected streams
     const { data: existingStreams } = await supabaseAdmin
       .from('recurring_streams')
-      .select('merchant_name')
+      .select('plaid_item_id, merchant_name, is_custom_detected')
       .eq('user_id', userId)
       .eq('is_custom_detected', false);
 
+    const itemsWithPlaidStreams = new Set((existingStreams || []).map(s => s.plaid_item_id));
     const existingMerchants = (existingStreams || []).map(s => s.merchant_name).filter(Boolean);
 
-    // Run gap filler detection for each item to catch mortgages/utilities Plaid missed
-    let customDetected = 0;
-    for (const item of plaidItems) {
-      try {
-        const customStreams = await detectMissedRecurring(userId, item.id, existingMerchants);
+    // Only run gap filler for items that don't have any Plaid-detected streams yet
+    const itemsNeedingGapFiller = plaidItems.filter(item => !itemsWithPlaidStreams.has(item.id));
 
-        if (customStreams.length > 0) {
-          logger.info('Gap filler detected missed patterns', {
-            plaidItemId: item.id,
-            count: customStreams.length,
-            merchants: customStreams.map(s => s.merchant_name)
-          });
+    if (itemsNeedingGapFiller.length > 0) {
+      logger.info('Running gap filler for items without Plaid streams', {
+        count: itemsNeedingGapFiller.length,
+        skipped: plaidItems.length - itemsNeedingGapFiller.length,
+      });
 
-          // Upsert custom-detected streams
-          const { error: customUpsertError } = await supabaseAdmin
-            .from('recurring_streams')
-            .upsert(customStreams, {
-              onConflict: 'stream_id'
+      for (const item of itemsNeedingGapFiller) {
+        try {
+          const customStreams = await detectMissedRecurring(userId, item.id, existingMerchants);
+
+          if (customStreams.length > 0) {
+            logger.info('Gap filler detected missed patterns', {
+              plaidItemId: item.id,
+              count: customStreams.length,
+              merchants: customStreams.map(s => s.merchant_name)
             });
 
-          if (customUpsertError) {
-            console.error('❌ Custom streams upsert error:', JSON.stringify(customUpsertError, null, 2));
-            logger.error('Error upserting custom streams', {
-              error: customUpsertError.message,
-              code: customUpsertError.code,
-              details: customUpsertError.details,
-              hint: customUpsertError.hint
-            });
-          } else {
-            customDetected += customStreams.length;
+            const { error: customUpsertError } = await supabaseAdmin
+              .from('recurring_streams')
+              .upsert(customStreams, {
+                onConflict: 'stream_id'
+              });
+
+            if (customUpsertError) {
+              logger.error('Error upserting custom streams', {
+                error: customUpsertError.message,
+                code: customUpsertError.code,
+                details: customUpsertError.details,
+                hint: customUpsertError.hint
+              });
+            } else {
+              customDetected += customStreams.length;
+            }
           }
+        } catch (gapError) {
+          logger.error('Error in gap filler detection', { plaidItemId: item.id, error: gapError.message });
         }
-      } catch (gapError) {
-        logger.error('Error in gap filler detection', { plaidItemId: item.id, error: gapError.message });
       }
     }
 
