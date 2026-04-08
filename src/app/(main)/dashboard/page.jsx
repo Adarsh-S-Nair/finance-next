@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
+  const [insightMessage, setInsightMessage] = useState(null);
 
   // Handle return from Stripe Checkout (?upgraded=1)
   useEffect(() => {
@@ -102,6 +103,24 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, [authLoading, user?.id]);
 
+  // Fetch insights in parallel with summary
+  useEffect(() => {
+    if (authLoading || !user?.id) return;
+    let cancelled = false;
+    authFetch('/api/dashboard/insights')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        if (data?.insights?.length > 0) {
+          setInsightMessage(data.insights[0].message);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) console.warn('[dashboard] insights fetch error:', err);
+      });
+    return () => { cancelled = true; };
+  }, [authLoading, user?.id]);
+
   // Components that receive pre-fetched summary data from the dashboard
   const summaryDataMap = {
     'SpendingVsEarningCard': summaryData?.spendingEarning,
@@ -165,7 +184,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageContainer title={greeting} documentTitle="Dashboard">
+    <PageContainer title={greeting} subtitle={insightMessage} documentTitle="Dashboard">
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-5">

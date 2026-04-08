@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 
 type Props = {
   title?: ReactNode;
+  subtitle?: ReactNode;
   action?: ReactNode;
   prefix?: ReactNode;
   show?: boolean;
@@ -12,6 +13,7 @@ type Props = {
 
 export default function PageHeader({
   title,
+  subtitle,
   action,
   prefix,
   show = true,
@@ -29,6 +31,11 @@ export default function PageHeader({
           <h1 className="text-2xl font-normal tracking-tight text-[var(--color-fg)] truncate">
             {title}
           </h1>
+        )}
+        {subtitle && (
+          <p className="text-sm text-[var(--color-muted)] mt-1 truncate">
+            {subtitle}
+          </p>
         )}
       </div>
       {action && <div className="ml-auto shrink-0">{action}</div>}
