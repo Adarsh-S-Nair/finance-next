@@ -25,6 +25,11 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/accounts", label: "Accounts", icon: LuWallet },
       { href: "/transactions", label: "Transactions", icon: LuArrowRightLeft },
+    ],
+  },
+  {
+    title: "Planning",
+    items: [
       { href: "/budgets", label: "Budgets", icon: LuPiggyBank, tierFeature: "budgets" },
     ],
   },

@@ -16,6 +16,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip } from "@slate-ui/react";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import UpgradeOverlay from "../UpgradeOverlay";
+import SidebarSection from "./SidebarSection";
+import SidebarItem from "./SidebarItem";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
@@ -23,7 +25,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const { profile, logout, user } = useUser();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [showPopover, setShowPopover] = useState(false);
   const [showUpgradeOverlay, setShowUpgradeOverlay] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -59,7 +60,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     setShowPopover(false);
   }, [pathname]);
 
-  // Computed user display values — profile row may be empty, fall back to user_metadata from auth
+  // Computed user display values
   const meta = (user as any)?.user_metadata ?? {};
   const firstName = profile?.first_name || meta.first_name || "";
   const lastName = profile?.last_name || meta.last_name || "";
@@ -79,125 +80,73 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const tierLabel = tier === "pro" ? "Pro" : "Free";
   const avatarUrl = profile?.avatar_url || meta.avatar_url || meta.picture || null;
 
-  const avatarEl = (
-    <div
-      className="relative h-9 w-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] flex-shrink-0 overflow-hidden"
-      style={{ fontSize: "0.75rem" }}
-    >
-      {avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
-      ) : (
-        <span>{initials}</span>
-      )}
-    </div>
-  );
-
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
-      {/* Logo Section */}
-      <div className="p-4 flex items-center justify-center h-16">
-        <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+      {/* Branding */}
+      <div className={clsx("flex items-center h-14 flex-shrink-0", isCollapsed ? "justify-center px-2" : "px-5")}>
+        <Link
+          href="/dashboard"
+          className={clsx("flex items-center gap-3 group", isCollapsed && "justify-center")}
+        >
           <div
-            className="h-7 w-7 bg-[var(--color-fg)]"
+            className="h-7 w-7 bg-[var(--color-fg)] flex-shrink-0 transition-opacity duration-150 group-hover:opacity-80"
             style={{
-              maskImage: 'url(/logo.svg)',
-              maskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              WebkitMaskImage: 'url(/logo.svg)',
-              WebkitMaskSize: 'contain',
-              WebkitMaskRepeat: 'no-repeat',
-              WebkitMaskPosition: 'center'
+              maskImage: "url(/logo.svg)",
+              maskSize: "contain",
+              maskRepeat: "no-repeat",
+              maskPosition: "center",
+              WebkitMaskImage: "url(/logo.svg)",
+              WebkitMaskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
             }}
           />
           {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs font-semibold tracking-[0.2em] text-[var(--color-fg)] uppercase" style={{ fontFamily: 'var(--font-poppins)' }}>
+            <div className="flex items-center gap-2.5">
+              <span
+                className="text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
+                style={{ fontFamily: "var(--font-poppins)" }}
+              >
                 ZERVO
-              </h1>
-              {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
+              </span>
+              {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
                 <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
                   TEST
                 </span>
               )}
             </div>
           )}
-        </div>
+        </Link>
       </div>
 
+      {/* Logo separator */}
+      <div className={clsx("border-t border-[var(--color-fg)]/[0.06]", isCollapsed ? "mx-3" : "mx-4")} />
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
-        {groups.map((g, idx) => (
-          <div
-            key={g.title}
-            className="mb-4 last:mb-0"
-          >
-            {idx > 0 && (
-              <div className="border-t border-[var(--color-border)]/60 mb-4" />
-            )}
-            <ul className="space-y-0.5">
-              {g.items.map((it) => {
-                const active = pathname.startsWith(it.href);
-
-                const content = (
-                  <li key={it.href}>
-                    <Link
-                      href={it.disabled ? "#" : it.href}
-                      onClick={(e) => {
-                        if (it.disabled) {
-                          e.preventDefault();
-                          return;
-                        }
-                        onNavigate?.();
-                      }}
-                      onMouseEnter={() => !it.disabled && setHoveredItem(it.href)}
-                      onMouseLeave={() => setHoveredItem(null)}
-                      aria-disabled={it.disabled || undefined}
-                      className={clsx(
-                        "group relative flex items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
-                        it.disabled
-                          ? "cursor-not-allowed opacity-50"
-                          : "cursor-pointer",
-                        active
-                          ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                          : "text-[var(--color-fg)]/60 font-normal hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
-                      )}
-                    >
-                      <span className={`flex items-center gap-2.5 flex-1 ${isCollapsed ? 'justify-center' : ''}`}>
-                        <span className="flex items-center justify-center">
-                          {it.icon && <it.icon className="h-[18px] w-[18px]" />}
-                        </span>
-                        {!isCollapsed && (
-                          <span className="tracking-normal">
-                            {it.label}
-                          </span>
-                        )}
-                      </span>
-
-                      {it.disabled && (
-                        <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60" />
-                      )}
-                    </Link>
-                  </li>
-                );
-
-                return isCollapsed ? (
-                  <Tooltip key={it.href} content={it.label}>
-                    {content}
-                  </Tooltip>
-                ) : content;
-              })}
-            </ul>
-          </div>
+      <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin pt-5", isCollapsed ? "px-2" : "px-3")}>
+        {groups.map((g) => (
+          <SidebarSection key={g.title} label={g.title} isCollapsed={isCollapsed}>
+            {g.items.map((it) => (
+              <SidebarItem
+                key={it.href}
+                href={it.href}
+                label={it.label}
+                icon={it.icon}
+                active={pathname.startsWith(it.href)}
+                disabled={it.disabled}
+                isCollapsed={isCollapsed}
+                onClick={onNavigate}
+              />
+            ))}
+          </SidebarSection>
         ))}
       </nav>
 
-      {/* Profile Card / Bottom Section */}
-      <div className="p-3 pb-4 border-t border-[var(--color-border)]">
-        {/* Inline slide-up menu — expands above profile button */}
+      {/* User Section */}
+      <div className={clsx("flex-shrink-0 border-t border-[var(--color-fg)]/[0.06]", isCollapsed ? "p-2 pb-3" : "p-3 pb-4")}>
+        {/* Slide-up menu — expanded */}
         <AnimatePresence>
-          {showPopover && (
+          {showPopover && !isCollapsed && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
@@ -205,7 +154,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               style={{ overflow: "hidden" }}
             >
-              {/* Upgrade to Pro — only show for free users */}
               {tier === "free" && (
                 <button
                   onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
@@ -216,7 +164,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 </button>
               )}
 
-              {/* Settings */}
               <Link
                 href="/settings"
                 onClick={() => { setShowPopover(false); onNavigate?.(); }}
@@ -224,24 +171,22 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                   "flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-colors duration-150",
                   pathname.startsWith("/settings")
                     ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
                 )}
               >
                 <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
                 <span>Settings</span>
               </Link>
 
-              {/* Help & Support (locked) */}
-              <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] opacity-50 cursor-not-allowed rounded-lg">
+              <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] opacity-40 cursor-not-allowed rounded-lg">
                 <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
                 <span className="flex-1">Help &amp; Support</span>
                 <FaLock className="h-3 w-3 opacity-60" />
               </div>
 
-              {/* Log out */}
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-fg)]/60 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors duration-150 rounded-lg mb-1"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150 rounded-lg mb-1"
               >
                 <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
                 <span>Log out</span>
@@ -250,15 +195,69 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           )}
         </AnimatePresence>
 
-        {/* Profile trigger button */}
+        {/* Slide-up menu — collapsed */}
+        <AnimatePresence>
+          {showPopover && isCollapsed && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              style={{ overflow: "hidden" }}
+              className="flex flex-col items-center gap-1 mb-1"
+            >
+              {tier === "free" && (
+                <Tooltip content="Upgrade to Pro">
+                  <button
+                    onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150"
+                  >
+                    <LuSparkles className="h-[18px] w-[18px]" />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip content="Settings">
+                <Link
+                  href="/settings"
+                  onClick={() => { setShowPopover(false); onNavigate?.(); }}
+                  className={clsx(
+                    "flex items-center justify-center h-9 w-9 rounded-lg transition-colors duration-150",
+                    pathname.startsWith("/settings")
+                      ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
+                  )}
+                >
+                  <LuSettings className="h-[18px] w-[18px]" />
+                </Link>
+              </Tooltip>
+              <Tooltip content="Log out">
+                <button
+                  onClick={onLogout}
+                  className="flex items-center justify-center h-9 w-9 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150"
+                >
+                  <TbLogout className="h-[18px] w-[18px]" />
+                </button>
+              </Tooltip>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Profile trigger */}
         {isCollapsed ? (
           <Tooltip content={fullName || "Profile"}>
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-xl p-2.5 transition-colors duration-200 hover:bg-[var(--color-surface-alt)] cursor-pointer"
+              className="w-full flex items-center justify-center rounded-xl p-2 transition-colors duration-150 hover:bg-[var(--color-fg)]/[0.04] cursor-pointer"
             >
-              {avatarEl}
+              <div className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] flex-shrink-0 overflow-hidden">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
             </button>
           </Tooltip>
         ) : (
@@ -266,16 +265,16 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             ref={triggerRef}
             onClick={() => setShowPopover((v) => !v)}
             className={clsx(
-              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 text-left cursor-pointer group",
+              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 text-left cursor-pointer group",
               showPopover
-                ? "bg-[var(--color-surface)]"
-                : "hover:bg-[var(--color-surface-alt)]"
+                ? "bg-[var(--color-sidebar-active)]"
+                : "hover:bg-[var(--color-fg)]/[0.04]"
             )}
           >
             {/* Avatar with ring on open */}
             <div className={clsx(
-              "relative h-9 w-9 rounded-full flex-shrink-0 ring-2 transition-all duration-200",
-              showPopover ? "ring-[var(--color-accent)]/50" : "ring-transparent"
+              "relative h-8 w-8 rounded-full flex-shrink-0 ring-2 transition-all duration-150",
+              showPopover ? "ring-[var(--color-chart-primary)]/40" : "ring-transparent"
             )}>
               <div className="h-full w-full rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] overflow-hidden">
                 {avatarUrl ? (
@@ -289,7 +288,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 leading-none">
-                <p className="text-sm font-medium text-[var(--color-fg)] truncate">
+                <p className="text-[13px] font-medium text-[var(--color-fg)] truncate">
                   {fullName || "User"}
                 </p>
                 <span
@@ -297,19 +296,19 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                     "text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none tracking-wide uppercase flex-shrink-0",
                     tier === "pro"
                       ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
-                      : "bg-white/8 text-[var(--color-muted)]/70 border border-white/10"
+                      : "bg-[var(--color-fg)]/[0.06] text-[var(--color-muted)]/70 border border-[var(--color-fg)]/[0.08]"
                   )}
                 >
                   {tierLabel}
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--color-muted)]/60 mt-0.5 truncate leading-none">
+              <p className="text-[11px] text-[var(--color-muted)]/50 mt-0.5 truncate leading-none">
                 {user?.email || ""}
               </p>
             </div>
 
             <svg
-              className="h-3.5 w-3.5 text-[var(--color-muted)]/60 flex-shrink-0 transition-colors duration-200 group-hover:text-[var(--color-muted)]"
+              className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 transition-all duration-150 group-hover:text-[var(--color-muted)]/60"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -330,12 +329,10 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           onConfirm={async () => {
             try {
               setIsSigningOut(true);
-              // signOut can hang if Supabase's internal auth lock is held — add timeout
               await Promise.race([
                 supabase.auth.signOut(),
                 new Promise((resolve) => setTimeout(resolve, 3000)),
               ]);
-              // Clear localStorage auth data manually in case signOut didn't complete
               if (typeof window !== 'undefined') {
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                   const key = localStorage.key(i);
