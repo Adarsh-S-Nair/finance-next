@@ -77,7 +77,7 @@ export async function createLinkToken(userId, products = ['transactions'], accou
       country_codes: ['US'],
       language: 'en',
       webhook: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook` : undefined,
-      redirect_uri: process.env.NEXT_PUBLIC_APP_URL || undefined,
+      redirect_uri: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/oauth-return` : undefined,
     };
 
     // Update mode: use access_token instead of products
