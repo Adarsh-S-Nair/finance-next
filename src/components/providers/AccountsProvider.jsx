@@ -79,8 +79,8 @@ export function AccountsProvider({ children }) {
       const response = await authFetch(`/api/plaid/accounts`);
       
       if (!response.ok) {
-        if (response.status === 401) {
-          // Auth not ready yet — don't mark as initialized so
+        if (response.status === 401 || response.status === 429) {
+          // Auth not ready or rate limited — don't mark as initialized so
           // dashboard doesn't prematurely redirect to /setup
           setLoading(false);
           return;

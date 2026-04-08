@@ -29,7 +29,7 @@ interface RateLimitConfig {
 
 const ROUTE_LIMITS: { prefix: string; config: RateLimitConfig }[] = [
   { prefix: '/api/cron/', config: { limit: 10, windowMs: 60_000 } },
-  { prefix: '/api/', config: { limit: 100, windowMs: 60_000 } },
+  { prefix: '/api/', config: { limit: 300, windowMs: 60_000 } },
 ];
 
 function getConfig(pathname: string): RateLimitConfig {
