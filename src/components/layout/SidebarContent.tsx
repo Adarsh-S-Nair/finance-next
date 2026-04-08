@@ -126,10 +126,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin pt-5", isCollapsed ? "px-2" : "px-3")}>
         {groups.map((g, i) => (
           <React.Fragment key={g.title ?? `group-${i}`}>
-            {/* Divider between standalone items and labeled groups */}
-            {i > 0 && !groups[i - 1].title && g.title && (
-              <div className={clsx("border-t border-[var(--color-fg)]/[0.06] mb-4", isCollapsed ? "mx-2" : "mx-3")} />
-            )}
             <SidebarSection label={g.title} isCollapsed={isCollapsed}>
               {g.items.map((it) => (
                 <SidebarItem
