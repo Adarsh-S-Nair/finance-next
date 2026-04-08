@@ -24,7 +24,6 @@ export default function BudgetsCard() {
         const data = json.data || [];
         setBudgets(data);
 
-        // If no budgets, fetch spending data for suggestions
         if (data.length === 0) {
           try {
             const spendRes = await authFetch(`/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group`);
@@ -36,7 +35,7 @@ export default function BudgetsCard() {
                 totalSpending: spendJson.totalSpending,
               });
             }
-          } catch { /* ignore - we'll show a simpler empty state */ }
+          } catch { /* ignore */ }
         }
       } catch (e) {
         console.error("Error fetching budgets:", e);
@@ -47,7 +46,6 @@ export default function BudgetsCard() {
     fetchBudgets();
   }, [authLoading, user?.id]);
 
-  // Calculate aggregate totals
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
@@ -60,10 +58,50 @@ export default function BudgetsCard() {
     }).format(amount);
   };
 
-  // Get label for a budget
   const getLabel = (budget) => {
     return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
   };
+
+  // Shared: segmented bar with gaps and rounded corners on each segment
+  const SegmentedBar = ({ items, getSpent, getColor, totalAmount }) => (
+    <div className="flex w-full gap-1">
+      {items.map((item, i) => {
+        const spent = getSpent(item);
+        const segmentWidth = totalAmount > 0 ? (spent / totalAmount) * 100 : 0;
+        if (segmentWidth <= 0) return null;
+        return (
+          <div
+            key={i}
+            className="h-2.5 rounded-full transition-all duration-500"
+            style={{
+              width: `${segmentWidth}%`,
+              backgroundColor: getColor(item) || 'var(--color-accent)',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+
+  // Shared: legend list
+  const LegendList = ({ items, getLabel: labelFn, getAmount, getColor }) => (
+    <div className="space-y-3.5">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: getColor(item) || 'var(--color-accent)' }}
+            />
+            <span className="text-[13px] text-[var(--color-fg)]">{labelFn(item)}</span>
+          </div>
+          <span className="text-[13px] text-[var(--color-fg)] tabular-nums">
+            {formatCurrencyWithCents(getAmount(item))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 
   // Loading state
   if (loading) {
@@ -72,12 +110,16 @@ export default function BudgetsCard() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="card-header">Budgets</h3>
         </div>
-        <div className="animate-pulse space-y-4">
-          <div className="border border-[var(--color-border)] rounded-xl px-5 py-5">
-            <div className="h-7 bg-[var(--color-border)] rounded w-32 mx-auto" />
+        <div className="animate-pulse">
+          <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+            <div className="h-7 bg-[var(--color-border)] rounded w-32 mx-auto mb-4" />
+            <div className="flex gap-1">
+              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-[3]" />
+              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-[2]" />
+              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-1" />
+            </div>
           </div>
-          <div className="h-2 bg-[var(--color-border)] rounded-full" />
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-3.5">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex justify-between">
                 <div className="flex items-center gap-2.5">
@@ -120,55 +162,28 @@ export default function BudgetsCard() {
 
         {hasSuggestions ? (
           <div className="flex-1 flex flex-col">
-            {/* Hero Number Container */}
-            <div className="border border-[var(--color-border)] rounded-xl px-5 py-4 mb-4">
-              <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight">
+            {/* Hero card with number + segmented bar */}
+            <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+              <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
                 {formatCurrencyWithCents(remainingSuggested)}
               </p>
+              <SegmentedBar
+                items={suggestedBudgets}
+                getSpent={(b) => b.spent}
+                getColor={(b) => b.hexColor}
+                totalAmount={totalBudgetSuggested}
+              />
             </div>
 
-            {/* Multi-Segment Progress Bar */}
-            <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden flex mb-5">
-              {suggestedBudgets.map((budget, i) => {
-                const segmentWidth = totalBudgetSuggested > 0
-                  ? (budget.spent / totalBudgetSuggested) * 100
-                  : 0;
-                return (
-                  <div
-                    key={i}
-                    className="h-full transition-all duration-500"
-                    style={{
-                      width: `${segmentWidth}%`,
-                      backgroundColor: budget.hexColor || 'var(--color-accent)',
-                      borderRadius: suggestedBudgets.length === 1 ? '9999px'
-                        : i === 0 ? '9999px 0 0 9999px'
-                        : i === suggestedBudgets.length - 1 ? '0 9999px 9999px 0'
-                        : '0',
-                    }}
-                  />
-                );
-              })}
-            </div>
+            {/* Legend */}
+            <LegendList
+              items={suggestedBudgets}
+              getLabel={(b) => b.label}
+              getAmount={(b) => b.remaining}
+              getColor={(b) => b.hexColor}
+            />
 
-            {/* Legend List */}
-            <div className="space-y-2.5">
-              {suggestedBudgets.map((budget, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: budget.hexColor || 'var(--color-accent)' }}
-                    />
-                    <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
-                  </div>
-                  <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                    {formatCurrencyWithCents(budget.remaining)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer with Total + CTA */}
+            {/* Footer */}
             <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-[var(--color-fg)]">Total</span>
@@ -210,6 +225,9 @@ export default function BudgetsCard() {
     );
   }
 
+  // Normal state
+  const displayBudgets = budgets.slice(0, 3);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -218,54 +236,26 @@ export default function BudgetsCard() {
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero Number Container */}
-      <div className="border border-[var(--color-border)] rounded-xl px-5 py-4 mb-4">
-        <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight">
+      {/* Hero card with number + segmented bar */}
+      <div className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
+        <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
           {formatCurrencyWithCents(remaining)}
         </p>
+        <SegmentedBar
+          items={displayBudgets}
+          getSpent={(b) => Number(b.spent || 0)}
+          getColor={(b) => b.category_groups?.hex_color}
+          totalAmount={totalBudget}
+        />
       </div>
 
-      {/* Multi-Segment Progress Bar */}
-      <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden flex mb-5">
-        {budgets.slice(0, 3).map((budget, i) => {
-          const segmentWidth = totalBudget > 0
-            ? (Number(budget.spent || 0) / totalBudget) * 100
-            : 0;
-          const count = Math.min(budgets.length, 3);
-          return (
-            <div
-              key={budget.id}
-              className="h-full transition-all duration-500"
-              style={{
-                width: `${segmentWidth}%`,
-                backgroundColor: budget.category_groups?.hex_color || 'var(--color-accent)',
-                borderRadius: count === 1 ? '9999px'
-                  : i === 0 ? '9999px 0 0 9999px'
-                  : i === count - 1 ? '0 9999px 9999px 0'
-                  : '0',
-              }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Budget Legend List */}
-      <div className="space-y-2.5">
-        {budgets.slice(0, 3).map((budget) => (
-          <div key={budget.id} className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: budget.category_groups?.hex_color || 'var(--color-accent)' }}
-              />
-              <span className="text-sm font-medium text-[var(--color-fg)]">{getLabel(budget)}</span>
-            </div>
-            <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-              {formatCurrencyWithCents(budget.remaining || 0)}
-            </span>
-          </div>
-        ))}
-      </div>
+      {/* Legend */}
+      <LegendList
+        items={displayBudgets}
+        getLabel={getLabel}
+        getAmount={(b) => b.remaining || 0}
+        getColor={(b) => b.category_groups?.hex_color}
+      />
 
       {/* Footer Total */}
       <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
