@@ -199,3 +199,4 @@ Custom component library maintained in a sibling repo at `../slate-ui` (GitHub: 
 - **TypeScript strict mode is enabled** — all new `.ts`/`.tsx` files must pass strict checks. When adding new provider hooks consumed by TypeScript files, add a `.d.ts` declaration file alongside the `.jsx` provider.
 - **ESLint is configured** with `eslint-config-next`. React 19 strict rules (`set-state-in-effect`, `refs`, `purity`, `immutability`) are set to warn, not error. New code should avoid these patterns where possible.
 - The codebase is mixed JS/TS (84% JS). Prefer TypeScript for new files, but don't convert existing JS files unless doing meaningful work in them.
+- **Icon style**: Use chevrons (`‹ ›`) instead of arrows for directional indicators. Prefer plain text/numbers over pill-shaped badges.

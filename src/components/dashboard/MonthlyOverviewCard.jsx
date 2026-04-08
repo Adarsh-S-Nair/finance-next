@@ -284,19 +284,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                       <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{selectedMonthName || 'This month'}</span>
                     </div>
                     {momComparison && (
-                      <span className={`inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-md leading-none ${
+                      <span className={`text-[10px] sm:text-[11px] font-medium ${
                         momComparison.direction === 'down'
-                          ? 'text-[var(--color-success)] bg-[var(--color-success)]/10'
-                          : 'text-[var(--color-danger)] bg-[var(--color-danger)]/10'
+                          ? 'text-[var(--color-success)]'
+                          : 'text-[var(--color-danger)]'
                       }`}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          {momComparison.direction === 'down' ? (
-                            <path d="M12 5v14M5 12l7 7 7-7" />
-                          ) : (
-                            <path d="M12 19V5M5 12l7-7 7 7" />
-                          )}
-                        </svg>
-                        {momComparison.percentage}%
+                        {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
                       </span>
                     )}
                   </div>

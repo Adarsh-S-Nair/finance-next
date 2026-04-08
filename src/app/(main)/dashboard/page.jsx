@@ -184,16 +184,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageContainer title={greeting} subtitle={insight ? (
-      <span className="inline-flex items-center gap-2 animate-fade-in">
-        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-          insight.tone === 'positive' ? 'bg-[var(--color-success)]' :
-          insight.tone === 'negative' ? 'bg-[var(--color-danger)]' :
-          'bg-[var(--color-muted)]/50'
-        }`} />
-        {insight.message}
+    <PageContainer title={insight ? (
+      <span>
+        {greeting}
+        <span className="text-[var(--color-muted)]/50 font-light"> — </span>
+        <span className="text-[var(--color-muted)] font-light">{insight.message.replace(/\.$/, '')}</span>
       </span>
-    ) : null} documentTitle="Dashboard">
+    ) : greeting} documentTitle="Dashboard">
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-5">
