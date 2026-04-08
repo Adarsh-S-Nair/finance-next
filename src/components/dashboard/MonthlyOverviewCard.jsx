@@ -171,6 +171,22 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }).format(value);
   };
 
+  // MoM percentage comparison
+  const momComparison = useMemo(() => {
+    const current = currentData?.spending || 0;
+    const previous = displayPreviousSpending || 0;
+    if (previous === 0 || current === 0) return null;
+
+    const change = ((current - previous) / previous) * 100;
+    const absChange = Math.abs(Math.round(change));
+    if (absChange < 1) return null;
+
+    return {
+      percentage: absChange,
+      direction: change > 0 ? 'up' : 'down',
+    };
+  }, [currentData?.spending, displayPreviousSpending]);
+
   const showLoading = isFetching;
 
   // Derive the selected month's display name from the "YYYY-MM" value
@@ -238,9 +254,27 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   <div className="text-2xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
                     {formatCurrency(currentData?.spending || 0)}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
-                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{selectedMonthName || 'This month'}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
+                      <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{selectedMonthName || 'This month'}</span>
+                    </div>
+                    {momComparison && (
+                      <span className={`inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-md leading-none ${
+                        momComparison.direction === 'down'
+                          ? 'text-[var(--color-success)] bg-[var(--color-success)]/10'
+                          : 'text-[var(--color-danger)] bg-[var(--color-danger)]/10'
+                      }`}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          {momComparison.direction === 'down' ? (
+                            <path d="M12 5v14M5 12l7 7 7-7" />
+                          ) : (
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          )}
+                        </svg>
+                        {momComparison.percentage}%
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div>

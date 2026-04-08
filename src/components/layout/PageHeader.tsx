@@ -33,7 +33,7 @@ export default function PageHeader({
           </h1>
         )}
         {subtitle && (
-          <p className="text-sm text-[var(--color-muted)] mt-1 truncate">
+          <p className="text-[13px] text-[var(--color-muted)]/70 mt-1.5 truncate">
             {subtitle}
           </p>
         )}

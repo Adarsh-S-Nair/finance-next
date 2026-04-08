@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
-  const [insightMessage, setInsightMessage] = useState(null);
+  const [insight, setInsight] = useState(null);
 
   // Handle return from Stripe Checkout (?upgraded=1)
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       .then(data => {
         if (cancelled) return;
         if (data?.insights?.length > 0) {
-          setInsightMessage(data.insights[0].message);
+          setInsight(data.insights[0]);
         }
       })
       .catch(err => {
@@ -184,7 +184,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageContainer title={greeting} subtitle={insightMessage} documentTitle="Dashboard">
+    <PageContainer title={greeting} subtitle={insight ? (
+      <span className="inline-flex items-center gap-2 animate-fade-in">
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+          insight.tone === 'positive' ? 'bg-[var(--color-success)]' :
+          insight.tone === 'negative' ? 'bg-[var(--color-danger)]' :
+          'bg-[var(--color-muted)]/50'
+        }`} />
+        {insight.message}
+      </span>
+    ) : null} documentTitle="Dashboard">
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-5">
