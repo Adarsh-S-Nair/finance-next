@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Outfit, Poppins } from 'next/font/google';
+import { Outfit, Poppins, Inter } from 'next/font/google';
 import Topbar from "../components/layout/Topbar";
 import ToastProvider from "../components/providers/ToastProvider";
 import { ThemeProvider } from "../components/providers/ThemeProvider";
@@ -23,6 +23,12 @@ const poppins = Poppins({
   variable: '--font-poppins',
 });
 
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-inter',
+});
+
 export const metadata = {
   title: {
     template: "Zervo | %s",
@@ -32,7 +38,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${poppins.variable}`}>
+    <html lang="en" className={`${outfit.variable} ${poppins.variable} ${inter.variable}`}>
       <body className="font-light selection:bg-zinc-900 selection:text-white">
         <DynamicFavicon />
         <ToastProvider>

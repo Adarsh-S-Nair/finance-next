@@ -5,7 +5,6 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
-import DynamicIcon from "../DynamicIcon";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard() {
@@ -52,15 +51,6 @@ export default function BudgetsCard() {
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
-  const percentage = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   const formatCurrencyWithCents = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -70,6 +60,11 @@ export default function BudgetsCard() {
     }).format(amount);
   };
 
+  // Get label for a budget
+  const getLabel = (budget) => {
+    return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -77,27 +72,35 @@ export default function BudgetsCard() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="card-header">Budgets</h3>
         </div>
-        <div className="animate-pulse space-y-3">
-          <div className="h-8 bg-[var(--color-border)] rounded w-24" />
-          <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
-          <div className="space-y-2 mt-4">
-            <div className="h-8 bg-[var(--color-border)] rounded" />
-            <div className="h-8 bg-[var(--color-border)] rounded" />
+        <div className="animate-pulse space-y-4">
+          <div className="border border-[var(--color-border)] rounded-xl px-5 py-5">
+            <div className="h-7 bg-[var(--color-border)] rounded w-32 mx-auto" />
+          </div>
+          <div className="h-2 bg-[var(--color-border)] rounded-full" />
+          <div className="space-y-2.5 pt-1">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)]" />
+                  <div className="h-4 bg-[var(--color-border)] rounded" style={{ width: `${60 + i * 12}px` }} />
+                </div>
+                <div className="h-4 bg-[var(--color-border)] rounded w-16" />
+              </div>
+            ))}
           </div>
         </div>
       </div>
     );
   }
 
-  // Empty state - show suggested budget preview based on spending
+  // Empty state
   if (budgets.length === 0) {
     const suggestedBudgets = suggestions?.categories?.map((cat) => {
       const monthlyAvg = cat.total_spent / suggestions.completeMonths;
       const suggestedAmount = Math.ceil(monthlyAvg / 10) * 10;
       return {
         label: cat.label,
-        iconLib: cat.icon_lib,
-        iconName: cat.icon_name,
+        hexColor: cat.hex_color,
         spent: Math.round(monthlyAvg),
         amount: suggestedAmount,
         remaining: suggestedAmount - Math.round(monthlyAvg),
@@ -107,7 +110,6 @@ export default function BudgetsCard() {
     const totalBudgetSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
     const totalSpentSuggested = suggestedBudgets.reduce((s, b) => s + b.spent, 0);
     const remainingSuggested = totalBudgetSuggested - totalSpentSuggested;
-    const percentageSuggested = totalBudgetSuggested > 0 ? Math.min(100, (totalSpentSuggested / totalBudgetSuggested) * 100) : 0;
     const hasSuggestions = suggestedBudgets.length > 0;
 
     return (
@@ -118,48 +120,62 @@ export default function BudgetsCard() {
 
         {hasSuggestions ? (
           <div className="flex-1 flex flex-col">
-            {/* Suggested budget preview - fully readable */}
-            <div className="mb-5">
-              <div className="flex flex-col mb-3">
-                <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
-                  {formatCurrency(remainingSuggested)}
-                </span>
-                <span className="text-xs text-[var(--color-muted)] font-medium">
-                  Remaining
-                </span>
-              </div>
-
-              <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
-                <div
-                  className="h-full rounded-full bg-[var(--color-accent)]"
-                  style={{ width: `${percentageSuggested}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
-                <span>{formatCurrency(totalSpentSuggested)} spent</span>
-                <span>{formatCurrency(totalBudgetSuggested)} total</span>
-              </div>
+            {/* Hero Number Container */}
+            <div className="border border-[var(--color-border)] rounded-xl px-5 py-4 mb-4">
+              <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight">
+                {formatCurrencyWithCents(remainingSuggested)}
+              </p>
             </div>
 
-            <div className="space-y-1">
+            {/* Multi-Segment Progress Bar */}
+            <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden flex mb-5">
+              {suggestedBudgets.map((budget, i) => {
+                const segmentWidth = totalBudgetSuggested > 0
+                  ? (budget.spent / totalBudgetSuggested) * 100
+                  : 0;
+                return (
+                  <div
+                    key={i}
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${segmentWidth}%`,
+                      backgroundColor: budget.hexColor || 'var(--color-accent)',
+                      borderRadius: suggestedBudgets.length === 1 ? '9999px'
+                        : i === 0 ? '9999px 0 0 9999px'
+                        : i === suggestedBudgets.length - 1 ? '0 9999px 9999px 0'
+                        : '0',
+                    }}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Legend List */}
+            <div className="space-y-2.5">
               {suggestedBudgets.map((budget, i) => (
-                <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className="text-[var(--color-muted)]">
-                      <DynamicIcon iconLib={budget.iconLib} iconName={budget.iconName} className="w-4 h-4" />
-                    </div>
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: budget.hexColor || 'var(--color-accent)' }}
+                    />
                     <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
                   </div>
                   <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                    {formatCurrencyWithCents(budget.remaining)} left
+                    {formatCurrencyWithCents(budget.remaining)}
                   </span>
                 </div>
               ))}
             </div>
 
-            {/* CTA at bottom */}
-            <div className="mt-auto pt-4">
+            {/* Footer with Total + CTA */}
+            <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-[var(--color-fg)]">Total</span>
+                <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+                  {formatCurrencyWithCents(totalBudgetSuggested)}
+                </span>
+              </div>
               <Link
                 href="/budgets"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
@@ -194,18 +210,6 @@ export default function BudgetsCard() {
     );
   }
 
-  // Get icon component for a budget
-  const getIcon = (budget) => {
-    const iconName = budget.category_groups?.icon_name;
-    const IconComponent = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
-    return <IconComponent size={16} />;
-  };
-
-  // Get label for a budget
-  const getLabel = (budget) => {
-    return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
-  };
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -214,47 +218,63 @@ export default function BudgetsCard() {
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero Section - Focus on Remaining */}
-      <div className="mb-5">
-        <div className="flex flex-col mb-3">
-          <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
-            {formatCurrency(remaining)}
-          </span>
-          <span className="text-sm text-[var(--color-muted)] font-medium">
-            Remaining
-          </span>
-        </div>
-
-        {/* Minimal Progress Bar */}
-        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ease-out ${percentage >= 100 ? 'bg-rose-500' : percentage > 85 ? 'bg-amber-500' : 'bg-[var(--color-accent)]'
-              }`}
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-
-        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
-          <span>{formatCurrency(totalSpent)} spent</span>
-          <span>{formatCurrency(totalBudget)} total</span>
-        </div>
+      {/* Hero Number Container */}
+      <div className="border border-[var(--color-border)] rounded-xl px-5 py-4 mb-4">
+        <p className="text-center text-2xl font-semibold text-[var(--color-fg)] tabular-nums tracking-tight">
+          {formatCurrencyWithCents(remaining)}
+        </p>
       </div>
 
-      {/* Budget List */}
-      <div className="mt-auto space-y-1">
+      {/* Multi-Segment Progress Bar */}
+      <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden flex mb-5">
+        {budgets.slice(0, 3).map((budget, i) => {
+          const segmentWidth = totalBudget > 0
+            ? (Number(budget.spent || 0) / totalBudget) * 100
+            : 0;
+          const count = Math.min(budgets.length, 3);
+          return (
+            <div
+              key={budget.id}
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${segmentWidth}%`,
+                backgroundColor: budget.category_groups?.hex_color || 'var(--color-accent)',
+                borderRadius: count === 1 ? '9999px'
+                  : i === 0 ? '9999px 0 0 9999px'
+                  : i === count - 1 ? '0 9999px 9999px 0'
+                  : '0',
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Budget Legend List */}
+      <div className="space-y-2.5">
         {budgets.slice(0, 3).map((budget) => (
-          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-2.5 rounded-lg transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-                {getIcon(budget)}
-              </div>
+          <div key={budget.id} className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: budget.category_groups?.hex_color || 'var(--color-accent)' }}
+              />
               <span className="text-sm font-medium text-[var(--color-fg)]">{getLabel(budget)}</span>
             </div>
             <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-              {formatCurrencyWithCents(budget.remaining || 0)} left
+              {formatCurrencyWithCents(budget.remaining || 0)}
             </span>
           </div>
         ))}
+      </div>
+
+      {/* Footer Total */}
+      <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-[var(--color-fg)]">Total</span>
+          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+            {formatCurrencyWithCents(totalBudget)}
+          </span>
+        </div>
       </div>
     </div>
   );
