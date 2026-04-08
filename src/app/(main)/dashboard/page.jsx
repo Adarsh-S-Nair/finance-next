@@ -47,6 +47,16 @@ export default function DashboardPage() {
         console.warn('[dashboard] stripe sync failed:', e);
       }
       await refreshProfile();
+
+      // Trigger recurring transactions sync in the background now that the
+      // user has Pro access. This runs against existing Plaid items — no
+      // re-consent needed.
+      authFetch('/api/plaid/recurring/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(e => console.warn('[dashboard] recurring sync failed:', e));
+
       router.replace('/dashboard');
     }
 
