@@ -40,8 +40,7 @@ const variants: Record<string, string> = {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", fullWidth = false, loading = false, children, ...props }, ref) => {
     const { profile } = useUser();
-    const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
-    const isDefaultAccent = !profile?.accent_color;
+    const isCustomAccent = !!profile?.accent_color;
 
     const sizeClasses =
       size === "sm"
@@ -58,16 +57,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     let variantClasses = variants[variant];
 
-    if (variant === "primary" || variant === "matte") {
-      if (!isDefaultAccent) {
-        variantClasses = variantClasses
-          .replace("text-[var(--color-on-accent)]", "text-white")
-          .replace("text-[var(--color-on-accent,white)]", "text-white");
-      } else if (isDarkMode) {
-        variantClasses = variantClasses
-          .replace("text-[var(--color-on-accent)]", "text-black")
-          .replace("text-[var(--color-on-accent,white)]", "text-black");
-      }
+    // Custom accent colors are always vivid → force white text.
+    // Default accent uses --color-on-accent which the CSS theme sets correctly
+    // (white in light mode, black in dark mode).
+    if ((variant === "primary" || variant === "matte") && isCustomAccent) {
+      variantClasses = variantClasses
+        .replace("text-[var(--color-on-accent)]", "text-white")
+        .replace("text-[var(--color-on-accent,white)]", "text-white");
     }
 
     return (

@@ -68,7 +68,7 @@ export default function ContactSelector({ onSelect, selectedContactId }) {
         />
         <button
           onClick={handleAddContact}
-          className="bg-[var(--color-accent)] text-white px-3 py-2 rounded-lg text-sm font-medium"
+          className="bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3 py-2 rounded-lg text-sm font-medium"
         >
           Add
         </button>
@@ -94,7 +94,7 @@ export default function ContactSelector({ onSelect, selectedContactId }) {
                 : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50 text-[var(--color-fg)]'
               }`}
           >
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${selectedContactId === contact.id ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)]'
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${selectedContactId === contact.id ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]' : 'bg-[var(--color-surface)] text-[var(--color-muted)]'
               }`}>
               <FiUser className="w-3 h-3" />
             </div>

@@ -114,7 +114,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
           >
             <FiFilter className="h-4 w-4" />
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-white text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center animate-fade-in">
+              <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center animate-fade-in">
                 {activeFilterCount}
               </span>
             )}
@@ -402,7 +402,7 @@ const FiltersContent = ({
               key={option.value}
               onClick={() => setDateRange(option.value)}
               className={`py-2 px-2 text-xs font-medium rounded-xl border transition-all duration-200 ${dateRange === option.value
-                ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white shadow-sm'
+                ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm'
                 : 'bg-[var(--color-surface)] border-[var(--color-border)]/50 text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
                 }`}
             >
@@ -514,7 +514,7 @@ const FiltersContent = ({
                             toggleGroup(group.id);
                           }}
                           className={`w-7 h-7 rounded-md flex items-center justify-center transition-all duration-200 ${isGroupSelected
-                            ? 'bg-[var(--color-accent)] text-white shadow-sm scale-100'
+                            ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm scale-100'
                             : isPartiallySelected
                               ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                               : 'text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]'

@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
-import { LuSettings, LuHeadphones } from "react-icons/lu";
+import { LuSettings, LuHeadphones, LuSparkles } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
@@ -81,7 +81,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
   const avatarEl = (
     <div
-      className="relative h-9 w-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 overflow-hidden"
+      className="relative h-9 w-9 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] flex-shrink-0 overflow-hidden"
       style={{ fontSize: "0.75rem" }}
     >
       {avatarUrl ? (
@@ -205,6 +205,17 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               style={{ overflow: "hidden" }}
             >
+              {/* Upgrade to Pro — only show for free users */}
+              {tier === "free" && (
+                <button
+                  onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150 rounded-lg"
+                >
+                  <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
+                  <span>Upgrade to Pro</span>
+                </button>
+              )}
+
               {/* Settings */}
               <Link
                 href="/settings"
@@ -266,7 +277,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               "relative h-9 w-9 rounded-full flex-shrink-0 ring-2 transition-all duration-200",
               showPopover ? "ring-[var(--color-accent)]/50" : "ring-transparent"
             )}>
-              <div className="h-full w-full rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-white overflow-hidden">
+              <div className="h-full w-full rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] overflow-hidden">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
@@ -293,19 +304,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                 </span>
               </div>
               <p className="text-[11px] text-[var(--color-muted)]/60 mt-0.5 truncate leading-none">
-                {tier === "free" ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); setShowUpgradeOverlay(true); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setShowUpgradeOverlay(true); } }}
-                    className="text-[var(--color-accent)]/70 hover:text-[var(--color-accent)] transition-colors cursor-pointer"
-                  >
-                    Upgrade to Pro
-                  </span>
-                ) : (
-                  user?.email || ""
-                )}
+                {user?.email || ""}
               </p>
             </div>
 

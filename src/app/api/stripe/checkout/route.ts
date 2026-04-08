@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/settings?upgraded=1`,
+      success_url: `${origin}/dashboard?upgraded=1`,
       cancel_url: `${origin}/settings`,
       metadata: { supabase_user_id: userId },
       subscription_data: {

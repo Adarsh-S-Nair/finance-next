@@ -130,7 +130,7 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
               >
                 {/* Recommended badge */}
                 <div
-                  className="absolute top-0 right-6 px-3 py-1 rounded-b-lg text-[10px] font-bold uppercase tracking-wide text-white"
+                  className="absolute top-0 right-6 px-3 py-1 rounded-b-lg text-[10px] font-bold uppercase tracking-wide text-[var(--color-on-accent)]"
                   style={{ background: "var(--color-accent)" }}
                 >
                   Recommended
@@ -164,11 +164,11 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
                   <button
                     onClick={handleUpgrade}
                     disabled={loading}
-                    className="w-full h-10 inline-flex items-center justify-center rounded-xl text-sm font-medium text-white hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-full h-10 inline-flex items-center justify-center rounded-xl text-sm font-medium text-[var(--color-on-accent)] hover:opacity-90 active:scale-[0.98] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                     style={{ background: "var(--color-accent)" }}
                   >
                     {loading ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-on-accent)]/30 border-t-[var(--color-on-accent)]" />
                     ) : (
                       "Upgrade to Pro"
                     )}

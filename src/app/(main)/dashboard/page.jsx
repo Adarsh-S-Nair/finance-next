@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { authFetch } from "../../../lib/api/fetch";
@@ -29,10 +29,29 @@ const componentMap = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isPro, loading: authLoading } = useUser();
+  const searchParams = useSearchParams();
+  const { user, isPro, loading: authLoading, refreshProfile } = useUser();
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
+
+  // Handle return from Stripe Checkout (?upgraded=1)
+  useEffect(() => {
+    if (searchParams.get('upgraded') !== '1') return;
+    if (!user) return;
+
+    async function syncAndRefresh() {
+      try {
+        await authFetch('/api/stripe/sync', { method: 'POST' });
+      } catch (e) {
+        console.warn('[dashboard] stripe sync failed:', e);
+      }
+      await refreshProfile();
+      router.replace('/dashboard');
+    }
+
+    syncAndRefresh();
+  }, [searchParams, user, refreshProfile, router]);
 
   useEffect(() => {
     if (user) {

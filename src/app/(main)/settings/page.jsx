@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import Button from "../../../components/ui/Button";
 import { supabase } from "../../../lib/supabase/client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
@@ -21,7 +21,6 @@ import { authFetch } from "../../../lib/api/fetch";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { logout, profile, isPro, user, refreshProfile } = useUser();
   const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -36,29 +35,6 @@ export default function SettingsPage() {
   const [isResyncing, setIsResyncing] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
 
-  // On return from Stripe Checkout (?upgraded=1), call sync endpoint as a fallback
-  // in case the webhook hasn't fired yet, then refresh the profile.
-  // Wait for `user` to be available — after the Stripe redirect, auth may not
-  // have rehydrated yet and refreshProfile would resolve with a null userId,
-  // leaving the profile as {} (free) even though the DB already says pro.
-  useEffect(() => {
-    if (searchParams.get('upgraded') !== '1') return;
-    if (!user) return; // wait until auth is ready
-
-    async function syncAndRefresh() {
-      try {
-        await authFetch('/api/stripe/sync', { method: 'POST' });
-      } catch (e) {
-        // Non-fatal — best-effort sync; webhook will eventually catch up
-        console.warn('[settings] stripe sync failed:', e);
-      }
-      await refreshProfile();
-      // Remove the query param without reloading
-      router.replace('/settings');
-    }
-
-    syncAndRefresh();
-  }, [searchParams, user, refreshProfile, router]);
   const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
   const handleResync = async () => {
