@@ -187,11 +187,15 @@ export default function DashboardPage() {
     <PageContainer title={greeting} documentTitle="Dashboard">
       {insight && (
         <div className={`mb-5 flex items-center px-4 py-3 rounded-lg animate-fade-in ${
-          insight.tone === 'positive' ? 'bg-[var(--color-success)]' :
-          insight.tone === 'negative' ? 'bg-[var(--color-danger)]' :
-          'bg-[var(--color-muted)]'
+          insight.tone === 'positive' ? 'bg-emerald-900/40' :
+          insight.tone === 'negative' ? 'bg-red-900/40' :
+          'bg-zinc-800/50'
         }`}>
-          <span className="text-[13px] text-white">{insight.message}</span>
+          <span className={`text-[13px] ${
+            insight.tone === 'positive' ? 'text-emerald-300' :
+            insight.tone === 'negative' ? 'text-red-300' :
+            'text-zinc-300'
+          }`}>{insight.message}</span>
         </div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
