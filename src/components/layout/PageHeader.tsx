@@ -32,7 +32,7 @@ export default function PageHeader({
           <div className="text-xs text-[var(--color-muted)] mb-0.5">{prefix}</div>
         )}
         {title && (
-          <h1 className="text-[15px] font-medium tracking-tight text-[var(--color-fg)] truncate">
+          <h1 className="text-lg font-medium tracking-tight text-[var(--color-fg)] truncate">
             {title}
           </h1>
         )}
