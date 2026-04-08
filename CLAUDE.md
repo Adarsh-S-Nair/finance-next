@@ -179,6 +179,7 @@ When working on specific areas, consult these files:
 - **Push directly to `main`** — do not create feature branches unless explicitly asked.
 - **All commits must be authored as `Adarsh <asnair159@gmail.com>`** — use `--author="Adarsh <asnair159@gmail.com>"` on every commit.
 - **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
+- **Do NOT include the Claude session URL** (e.g. `https://claude.ai/code/...`) in commit messages. It triggers co-author attribution.
 
 ## Slate UI (`@slate-ui/react`)
 
