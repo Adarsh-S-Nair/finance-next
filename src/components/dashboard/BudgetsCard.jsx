@@ -5,17 +5,15 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
-import { CurrencyAmount } from "../../lib/formatCurrency";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard() {
   const { user, loading: authLoading } = useUser();
   const [budgets, setBudgets] = useState([]);
-  const [suggestions, setSuggestions] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [hoveredSegment, setHoveredSegment] = useState(null);
 
   useEffect(() => {
+    console.log("[BudgetsCard] effect: authLoading=", authLoading, "user=", !!user?.id);
     if (authLoading) return;
     if (!user?.id) { setLoading(false); return; }
     async function fetchBudgets() {
@@ -23,22 +21,7 @@ export default function BudgetsCard() {
       try {
         const res = await authFetch(`/api/budgets`);
         const json = await res.json();
-        const data = json.data || [];
-        setBudgets(data);
-
-        if (data.length === 0) {
-          try {
-            const spendRes = await authFetch(`/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group`);
-            const spendJson = await spendRes.json();
-            if (spendJson.categories?.length > 0 && spendJson.completeMonths > 0) {
-              setSuggestions({
-                categories: spendJson.categories.slice(0, 3),
-                completeMonths: spendJson.completeMonths,
-                totalSpending: spendJson.totalSpending,
-              });
-            }
-          } catch { /* ignore */ }
-        }
+        setBudgets(json.data || []);
       } catch (e) {
         console.error("Error fetching budgets:", e);
       } finally {
@@ -48,205 +31,137 @@ export default function BudgetsCard() {
     fetchBudgets();
   }, [authLoading, user?.id]);
 
+  // Calculate aggregate totals
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
+  const percentage = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
 
-  const getLabel = (budget) => {
-    return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
-  // Shared: segmented bar with hover tooltips
-  const SegmentedBar = ({ items, getSpent, getColor, getLabel: labelFn, totalAmount }) => (
-    <div className="flex w-full gap-0.5">
-      {items.map((item, i) => {
-        const spent = getSpent(item);
-        const segmentWidth = totalAmount > 0 ? (spent / totalAmount) * 100 : 0;
-        if (segmentWidth <= 0) return null;
-        return (
-          <div
-            key={i}
-            className="relative h-2.5 rounded-sm transition-all duration-300 cursor-default"
-            style={{
-              width: `${segmentWidth}%`,
-              backgroundColor: getColor(item) || 'var(--color-accent)',
-              opacity: hoveredSegment !== null && hoveredSegment !== i ? 0.4 : 1,
-            }}
-            onMouseEnter={() => setHoveredSegment(i)}
-            onMouseLeave={() => setHoveredSegment(null)}
-          >
-            {hoveredSegment === i && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] text-[11px] font-medium whitespace-nowrap z-10 pointer-events-none">
-                {labelFn(item)}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // Shared: legend list
-  const LegendList = ({ items, getLabel: labelFn, getAmount, getColor }) => (
-    <div className="space-y-3.5">
-      {items.map((item, i) => (
-        <div key={i} className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: getColor(item) || 'var(--color-accent)' }}
-            />
-            <span className="text-[13px] text-[var(--color-fg)]">{labelFn(item)}</span>
-          </div>
-          <span className="text-[13px] text-[var(--color-fg)] tabular-nums">
-            <CurrencyAmount amount={getAmount(item)} cents />
-          </span>
-        </div>
-      ))}
-    </div>
-  );
+  const formatCurrencyWithCents = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   // Loading state
   if (loading) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
-        <div className="animate-pulse">
-          <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-            <div className="h-7 bg-[var(--color-border)] rounded w-40 mb-4" />
-            <div className="flex gap-0.5">
-              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[3]" />
-              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[2]" />
-              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-1" />
-            </div>
-          </div>
-          <div className="space-y-3.5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)]" />
-                  <div className="h-4 bg-[var(--color-border)] rounded" style={{ width: `${60 + i * 12}px` }} />
-                </div>
-                <div className="h-4 bg-[var(--color-border)] rounded w-16" />
-              </div>
-            ))}
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-[var(--color-border)] rounded w-24" />
+          <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
+          <div className="space-y-3 mt-6">
+            <div className="h-8 bg-[var(--color-border)] rounded" />
+            <div className="h-8 bg-[var(--color-border)] rounded" />
           </div>
         </div>
       </div>
     );
   }
 
-  // Empty state
+  // Empty state - clean with prominent CTA
   if (budgets.length === 0) {
-    const suggestedBudgets = suggestions?.categories?.map((cat) => {
-      const monthlyAvg = cat.total_spent / suggestions.completeMonths;
-      const suggestedAmount = Math.ceil(monthlyAvg / 10) * 10;
-      return {
-        label: cat.label,
-        hexColor: cat.hex_color,
-        spent: Math.round(monthlyAvg),
-        amount: suggestedAmount,
-        remaining: suggestedAmount - Math.round(monthlyAvg),
-      };
-    }) || [];
-
-    const totalBudgetSuggested = suggestedBudgets.reduce((s, b) => s + b.amount, 0);
-    const remainingSuggested = totalBudgetSuggested - suggestedBudgets.reduce((s, b) => s + b.spent, 0);
-    const hasSuggestions = suggestedBudgets.length > 0;
-
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
-
-        {hasSuggestions ? (
-          <div className="flex-1 flex flex-col">
-            {/* Hero card */}
-            <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
-                  <CurrencyAmount amount={remainingSuggested} cents />
-                </span>
-                <span className="text-xs text-[var(--color-muted)]">remaining</span>
-              </div>
-              <SegmentedBar
-                items={suggestedBudgets}
-                getSpent={(b) => b.spent}
-                getColor={(b) => b.hexColor}
-                getLabel={(b) => b.label}
-                totalAmount={totalBudgetSuggested}
-              />
-            </div>
-
-            {/* Legend */}
-            <LegendList
-              items={suggestedBudgets}
-              getLabel={(b) => b.label}
-              getAmount={(b) => b.remaining}
-              getColor={(b) => b.hexColor}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
-            <div className="w-10 h-10 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center mb-3">
-              <Icons.PiggyBank size={20} className="text-[var(--color-muted)]" />
-            </div>
-            <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
-              No budgets yet
-            </p>
-            <p className="text-xs text-[var(--color-muted)] mb-4 max-w-[200px]">
-              Create budgets to track spending against your goals.
-            </p>
-            <Link
-              href="/budgets"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
-            >
-              Create Budget
-            </Link>
-          </div>
-        )}
+        <div className="flex-1 flex flex-col justify-center">
+          <p className="text-sm text-[var(--color-fg)] mb-1">
+            No budgets yet
+          </p>
+          <p className="text-xs text-[var(--color-muted)] mb-4">
+            Get started by creating your first budget.
+          </p>
+          <Link
+            href="/budgets"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity w-fit"
+          >
+            Create a Budget
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
       </div>
     );
   }
 
-  // Normal state
-  const displayBudgets = budgets.slice(0, 3);
+  // Get icon component for a budget
+  const getIcon = (budget) => {
+    const iconName = budget.category_groups?.icon_name;
+    const IconComponent = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
+    return <IconComponent size={16} />;
+  };
+
+  // Get label for a budget
+  const getLabel = (budget) => {
+    return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
+  };
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero card */}
-      <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-        <div className="flex items-baseline gap-2 mb-4">
-          <span className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
-            <CurrencyAmount amount={remaining} cents />
+      {/* Hero Section - Focus on Remaining */}
+      <div className="mb-8">
+        <div className="flex flex-col gap-1 mb-4">
+          <span className="text-4xl font-semibold text-[var(--color-fg)] tracking-tight">
+            {formatCurrency(remaining)}
           </span>
-          <span className="text-xs text-[var(--color-muted)]">remaining</span>
+          <span className="text-sm text-[var(--color-muted)] font-medium">
+            Remaining
+          </span>
         </div>
-        <SegmentedBar
-          items={displayBudgets}
-          getSpent={(b) => Number(b.spent || 0)}
-          getColor={(b) => b.category_groups?.hex_color}
-          getLabel={getLabel}
-          totalAmount={totalBudget}
-        />
+
+        {/* Minimal Progress Bar */}
+        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ease-out ${percentage >= 100 ? 'bg-rose-500' : percentage > 85 ? 'bg-amber-500' : 'bg-[var(--color-accent)]'
+              }`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+
+        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)] mt-2">
+          <span>{formatCurrency(totalSpent)} spent</span>
+          <span>{formatCurrency(totalBudget)} total</span>
+        </div>
       </div>
 
-      {/* Legend */}
-      <LegendList
-        items={displayBudgets}
-        getLabel={getLabel}
-        getAmount={(b) => b.remaining || 0}
-        getColor={(b) => b.category_groups?.hex_color}
-      />
+      {/* Budget List */}
+      <div className="mt-auto space-y-4">
+        {budgets.slice(0, 3).map((budget) => (
+          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-1.5 rounded-lg transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
+                {getIcon(budget)}
+              </div>
+              <span className="text-sm font-medium text-[var(--color-fg)]">{getLabel(budget)}</span>
+            </div>
+            <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+              {formatCurrencyWithCents(budget.remaining || 0)} left
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
