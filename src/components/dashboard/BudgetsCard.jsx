@@ -117,57 +117,49 @@ export default function BudgetsCard() {
         </div>
 
         {hasSuggestions ? (
-          <div className="flex-1 flex flex-col relative">
-            {/* Suggested budget preview - mirrors real layout but dimmed */}
-            <div className="opacity-40 pointer-events-none select-none">
-              <div className="mb-5">
-                <div className="flex flex-col mb-3">
-                  <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
-                    {formatCurrency(remainingSuggested)}
-                  </span>
-                  <span className="text-xs text-[var(--color-muted)] font-medium">
-                    Remaining
-                  </span>
-                </div>
-
-                <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
-                  <div
-                    className="h-full rounded-full bg-[var(--color-accent)]"
-                    style={{ width: `${percentageSuggested}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
-                  <span>{formatCurrency(totalSpentSuggested)} spent</span>
-                  <span>{formatCurrency(totalBudgetSuggested)} total</span>
-                </div>
+          <div className="flex-1 flex flex-col">
+            {/* Suggested budget preview - fully readable */}
+            <div className="mb-5">
+              <div className="flex flex-col mb-3">
+                <span className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight">
+                  {formatCurrency(remainingSuggested)}
+                </span>
+                <span className="text-xs text-[var(--color-muted)] font-medium">
+                  Remaining
+                </span>
               </div>
 
-              <div className="space-y-1">
-                {suggestedBudgets.map((budget, i) => (
-                  <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className="text-[var(--color-muted)]">
-                        <DynamicIcon iconLib={budget.iconLib} iconName={budget.iconName} className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
-                    </div>
-                    <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-                      {formatCurrencyWithCents(budget.remaining)} left
-                    </span>
-                  </div>
-                ))}
+              <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full rounded-full bg-[var(--color-accent)]"
+                  style={{ width: `${percentageSuggested}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
+                <span>{formatCurrency(totalSpentSuggested)} spent</span>
+                <span>{formatCurrency(totalBudgetSuggested)} total</span>
               </div>
             </div>
 
-            {/* Overlay CTA */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
-                Based on your spending
-              </p>
-              <p className="text-xs text-[var(--color-muted)] mb-4 text-center px-4">
-                We suggest {suggestedBudgets.length} budget{suggestedBudgets.length !== 1 ? 's' : ''} totaling {formatCurrency(totalBudgetSuggested)}/mo
-              </p>
+            <div className="space-y-1">
+              {suggestedBudgets.map((budget, i) => (
+                <div key={i} className="flex items-center justify-between -mx-2 px-2 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="text-[var(--color-muted)]">
+                      <DynamicIcon iconLib={budget.iconLib} iconName={budget.iconName} className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-medium text-[var(--color-fg)]">{budget.label}</span>
+                  </div>
+                  <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+                    {formatCurrencyWithCents(budget.remaining)} left
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA at bottom */}
+            <div className="mt-auto pt-4">
               <Link
                 href="/budgets"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 transition-opacity"
