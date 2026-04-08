@@ -127,6 +127,11 @@ export default function DashboardPage() {
     'TopCategoriesCard': summaryData?.spendingByCategory,
   };
 
+  // Extra props injected into specific components
+  const extraPropsMap = {
+    'MonthlyOverviewCard': insight ? { insight } : {},
+  };
+
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
@@ -138,16 +143,17 @@ export default function DashboardPage() {
           {item.items.map((subItem) => {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
-            const extraProps = summaryDataMap[subItem.component]
+            const summaryProps = summaryDataMap[subItem.component]
               ? { data: summaryDataMap[subItem.component] }
               : {};
+            const extra = extraPropsMap[subItem.component] || {};
             return (
               <div
                 key={subItem.id}
                 className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
                 <Card variant="glass" className="h-full">
-                  <Component {...(subItem.props || {})} {...extraProps} />
+                  <Component {...(subItem.props || {})} {...summaryProps} {...extra} />
                 </Card>
               </div>
             );
@@ -158,14 +164,15 @@ export default function DashboardPage() {
 
     const Component = componentMap[item.component];
     if (!Component) return null;
-    const extraProps = summaryDataMap[item.component]
+    const summaryProps = summaryDataMap[item.component]
       ? { data: summaryDataMap[item.component] }
       : {};
+    const extra = extraPropsMap[item.component] || {};
 
     return (
       <div key={item.id} className={item.height || ''}>
         <Card variant="glass" className="h-full">
-          <Component {...(item.props || {})} {...extraProps} />
+          <Component {...(item.props || {})} {...summaryProps} {...extra} />
         </Card>
       </div>
     );
@@ -185,19 +192,6 @@ export default function DashboardPage() {
 
   return (
     <PageContainer title={greeting} documentTitle="Dashboard">
-      {insight && (
-        <div className={`mb-5 flex items-center px-4 py-3 rounded-lg animate-fade-in ${
-          insight.tone === 'positive' ? 'bg-emerald-900/40' :
-          insight.tone === 'negative' ? 'bg-red-900/40' :
-          'bg-zinc-800/50'
-        }`}>
-          <span className={`text-[13px] ${
-            insight.tone === 'positive' ? 'text-emerald-300' :
-            insight.tone === 'negative' ? 'text-red-300' :
-            'text-zinc-300'
-          }`}>{insight.message}</span>
-        </div>
-      )}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
         {/* Main Content Area */}
         <div className="lg:col-span-7 space-y-5">

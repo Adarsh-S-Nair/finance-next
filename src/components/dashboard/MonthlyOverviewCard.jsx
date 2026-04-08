@@ -4,7 +4,7 @@ import LineChart from "../ui/LineChart";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 
-export default function MonthlyOverviewCard({ initialMonth, onBack }) {
+export default function MonthlyOverviewCard({ initialMonth, onBack, insight }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
@@ -271,6 +271,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   Monthly Spending
                 </div>
               </div>
+              {insight && !onBack && (
+                <p className="text-[12px] text-[var(--color-muted)]/60 -mt-1.5 mb-3 sm:mb-4 animate-fade-in">
+                  {insight.message}
+                </p>
+              )}
 
               {/* Values Row */}
               <div className="flex items-baseline gap-6 sm:gap-10">
