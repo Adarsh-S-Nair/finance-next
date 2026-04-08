@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import LineChart from "../ui/LineChart";
 import { Dropdown } from "@slate-ui/react";
@@ -109,13 +109,15 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     fetchMonthlyData();
   }, [authLoading, user?.id, selectedMonth]);
 
-  const handleMouseMove = (data, index) => {
-    setActiveIndex(index);
-  };
+  const chartContainerRef = useRef(null);
 
-  const handleMouseLeave = () => {
+  const handleMouseMove = useCallback((data, index) => {
+    setActiveIndex(index);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
     setActiveIndex(null);
-  };
+  }, []);
 
   // Determine which data point to display (hovered or last with valid spending data)
   const lastValidDataPoint = useMemo(() => {
@@ -186,6 +188,28 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
       direction: change > 0 ? 'up' : 'down',
     };
   }, [currentData?.spending, displayPreviousSpending]);
+
+  // Tooltip data for hovered day
+  const hoveredDayTransactions = useMemo(() => {
+    if (activeIndex === null || !chartData[activeIndex]) return null;
+    const point = chartData[activeIndex];
+    if (!point.transactions || point.transactions.length === 0) return null;
+    if (point.dailySpending === null || point.dailySpending === 0) return null;
+    return {
+      date: point.dateString,
+      transactions: point.transactions,
+      moreCount: point.moreCount || 0,
+    };
+  }, [activeIndex, chartData]);
+
+  // Calculate tooltip horizontal position as percentage from activeIndex
+  const tooltipStyle = useMemo(() => {
+    if (activeIndex === null || !chartData.length) return {};
+    const pct = (activeIndex / Math.max(chartData.length - 1, 1)) * 100;
+    // Clamp so tooltip doesn't overflow edges
+    const left = Math.max(10, Math.min(90, pct));
+    return { left: `${left}%` };
+  }, [activeIndex, chartData.length]);
 
   const showLoading = isFetching;
 
@@ -324,7 +348,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
           </div>
 
           {/* Chart */}
-          <div className="flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
+          <div ref={chartContainerRef} className="relative flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
             <LineChart
               data={chartData}
               width="100%"
@@ -364,6 +388,35 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
             />
+
+            {/* Transaction tooltip on hover */}
+            {hoveredDayTransactions && (
+              <div
+                className="absolute top-2 z-10 -translate-x-1/2 pointer-events-none animate-fade-in"
+                style={tooltipStyle}
+              >
+                <div className="bg-[var(--color-bg)] border border-[var(--color-fg)]/[0.08] rounded-lg shadow-lg px-3 py-2.5 min-w-[160px] max-w-[220px]">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-muted)]/60 mb-1.5">
+                    {hoveredDayTransactions.date}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {hoveredDayTransactions.transactions.map((tx, i) => (
+                      <li key={i} className="flex items-center justify-between gap-3">
+                        <span className="text-[12px] text-[var(--color-fg)] truncate">{tx.merchant}</span>
+                        <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                          {formatCurrency(tx.amount)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {hoveredDayTransactions.moreCount > 0 && (
+                    <p className="text-[10px] text-[var(--color-muted)]/50 mt-1.5">
+                      +{hoveredDayTransactions.moreCount} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

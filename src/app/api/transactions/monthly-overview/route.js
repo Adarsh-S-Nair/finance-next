@@ -15,7 +15,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Fetch transactions for the month
   let query = supabaseAdmin
     .from('transactions')
-    .select('id, amount, date, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
+    .select('id, amount, date, merchant_name, name, description, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
     .eq('accounts.user_id', userId)
     .gte('date', startDateStr)
     .lte('date', endDateStr)
@@ -36,10 +36,12 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Identify matched transfer pairs using shared utility
   const { matchedIds } = identifyTransfers(transactions);
 
-  // Initialize map for daily totals
+  // Initialize map for daily totals and transaction details
   const dailyTotals = new Map();
+  const dailyTransactions = new Map();
   for (let i = 1; i <= daysInMonth; i++) {
     dailyTotals.set(i, { income: 0, spending: 0 });
+    dailyTransactions.set(i, []);
   }
 
   // Aggregate transactions by day
@@ -65,6 +67,11 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
       } else if (amount < 0) {
         const adjustedSpending = Math.max(0, Math.abs(amount) - settledReimbursement);
         current.spending += adjustedSpending;
+        // Collect spending transaction details
+        dailyTransactions.get(dayPart).push({
+          merchant: tx.merchant_name || tx.name || tx.description || 'Transaction',
+          amount: adjustedSpending,
+        });
       }
     }
   });
@@ -82,13 +89,23 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
     const dateObj = new Date(year, month, i);
     const dateString = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+    // Sort day's transactions by amount descending, cap at 5
+    const dayTxs = dailyTransactions.get(i).sort((a, b) => b.amount - a.amount);
+    const cappedTxs = dayTxs.slice(0, 5).map(t => ({
+      merchant: t.merchant,
+      amount: Math.round(t.amount * 100) / 100,
+    }));
+    const moreCount = Math.max(0, dayTxs.length - 5);
+
     result.push({
       day: i,
       dateString: dateString,
       income: Math.round(cumulativeIncome),
       spending: Math.round(cumulativeSpending),
       dailyIncome: Math.round(dayData.income),
-      dailySpending: Math.round(dayData.spending)
+      dailySpending: Math.round(dayData.spending),
+      transactions: cappedTxs,
+      moreCount,
     });
   }
 
@@ -168,6 +185,8 @@ export async function GET(request) {
       let income = null;
       let dailySpending = null;
       let dailyIncome = null;
+      let transactions = [];
+      let moreCount = 0;
 
       if (currentDayData) {
         if (isCurrentMonth) {
@@ -177,6 +196,8 @@ export async function GET(request) {
             income = currentDayData.income;
             dailySpending = currentDayData.dailySpending;
             dailyIncome = currentDayData.dailyIncome;
+            transactions = currentDayData.transactions || [];
+            moreCount = currentDayData.moreCount || 0;
           }
         } else {
           // For past months, show all data
@@ -184,6 +205,8 @@ export async function GET(request) {
           income = currentDayData.income;
           dailySpending = currentDayData.dailySpending;
           dailyIncome = currentDayData.dailyIncome;
+          transactions = currentDayData.transactions || [];
+          moreCount = currentDayData.moreCount || 0;
         }
       }
 
@@ -214,7 +237,9 @@ export async function GET(request) {
         income,
         dailySpending,
         dailyIncome,
-        previousSpending
+        previousSpending,
+        transactions,
+        moreCount,
       });
     }
 
