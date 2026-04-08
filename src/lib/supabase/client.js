@@ -32,7 +32,7 @@ export const supabase =
         auth: {
           persistSession: !isServer,
           autoRefreshToken: !isServer,
-          detectSessionInUrl: !isServer,
+          detectSessionInUrl: false,
           flowType: "pkce",
         },
       })
