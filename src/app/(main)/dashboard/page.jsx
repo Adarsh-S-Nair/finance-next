@@ -13,6 +13,7 @@ import RecentTransactionsCard from "../../../components/dashboard/RecentTransact
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
+import MarketIndicesCard from "../../../components/dashboard/MarketIndicesCard";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 import Card from "../../../components/ui/Card";
@@ -25,6 +26,7 @@ const componentMap = {
   'BudgetsCard': BudgetsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,
+  'MarketIndicesCard': MarketIndicesCard,
 };
 
 export default function DashboardPage() {

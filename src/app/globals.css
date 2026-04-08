@@ -198,14 +198,15 @@ body {
   font-weight: 300;
 }
 
-/* Card Header Typography - Standardized */
+/* Card Header Typography - Overline Style */
 .card-header {
-  font-size: 0.8125rem;
-  /* ~13px */
-  font-weight: 500;
+  font-size: 0.6875rem;
+  /* 11px */
+  font-weight: 600;
   color: var(--color-muted);
-  letter-spacing: 0.01em;
-
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
 /* Standardized Tooltip Animation */

@@ -60,7 +60,7 @@ export default function Card({
     default: "bg-[var(--color-surface)] border border-[var(--color-card-border)] shadow-soft",
     subtle: "bg-[var(--color-bg)] border border-[var(--color-card-border)]",
     danger: "bg-[color-mix(in_oklab,var(--color-danger),transparent_95%)] border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]",
-    glass: "glass-panel backdrop-blur-md"
+    glass: "glass-panel"
   };
 
   return (
@@ -101,6 +101,11 @@ export default function Card({
           )}
           {action && <div>{action}</div>}
         </div>
+      )}
+
+      {/* Divider between header and content */}
+      {(title || action) && (
+        <hr className="border-t border-[var(--color-border)]/40 mx-0" />
       )}
 
       <div className={clsx(

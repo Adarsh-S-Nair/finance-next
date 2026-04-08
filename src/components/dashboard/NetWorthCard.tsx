@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { motion } from "framer-motion";
 import Card from "../ui/Card";
+import TimeRangeSelector from "../ui/TimeRangeSelector";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { useNetWorth } from "../providers/NetWorthProvider";
@@ -452,7 +452,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
       <div className="mb-4 px-6 pt-6">
         <div className="flex justify-between items-start">
           <div>
-            <div className="text-xs text-[var(--color-muted)] font-medium uppercase tracking-wider mb-1">Net Worth</div>
+            <div className="card-header mb-1">Net Worth</div>
             <div className="flex flex-col">
               <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
                 <AnimatedCounter value={displayData?.value || 0} duration={120} />
@@ -516,41 +516,14 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
         </div>
       </div>
 
-      {/* Time Range Selector - moved to bottom and spread evenly */}
+      {/* Time Range Selector */}
       <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
-        <div className="flex justify-between items-center w-full">
-          {availableRanges.map((range) => {
-            const isActive = timeRange === range;
-            // Check if we're using the default accent color (neon blue)
-            const isDefaultAccent = !profile?.accent_color || profile.accent_color === validAccentColor;
-            // In dark mode with default accent, use black text for contrast
-            const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
-            const activeTextColor = (isDarkMode && isDefaultAccent) ? 'var(--color-on-accent)' : '#fff';
-
-            return (
-              <div key={range} className="flex-1 flex justify-center">
-                <button
-                  onClick={() => setTimeRange(range as TimeRange)}
-                  className="relative px-3 py-1 text-[10px] font-bold rounded-full transition-colors text-center cursor-pointer outline-none focus:outline-none"
-                  style={{
-                    color: isActive ? activeTextColor : 'var(--color-muted)'
-                  }}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTimeRange"
-                      className="absolute inset-0 bg-[var(--color-accent)] rounded-full"
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    />
-                  )}
-                  <span className={`relative z-10 ${!isActive ? "hover:text-[var(--color-fg)]" : ""}`}>
-                    {range}
-                  </span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        <TimeRangeSelector
+          ranges={availableRanges}
+          activeRange={timeRange}
+          onRangeChange={(range) => setTimeRange(range as TimeRange)}
+          layoutId="netWorthTimeRange"
+        />
       </div>
     </Card>
   );

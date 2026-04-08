@@ -3,8 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import SpendingEarningChart from "./SpendingEarningChartV2";
-import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
+import TimeRangeSelector from "../ui/TimeRangeSelector";
 import { useRouter } from "next/navigation";
 import ViewAllLink from "../ui/ViewAllLink";
 
@@ -56,13 +56,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
   const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredData, setHoveredData] = useState(null);
-
-  // Period options
-  const periodOptions = [
-    { label: '6 Months', value: '6' },
-    { label: '12 Months', value: '12' },
-    { label: 'Year to Date', value: 'ytd' },
-  ];
 
   // Generate placeholder months with $0 values for empty state
   const generatePlaceholderMonths = (count) => {
@@ -241,12 +234,27 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
           </div>
         </div>
 
+        <hr className="border-t border-[var(--color-border)]/40 -mx-5" />
+
         {/* Chart - fills remaining space */}
         <div className="flex-1 min-h-0 w-full">
           <SpendingEarningChart
             data={chartData}
             onHover={(data) => setHoveredData(data)}
             onSelectMonth={handleSelectMonth}
+          />
+        </div>
+
+        {/* Time Range Selector */}
+        <div className="mt-2 pt-2 border-t border-[var(--color-border)]/50 -mx-5 px-5">
+          <TimeRangeSelector
+            ranges={['6M', '1Y', 'YTD']}
+            activeRange={selectedPeriod === '6' ? '6M' : selectedPeriod === '12' ? '1Y' : 'YTD'}
+            onRangeChange={(range) => {
+              const map = { '6M': '6', '1Y': '12', 'YTD': 'ytd' };
+              setSelectedPeriod(map[range] || '6');
+            }}
+            layoutId="cashflowTimeRange"
           />
         </div>
       </div>

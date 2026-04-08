@@ -115,10 +115,12 @@ export default function BudgetsCard() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="card-header">Budgets</h3>
         <ViewAllLink href="/budgets" />
       </div>
+
+      <hr className="border-t border-[var(--color-border)]/40 -mx-5 mb-6" />
 
       {/* Hero Section - Focus on Remaining */}
       <div className="mb-8">

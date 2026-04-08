@@ -54,11 +54,11 @@
 
   /* Card styling - Light Mode */
   --glass-bg: #ffffff;
-  --glass-border: transparent;
+  --glass-border: #e4e4e7;
   --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 
   --color-shadow: transparent;
-  --color-card-border: transparent;
+  --color-card-border: #e4e4e7;
 
   /* Chart Colors */
   --color-chart-primary: #3b82f6;
@@ -136,13 +136,13 @@
   --color-sidebar-bg: #0d0d0d;
   --color-sidebar-active: #1a1a1a;
 
-  /* Card styling - Dark Mode (flat, no borders) */
-  --glass-bg: #0d0d0d;
-  --glass-border: transparent;
-  --glass-shadow: none;
+  /* Card styling - Dark Mode */
+  --glass-bg: #141414;
+  --glass-border: #27272a;
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 
   --color-shadow: transparent;
-  --color-card-border: transparent;
+  --color-card-border: #27272a;
 
   /* Chart Colors */
   --color-chart-primary: #60a5fa;
