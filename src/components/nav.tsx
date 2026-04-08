@@ -15,6 +15,7 @@ export type NavItem = {
 
 export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
   {
+    title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LuLayoutDashboard },
     ],
