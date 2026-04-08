@@ -12,6 +12,7 @@ export default function BudgetsCard() {
   const [budgets, setBudgets] = useState([]);
   const [suggestions, setSuggestions] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hoveredSegment, setHoveredSegment] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -62,9 +63,9 @@ export default function BudgetsCard() {
     return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
   };
 
-  // Shared: segmented bar with gaps and rounded corners on each segment
-  const SegmentedBar = ({ items, getSpent, getColor, totalAmount }) => (
-    <div className="flex w-full gap-1">
+  // Shared: segmented bar with hover tooltips
+  const SegmentedBar = ({ items, getSpent, getColor, getLabel: labelFn, totalAmount }) => (
+    <div className="flex w-full gap-0.5">
       {items.map((item, i) => {
         const spent = getSpent(item);
         const segmentWidth = totalAmount > 0 ? (spent / totalAmount) * 100 : 0;
@@ -72,12 +73,21 @@ export default function BudgetsCard() {
         return (
           <div
             key={i}
-            className="h-2.5 rounded-full transition-all duration-500"
+            className="relative h-2.5 rounded-sm transition-all duration-300 cursor-default"
             style={{
               width: `${segmentWidth}%`,
               backgroundColor: getColor(item) || 'var(--color-accent)',
+              opacity: hoveredSegment !== null && hoveredSegment !== i ? 0.4 : 1,
             }}
-          />
+            onMouseEnter={() => setHoveredSegment(i)}
+            onMouseLeave={() => setHoveredSegment(null)}
+          >
+            {hoveredSegment === i && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] text-[11px] font-medium whitespace-nowrap z-10 pointer-events-none">
+                {labelFn(item)}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>
@@ -112,11 +122,12 @@ export default function BudgetsCard() {
         </div>
         <div className="animate-pulse">
           <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-            <div className="h-7 bg-[var(--color-border)] rounded w-32 mx-auto mb-4" />
-            <div className="flex gap-1">
-              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-[3]" />
-              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-[2]" />
-              <div className="h-2.5 bg-[var(--color-border)] rounded-full flex-1" />
+            <div className="h-7 bg-[var(--color-border)] rounded w-32 mb-1.5" />
+            <div className="h-3.5 bg-[var(--color-border)] rounded w-16 mb-4" />
+            <div className="flex gap-0.5">
+              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[3]" />
+              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-[2]" />
+              <div className="h-2.5 bg-[var(--color-border)] rounded-sm flex-1" />
             </div>
           </div>
           <div className="space-y-3.5">
@@ -161,15 +172,17 @@ export default function BudgetsCard() {
 
         {hasSuggestions ? (
           <div className="flex-1 flex flex-col">
-            {/* Hero card with number + segmented bar */}
+            {/* Hero card */}
             <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-              <p className="text-center text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
+              <p className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
                 {formatCurrencyWithCents(remainingSuggested)}
               </p>
+              <p className="text-xs text-[var(--color-muted)] mb-4">Remaining</p>
               <SegmentedBar
                 items={suggestedBudgets}
                 getSpent={(b) => b.spent}
                 getColor={(b) => b.hexColor}
+                getLabel={(b) => b.label}
                 totalAmount={totalBudgetSuggested}
               />
             </div>
@@ -216,15 +229,17 @@ export default function BudgetsCard() {
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero card with number + segmented bar */}
+      {/* Hero card */}
       <div className="bg-[var(--color-surface-alt)] rounded-xl p-5 mb-5">
-        <p className="text-center text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight mb-4">
+        <p className="text-2xl font-light text-[var(--color-fg)] tabular-nums tracking-tight">
           {formatCurrencyWithCents(remaining)}
         </p>
+        <p className="text-xs text-[var(--color-muted)] mb-4">Remaining</p>
         <SegmentedBar
           items={displayBudgets}
           getSpent={(b) => Number(b.spent || 0)}
           getColor={(b) => b.category_groups?.hex_color}
+          getLabel={getLabel}
           totalAmount={totalBudget}
         />
       </div>
