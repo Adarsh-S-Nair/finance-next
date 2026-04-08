@@ -75,7 +75,7 @@ function SetupContent() {
   if (completing || initialStep === null) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-white" />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function SetupPage() {
     <Suspense
       fallback={
         <div className="flex h-full items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-white" />
         </div>
       }
     >

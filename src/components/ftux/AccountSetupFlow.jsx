@@ -48,8 +48,8 @@ function PaginationDots({ current, total }) {
           layout
           className={`rounded-full transition-colors duration-300 ${
             i === current
-              ? "h-2 w-5 bg-zinc-900"
-              : "h-2 w-2 bg-zinc-300"
+              ? "h-2 w-5 bg-white"
+              : "h-2 w-2 bg-zinc-700"
           }`}
         />
       ))}
@@ -65,7 +65,7 @@ function BackButton({ onClick }) {
       onClick={onClick}
       whileHover={{ x: -2 }}
       whileTap={{ scale: 0.9 }}
-      className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-700 transition-colors duration-150 cursor-pointer"
+      className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
     >
       <FiChevronLeft className="h-5 w-5" />
     </motion.button>
@@ -74,7 +74,7 @@ function BackButton({ onClick }) {
 
 // Input class: font-medium for typed text, no focus ring/outline
 const inputClassName =
-  "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white placeholder:text-zinc-500 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-white/20 focus:bg-white/8 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -102,14 +102,14 @@ function NameStep({ onNext, onBack }) {
 
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+      <h1 className="text-xl font-semibold tracking-tight text-white">
         What&apos;s your name?
       </h1>
-      <p className="mt-2 text-sm text-zinc-500">We&apos;ll use this to personalize your experience.</p>
+      <p className="mt-2 text-sm text-zinc-400">We&apos;ll use this to personalize your experience.</p>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-800">First name</label>
+          <label className="text-sm font-medium text-zinc-300">First name</label>
           <input
             ref={inputRef}
             className={inputClassName}
@@ -122,8 +122,8 @@ function NameStep({ onNext, onBack }) {
         </div>
 
         <div className="mt-5 space-y-2">
-          <label className="text-sm font-medium text-zinc-800">
-            Last name <span className="font-normal text-zinc-400">(optional)</span>
+          <label className="text-sm font-medium text-zinc-300">
+            Last name <span className="font-normal text-zinc-500">(optional)</span>
           </label>
           <input
             className={inputClassName}
@@ -239,13 +239,13 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
       <div className="mb-4 self-start">
         <BackButton onClick={onBack} />
       </div>
-      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+      <h1 className="text-xl font-semibold tracking-tight text-white">
         What&apos;s your email?
       </h1>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left" noValidate>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-800">Email</label>
+          <label className="text-sm font-medium text-zinc-300">Email</label>
           <input
             ref={emailRef}
             className={inputClassName}
@@ -258,7 +258,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
         </div>
 
         <div className="mt-5 space-y-2">
-          <label className="text-sm font-medium text-zinc-800">Password</label>
+          <label className="text-sm font-medium text-zinc-300">Password</label>
           <div className="relative">
             <input
               className={inputClassName}
@@ -271,7 +271,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
               tabIndex={-1}
             >
               {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
@@ -286,12 +286,12 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="mt-4 rounded-lg bg-zinc-100/80 px-4 py-3 text-[13px] text-zinc-600"
+              className="mt-4 rounded-lg bg-white/5 px-4 py-3 text-[13px] text-zinc-400"
             >
               {error === "duplicate" ? (
                 <>
                   This email is already registered.{" "}
-                  <Link href="/auth" className="font-medium text-zinc-900 underline underline-offset-4 hover:text-zinc-700">
+                  <Link href="/auth" className="font-medium text-white underline underline-offset-4 hover:text-zinc-300">
                     Sign in instead
                   </Link>
                 </>
@@ -335,7 +335,7 @@ function WelcomeStep({ firstName, onNext }) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="text-2xl font-normal tracking-tight text-zinc-900"
+        className="text-2xl font-normal tracking-tight text-white"
       >
         Welcome, {firstName}
       </motion.h1>
@@ -343,7 +343,7 @@ function WelcomeStep({ firstName, onNext }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
-        className="mt-4 text-base text-zinc-500 leading-relaxed max-w-xs"
+        className="mt-4 text-base text-zinc-400 leading-relaxed max-w-xs"
       >
         Connect your accounts and get a complete picture of your finances in one place.
       </motion.p>
@@ -479,12 +479,12 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
     return (
       <div className="flex flex-col items-center text-center">
         <FiAlertCircle className="mb-4 h-10 w-10 text-[var(--color-danger)]" />
-        <p className="text-sm font-medium text-zinc-900">Something went wrong</p>
+        <p className="text-sm font-medium text-white">Something went wrong</p>
         <p className="mt-1 text-sm text-zinc-500">{error}</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 cursor-pointer"
+          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
           Go back
@@ -496,13 +496,13 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
   if (plaidExited) {
     return (
       <div className="flex flex-col items-center text-center">
-        <p className="text-sm font-medium text-zinc-900">Connection cancelled</p>
+        <p className="text-sm font-medium text-white">Connection cancelled</p>
         <p className="mt-1 text-sm text-zinc-500">No worries — you can try again.</p>
         <div className="mt-6 flex items-center gap-4">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 cursor-pointer"
+            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
           >
             <FiChevronLeft className="h-4 w-4" />
             Back
@@ -527,8 +527,8 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
 
   return (
     <div className="flex flex-col items-center text-center">
-      <div className="mb-4 h-10 w-10 animate-spin rounded-full border-[3px] border-zinc-200 border-t-zinc-900" />
-      <p className="text-sm font-medium text-zinc-900">
+      <div className="mb-4 h-10 w-10 animate-spin rounded-full border-[3px] border-zinc-700 border-t-white" />
+      <p className="text-sm font-medium text-white">
         {exchanging ? "Finalizing connection…" : "Preparing secure connection…"}
       </p>
       <p className="mt-1 text-xs text-zinc-400">This only takes a moment.</p>
@@ -578,12 +578,12 @@ function ConnectedStep({ plaidData, onComplete }) {
             <img
               src={institution.logo}
               alt={institution.name || ""}
-              className="h-12 w-12 rounded-full object-contain bg-white border border-zinc-100 absolute inset-0"
+              className="h-12 w-12 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
               onError={(e) => { e.currentTarget.style.display = "none"; }}
             />
           )}
-          <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center">
-            <span className="text-base font-semibold text-zinc-500">
+          <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">
+            <span className="text-base font-semibold text-zinc-400">
               {(institution?.name || "?").charAt(0).toUpperCase()}
             </span>
           </div>
@@ -595,7 +595,7 @@ function ConnectedStep({ plaidData, onComplete }) {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 0.4 }}
             transition={{ delay: 0.2 + i * 0.08 }}
-            className="h-1.5 w-1.5 rounded-full bg-zinc-300"
+            className="h-1.5 w-1.5 rounded-full bg-zinc-600"
           />
         ))}
 
@@ -613,7 +613,7 @@ function ConnectedStep({ plaidData, onComplete }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="text-2xl font-semibold tracking-tight text-zinc-900"
+        className="text-2xl font-semibold tracking-tight text-white"
       >
         {institution?.name ? `${institution.name} connected` : "Account connected"}
       </motion.h2>
@@ -625,7 +625,7 @@ function ConnectedStep({ plaidData, onComplete }) {
           transition={{ delay: 0.7 }}
           className="mt-5 w-full max-w-xs"
         >
-          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 divide-y divide-zinc-100 overflow-hidden">
+          <div className="rounded-xl border border-white/10 bg-white/5 divide-y divide-white/5 overflow-hidden">
             {accounts.map((account, i) => (
               <motion.div
                 key={account.id || account.account_id || i}
@@ -639,25 +639,25 @@ function ConnectedStep({ plaidData, onComplete }) {
                     <img
                       src={institution.logo}
                       alt={institution.name || ""}
-                      className="h-8 w-8 rounded-full object-contain bg-white border border-zinc-100 absolute inset-0"
+                      className="h-8 w-8 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
                       onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
                   )}
-                  <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-zinc-500">
+                  <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+                    <span className="text-xs font-semibold text-zinc-400">
                       {(institution?.name || account.name || "?").charAt(0).toUpperCase()}
                     </span>
                   </div>
                 </div>
                 <div className="text-left flex-1 min-w-0 space-y-1">
-                  <div className="text-sm font-medium text-zinc-900 truncate">{account.name}</div>
-                  <div className="text-xs text-zinc-400">
+                  <div className="text-sm font-medium text-white truncate">{account.name}</div>
+                  <div className="text-xs text-zinc-500">
                     {formatSubtype(account.subtype)}
                     {account.mask ? ` · ••${account.mask}` : ""}
                   </div>
                 </div>
                 {account.balances?.current != null && (
-                  <div className="text-sm tabular-nums text-zinc-500 flex-shrink-0">
+                  <div className="text-sm tabular-nums text-zinc-400 flex-shrink-0">
                     ${Number(account.balances.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 )}
@@ -702,10 +702,10 @@ function GoogleSignUpGate() {
 
   return (
     <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+      <h1 className="text-xl font-semibold tracking-tight text-white">
         Create your account
       </h1>
-      <p className="mt-2 text-sm text-zinc-500">
+      <p className="mt-2 text-sm text-zinc-400">
         Sign up with Google to get started in seconds.
       </p>
       <div className="mt-8 w-full">
@@ -867,10 +867,10 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 text-sm text-zinc-400"
+            className="fixed bottom-6 right-6 text-sm text-zinc-500"
           >
             Already have an account?{" "}
-            <Link href="/auth" className="font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-700">
+            <Link href="/auth" className="font-medium text-zinc-400 underline underline-offset-4 hover:text-zinc-300">
               Sign in
             </Link>
           </motion.p>
