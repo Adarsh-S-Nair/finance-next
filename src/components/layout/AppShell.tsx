@@ -250,7 +250,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] relative">
+    <div className="min-h-screen bg-[var(--color-content-bg)] relative">
       {/* Global ambient glow — right edge, layered on top of everything */}
       <div
         className="fixed inset-0 pointer-events-none opacity-[0.04] dark:opacity-[0.07]"

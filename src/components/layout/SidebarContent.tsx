@@ -81,7 +81,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   const avatarUrl = profile?.avatar_url || meta.avatar_url || meta.picture || null;
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
       {/* Branding */}
       <div className={clsx("flex items-center h-14 flex-shrink-0", isCollapsed ? "justify-center px-2" : "px-5")}>
         <Link

@@ -48,8 +48,8 @@
   --color-surface-alt: #f1f1f1;
   --color-dropdown-bg: var(--color-surface-alt);
 
-  --color-content-bg: #f6f6f6;
-  --color-sidebar-bg: #ffffff;
+  --color-content-bg: #fafafa;
+  --color-sidebar-bg: var(--color-content-bg);
   --color-sidebar-active: var(--color-surface-alt);
 
   /* Card styling - Light Mode */
@@ -132,8 +132,8 @@
   --color-surface-alt: #181818;
   --color-dropdown-bg: var(--color-surface-alt);
 
-  --color-content-bg: #111111;
-  --color-sidebar-bg: #0d0d0d;
+  --color-content-bg: #0d0d0d;
+  --color-sidebar-bg: var(--color-content-bg);
   --color-sidebar-active: #1a1a1a;
 
   /* Card styling - Dark Mode */
