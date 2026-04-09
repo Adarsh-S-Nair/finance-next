@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
-import { LuSettings, LuHeadphones, LuSparkles } from "react-icons/lu";
+import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
@@ -206,13 +206,13 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               style={{ overflow: "hidden" }}
-              className="flex flex-col items-center gap-1 mb-1"
+              className="flex flex-col gap-1 mb-1"
             >
               {tier === "free" && (
                 <Tooltip content="Upgrade to Pro">
                   <button
                     onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
-                    className="flex items-center justify-center h-9 w-9 rounded-lg text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150"
+                    className="w-full flex items-center justify-center px-2 py-2 rounded-lg text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150"
                   >
                     <LuSparkles className="h-[18px] w-[18px]" />
                   </button>
@@ -223,7 +223,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                   href="/settings"
                   onClick={() => { setShowPopover(false); onNavigate?.(); }}
                   className={clsx(
-                    "flex items-center justify-center h-9 w-9 rounded-lg transition-colors duration-150",
+                    "w-full flex items-center justify-center px-2 py-2 rounded-lg transition-colors duration-150",
                     pathname.startsWith("/settings")
                       ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
                       : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
@@ -235,7 +235,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               <Tooltip content="Log out">
                 <button
                   onClick={onLogout}
-                  className="flex items-center justify-center h-9 w-9 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150"
+                  className="w-full flex items-center justify-center px-2 py-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150"
                 >
                   <TbLogout className="h-[18px] w-[18px]" />
                 </button>
@@ -288,28 +288,21 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               </div>
             </div>
 
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-2">
               <p className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-none">
                 {fullName || "User"}
               </p>
-              <p className="text-[11px] text-[var(--color-muted)]/70 mt-1 truncate leading-none">
-                {tierLabel} plan
-              </p>
+              <span
+                className={clsx(
+                  "text-[9px] font-bold tracking-[0.15em] leading-none flex-shrink-0",
+                  tier === "pro" ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]/60"
+                )}
+              >
+                {tierLabel.toUpperCase()}
+              </span>
             </div>
 
-            <svg
-              className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 transition-all duration-150 group-hover:text-[var(--color-muted)]/60"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              {showPopover ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7-7-7 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7 7 7-7" />
-              )}
-            </svg>
+            <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 transition-colors duration-150 group-hover:text-[var(--color-muted)]/70" />
           </button>
         )}
 
