@@ -57,8 +57,8 @@ export default function Card({
 
   // Glassmorphism and gradient border styles
   const variantClasses = {
-    default: "bg-[var(--color-surface)] border border-[var(--color-card-border)] shadow-soft",
-    subtle: "bg-[var(--color-bg)] border border-[var(--color-card-border)]",
+    default: "bg-[var(--color-surface)] shadow-soft",
+    subtle: "bg-[var(--color-bg)]",
     danger: "bg-[color-mix(in_oklab,var(--color-danger),transparent_95%)] border border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]",
     glass: "glass-panel"
   };

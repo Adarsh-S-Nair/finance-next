@@ -41,7 +41,7 @@
 /* Card Style */
 .glass-panel {
   background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  border: none;
   box-shadow: var(--glass-shadow);
 }
 
