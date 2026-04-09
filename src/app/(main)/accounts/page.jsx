@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
 import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
-import { PiBankFill, PiPlus } from "react-icons/pi";
+import { PiBankFill } from "react-icons/pi";
 import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
@@ -330,19 +330,8 @@ export default function AccountsPage() {
 
               {/* Accounts List Section */}
               <div className="pt-4">
-                <div className="mb-6 px-1 flex items-end justify-between">
-                  <div>
-                    <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="matte"
-                    onClick={handleConnectAccount}
-                    className="gap-1.5 !rounded-full pl-3 pr-4"
-                  >
-                    <PiPlus className="w-3.5 h-3.5" />
-                    Connect
-                  </Button>
+                <div className="mb-6 px-1">
+                  <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
                 </div>
 
                 {/* Unified Accounts Card */}
