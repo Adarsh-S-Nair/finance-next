@@ -80,6 +80,16 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     };
   }, [isOpen]);
 
+  // Close on Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   const snapshotExistingAccounts = () => {
     existingAccountIdsRef.current = new Set(
       allAccounts.map((a) => a.accountId).filter(Boolean)
@@ -112,8 +122,6 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
   };
 
   const handleConnectingSuccess = (data) => {
-    // Filter returned accounts to only those we didn't already have — in update mode,
-    // Plaid/exchange returns ALL accounts on the item, but we only want to celebrate new ones.
     const existing = existingAccountIdsRef.current;
     const newAccounts = (data?.accounts || []).filter((a) => {
       const plaidAccountId = a.account_id;
@@ -123,7 +131,6 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     setPlaidData({
       ...data,
       accounts: newAccounts.length > 0 ? newAccounts : data?.accounts || [],
-      _onlyNew: newAccounts.length > 0,
       institution:
         data?.institution ||
         (selectedInstitution
@@ -151,34 +158,28 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm px-5"
-            onClick={onClose}
+            className="fixed inset-0 z-[100] bg-[var(--color-content-bg)] overflow-y-auto"
           >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="relative w-full max-w-lg"
-              onClick={(e) => e.stopPropagation()}
+            {/* Close button (top-right of viewport) */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="fixed top-5 right-5 md:top-6 md:right-6 z-10 p-2 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors cursor-pointer"
+              aria-label="Close"
             >
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute -top-10 right-0 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-                aria-label="Close"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
+              <FiX className="h-5 w-5" />
+            </button>
 
-              <div className="relative w-full overflow-hidden px-4 py-2">
+            {/* Content wrapper */}
+            <div className="min-h-screen flex items-center justify-center px-6 py-20">
+              <div className="w-full max-w-md">
                 <AnimatePresence mode="wait">
                   {step === "choose" && (
                     <motion.div
                       key="choose"
-                      initial={{ opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -16 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2 }}
                     >
                       <ChooseStep
@@ -192,9 +193,9 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                   {step === "connecting" && (
                     <motion.div
                       key="connecting"
-                      initial={{ opacity: 0, x: 16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -16 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2 }}
                     >
                       <ConnectingStep
@@ -209,9 +210,9 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                   {step === "connected" && (
                     <motion.div
                       key="connected"
-                      initial={{ opacity: 0, x: 16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2 }}
                     >
                       <ConnectedStep plaidData={plaidData} onClose={onClose} />
@@ -219,7 +220,7 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                   )}
                 </AnimatePresence>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -229,80 +230,121 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
   );
 }
 
+/* ── Shared primitives ────────────────────────────────────── */
+
+function SectionLabel({ children, className = "" }) {
+  return (
+    <div
+      className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function InstitutionAvatar({ logo, name, size = 36 }) {
+  const dim = `${size}px`;
+  const fontSize = size >= 44 ? "text-base" : "text-xs";
+  return (
+    <div
+      className="relative flex-shrink-0"
+      style={{ width: dim, height: dim }}
+    >
+      {logo && (
+        <img
+          src={logo}
+          alt={name || ""}
+          className="absolute inset-0 rounded-full object-contain bg-zinc-900 border border-white/10"
+          style={{ width: dim, height: dim }}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div
+        className="rounded-full bg-white/5 border border-white/10 flex items-center justify-center"
+        style={{ width: dim, height: dim }}
+      >
+        <span className={`font-semibold text-zinc-400 ${fontSize}`}>
+          {(name || "?").charAt(0).toUpperCase()}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ── Step: Choose institution ─────────────────────────────── */
 
 function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
   return (
-    <div className="flex flex-col items-center text-center">
-      <h2 className="text-2xl font-semibold tracking-tight text-white">Add an account</h2>
-      <p className="mt-2 text-sm text-zinc-400">
-        Add to a connection you already have, or link a new institution.
-      </p>
+    <div>
+      <motion.h1
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="text-[28px] font-semibold tracking-tight text-white"
+      >
+        Add an account
+      </motion.h1>
 
-      <div className="mt-8 w-full max-w-sm">
+      <div className="mt-10 space-y-10">
         {institutions.length > 0 && (
-          <div className="text-left">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-              Your connections
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 divide-y divide-white/5 overflow-hidden">
+          <div>
+            <SectionLabel className="mb-2">Your connections</SectionLabel>
+            <div className="divide-y divide-white/[0.06]">
               {institutions.map((inst, i) => (
-                <motion.button
+                <InstitutionRow
                   key={inst.id}
-                  type="button"
+                  index={i}
                   onClick={() => onSelectExisting(inst)}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="group flex w-full items-center gap-3.5 px-4 py-4 text-left transition-colors hover:bg-white/5 cursor-pointer"
-                >
-                  <div className="relative h-8 w-8 flex-shrink-0">
-                    {inst.logo && (
-                      <img
-                        src={inst.logo}
-                        alt={inst.name || ""}
-                        className="h-8 w-8 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
-                    <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                      <span className="text-xs font-semibold text-zinc-400">
-                        {(inst.name || "?").charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-white truncate">{inst.name}</div>
-                    <div className="text-xs text-zinc-500">Add more accounts</div>
-                  </div>
-                  <FiChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-400 transition-colors flex-shrink-0" />
-                </motion.button>
+                  avatar={<InstitutionAvatar logo={inst.logo} name={inst.name} />}
+                  title={inst.name}
+                  subtitle="Add more accounts"
+                />
               ))}
             </div>
           </div>
         )}
 
-        <motion.button
-          type="button"
-          onClick={onSelectNew}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: institutions.length * 0.04 + 0.05 }}
-          className="mt-4 flex w-full items-center gap-3.5 rounded-xl border border-dashed border-white/10 px-4 py-4 text-left transition-colors hover:border-white/20 hover:bg-white/5 cursor-pointer group"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 border border-white/10 flex-shrink-0">
-            <FiPlus className="h-4 w-4 text-zinc-400" />
+        <div>
+          <SectionLabel className="mb-2">New connection</SectionLabel>
+          <div>
+            <InstitutionRow
+              index={institutions.length}
+              onClick={onSelectNew}
+              avatar={
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 border border-white/10 flex-shrink-0">
+                  <FiPlus className="h-4 w-4 text-zinc-400" />
+                </div>
+              }
+              title="Link an institution"
+              subtitle="Connect a new bank or brokerage"
+            />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-white">New institution</div>
-            <div className="text-xs text-zinc-500">Connect a different bank or brokerage</div>
-          </div>
-          <FiChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-400 transition-colors flex-shrink-0" />
-        </motion.button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 + index * 0.04 }}
+      whileHover={{ x: 2 }}
+      className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer"
+    >
+      {avatar}
+      <div className="flex-1 min-w-0">
+        <div className="text-[15px] font-medium text-white truncate">{title}</div>
+        <div className="text-xs text-zinc-500 mt-0.5">{subtitle}</div>
+      </div>
+      <FiChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-300 transition-colors flex-shrink-0" />
+    </motion.button>
   );
 }
 
@@ -419,14 +461,16 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center text-center">
-        <FiAlertCircle className="mb-4 h-10 w-10 text-[var(--color-danger)]" />
-        <p className="text-sm font-medium text-white">Something went wrong</p>
-        <p className="mt-1 text-sm text-zinc-500">{error}</p>
+      <div>
+        <FiAlertCircle className="mb-5 h-9 w-9 text-[var(--color-danger)]" />
+        <h1 className="text-[28px] font-semibold tracking-tight text-white">
+          Something went wrong
+        </h1>
+        <p className="mt-2 text-sm text-zinc-500">{error}</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
+          className="mt-8 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
           Go back
@@ -437,10 +481,12 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
 
   if (plaidExited) {
     return (
-      <div className="flex flex-col items-center text-center">
-        <p className="text-sm font-medium text-white">Connection cancelled</p>
-        <p className="mt-1 text-sm text-zinc-500">No worries — you can try again.</p>
-        <div className="mt-6 flex items-center gap-4">
+      <div>
+        <h1 className="text-[28px] font-semibold tracking-tight text-white">
+          Connection cancelled
+        </h1>
+        <p className="mt-2 text-sm text-zinc-500">No worries — you can try again.</p>
+        <div className="mt-8 flex items-center gap-4">
           <button
             type="button"
             onClick={onBack}
@@ -468,12 +514,14 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
   }
 
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-4 h-10 w-10 animate-spin rounded-full border-[3px] border-zinc-700 border-t-white" />
-      <p className="text-sm font-medium text-white">
-        {exchanging ? "Finalizing connection…" : "Preparing secure connection…"}
-      </p>
-      <p className="mt-1 text-xs text-zinc-400">This only takes a moment.</p>
+    <div className="flex items-center gap-4">
+      <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-zinc-800 border-t-white flex-shrink-0" />
+      <div>
+        <div className="text-[15px] font-medium text-white">
+          {exchanging ? "Finalizing connection" : "Preparing secure connection"}
+        </div>
+        <div className="text-xs text-zinc-500 mt-0.5">This only takes a moment.</div>
+      </div>
     </div>
   );
 }
@@ -492,29 +540,15 @@ function ConnectedStep({ plaidData, onClose }) {
         : `${accounts.length} accounts added`;
 
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-6 flex items-center gap-2">
+    <div>
+      {/* Institution logo → dots → checkmark (left-aligned) */}
+      <div className="mb-8 flex items-center gap-2">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-          className="relative h-12 w-12 flex-shrink-0"
         >
-          {institution?.logo && (
-            <img
-              src={institution.logo}
-              alt={institution.name || ""}
-              className="h-12 w-12 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
-          )}
-          <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">
-            <span className="text-base font-semibold text-zinc-400">
-              {(institution?.name || "?").charAt(0).toUpperCase()}
-            </span>
-          </div>
+          <InstitutionAvatar logo={institution?.logo} name={institution?.name} size={44} />
         </motion.div>
 
         {[0, 1, 2].map((i) => (
@@ -531,59 +565,49 @@ function ConnectedStep({ plaidData, onClose }) {
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.5 }}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
         >
-          <FiCheck className="h-6 w-6 text-white" strokeWidth={3} />
+          <FiCheck className="h-5 w-5 text-white" strokeWidth={3} />
         </motion.div>
       </div>
 
-      <motion.h2
-        initial={{ opacity: 0, y: 10 }}
+      <motion.h1
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="text-2xl font-semibold tracking-tight text-white"
+        className="text-[28px] font-semibold tracking-tight text-white"
       >
         {headline}
-      </motion.h2>
+      </motion.h1>
 
       {accounts.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-          className="mt-5 w-full max-w-xs"
+          transition={{ delay: 0.75 }}
+          className="mt-10"
         >
-          <div className="rounded-xl border border-white/10 bg-white/5 divide-y divide-white/5 overflow-hidden">
+          <SectionLabel className="mb-2">
+            {accounts.length === 1 ? "Account" : "Accounts"}
+          </SectionLabel>
+          <div className="divide-y divide-white/[0.06]">
             {accounts.map((account, i) => (
               <motion.div
                 key={account.id || account.account_id || i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.75 + i * 0.05 }}
-                className="flex items-center gap-3.5 px-4 py-4"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.85 + i * 0.05 }}
+                className="flex items-center gap-4 py-4"
               >
-                <div className="relative h-8 w-8 flex-shrink-0">
-                  {institution?.logo && (
-                    <img
-                      src={institution.logo}
-                      alt={institution.name || ""}
-                      className="h-8 w-8 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  )}
-                  <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-zinc-400">
-                      {(institution?.name || account.name || "?")
-                        .charAt(0)
-                        .toUpperCase()}
-                    </span>
+                <InstitutionAvatar
+                  logo={institution?.logo}
+                  name={institution?.name || account.name}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[15px] font-medium text-white truncate">
+                    {account.name}
                   </div>
-                </div>
-                <div className="text-left flex-1 min-w-0 space-y-1">
-                  <div className="text-sm font-medium text-white truncate">{account.name}</div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-zinc-500 mt-0.5">
                     {formatSubtype(account.subtype)}
                     {account.mask ? ` · ••${account.mask}` : ""}
                   </div>
@@ -604,10 +628,10 @@ function ConnectedStep({ plaidData, onClose }) {
       )}
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: accounts.length > 0 ? 0.8 + accounts.length * 0.05 : 0.7 }}
-        className="mt-6 w-full max-w-xs"
+        transition={{ delay: accounts.length > 0 ? 0.9 + accounts.length * 0.05 : 0.75 }}
+        className="mt-10"
       >
         <Button onClick={onClose} className="w-full h-11">
           Done
