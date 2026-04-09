@@ -397,7 +397,7 @@ export async function POST(request) {
             console.warn('⚠️ Holdings sync failed, but account linking succeeded');
           } else {
             const holdingsSyncResult = await holdingsSyncResponse.json();
-            console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced, ${holdingsSyncResult.portfolios_created} portfolios created`);
+            console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced`);
           }
         } catch (holdingsSyncError) {
           console.warn('Error triggering holdings sync:', holdingsSyncError);

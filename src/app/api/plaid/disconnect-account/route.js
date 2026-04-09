@@ -52,8 +52,7 @@ export async function POST(request) {
     // This will CASCADE delete:
     //   - transactions (via transactions.account_id on delete cascade)
     //   - account_snapshots (via account_snapshots.account_id on delete cascade)
-    // And SET NULL for:
-    //   - portfolios.source_account_id (on delete set null)
+    //   - holdings (via holdings.account_id on delete cascade)
     console.log('Deleting account from database...');
     
     const { error: deleteAccountError } = await supabaseAdmin

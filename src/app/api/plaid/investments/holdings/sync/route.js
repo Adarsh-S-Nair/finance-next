@@ -331,7 +331,7 @@ export async function POST(request) {
       });
     }
 
-    // Process holdings: group by account and create/update portfolios and holdings
+    // Process holdings: group by account and upsert directly into holdings
     const holdingsByAccount = new Map();
     if (holdings) {
       holdings.forEach(holding => {
@@ -349,7 +349,6 @@ export async function POST(request) {
       }
     }
 
-    let portfoliosCreated = 0;
     let holdingsSynced = 0;
     const debugSyncSummary = [];
     
@@ -395,47 +394,6 @@ export async function POST(request) {
       if (account.type !== 'investment') {
         if (DEBUG) console.log(`⚠️ Account ${accountId} is not an investment account, skipping`);
         continue;
-      }
-
-      // Find or create portfolio for this account
-      let { data: portfolio, error: portfolioError } = await supabaseAdmin
-        .from('portfolios')
-        .select('*')
-        .eq('source_account_id', account.id)
-        .eq('type', 'plaid_investment')
-        .maybeSingle();
-
-      if (portfolioError) {
-        logger.error('Error finding portfolio', null, { account_id: account.id, error: portfolioError });
-        continue;
-      }
-
-      if (!portfolio) {
-        // Portfolio doesn't exist, create it
-        const accountData = accountMap.get(accountId);
-        const portfolioName = account.name || 'Investment Account';
-
-        const { data: newPortfolio, error: createError } = await supabaseAdmin
-          .from('portfolios')
-          .insert({
-            user_id: userId,
-            name: portfolioName,
-            type: 'plaid_investment',
-            source_account_id: account.id,
-            starting_capital: accountData?.balances?.current || 0,
-            current_cash: accountData?.balances?.available || accountData?.balances?.current || 0,
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          logger.error('Error creating portfolio', null, { account_id: account.id, error: createError });
-          continue;
-        }
-
-        portfolio = newPortfolio;
-        portfoliosCreated++;
-        if (DEBUG) console.log(`✅ Created portfolio ${portfolio.id} for account ${account.id}`);
       }
 
       // Calculate total holdings value and cash
@@ -623,7 +581,7 @@ export async function POST(request) {
           const totalShares = existing.shares + quantity;
           const totalCostBasis = (existing.avg_cost * existing.shares) + costBasis;
           holdingsByTicker.set(tickerUpper, {
-            portfolio_id: portfolio.id,
+            account_id: account.id,
             ticker: tickerUpper,
             shares: totalShares,
             avg_cost: totalShares > 0 ? totalCostBasis / totalShares : 0,
@@ -632,7 +590,7 @@ export async function POST(request) {
         } else {
           const avgCost = quantity > 0 ? costBasis / quantity : 0;
           holdingsByTicker.set(tickerUpper, {
-            portfolio_id: portfolio.id,
+            account_id: account.id,
             ticker: tickerUpper,
             shares: quantity,
             avg_cost: avgCost,
@@ -887,268 +845,116 @@ export async function POST(request) {
         console.log(`  📝 Holdings to upsert: ${holdingsToUpsert.length}`);
       }
 
-      // Note: We no longer update portfolio.current_cash here
-      // Account balance (from accounts table) is the source of truth for cash
-      // Portfolio value = account balance + holdings value
       if (DEBUG) {
-        const accountData = accountMap.get(accountId);
-        const currentBalance = accountData?.balances?.current || 0;
-        console.log(`  💵 Account balance (source of truth for cash): $${currentBalance.toFixed(2)}`);
-        console.log(`  💵 Cash from holdings (CUR:*): $${cashFromHoldings.toFixed(2)}`);
-        console.log(`  📊 Holdings value (non-cash): $${totalHoldingsValue.toFixed(2)}`);
-        console.log(`  📊 Total portfolio value: $${(currentBalance + totalHoldingsValue).toFixed(2)}`);
+        console.log(`  💵 Cash from holdings: $${cashFromHoldings.toFixed(2)}`);
+        console.log(`  📊 Total value (incl. cash): $${totalHoldingsValue.toFixed(2)}`);
       }
 
-      // Delete all existing holdings for this portfolio, then insert new ones
-      // This ensures we have exactly what Plaid has (handles removals too)
-      // First, check what exists (for debugging)
-      const { data: existingHoldingsBeforeDelete, count: existingCount } = await supabaseAdmin
+      // Replace all holdings for this account with the fresh snapshot from Plaid
+      // (delete-then-insert handles removals, renames, ticker changes, etc.)
+      const { error: deleteError } = await supabaseAdmin
         .from('holdings')
-        .select('ticker', { count: 'exact', head: false })
-        .eq('portfolio_id', portfolio.id);
-
-      if (DEBUG && existingHoldingsBeforeDelete) {
-        console.log(`  🗑️ Found ${existingHoldingsBeforeDelete.length} existing holdings before delete:`, existingHoldingsBeforeDelete.map(h => h.ticker));
-      }
-
-      const { error: deleteError, count: deletedCount } = await supabaseAdmin
-        .from('holdings')
-        .delete({ count: 'exact' })
-        .eq('portfolio_id', portfolio.id);
+        .delete()
+        .eq('account_id', account.id);
 
       if (deleteError) {
-        logger.error('Error deleting old holdings', null, { portfolio_id: portfolio.id, error: deleteError });
-        if (DEBUG) console.log(`  ⚠️ Error deleting old holdings:`, deleteError);
-        // Don't continue if delete fails - we'd get duplicate key errors
-        continue;
-      }
-
-      if (DEBUG) {
-        console.log(`  ✅ Deleted ${deletedCount || existingCount || 0} existing holdings for portfolio ${portfolio.id}`);
-      }
-
-      // Verify deletion worked
-      const { data: remainingHoldings, count: remainingCount } = await supabaseAdmin
-        .from('holdings')
-        .select('ticker', { count: 'exact', head: false })
-        .eq('portfolio_id', portfolio.id);
-
-      if (remainingHoldings && remainingHoldings.length > 0) {
-        logger.error('Holdings still exist after delete', null, { 
-          portfolio_id: portfolio.id, 
-          remaining_count: remainingHoldings.length,
-          remaining_tickers: remainingHoldings.map(h => h.ticker)
-        });
-        if (DEBUG) {
-          console.log(`  ⚠️ WARNING: ${remainingHoldings.length} holdings still exist after delete!`, remainingHoldings.map(h => h.ticker));
-        }
-        // Don't continue - we'd get duplicate key errors
+        logger.error('Error deleting old holdings', null, { account_id: account.id, error: deleteError });
         continue;
       }
 
       if (holdingsToUpsert.length > 0) {
-        // Only insert non-zero holdings
         const nonZeroHoldings = holdingsToUpsert.filter(h => h.shares > 0);
-        
-        if (DEBUG) {
-          console.log(`  🔍 Filtered holdings: ${holdingsToUpsert.length} total -> ${nonZeroHoldings.length} non-zero`);
-          if (holdingsToUpsert.length > nonZeroHoldings.length) {
-            const zeroHoldings = holdingsToUpsert.filter(h => h.shares === 0);
-            console.log(`  ⚠️ Skipped ${zeroHoldings.length} zero-share holdings:`, zeroHoldings.map(h => h.ticker));
-          }
-        }
 
         if (nonZeroHoldings.length > 0) {
-          // Verify no duplicates in the array we're about to insert
-          const tickersToInsert = nonZeroHoldings.map(h => h.ticker);
-          const uniqueTickers = new Set(tickersToInsert);
-          if (tickersToInsert.length !== uniqueTickers.size) {
-            const duplicates = tickersToInsert.filter((t, i) => tickersToInsert.indexOf(t) !== i);
-            logger.error('Duplicate tickers found in holdings array', null, {
-              portfolio_id: portfolio.id,
-              duplicates,
-              all_tickers: tickersToInsert
-            });
-            if (DEBUG) {
-              console.log(`  ⚠️ WARNING: Found duplicate tickers in array:`, duplicates);
-              console.log(`  📋 All tickers:`, tickersToInsert);
-            }
-          }
-
-          if (DEBUG) {
-            console.log(`  📤 About to insert ${nonZeroHoldings.length} holdings:`, tickersToInsert);
-          }
-
-          // Insert the new holdings (we already deleted all existing ones above)
           const { error: insertError } = await supabaseAdmin
             .from('holdings')
             .insert(nonZeroHoldings);
 
           if (insertError) {
-            logger.error('Error inserting holdings', null, { 
-              portfolio_id: portfolio.id, 
+            logger.error('Error inserting holdings', null, {
+              account_id: account.id,
               error: insertError,
               holdings_count: nonZeroHoldings.length,
-              tickers: tickersToInsert
             });
-            if (DEBUG) {
-              console.log(`  ❌ Error inserting holdings:`, insertError);
-              console.log(`  📋 Holdings we tried to insert:`, nonZeroHoldings);
-            }
           } else {
             holdingsSynced += nonZeroHoldings.length;
-            if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for portfolio ${portfolio.id}`);
+            if (DEBUG) console.log(`✅ Synced ${nonZeroHoldings.length} holdings for account ${account.id}`);
             if (accountDebug) {
               accountDebug.non_zero_holdings_inserted = nonZeroHoldings.length;
             }
-
-            // Create a snapshot for this portfolio (conditional - only if date/value changed)
-            try {
-              // Get account balance (source of truth for cash)
-              const { data: accountData } = await supabaseAdmin
-                .from('accounts')
-                .select('balances')
-                .eq('id', account.id)
-                .single();
-              
-              const accountBalance = accountData?.balances?.current || 0;
-              
-              // Fetch current holdings to calculate holdings value
-              const { data: currentHoldings } = await supabaseAdmin
-                .from('holdings')
-                .select('ticker, shares, avg_cost')
-                .eq('portfolio_id', portfolio.id);
-
-              // Create snapshot conditionally (only if date changed and value changed)
-              const { createPortfolioSnapshotConditional } = await import('../../../../../../lib/portfolioSnapshotUtils');
-              const snapshotResult = await createPortfolioSnapshotConditional(
-                portfolio.id,
-                accountBalance,
-                currentHoldings || [],
-                {} // No stock quotes available during holdings sync - uses avg_cost
-              );
-
-              if (snapshotResult.success && !snapshotResult.skipped) {
-                logger.info('Created portfolio snapshot', { 
-                  portfolio_id: portfolio.id, 
-                  reason: snapshotResult.reason 
-                });
-                if (DEBUG) console.log(`  📸 Created portfolio snapshot for portfolio ${portfolio.id}: ${snapshotResult.reason}`);
-              } else if (snapshotResult.skipped) {
-                if (DEBUG) console.log(`  ⏭️ Skipped portfolio snapshot for portfolio ${portfolio.id}: ${snapshotResult.reason}`);
-              } else {
-                logger.warn('Error creating portfolio snapshot', { 
-                  portfolio_id: portfolio.id, 
-                  error: snapshotResult.error 
-                });
-                if (DEBUG) console.log(`  ⚠️ Error creating snapshot:`, snapshotResult.error);
-              }
-            } catch (snapshotErr) {
-              logger.warn('Exception creating portfolio snapshot', { portfolio_id: portfolio.id, error: snapshotErr });
-              if (DEBUG) console.log(`  ⚠️ Exception creating snapshot:`, snapshotErr);
-              // Don't fail the whole sync if snapshot creation fails
-            }
           }
-        } else {
-          if (DEBUG) console.log(`  ⚠️ No non-zero holdings to insert for account ${accountId}`);
-          if (accountDebug) {
-            accountDebug.non_zero_holdings_inserted = 0;
-          }
-        }
-      } else {
-        if (DEBUG) console.log(`  ⚠️ No holdings data from Plaid for account ${accountId} (already deleted old holdings)`);
-        if (accountDebug) {
+        } else if (accountDebug) {
           accountDebug.non_zero_holdings_inserted = 0;
         }
+      } else if (accountDebug) {
+        accountDebug.non_zero_holdings_inserted = 0;
+      }
+
+      // Keep `accounts.balances.current` in sync with the aggregated holdings
+      // total — this is what the net-worth chart and dashboard read.
+      try {
+        const { data: accountRow } = await supabaseAdmin
+          .from('accounts')
+          .select('balances')
+          .eq('id', account.id)
+          .single();
+
+        const mergedBalances = {
+          ...(accountRow?.balances || {}),
+          current: totalHoldingsValue,
+          available: cashFromHoldings,
+        };
+
+        await supabaseAdmin
+          .from('accounts')
+          .update({ balances: mergedBalances })
+          .eq('id', account.id);
+      } catch (balanceErr) {
+        logger.warn('Exception updating account balance from holdings', { account_id: account.id, error: balanceErr });
+      }
+
+      // Write today's snapshot to account_snapshots. The unique index is on
+      // (account_id, UTC day), but PostgREST can't target expression indexes,
+      // so do a manual delete-then-insert for today's row.
+      try {
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+
+        await supabaseAdmin
+          .from('account_snapshots')
+          .delete()
+          .eq('account_id', account.id)
+          .gte('recorded_at', todayStart.toISOString())
+          .lt('recorded_at', tomorrowStart.toISOString());
+
+        await supabaseAdmin
+          .from('account_snapshots')
+          .insert({
+            account_id: account.id,
+            account_type: 'investment',
+            current_balance: totalHoldingsValue,
+            available_balance: cashFromHoldings,
+            limit_balance: null,
+            currency_code: 'USD',
+            recorded_at: new Date().toISOString(),
+          });
+      } catch (snapshotErr) {
+        logger.warn('Exception writing account snapshot from holdings', { account_id: account.id, error: snapshotErr });
       }
 
       if (accountDebug) {
         debugSyncSummary.push(accountDebug);
       }
     }
-    
-    // Process accounts returned by Plaid that have no holdings
-    // (Still create portfolios for them, they just won't have holdings)
-    if (accounts && accounts.length > 0) {
-      for (const plaidAccount of accounts) {
-        // Skip if we already processed this account (it had holdings)
-        if (accountIdsWithHoldings.has(plaidAccount.account_id)) {
-          continue;
-        }
-        
-        if (DEBUG) console.log(`📋 Processing Plaid account with no holdings: ${plaidAccount.account_id} (${plaidAccount.name})`);
-        
-        // Find the account in our database
-        const { data: account, error: accountError } = await supabaseAdmin
-          .from('accounts')
-          .select('*')
-          .eq('account_id', plaidAccount.account_id)
-          .eq('user_id', userId)
-          .single();
-
-        if (accountError || !account) {
-          if (DEBUG) console.log(`  ⚠️ Account not found in DB: ${plaidAccount.account_id}`);
-          continue;
-        }
-        
-        // Skip if this is not an investment account
-        if (account.type !== 'investment') {
-          if (DEBUG) console.log(`  ⚠️ Account ${plaidAccount.account_id} is not an investment account, skipping`);
-          continue;
-        }
-        
-        // Find or create portfolio for this account
-        let { data: portfolio, error: portfolioError } = await supabaseAdmin
-          .from('portfolios')
-          .select('*')
-          .eq('source_account_id', account.id)
-          .eq('type', 'plaid_investment')
-          .maybeSingle();
-
-        if (portfolioError) {
-          logger.error('Error finding portfolio', null, { account_id: account.id, error: portfolioError });
-          continue;
-        }
-
-        if (!portfolio) {
-          // Portfolio doesn't exist, create it
-          const portfolioName = account.name || 'Investment Account';
-
-          const { data: newPortfolio, error: createError } = await supabaseAdmin
-            .from('portfolios')
-            .insert({
-              user_id: userId,
-              name: portfolioName,
-              type: 'plaid_investment',
-              source_account_id: account.id,
-              starting_capital: plaidAccount.balances?.current || 0,
-              current_cash: plaidAccount.balances?.available || plaidAccount.balances?.current || 0,
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            logger.error('Error creating portfolio', null, { account_id: account.id, error: createError });
-            if (DEBUG) console.log(`  ❌ Error creating portfolio:`, createError);
-          } else {
-            portfolio = newPortfolio;
-            portfoliosCreated++;
-            if (DEBUG) console.log(`✅ Created portfolio ${portfolio.id} for account ${account.id} (${account.name}) - no holdings from Plaid`);
-          }
-        } else {
-          if (DEBUG) console.log(`✅ Portfolio already exists for account ${account.id} (${account.name})`);
-        }
-      }
-    }
 
     logger.info('Holdings sync completed', {
-      portfolios_created: portfoliosCreated,
       holdings_synced: holdingsSynced
     });
 
     return Response.json({
       success: true,
-      portfolios_created: portfoliosCreated,
       holdings_synced: holdingsSynced,
       ...(includeDebug ? {
         plaid_accounts_count: accounts?.length || 0,

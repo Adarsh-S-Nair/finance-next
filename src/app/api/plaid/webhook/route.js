@@ -495,7 +495,6 @@ async function handleHoldingsWebhook(webhookData, logger) {
           const syncResult = await syncResponse.json();
           holdingsLogger.info('Holdings sync completed', {
             item_id,
-            portfolios_created: syncResult.portfolios_created,
             holdings_synced: syncResult.holdings_synced
           });
         } else {

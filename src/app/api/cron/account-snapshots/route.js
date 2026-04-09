@@ -142,13 +142,59 @@ export async function GET(request) {
     console.log('========================================\n');
 
     // ------------------------------------------------------------------
+    // Phase 0: Refresh investment balances from Plaid
+    //
+    // Investment account values only change when holdings sync fires, which
+    // normally happens on Plaid's HOLDINGS webhook. To make sure today's
+    // snapshot captures the latest value even if the webhook didn't fire,
+    // we proactively run the holdings sync for every plaid_item that owns
+    // at least one investment account. The sync updates accounts.balances.current
+    // (plus writes its own account_snapshots row), so by the time we reach
+    // Phase 1, investment balances are fresh.
+    // ------------------------------------------------------------------
+    try {
+      const { data: investmentItems, error: invItemsError } = await supabaseAdmin
+        .from('accounts')
+        .select('plaid_item_id, user_id')
+        .eq('type', 'investment')
+        .not('plaid_item_id', 'is', null);
+
+      if (invItemsError) {
+        console.warn('⚠️  Failed to look up investment items, skipping holdings refresh:', invItemsError.message);
+      } else if (investmentItems && investmentItems.length > 0) {
+        const uniqueItems = Array.from(
+          new Map(investmentItems.map(r => [r.plaid_item_id, r])).values()
+        );
+        console.log(`🔄 Refreshing holdings for ${uniqueItems.length} investment plaid_items before snapshotting...`);
+
+        const { POST: holdingsSyncEndpoint } = await import('../../plaid/investments/holdings/sync/route.js');
+        for (const item of uniqueItems) {
+          try {
+            const syncRequest = {
+              headers: { get: () => null },
+              json: async () => ({ plaidItemId: item.plaid_item_id, userId: item.user_id }),
+            };
+            const syncResponse = await holdingsSyncEndpoint(syncRequest);
+            if (!syncResponse.ok) {
+              console.warn(`⚠️  Holdings sync failed for item ${item.plaid_item_id}`);
+            }
+          } catch (syncErr) {
+            console.warn(`⚠️  Exception during holdings sync for item ${item.plaid_item_id}:`, syncErr?.message || syncErr);
+          }
+        }
+      }
+    } catch (refreshErr) {
+      console.warn('⚠️  Phase 0 investment refresh crashed, continuing with stale data:', refreshErr?.message || refreshErr);
+    }
+
+    // ------------------------------------------------------------------
     // Phase 1: Create daily snapshots
     // ------------------------------------------------------------------
 
-    // Fetch all accounts with their current balances in one query
+    // Fetch all accounts with their current balances (post-refresh) in one query
     const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
-      .select('id, user_id, balances');
+      .select('id, user_id, type, balances');
 
     if (accountsError) {
       throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
@@ -190,7 +236,9 @@ export async function GET(request) {
       }
     }
 
-    // Determine which accounts need a new snapshot (balance changed, or no prior snapshot)
+    const todayUtc = new Date().toISOString().slice(0, 10);
+
+    // Determine which accounts need a new snapshot
     const snapshotsToInsert = [];
     let skippedCount = 0;
 
@@ -200,7 +248,15 @@ export async function GET(request) {
       const mostRecent = mostRecentByAccount.get(account.id);
 
       if (mostRecent) {
-        // Convert both to numbers for comparison (DB returns numeric as string sometimes)
+        // Skip if a snapshot already exists for today (holdings sync may have
+        // already written one in Phase 0, or another cron run did earlier today).
+        const mostRecentDay = new Date(mostRecent.recorded_at).toISOString().slice(0, 10);
+        if (mostRecentDay === todayUtc) {
+          skippedCount++;
+          continue;
+        }
+
+        // Otherwise skip if balance is unchanged vs. the most recent snapshot
         const prevBalance = mostRecent.current_balance !== null
           ? parseFloat(mostRecent.current_balance)
           : null;
@@ -214,6 +270,7 @@ export async function GET(request) {
 
       snapshotsToInsert.push({
         account_id: account.id,
+        account_type: account.type || null,
         available_balance: balances.available ?? null,
         current_balance: currentBalance,
         limit_balance: balances.limit ?? null,
