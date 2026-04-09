@@ -203,31 +203,14 @@ export async function insertTransactions(transactions) {
 }
 
 /**
- * Insert a portfolio + holdings for an investment account.
+ * Insert holdings for an investment account.
  */
-export async function insertPortfolio({ userId, accountId, name, holdings, securities }) {
-  // Create portfolio
-  const { data: portfolio, error: portfolioError } = await supabaseAdmin
-    .from('portfolios')
-    .insert({
-      user_id: userId,
-      name,
-      type: 'plaid_investment',
-      source_account_id: accountId,
-      starting_capital: 100000,
-      current_cash: 5000,
-    })
-    .select()
-    .single();
-
-  if (portfolioError) throw new Error(`Failed to insert portfolio: ${portfolioError.message}`);
-
-  // Insert holdings
+export async function insertPortfolio({ accountId, name, holdings, securities }) {
   if (holdings.length) {
     const holdingRows = holdings.map(h => {
       const sec = securities.find(s => s.security_id === h.security_id);
       return {
-        portfolio_id: portfolio.id,
+        account_id: accountId,
         ticker: sec?.ticker_symbol || h.security_id,
         shares: h.quantity,
         avg_cost: h.cost_basis ? h.cost_basis / h.quantity : h.institution_price,
@@ -236,8 +219,6 @@ export async function insertPortfolio({ userId, accountId, name, holdings, secur
 
     const { error: holdingsError } = await supabaseAdmin.from('holdings').insert(holdingRows);
     if (holdingsError) throw new Error(`Failed to insert holdings: ${holdingsError.message}`);
-    console.log(`[seed] ✓ Inserted ${holdingRows.length} holdings for portfolio "${name}"`);
+    console.log(`[seed] ✓ Inserted ${holdingRows.length} holdings for account "${name}"`);
   }
-
-  return portfolio;
 }

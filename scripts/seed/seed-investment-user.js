@@ -93,13 +93,12 @@ async function main() {
     checkingTxs.map(tx => ({ ...tx, accountId: accountMap.get('mock_acc_checking_investor') }))
   );
 
-  // Insert portfolios + holdings for each investment account
+  // Insert holdings for each investment account
   const securities = Object.values(MOCK_SECURITIES);
 
   const brokerageAccountId = accountMap.get('mock_acc_brokerage_001');
   if (brokerageAccountId) {
     await insertPortfolio({
-      userId: user.id,
       accountId: brokerageAccountId,
       name: 'Schwab Brokerage',
       holdings: MOCK_HOLDINGS_BROKERAGE,
@@ -110,7 +109,6 @@ async function main() {
   const iraAccountId = accountMap.get('mock_acc_ira_001');
   if (iraAccountId) {
     await insertPortfolio({
-      userId: user.id,
       accountId: iraAccountId,
       name: 'Schwab Roth IRA',
       holdings: MOCK_HOLDINGS_IRA,
