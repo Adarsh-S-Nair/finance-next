@@ -289,23 +289,11 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 leading-none">
-                <p className="text-[13px] font-medium text-[var(--color-fg)] truncate">
-                  {fullName || "User"}
-                </p>
-                <span
-                  className={clsx(
-                    "text-[9px] font-bold px-1.5 py-0.5 rounded-md leading-none tracking-wide uppercase flex-shrink-0",
-                    tier === "pro"
-                      ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
-                      : "bg-[var(--color-fg)]/[0.06] text-[var(--color-muted)]/70 border border-[var(--color-fg)]/[0.08]"
-                  )}
-                >
-                  {tierLabel}
-                </span>
-              </div>
-              <p className="text-[11px] text-[var(--color-muted)]/50 mt-0.5 truncate leading-none">
-                {user?.email || ""}
+              <p className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-none">
+                {fullName || "User"}
+              </p>
+              <p className="text-[11px] text-[var(--color-muted)]/70 mt-1 truncate leading-none">
+                {tierLabel} plan
               </p>
             </div>
 
