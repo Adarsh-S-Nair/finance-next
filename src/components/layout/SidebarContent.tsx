@@ -104,10 +104,15 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           {!isCollapsed && (
             <div className="flex items-center gap-2.5">
               <span
-                className="text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
+                className="relative text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
                 style={{ fontFamily: "var(--font-poppins)" }}
               >
                 ZERVO
+                {tier === "pro" && (
+                  <sup className="ml-0.5 text-[7px] font-bold tracking-[0.1em] text-[var(--color-accent)]">
+                    PRO
+                  </sup>
+                )}
               </span>
               {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
                 <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
@@ -288,18 +293,10 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               </div>
             </div>
 
-            <div className="flex-1 min-w-0 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
               <p className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-none">
                 {fullName || "User"}
               </p>
-              <span
-                className={clsx(
-                  "text-[9px] font-bold tracking-[0.15em] leading-none flex-shrink-0",
-                  tier === "pro" ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]/60"
-                )}
-              >
-                {tierLabel.toUpperCase()}
-              </span>
             </div>
 
             <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 transition-colors duration-150 group-hover:text-[var(--color-muted)]/70" />
