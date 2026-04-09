@@ -20,9 +20,6 @@ const TIER_FEATURES: Record<string, Record<string, boolean>> = {
     budgets: false,
     investments: false,
     recurring: false,
-    paper_trading: false,
-    arbitrage: false,
-    ai_trading: false,
     net_worth_history: true,
   },
   pro: {
@@ -30,9 +27,6 @@ const TIER_FEATURES: Record<string, Record<string, boolean>> = {
     budgets: true,
     investments: true,
     recurring: true,
-    paper_trading: true,
-    arbitrage: true,
-    ai_trading: true,
     net_worth_history: true,
   },
 };
@@ -49,9 +43,6 @@ const TIER_PLAID_PRODUCTS: Record<string, string[]> = {
 
 // Feature flags (must match config/features.yaml)
 const FEATURE_ENABLED_ENVS: Record<string, string[]> = {
-  paper_trading: ['development', 'test'],
-  arbitrage: ['development', 'test'],
-  ai_trading: ['development', 'test'],
   budgets: ['development', 'test', 'production'],
   investments: ['development', 'test', 'production'],
   recurring: ['development', 'test', 'production'],
@@ -68,9 +59,6 @@ const FEATURE_LABELS: Record<string, string> = {
   budgets: 'Budget tracking',
   investments: 'Investment portfolio tracking',
   recurring: 'Recurring transactions analysis',
-  paper_trading: 'Paper trading simulator',
-  arbitrage: 'Arbitrage scanner',
-  ai_trading: 'AI-powered financial insights',
   net_worth_history: 'Net worth tracking',
 };
 

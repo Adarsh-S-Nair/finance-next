@@ -198,7 +198,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { accounts, loading, initialized } = useAccounts();
 
   // Track navigation direction for page transition
-  const PAGE_ORDER = ['/dashboard', '/transactions', '/accounts', '/budgets', '/paper-trading', '/investments', '/settings'];
+  const PAGE_ORDER = ['/dashboard', '/transactions', '/accounts', '/budgets', '/investments', '/settings'];
   const prevPathRef = useRef(pathname);
   const [direction, setDirection] = useState(0);
 

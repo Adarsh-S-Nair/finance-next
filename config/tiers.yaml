@@ -6,9 +6,6 @@ tiers:
       budgets: false
       investments: false
       recurring: false
-      paper_trading: false
-      arbitrage: false
-      ai_trading: false
       net_worth_history: true
     plaid_products:
       - transactions
@@ -20,9 +17,6 @@ tiers:
       budgets: true
       investments: true
       recurring: true
-      paper_trading: true
-      arbitrage: true
-      ai_trading: true
       net_worth_history: true
     plaid_products:
       - transactions

@@ -1,22 +1,4 @@
 features:
-  paper_trading:
-    enabled_envs:
-      - development
-      - test
-    description: "AI paper trading (experimental)"
-
-  arbitrage:
-    enabled_envs:
-      - development
-      - test
-    description: "Crypto arbitrage scanner (experimental)"
-
-  ai_trading:
-    enabled_envs:
-      - development
-      - test
-    description: "AI trading strategies"
-
   budgets:
     enabled_envs:
       - development

@@ -1,4 +1,4 @@
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuFlaskConical } from "react-icons/lu";
+import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine } from "react-icons/lu";
 import { IconType } from "react-icons";
 
 export type NavItem = {
@@ -32,13 +32,6 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
     title: "Investing",
     items: [
       { href: "/investments", label: "Portfolio", icon: LuChartLine, tierFeature: "investments" },
-      {
-        href: "/paper-trading",
-        label: "Paper Trading",
-        icon: LuFlaskConical,
-        featureFlag: "paper_trading",
-        tierFeature: "paper_trading",
-      },
     ],
   },
 ];

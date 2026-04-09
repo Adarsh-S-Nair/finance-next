@@ -15,10 +15,6 @@ export const SITE_PAGES = {
     title: 'Budgets',
     header: 'Budgets',
   },
-  '/paper-trading': {
-    title: 'Paper Trading',
-    header: 'Paper Trading',
-  },
   '/settings': {
     title: 'Settings',
     header: 'Settings',

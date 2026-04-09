@@ -126,7 +126,7 @@ export function getPlaidProducts(tier: string): string[] {
  * during Next.js build/static analysis. On the client, Next.js inlines
  * NEXT_PUBLIC_* env vars at build time.
  *
- * @param feature - e.g. 'paper_trading' | 'arbitrage' | 'ai_trading'
+ * @param feature - e.g. 'budgets' | 'investments' | 'recurring'
  */
 export function isFeatureEnabled(feature: string): boolean {
   const config = getFeaturesConfig();
