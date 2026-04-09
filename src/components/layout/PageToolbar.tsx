@@ -19,7 +19,7 @@ export default function PageToolbar({ children }: { children: React.ReactNode })
   return (
     <>
       {createPortal(
-        <div className="w-full bg-[var(--color-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-bg),transparent_6%)]">
+        <div className="w-full bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)]">
           <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8 py-2">
             {children}
           </div>

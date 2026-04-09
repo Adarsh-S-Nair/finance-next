@@ -84,7 +84,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
     <PageToolbar>
       <div className="flex items-center gap-4">
         <div className="flex-1 max-w-4xl">
-          <div className="relative rounded-xl border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-surface)]/50 focus-within:bg-[var(--color-surface)] focus-within:border-[var(--color-accent)]/50 transition-all duration-200">
+          <div className="relative rounded-lg bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)] focus-within:bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)] transition-colors duration-200">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
             <Input
               placeholder="Search transactions..."
