@@ -165,7 +165,7 @@
 /* Base application colors */
 html,
 body {
-  background-color: var(--color-bg);
+  background-color: var(--color-content-bg);
   color: var(--color-fg);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   margin: 0;
