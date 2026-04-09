@@ -48,8 +48,8 @@ function PaginationDots({ current, total }) {
           layout
           className={`rounded-full transition-colors duration-300 ${
             i === current
-              ? "h-2 w-5 bg-white"
-              : "h-2 w-2 bg-zinc-700"
+              ? "h-2 w-5 bg-[var(--color-fg)]"
+              : "h-2 w-2 bg-[var(--color-border)]"
           }`}
         />
       ))}
@@ -65,7 +65,7 @@ function BackButton({ onClick }) {
       onClick={onClick}
       whileHover={{ x: -2 }}
       whileTap={{ scale: 0.9 }}
-      className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
+      className="inline-flex items-center gap-1 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors duration-150 cursor-pointer"
     >
       <FiChevronLeft className="h-5 w-5" />
     </motion.button>
@@ -74,7 +74,7 @@ function BackButton({ onClick }) {
 
 // Input class: font-medium for typed text, no focus ring/outline
 const inputClassName =
-  "flex h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white placeholder:text-zinc-500 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-white/20 focus:bg-white/8 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-11 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] px-4 py-2 text-sm font-medium text-[var(--color-fg)] placeholder:text-[var(--color-muted)] placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-[var(--color-ring)] focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -101,15 +101,15 @@ function NameStep({ onNext, onBack }) {
   };
 
   return (
-    <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-white">
+    <div className="flex flex-col items-start text-left w-full max-w-sm">
+      <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
         What&apos;s your name?
       </h1>
-      <p className="mt-2 text-sm text-zinc-400">We&apos;ll use this to personalize your experience.</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">We&apos;ll use this to personalize your experience.</p>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">First name</label>
+          <label className="text-sm font-medium text-[var(--color-fg)]">First name</label>
           <input
             ref={inputRef}
             className={inputClassName}
@@ -122,8 +122,8 @@ function NameStep({ onNext, onBack }) {
         </div>
 
         <div className="mt-5 space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
-            Last name <span className="font-normal text-zinc-500">(optional)</span>
+          <label className="text-sm font-medium text-[var(--color-fg)]">
+            Last name <span className="font-normal text-[var(--color-muted)]">(optional)</span>
           </label>
           <input
             className={inputClassName}
@@ -234,18 +234,18 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
   };
 
   return (
-    <div className="flex flex-col items-center text-center w-full max-w-sm">
-      {/* Back button — plain, left-aligned above heading */}
-      <div className="mb-4 self-start">
+    <div className="flex flex-col items-start text-left w-full max-w-sm">
+      {/* Back button */}
+      <div className="mb-4">
         <BackButton onClick={onBack} />
       </div>
-      <h1 className="text-xl font-semibold tracking-tight text-white">
+      <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
         What&apos;s your email?
       </h1>
 
       <form onSubmit={handleSubmit} className="mt-8 w-full text-left" noValidate>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">Email</label>
+          <label className="text-sm font-medium text-[var(--color-fg)]">Email</label>
           <input
             ref={emailRef}
             className={inputClassName}
@@ -258,7 +258,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
         </div>
 
         <div className="mt-5 space-y-2">
-          <label className="text-sm font-medium text-zinc-300">Password</label>
+          <label className="text-sm font-medium text-[var(--color-fg)]">Password</label>
           <div className="relative">
             <input
               className={inputClassName}
@@ -271,7 +271,7 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
               tabIndex={-1}
             >
               {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
@@ -286,12 +286,12 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="mt-4 rounded-lg bg-white/5 px-4 py-3 text-[13px] text-zinc-400"
+              className="mt-4 rounded-lg bg-[var(--color-surface-alt)] border border-[var(--color-border)] px-4 py-3 text-[13px] text-[var(--color-muted)]"
             >
               {error === "duplicate" ? (
                 <>
                   This email is already registered.{" "}
-                  <Link href="/auth" className="font-medium text-white underline underline-offset-4 hover:text-zinc-300">
+                  <Link href="/auth" className="font-medium text-[var(--color-fg)] underline underline-offset-4 hover:opacity-80">
                     Sign in instead
                   </Link>
                 </>
@@ -330,12 +330,12 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
 /* ── Step 2: Welcome ────────────────────────────────────────── */
 function WelcomeStep({ firstName, onNext }) {
   return (
-    <div className="flex flex-col items-center text-center w-full max-w-md">
+    <div className="flex flex-col items-start text-left w-full max-w-md">
       <motion.h1
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="text-2xl font-normal tracking-tight text-white"
+        className="text-2xl font-medium tracking-tight text-[var(--color-fg)]"
       >
         Welcome, {firstName}
       </motion.h1>
@@ -343,7 +343,7 @@ function WelcomeStep({ firstName, onNext }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
-        className="mt-4 text-base text-zinc-400 leading-relaxed max-w-xs"
+        className="mt-3 text-[15px] text-[var(--color-muted)] leading-relaxed max-w-sm"
       >
         Connect your accounts and get a complete picture of your finances in one place.
       </motion.p>
@@ -370,8 +370,12 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
   const [linkToken, setLinkToken] = useState(null);
   const [error, setError] = useState(null);
   const [exchanging, setExchanging] = useState(false);
-  const [plaidExited, setPlaidExited] = useState(false);
+  const [plaidOpened, setPlaidOpened] = useState(false);
   const [showMockPicker, setShowMockPicker] = useState(false);
+
+  // Prevent strict-mode double-invocation of open(), which otherwise
+  // fires a phantom onExit (visible to the user as a bogus cancel).
+  const openedRef = useRef(false);
 
   const exchangeToken = async (publicToken) => {
     try {
@@ -406,14 +410,11 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
       const msg = err.message || "An error occurred during account linking";
       setError(msg);
       onError(msg);
-    } else {
-      setPlaidExited(true);
+      return;
     }
-  };
-
-  const handleMockExit = () => {
-    setShowMockPicker(false);
-    setPlaidExited(true);
+    // Clean exit → just go back to the welcome step instead of showing
+    // a "Connection cancelled" intermediate state.
+    onBack?.();
   };
 
   const { open, ready } = usePlaidLink({
@@ -440,7 +441,6 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
         if (cancelled) return;
 
         if (isMockPlaid) {
-          // Show institution picker instead of auto-connecting
           setShowMockPicker(true);
         } else {
           setLinkToken(data.link_token);
@@ -460,31 +460,36 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
   }, []);
 
   useEffect(() => {
-    if (!isMockPlaid && linkToken && ready && !error && !plaidExited) {
+    if (!isMockPlaid && linkToken && ready && !error && !openedRef.current) {
+      openedRef.current = true;
+      setPlaidOpened(true);
       open();
     }
-  }, [linkToken, ready, error, open, plaidExited]);
+  }, [linkToken, ready, error, open]);
 
   // Mock institution picker modal
   if (isMockPlaid && showMockPicker) {
     return (
       <MockPlaidLink
         onSuccess={(token) => exchangeToken(token)}
-        onExit={handleMockExit}
+        onExit={() => {
+          setShowMockPicker(false);
+          onBack?.();
+        }}
       />
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center text-center">
-        <FiAlertCircle className="mb-4 h-10 w-10 text-[var(--color-danger)]" />
-        <p className="text-sm font-medium text-white">Something went wrong</p>
-        <p className="mt-1 text-sm text-zinc-500">{error}</p>
+      <div className="flex flex-col items-start text-left">
+        <FiAlertCircle className="mb-4 h-9 w-9 text-[var(--color-danger)]" />
+        <p className="text-base font-medium text-[var(--color-fg)]">Something went wrong</p>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">{error}</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
+          className="mt-6 inline-flex items-center gap-1 text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
           Go back
@@ -493,45 +498,21 @@ function ConnectingStep({ onSuccess, onError, onBack }) {
     );
   }
 
-  if (plaidExited) {
-    return (
-      <div className="flex flex-col items-center text-center">
-        <p className="text-sm font-medium text-white">Connection cancelled</p>
-        <p className="mt-1 text-sm text-zinc-500">No worries — you can try again.</p>
-        <div className="mt-6 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
-          >
-            <FiChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-          <Button
-            onClick={() => {
-              setPlaidExited(false);
-              if (isMockPlaid) {
-                setShowMockPicker(true);
-              } else {
-                open();
-              }
-            }}
-            className="h-9 px-5 text-sm cursor-pointer"
-          >
-            Try again
-          </Button>
-        </div>
-      </div>
-    );
+  // Plaid has taken over with its own modal + spinner — render nothing behind it.
+  if (plaidOpened && !exchanging) {
+    return null;
   }
 
+  // Either fetching the link token, or exchanging after success.
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-4 h-10 w-10 animate-spin rounded-full border-[3px] border-zinc-700 border-t-white" />
-      <p className="text-sm font-medium text-white">
-        {exchanging ? "Finalizing connection…" : "Preparing secure connection…"}
-      </p>
-      <p className="mt-1 text-xs text-zinc-400">This only takes a moment.</p>
+    <div className="flex items-center gap-4">
+      <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-[var(--color-border)] border-t-[var(--color-fg)] flex-shrink-0" />
+      <div>
+        <div className="text-[15px] font-medium text-[var(--color-fg)]">
+          {exchanging ? "Finalizing connection" : "Preparing secure connection"}
+        </div>
+        <div className="text-xs text-[var(--color-muted)] mt-0.5">This only takes a moment.</div>
+      </div>
     </div>
   );
 }
@@ -565,25 +546,25 @@ function ConnectedStep({ plaidData, onComplete }) {
   const institution = plaidData?.institution;
 
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex flex-col items-start text-left w-full max-w-md">
       {/* Institution logo → dots → green checkmark */}
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-8 flex items-center gap-2">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-          className="relative h-12 w-12 flex-shrink-0"
+          className="relative h-11 w-11 flex-shrink-0"
         >
           {institution?.logo && (
             <img
               src={institution.logo}
               alt={institution.name || ""}
-              className="h-12 w-12 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
+              className="h-11 w-11 rounded-full object-contain bg-[var(--color-surface-alt)] border border-[var(--color-border)] absolute inset-0"
               onError={(e) => { e.currentTarget.style.display = "none"; }}
             />
           )}
-          <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center">
-            <span className="text-base font-semibold text-zinc-400">
+          <div className="h-11 w-11 rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center">
+            <span className="text-base font-semibold text-[var(--color-muted)]">
               {(institution?.name || "?").charAt(0).toUpperCase()}
             </span>
           </div>
@@ -593,9 +574,9 @@ function ConnectedStep({ plaidData, onComplete }) {
           <motion.div
             key={i}
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 0.4 }}
+            animate={{ scale: 1, opacity: 0.6 }}
             transition={{ delay: 0.2 + i * 0.08 }}
-            className="h-1.5 w-1.5 rounded-full bg-zinc-600"
+            className="h-1.5 w-1.5 rounded-full bg-[var(--color-muted)]"
           />
         ))}
 
@@ -603,9 +584,9 @@ function ConnectedStep({ plaidData, onComplete }) {
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.5 }}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
         >
-          <FiCheck className="h-6 w-6 text-white" strokeWidth={3} />
+          <FiCheck className="h-5 w-5 text-white" strokeWidth={3} />
         </motion.div>
       </div>
 
@@ -613,7 +594,7 @@ function ConnectedStep({ plaidData, onComplete }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="text-2xl font-semibold tracking-tight text-white"
+        className="text-2xl font-medium tracking-tight text-[var(--color-fg)]"
       >
         {institution?.name ? `${institution.name} connected` : "Account connected"}
       </motion.h2>
@@ -623,41 +604,41 @@ function ConnectedStep({ plaidData, onComplete }) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
-          className="mt-5 w-full max-w-xs"
+          className="mt-8 w-full"
         >
-          <div className="rounded-xl border border-white/10 bg-white/5 divide-y divide-white/5 overflow-hidden">
+          <div className="divide-y divide-[var(--color-border)]">
             {accounts.map((account, i) => (
               <motion.div
                 key={account.id || account.account_id || i}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.75 + i * 0.05 }}
-                className="flex items-center gap-3.5 px-4 py-4"
+                className="flex items-center gap-4 py-4"
               >
-                <div className="relative h-8 w-8 flex-shrink-0">
+                <div className="relative h-9 w-9 flex-shrink-0">
                   {institution?.logo && (
                     <img
                       src={institution.logo}
                       alt={institution.name || ""}
-                      className="h-8 w-8 rounded-full object-contain bg-zinc-900 border border-white/10 absolute inset-0"
+                      className="h-9 w-9 rounded-full object-contain bg-[var(--color-surface-alt)] border border-[var(--color-border)] absolute inset-0"
                       onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
                   )}
-                  <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <span className="text-xs font-semibold text-zinc-400">
+                  <div className="h-9 w-9 rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center">
+                    <span className="text-xs font-semibold text-[var(--color-muted)]">
                       {(institution?.name || account.name || "?").charAt(0).toUpperCase()}
                     </span>
                   </div>
                 </div>
-                <div className="text-left flex-1 min-w-0 space-y-1">
-                  <div className="text-sm font-medium text-white truncate">{account.name}</div>
-                  <div className="text-xs text-zinc-500">
+                <div className="text-left flex-1 min-w-0">
+                  <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">{account.name}</div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
                     {formatSubtype(account.subtype)}
                     {account.mask ? ` · ••${account.mask}` : ""}
                   </div>
                 </div>
                 {account.balances?.current != null && (
-                  <div className="text-sm tabular-nums text-zinc-400 flex-shrink-0">
+                  <div className="text-sm tabular-nums text-[var(--color-muted)] flex-shrink-0">
                     ${Number(account.balances.current).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 )}
@@ -671,7 +652,7 @@ function ConnectedStep({ plaidData, onComplete }) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: accounts.length > 0 ? 0.8 + accounts.length * 0.05 : 0.7 }}
-        className="mt-6 flex flex-col items-center gap-3 w-full max-w-xs"
+        className="mt-10 w-full max-w-xs"
       >
         <Button onClick={onComplete} className="w-full h-11">
           Continue to dashboard
@@ -701,11 +682,11 @@ function GoogleSignUpGate() {
   };
 
   return (
-    <div className="flex flex-col items-center text-center w-full max-w-sm">
-      <h1 className="text-xl font-semibold tracking-tight text-white">
+    <div className="flex flex-col items-start text-left w-full max-w-sm">
+      <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
         Create your account
       </h1>
-      <p className="mt-2 text-sm text-zinc-400">
+      <p className="mt-2 text-sm text-[var(--color-muted)]">
         Sign up with Google to get started in seconds.
       </p>
       <div className="mt-8 w-full">
@@ -867,10 +848,10 @@ export default function AccountSetupFlow({ initialStep = 0, userName, onComplete
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 text-sm text-zinc-500"
+            className="fixed bottom-6 right-6 text-sm text-[var(--color-muted)]"
           >
             Already have an account?{" "}
-            <Link href="/auth" className="font-medium text-zinc-400 underline underline-offset-4 hover:text-zinc-300">
+            <Link href="/auth" className="font-medium text-[var(--color-fg)] underline underline-offset-4 hover:opacity-80">
               Sign in
             </Link>
           </motion.p>

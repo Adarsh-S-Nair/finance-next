@@ -164,7 +164,7 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="fixed top-5 right-5 md:top-6 md:right-6 z-10 p-2 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors cursor-pointer"
+              className="fixed top-5 right-5 md:top-6 md:right-6 z-10 p-2 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer"
               aria-label="Close"
             >
               <FiX className="h-5 w-5" />
@@ -202,6 +202,7 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                         plaidItemId={selectedItemId}
                         onSuccess={handleConnectingSuccess}
                         onBack={handleBack}
+                        onCancel={onClose}
                         onUpgradeNeeded={handleUpgradeNeeded}
                       />
                     </motion.div>
@@ -235,7 +236,7 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
 function SectionLabel({ children, className = "" }) {
   return (
     <div
-      className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 ${className}`}
+      className={`text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] ${className}`}
     >
       {children}
     </div>
@@ -254,7 +255,7 @@ function InstitutionAvatar({ logo, name, size = 36 }) {
         <img
           src={logo}
           alt={name || ""}
-          className="absolute inset-0 rounded-full object-contain bg-zinc-900 border border-white/10"
+          className="absolute inset-0 rounded-full object-contain bg-[var(--color-surface-alt)] border border-[var(--color-border)]"
           style={{ width: dim, height: dim }}
           onError={(e) => {
             e.currentTarget.style.display = "none";
@@ -262,10 +263,10 @@ function InstitutionAvatar({ logo, name, size = 36 }) {
         />
       )}
       <div
-        className="rounded-full bg-white/5 border border-white/10 flex items-center justify-center"
+        className="rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex items-center justify-center"
         style={{ width: dim, height: dim }}
       >
-        <span className={`font-semibold text-zinc-400 ${fontSize}`}>
+        <span className={`font-semibold text-[var(--color-muted)] ${fontSize}`}>
           {(name || "?").charAt(0).toUpperCase()}
         </span>
       </div>
@@ -282,7 +283,7 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="text-[28px] font-semibold tracking-tight text-white"
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
       >
         Add an account
       </motion.h1>
@@ -291,7 +292,7 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
         {institutions.length > 0 && (
           <div>
             <SectionLabel className="mb-2">Your connections</SectionLabel>
-            <div className="divide-y divide-white/[0.06]">
+            <div className="divide-y divide-[var(--color-border)]">
               {institutions.map((inst, i) => (
                 <InstitutionRow
                   key={inst.id}
@@ -313,8 +314,8 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
               index={institutions.length}
               onClick={onSelectNew}
               avatar={
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 border border-white/10 flex-shrink-0">
-                  <FiPlus className="h-4 w-4 text-zinc-400" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex-shrink-0">
+                  <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
                 </div>
               }
               title="Link an institution"
@@ -340,23 +341,27 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
     >
       {avatar}
       <div className="flex-1 min-w-0">
-        <div className="text-[15px] font-medium text-white truncate">{title}</div>
-        <div className="text-xs text-zinc-500 mt-0.5">{subtitle}</div>
+        <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">{title}</div>
+        <div className="text-xs text-[var(--color-muted)] mt-0.5">{subtitle}</div>
       </div>
-      <FiChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-300 transition-colors flex-shrink-0" />
+      <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
     </motion.button>
   );
 }
 
 /* ── Step: Connecting (Plaid Link) ────────────────────────── */
 
-function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
+function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNeeded }) {
   const [linkToken, setLinkToken] = useState(null);
   const [activePlaidItemId, setActivePlaidItemId] = useState(plaidItemId);
   const [error, setError] = useState(null);
   const [exchanging, setExchanging] = useState(false);
-  const [plaidExited, setPlaidExited] = useState(false);
+  const [plaidOpened, setPlaidOpened] = useState(false);
   const [showMockPicker, setShowMockPicker] = useState(false);
+
+  // Prevent strict-mode double-invocation of Plaid Link's open(), which
+  // otherwise produces a phantom onExit (visible as "Connection cancelled").
+  const openedRef = useRef(false);
 
   const exchangeToken = async (publicToken) => {
     try {
@@ -388,9 +393,11 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
           err.message ||
           "An error occurred during account linking"
       );
-    } else {
-      setPlaidExited(true);
+      return;
     }
+    // Clean exit → just close the whole overlay and return the user to the
+    // page they were on. No intermediate "Connection cancelled" state.
+    onCancel?.();
   };
 
   const { open, ready } = usePlaidLink({
@@ -442,10 +449,12 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
   }, []);
 
   useEffect(() => {
-    if (!isMockPlaidEnv && linkToken && ready && !error && !plaidExited) {
+    if (!isMockPlaidEnv && linkToken && ready && !error && !openedRef.current) {
+      openedRef.current = true;
+      setPlaidOpened(true);
       open();
     }
-  }, [linkToken, ready, error, open, plaidExited]);
+  }, [linkToken, ready, error, open]);
 
   if (isMockPlaidEnv && showMockPicker) {
     return (
@@ -453,7 +462,7 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
         onSuccess={(token) => exchangeToken(token)}
         onExit={() => {
           setShowMockPicker(false);
-          setPlaidExited(true);
+          onCancel?.();
         }}
       />
     );
@@ -463,14 +472,14 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
     return (
       <div>
         <FiAlertCircle className="mb-5 h-9 w-9 text-[var(--color-danger)]" />
-        <h1 className="text-[28px] font-semibold tracking-tight text-white">
+        <h1 className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]">
           Something went wrong
         </h1>
-        <p className="mt-2 text-sm text-zinc-500">{error}</p>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">{error}</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-8 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
+          className="mt-8 inline-flex items-center gap-1 text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] cursor-pointer"
         >
           <FiChevronLeft className="h-4 w-4" />
           Go back
@@ -479,48 +488,20 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onUpgradeNeeded }) {
     );
   }
 
-  if (plaidExited) {
-    return (
-      <div>
-        <h1 className="text-[28px] font-semibold tracking-tight text-white">
-          Connection cancelled
-        </h1>
-        <p className="mt-2 text-sm text-zinc-500">No worries — you can try again.</p>
-        <div className="mt-8 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300 cursor-pointer"
-          >
-            <FiChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-          <Button
-            onClick={() => {
-              setPlaidExited(false);
-              if (isMockPlaidEnv) {
-                setShowMockPicker(true);
-              } else {
-                open();
-              }
-            }}
-            className="h-9 px-5 text-sm cursor-pointer"
-          >
-            Try again
-          </Button>
-        </div>
-      </div>
-    );
+  // Plaid has taken over with its own modal/spinner — render nothing behind it.
+  if (plaidOpened && !exchanging) {
+    return null;
   }
 
+  // Either fetching the link token, or exchanging after success. A single spinner.
   return (
     <div className="flex items-center gap-4">
-      <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-zinc-800 border-t-white flex-shrink-0" />
+      <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-[var(--color-border)] border-t-[var(--color-fg)] flex-shrink-0" />
       <div>
-        <div className="text-[15px] font-medium text-white">
+        <div className="text-[15px] font-medium text-[var(--color-fg)]">
           {exchanging ? "Finalizing connection" : "Preparing secure connection"}
         </div>
-        <div className="text-xs text-zinc-500 mt-0.5">This only takes a moment.</div>
+        <div className="text-xs text-[var(--color-muted)] mt-0.5">This only takes a moment.</div>
       </div>
     </div>
   );
@@ -555,9 +536,9 @@ function ConnectedStep({ plaidData, onClose }) {
           <motion.div
             key={i}
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 0.4 }}
+            animate={{ scale: 1, opacity: 0.6 }}
             transition={{ delay: 0.2 + i * 0.08 }}
-            className="h-1.5 w-1.5 rounded-full bg-zinc-600"
+            className="h-1.5 w-1.5 rounded-full bg-[var(--color-muted)]"
           />
         ))}
 
@@ -575,7 +556,7 @@ function ConnectedStep({ plaidData, onClose }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="text-[28px] font-semibold tracking-tight text-white"
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
       >
         {headline}
       </motion.h1>
@@ -590,7 +571,7 @@ function ConnectedStep({ plaidData, onClose }) {
           <SectionLabel className="mb-2">
             {accounts.length === 1 ? "Account" : "Accounts"}
           </SectionLabel>
-          <div className="divide-y divide-white/[0.06]">
+          <div className="divide-y divide-[var(--color-border)]">
             {accounts.map((account, i) => (
               <motion.div
                 key={account.id || account.account_id || i}
@@ -604,16 +585,16 @@ function ConnectedStep({ plaidData, onClose }) {
                   name={institution?.name || account.name}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-medium text-white truncate">
+                  <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
                     {account.name}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
                     {formatSubtype(account.subtype)}
                     {account.mask ? ` · ••${account.mask}` : ""}
                   </div>
                 </div>
                 {account.balances?.current != null && (
-                  <div className="text-sm tabular-nums text-zinc-400 flex-shrink-0">
+                  <div className="text-sm tabular-nums text-[var(--color-muted)] flex-shrink-0">
                     $
                     {Number(account.balances.current).toLocaleString("en-US", {
                       minimumFractionDigits: 2,

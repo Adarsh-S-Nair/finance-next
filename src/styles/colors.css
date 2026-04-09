@@ -4,8 +4,8 @@
   --color-surface: #ffffff;
   --color-fg: #18181b;
   /* Zinc 900 */
-  --color-muted: #71717a;
-  /* Zinc 500 */
+  --color-muted: #52525b;
+  /* Zinc 600 — darker for better readability on light bg */
   --color-border: #e4e4e7;
   /* Zinc 200 */
   --color-ring: #a1a1aa;
