@@ -229,13 +229,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
                 <AnimatedCounter value={averageCashflow} showCents={false} />
               </div>
 
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-[var(--color-muted)]">
-                  {hasTransactions
-                    ? `Based on ${monthCount} month${monthCount !== 1 ? 's' : ''}`
-                    : 'No transactions yet'}
-                </span>
-              </div>
             </div>
 
             {/* Right Side Actions */}

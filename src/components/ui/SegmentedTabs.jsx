@@ -26,8 +26,8 @@ export default function SegmentedTabs({
 
   const sizeClasses = {
     xs: "text-[10px] px-2.5 py-1.5",
-    sm: "text-[11px] px-3 py-2",
-    md: "text-xs px-3.5 py-2.5",
+    sm: "text-xs px-3 py-2",
+    md: "text-[13px] px-3.5 py-2.5",
   };
   const buttonSize = sizeClasses[size] || sizeClasses.sm;
 
@@ -49,7 +49,7 @@ export default function SegmentedTabs({
                 key={opt.value}
                 type="button"
                 onClick={() => onChange?.(opt.value)}
-                className={`relative z-10 rounded-full font-semibold whitespace-nowrap transition-colors duration-200 cursor-pointer ${buttonSize} ${
+                className={`relative z-10 rounded-full font-bold whitespace-nowrap transition-colors duration-200 cursor-pointer ${buttonSize} ${
                   isActive
                     ? "text-[var(--color-bg)]"
                     : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
