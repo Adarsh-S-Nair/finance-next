@@ -115,11 +115,11 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
               <div key={segment.label} className="flex items-center justify-between text-xs opacity-60">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="text-[var(--color-muted)]">{segment.label}</span>
+                  <span className="font-medium text-[var(--color-muted)]">{segment.label}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(0)}</span>
-                  <span className="text-[var(--color-muted)] font-mono text-[10px]">0.0%</span>
+                  <span className="text-[var(--color-fg)] font-semibold tabular-nums">{formatCurrency(0)}</span>
+                  <span className="text-[var(--color-muted)] font-medium font-mono text-[10px]">0.0%</span>
                 </div>
               </div>
             );
@@ -201,15 +201,15 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: color }}
                 />
-                <span className={`text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                <span className={`font-medium text-[var(--color-muted)] ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
                   {segment.label}
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-[var(--color-fg)] font-medium tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
+                <span className={`text-[var(--color-fg)] font-semibold tabular-nums ${isHovered ? 'text-[var(--color-fg)]' : ''}`}>
                   {formatCurrency(segment.amount)}
                 </span>
-                <span className="text-[var(--color-muted)] font-mono text-[10px]">{percentage}%</span>
+                <span className="text-[var(--color-muted)] font-medium font-mono text-[10px]">{percentage}%</span>
               </div>
             </div>
           );

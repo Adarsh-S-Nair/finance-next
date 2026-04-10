@@ -309,12 +309,12 @@ export default function TopHoldingsCard() {
               </div>
 
               <div className="text-right flex-shrink-0">
-                <div className="font-medium text-xs tabular-nums text-[var(--color-fg)]">
+                <div className="font-semibold text-xs tabular-nums text-[var(--color-fg)]">
                   {formatCurrency(h.marketValue)}
                 </div>
                 {price != null && (
                   <div
-                    className={`mt-0.5 text-[11px] tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                    className={`mt-0.5 text-[11px] font-medium tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
                   >
                     {gainPct >= 0 ? "+" : ""}
                     {gainPct.toFixed(2)}%

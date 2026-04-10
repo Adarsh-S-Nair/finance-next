@@ -99,13 +99,13 @@ export default function AllocationCard({ holdings, quotes, totalValue }) {
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: CATEGORY_COLORS[label] }}
                   />
-                  <span className="text-[var(--color-muted)]">{label}</span>
+                  <span className="font-medium text-[var(--color-muted)]">{label}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-medium tabular-nums text-[var(--color-fg)]">
+                  <span className="font-semibold tabular-nums text-[var(--color-fg)]">
                     {formatCurrency(0)}
                   </span>
-                  <span className="font-mono text-[10px] text-[var(--color-muted)]">0.0%</span>
+                  <span className="font-medium font-mono text-[10px] text-[var(--color-muted)]">0.0%</span>
                 </div>
               </div>
             ))}
@@ -159,15 +159,15 @@ export default function AllocationCard({ holdings, quotes, totalValue }) {
                       className="h-2 w-2 rounded-full"
                       style={{ backgroundColor: CATEGORY_COLORS[segment.label] }}
                     />
-                    <span className={`text-[var(--color-muted)] ${isHovered ? "text-[var(--color-fg)]" : ""}`}>
+                    <span className={`font-medium text-[var(--color-muted)] ${isHovered ? "text-[var(--color-fg)]" : ""}`}>
                       {segment.label}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-medium tabular-nums text-[var(--color-fg)]">
+                    <span className="font-semibold tabular-nums text-[var(--color-fg)]">
                       {formatCurrency(segment.amount)}
                     </span>
-                    <span className="font-mono text-[10px] text-[var(--color-muted)]">
+                    <span className="font-medium font-mono text-[10px] text-[var(--color-muted)]">
                       {percentage}%
                     </span>
                   </div>
