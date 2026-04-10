@@ -21,7 +21,7 @@ export default function NetWorthBanner() {
       <div className="animate-pulse">
         <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-2" />
         <div className="h-9 w-44 bg-[var(--color-border)] rounded mb-4" />
-        <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full mb-3" />
+        <div className="h-2.5 w-full bg-[var(--color-border)] rounded-full mb-3" />
         <div className="flex justify-between">
           <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
           <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
@@ -38,17 +38,16 @@ export default function NetWorthBanner() {
   const liabilitiesPct = total > 0 ? (liabilities / total) * 100 : 0;
 
   return (
-    <div>
+    <Link
+      href="/accounts"
+      className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
+    >
       {/* Header row */}
       <div className="flex items-center justify-between mb-2">
         <div className="card-header">Net Worth</div>
-        <Link
-          href="/accounts"
-          className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors text-lg leading-none"
-          title="View accounts"
-        >
+        <span className="text-[var(--color-muted)] text-lg leading-none transition-transform duration-200 group-hover:translate-x-0.5">
           &#8250;
-        </Link>
+        </span>
       </div>
 
       {/* Number */}
@@ -60,13 +59,13 @@ export default function NetWorthBanner() {
       <div className="w-full flex gap-1 mb-3">
         {assets > 0 && (
           <div
-            className="h-1.5 rounded-full transition-all duration-500"
+            className="h-2.5 rounded-full transition-all duration-500"
             style={{ width: `${assetsPct}%`, backgroundColor: "#059669" }}
           />
         )}
         {liabilities > 0 && (
           <div
-            className="h-1.5 rounded-full transition-all duration-500"
+            className="h-2.5 rounded-full transition-all duration-500"
             style={{ width: `${liabilitiesPct}%`, backgroundColor: "#ef4444" }}
           />
         )}
@@ -89,6 +88,6 @@ export default function NetWorthBanner() {
           </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
