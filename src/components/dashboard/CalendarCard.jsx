@@ -149,7 +149,7 @@ export default function CalendarCard({ className = '' }) {
             return (
               <div
                 key={stream.id || idx}
-                className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+                className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"

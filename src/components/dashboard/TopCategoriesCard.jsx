@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import { Dropdown } from "@slate-ui/react";
+import SegmentedTabs from "../ui/SegmentedTabs";
 import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
@@ -211,15 +211,11 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           <div className="card-header">
             Top Spending
           </div>
-          <Dropdown
-            label={periodOptions.find(p => p.value === selectedPeriod)?.label || 'This Month'}
-            items={periodOptions.map(option => ({
-              label: option.label,
-              onClick: () => setSelectedPeriod(option.value),
-              selected: option.value === selectedPeriod
-            }))}
+          <SegmentedTabs
+            options={periodOptions}
+            value={selectedPeriod}
+            onChange={setSelectedPeriod}
             size="sm"
-            align="right"
           />
         </div>
 
