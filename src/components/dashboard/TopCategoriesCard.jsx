@@ -269,7 +269,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                     <Cell
                       key={`cell-${index}`}
                       fill={isActive || isIdle ? color : 'var(--color-border)'}
-                      opacity={isActive ? 1 : isIdle ? 0.65 : 0.35}
+                      opacity={isActive ? 1 : isIdle ? 1 : 0.4}
                       filter={isActive ? 'url(#donut-glow)' : 'url(#donut-shadow)'}
                       style={{
                         transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',

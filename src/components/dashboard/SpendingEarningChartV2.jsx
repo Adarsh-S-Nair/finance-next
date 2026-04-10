@@ -239,6 +239,10 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            {/* Diagonal stripes overlay */}
+            <pattern id="bar-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-surface)" strokeWidth="1.5" strokeOpacity="0.18" />
+            </pattern>
           </defs>
 
           {/* Grid lines */}
@@ -300,16 +304,21 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                 <g
                   key={`bar-${m}-${i}`}
                   style={{
-                    opacity: activeMonthIndex !== null && !isActive ? 0.4 : 1,
+                    opacity: activeMonthIndex !== null && !isActive ? 0.5 : 1,
                     transition: 'all 0.3s ease',
                   }}
                 >
                   <path
                     d={barPath}
                     fill="var(--color-chart-primary)"
-                    opacity={isActive ? 1 : 0.6}
                     filter={isActive ? 'url(#bar-glow)' : 'url(#bar-shadow)'}
                     style={{ transition: 'all 0.3s ease' }}
+                  />
+                  {/* Diagonal stripes overlay */}
+                  <path
+                    d={barPath}
+                    fill="url(#bar-stripes)"
+                    style={{ pointerEvents: 'none' }}
                   />
 
                   {/* Invisible hover rect */}

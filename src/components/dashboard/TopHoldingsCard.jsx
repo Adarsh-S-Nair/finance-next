@@ -54,7 +54,7 @@ function Sparkline({ data, width = 64, height = 24 }) {
   );
 }
 
-function HoldingLogo({ ticker, logo, assetType, size = 36 }) {
+function HoldingLogo({ ticker, logo, assetType, size = 32 }) {
   const dim = `${size}px`;
   return (
     <div
@@ -248,15 +248,15 @@ export default function TopHoldingsCard() {
           <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="flex items-center gap-3">
-              <div className="h-9 w-9 animate-pulse rounded-full bg-[var(--color-border)]" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)]" />
-                <div className="h-2.5 w-14 animate-pulse rounded bg-[var(--color-border)]" />
+              <div className="h-8 w-8 animate-pulse rounded-full bg-[var(--color-border)]" />
+              <div className="flex-1">
+                <div className="mb-1.5 h-2.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
+                <div className="h-2 w-1/3 animate-pulse rounded bg-[var(--color-border)]" />
               </div>
-              <div className="h-3 w-16 animate-pulse rounded bg-[var(--color-border)]" />
+              <div className="h-2.5 w-12 animate-pulse rounded bg-[var(--color-border)]" />
             </div>
           ))}
         </div>
@@ -271,7 +271,7 @@ export default function TopHoldingsCard() {
         <ViewAllLink href="/investments" />
       </div>
 
-      <div className="space-y-0.5">
+      <div className="flex flex-col -mx-2">
         {holdings.map((h) => {
           const meta = tickerMeta[h.ticker];
           const displayName = meta?.name || h.ticker;
@@ -286,22 +286,21 @@ export default function TopHoldingsCard() {
           return (
             <div
               key={h.ticker}
-              className="flex items-center justify-between gap-3 px-2 py-3.5"
+              className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
             >
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <HoldingLogo
-                  ticker={h.ticker}
-                  logo={meta?.logo}
-                  assetType={h.asset_type}
-                  size={36}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] text-[var(--color-fg)]">
-                    {displayName}
-                  </div>
-                  <div className="mt-0.5 text-xs text-[var(--color-muted)]">
-                    {formatShares(h.shares)} shares
-                  </div>
+              <HoldingLogo
+                ticker={h.ticker}
+                logo={meta?.logo}
+                assetType={h.asset_type}
+                size={32}
+              />
+
+              <div className="min-w-0 flex-1 mr-3">
+                <div className="font-medium text-[var(--color-fg)] truncate text-xs">
+                  {displayName}
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                  {formatShares(h.shares)} shares
                 </div>
               </div>
 
@@ -309,13 +308,13 @@ export default function TopHoldingsCard() {
                 <Sparkline data={sparkData} width={64} height={24} />
               </div>
 
-              <div className="flex-shrink-0 text-right">
-                <div className="text-[13px] tabular-nums text-[var(--color-fg)]">
+              <div className="text-right flex-shrink-0">
+                <div className="font-medium text-xs tabular-nums text-[var(--color-fg)]">
                   {formatCurrency(h.marketValue)}
                 </div>
                 {price != null && (
                   <div
-                    className={`mt-0.5 text-xs tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                    className={`mt-0.5 text-[11px] tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
                   >
                     {gainPct >= 0 ? "+" : ""}
                     {gainPct.toFixed(2)}%
