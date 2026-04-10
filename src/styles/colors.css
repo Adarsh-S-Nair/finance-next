@@ -167,7 +167,7 @@ html,
 body {
   background-color: var(--color-content-bg);
   color: var(--color-fg);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   margin: 0;
   padding: 0;
   width: 100%;

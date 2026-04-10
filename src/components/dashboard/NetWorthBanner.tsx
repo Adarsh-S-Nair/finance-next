@@ -43,7 +43,7 @@ export default function NetWorthBanner() {
       </div>
 
       {/* Number */}
-      <div className="text-4xl font-normal text-[var(--color-fg)] tracking-tight mb-5">
+      <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight mb-5">
         <CurrencyAmount amount={netWorth} />
       </div>
 
