@@ -3,12 +3,76 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { useNetWorth } from "../providers/NetWorthProvider";
+import { useAccounts } from "../providers/AccountsProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
+
+function categorizeAccount(account: { type?: string; subtype?: string }) {
+  const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
+  const liabilityKeywords = ["credit", "loan", "mortgage", "line of credit", "overdraft"];
+  const investmentKeywords = [
+    "investment", "brokerage", "401k", "ira", "retirement",
+    "mutual fund", "stock", "bond",
+  ];
+  if (liabilityKeywords.some((k) => t.includes(k))) {
+    return t.includes("loan") || t.includes("mortgage") || t.includes("line of credit")
+      ? "loans" : "credit";
+  }
+  if (investmentKeywords.some((k) => t.includes(k))) return "investments";
+  return "cash";
+}
+
+interface MiniBarProps {
+  label: string;
+  total: number;
+  segments: { label: string; amount: number; color: string }[];
+}
+
+function MiniBar({ label, total, segments }: MiniBarProps) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+          {label}
+        </span>
+        <span className="text-xs font-semibold text-[var(--color-fg)] tabular-nums">
+          {formatCurrency(total)}
+        </span>
+      </div>
+
+      {/* Bar */}
+      <div className="w-full h-1.5 flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-2.5">
+        {segments.map((seg) => {
+          const pct = total > 0 ? (seg.amount / total) * 100 : 0;
+          if (pct === 0) return null;
+          return (
+            <div
+              key={seg.label}
+              className="h-full transition-all duration-500"
+              style={{ width: `${pct}%`, backgroundColor: seg.color }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4">
+        {segments.map((seg) => (
+          <div key={seg.label} className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: seg.color }} />
+            <span className="text-[11px] text-[var(--color-muted)]">
+              {seg.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function NetWorthBanner() {
   const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
+  const { allAccounts, loading: accountsLoading } = useAccounts();
 
-  // Calculate 30-day % change from history
   const percentChange = useMemo(() => {
     if (!netWorthHistory || netWorthHistory.length < 2) return null;
     const oldest = netWorthHistory[0];
@@ -16,6 +80,27 @@ export default function NetWorthBanner() {
     if (!oldest?.netWorth || oldest.netWorth === 0) return null;
     return ((newest.netWorth - oldest.netWorth) / Math.abs(oldest.netWorth)) * 100;
   }, [netWorthHistory]);
+
+  const breakdown = useMemo(() => {
+    if (accountsLoading || !allAccounts) return null;
+    const totals = { cash: 0, investments: 0, credit: 0, loans: 0 };
+    for (const acc of allAccounts) {
+      const cat = categorizeAccount(acc);
+      totals[cat] += Math.abs(acc.balance);
+    }
+    return {
+      totalAssets: totals.cash + totals.investments,
+      totalLiabilities: totals.credit + totals.loans,
+      assetSegments: [
+        { label: "Cash", amount: totals.cash, color: "#059669" },
+        { label: "Investments", amount: totals.investments, color: "var(--color-neon-green)" },
+      ],
+      liabilitySegments: [
+        { label: "Credit", amount: totals.credit, color: "#ef4444" },
+        { label: "Loans", amount: totals.loans, color: "#b91c1c" },
+      ],
+    };
+  }, [allAccounts, accountsLoading]);
 
   if (loading) {
     return (
@@ -25,17 +110,21 @@ export default function NetWorthBanner() {
           <div className="h-11 w-52 bg-[var(--color-border)] rounded" />
           <div className="h-4 w-16 bg-[var(--color-border)] rounded" />
         </div>
-        <div className="flex gap-6">
-          <div className="h-10 w-32 bg-[var(--color-border)] rounded" />
-          <div className="h-10 w-32 bg-[var(--color-border)] rounded" />
+        <div className="flex gap-8">
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-full bg-[var(--color-border)] rounded" />
+            <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full" />
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-full bg-[var(--color-border)] rounded" />
+            <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full" />
+          </div>
         </div>
       </div>
     );
   }
 
   const netWorth = currentNetWorth?.netWorth ?? 0;
-  const assets = currentNetWorth?.assets ?? 0;
-  const liabilities = currentNetWorth?.liabilities ?? 0;
 
   return (
     <Link
@@ -64,32 +153,21 @@ export default function NetWorthBanner() {
         )}
       </div>
 
-      {/* Assets & Liabilities */}
-      <div className="flex items-center gap-8">
-        <div>
-          <div className="flex items-center gap-1.5 mb-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-              Assets
-            </span>
-          </div>
-          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-            {formatCurrency(assets)}
-          </span>
+      {/* Assets & Liabilities bars */}
+      {breakdown && (
+        <div className="flex items-start gap-8">
+          <MiniBar
+            label="Assets"
+            total={breakdown.totalAssets}
+            segments={breakdown.assetSegments}
+          />
+          <MiniBar
+            label="Liabilities"
+            total={breakdown.totalLiabilities}
+            segments={breakdown.liabilitySegments}
+          />
         </div>
-        <div className="w-px h-8 bg-[var(--color-border)]" />
-        <div>
-          <div className="flex items-center gap-1.5 mb-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-            <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-              Liabilities
-            </span>
-          </div>
-          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-            {formatCurrency(liabilities)}
-          </span>
-        </div>
-      </div>
+      )}
     </Link>
   );
 }
