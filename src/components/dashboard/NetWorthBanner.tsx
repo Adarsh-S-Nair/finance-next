@@ -21,14 +21,13 @@ export default function NetWorthBanner() {
     return (
       <div className="animate-pulse">
         <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-2" />
-        <div className="flex items-baseline gap-3 mb-5">
+        <div className="flex items-baseline gap-3 mb-6">
           <div className="h-11 w-52 bg-[var(--color-border)] rounded" />
           <div className="h-4 w-16 bg-[var(--color-border)] rounded" />
         </div>
-        <div className="h-2.5 w-full bg-[var(--color-border)] rounded-full mb-3" />
-        <div className="flex justify-between">
-          <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
-          <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
+        <div className="flex gap-6">
+          <div className="h-10 w-32 bg-[var(--color-border)] rounded" />
+          <div className="h-10 w-32 bg-[var(--color-border)] rounded" />
         </div>
       </div>
     );
@@ -37,9 +36,6 @@ export default function NetWorthBanner() {
   const netWorth = currentNetWorth?.netWorth ?? 0;
   const assets = currentNetWorth?.assets ?? 0;
   const liabilities = currentNetWorth?.liabilities ?? 0;
-  const total = assets + liabilities;
-  const assetsPct = total > 0 ? (assets / total) * 100 : 100;
-  const liabilitiesPct = total > 0 ? (liabilities / total) * 100 : 0;
 
   return (
     <Link
@@ -55,7 +51,7 @@ export default function NetWorthBanner() {
       </div>
 
       {/* Number + % change */}
-      <div className="flex items-baseline gap-3 mb-5">
+      <div className="flex items-baseline gap-3 mb-6">
         <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight">
           <CurrencyAmount amount={netWorth} />
         </div>
@@ -68,35 +64,28 @@ export default function NetWorthBanner() {
         )}
       </div>
 
-      {/* Segmented bar */}
-      <div className="w-full flex gap-1 mb-3">
-        {assets > 0 && (
-          <div
-            className="h-2.5 rounded-full transition-all duration-500"
-            style={{ width: `${assetsPct}%`, backgroundColor: "#059669" }}
-          />
-        )}
-        {liabilities > 0 && (
-          <div
-            className="h-2.5 rounded-full transition-all duration-500"
-            style={{ width: `${liabilitiesPct}%`, backgroundColor: "#ef4444" }}
-          />
-        )}
-      </div>
-
-      {/* Labels */}
-      <div className="flex items-center justify-between text-xs font-medium text-[var(--color-muted)]">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#059669" }} />
-          <span>Assets</span>
-          <span className="text-[var(--color-fg)] font-medium tabular-nums ml-1">
+      {/* Assets & Liabilities */}
+      <div className="flex items-center gap-8">
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+              Assets
+            </span>
+          </div>
+          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
             {formatCurrency(assets)}
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#ef4444" }} />
-          <span>Liabilities</span>
-          <span className="text-[var(--color-fg)] font-medium tabular-nums ml-1">
+        <div className="w-px h-8 bg-[var(--color-border)]" />
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+              Liabilities
+            </span>
+          </div>
+          <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
             {formatCurrency(liabilities)}
           </span>
         </div>
