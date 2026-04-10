@@ -64,7 +64,7 @@ export default function NetWorthBanner() {
       </div>
 
       {/* Labels */}
-      <div className="flex items-center justify-between text-xs text-[var(--color-muted)]">
+      <div className="flex items-center justify-between text-xs font-medium text-[var(--color-muted)]">
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#059669" }} />
           <span>Assets</span>

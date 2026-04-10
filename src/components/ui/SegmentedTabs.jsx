@@ -49,7 +49,7 @@ export default function SegmentedTabs({
                 key={opt.value}
                 type="button"
                 onClick={() => onChange?.(opt.value)}
-                className={`relative z-10 rounded-full font-medium whitespace-nowrap transition-colors duration-200 cursor-pointer ${buttonSize} ${
+                className={`relative z-10 rounded-full font-semibold whitespace-nowrap transition-colors duration-200 cursor-pointer ${buttonSize} ${
                   isActive
                     ? "text-[var(--color-bg)]"
                     : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
