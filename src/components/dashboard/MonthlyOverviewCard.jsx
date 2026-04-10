@@ -11,7 +11,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   // Use initialMonth if provided, otherwise null (will be set to default later)
   const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
   const [previousMonthName, setPreviousMonthName] = useState("");
-  const [insight, setInsight] = useState(null);
 
   const { user, loading: authLoading } = useUser();
 
@@ -109,24 +108,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
     fetchMonthlyData();
   }, [authLoading, user?.id, selectedMonth]);
-
-  // Fetch spending insight
-  useEffect(() => {
-    if (authLoading || !user?.id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authFetch('/api/dashboard/insights');
-        if (!res.ok || cancelled) return;
-        const { insights } = await res.json();
-        const match = insights?.find((i) => i.id === 'spending-pace');
-        if (!cancelled) setInsight(match || null);
-      } catch {
-        // Insights are non-critical — fail silently
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [authLoading, user?.id]);
 
   const chartContainerRef = useRef(null);
 
@@ -358,20 +339,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               </div>
             </div>
           </div>
-
-          {/* Insight */}
-          {insight && (
-            <div className="flex items-center gap-2 mt-3 animate-fade-in">
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                insight.tone === 'positive' ? 'bg-[var(--color-success)]' :
-                insight.tone === 'negative' ? 'bg-[var(--color-danger)]' :
-                'bg-[var(--color-muted)]'
-              }`} />
-              <span className="text-[11px] text-[var(--color-muted)] leading-tight">
-                {insight.message}
-              </span>
-            </div>
-          )}
 
           {/* Chart */}
           <div ref={chartContainerRef} className="relative flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
