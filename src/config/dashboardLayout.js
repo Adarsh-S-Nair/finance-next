@@ -45,6 +45,10 @@ export const dashboardLayout = {
   // Sidebar (right side, narrower)
   sidebar: [
     {
+      id: 'insights',
+      component: 'InsightsCarousel',
+    },
+    {
       id: 'sidebar-group',
       type: 'row',
       className: 'flex flex-col md:flex-row lg:flex-col gap-10',
