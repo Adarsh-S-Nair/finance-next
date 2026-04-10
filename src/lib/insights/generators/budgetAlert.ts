@@ -1,4 +1,5 @@
 import type { Insight } from '../types';
+import { formatNumber } from '../types';
 
 interface BudgetProgress {
   amount: number;
@@ -26,8 +27,9 @@ export function budgetAlert(budgets: BudgetProgress[]): Insight | null {
 
   return {
     id: 'budget-alert',
+    title: `${name} Budget`,
     priority: 1,
-    message: `Your ${name} budget is ${pct}% spent with ${daysLabel} left this month.`,
+    message: `Your ${name} budget is ${formatNumber(pct)}% spent with ${daysLabel} left this month.`,
     tone: pct >= 90 ? 'negative' : 'neutral',
     feature: 'budgets',
   };

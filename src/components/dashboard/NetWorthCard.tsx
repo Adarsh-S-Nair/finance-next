@@ -463,7 +463,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
                 {dynamicPercentChange > 0 ? '+' : ''}
                 {formatCurrency(displayData.value - (displayChartData[0]?.value || 0))}
                 {' '}
-                ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toFixed(2)}%)
+                ({dynamicPercentChange > 0 ? '+' : ''}{dynamicPercentChange.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)
               </div>
             </div>
           </div>

@@ -38,6 +38,7 @@ export function upcomingBills(streams: RecurringStream[]): Insight | null {
 
   return {
     id: 'upcoming-bills',
+    title: 'Upcoming Bills',
     priority: 3,
     message: `${count} ${billWord} totaling ${formatted} due this week.`,
     tone: 'neutral',

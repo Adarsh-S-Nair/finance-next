@@ -5,19 +5,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../providers/UserProvider";
 import { authFetch } from "../../lib/api/fetch";
 import type { Insight } from "../../lib/insights/types";
+import {
+  LuCircleCheck,
+  LuTriangleAlert,
+  LuInfo,
+} from "react-icons/lu";
 
 const ROTATE_INTERVAL = 8000;
 
-const toneIcon: Record<string, string> = {
-  positive: "▲",
-  negative: "▼",
-  neutral: "●",
-};
-
-const toneColor: Record<string, string> = {
-  positive: "text-emerald-500",
-  negative: "text-rose-500",
-  neutral: "text-[var(--color-muted)]",
+const toneConfig = {
+  positive: {
+    icon: LuCircleCheck,
+    color: "text-emerald-500",
+  },
+  negative: {
+    icon: LuTriangleAlert,
+    color: "text-rose-500",
+  },
+  neutral: {
+    icon: LuInfo,
+    color: "text-[var(--color-muted)]",
+  },
 };
 
 export default function InsightsCarousel() {
@@ -81,7 +89,7 @@ export default function InsightsCarousel() {
   if (loading) {
     return (
       <div className="w-full">
-        <div className="h-3 w-16 animate-pulse rounded bg-[var(--color-border)] mb-6" />
+        <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)] mb-6" />
         <div className="space-y-2.5">
           <div className="h-3.5 w-full animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
@@ -93,12 +101,28 @@ export default function InsightsCarousel() {
   if (insights.length === 0) return null;
 
   const current = insights[activeIndex];
+  const tone = toneConfig[current.tone];
+  const ToneIcon = tone.icon;
 
   return (
     <div className="w-full">
-      {/* Header with chevron nav */}
+      {/* Title row — dynamic per insight */}
       <div className="flex items-center justify-between mb-6">
-        <h3 className="card-header">Insights</h3>
+        <div className="flex items-center gap-2">
+          <ToneIcon className={`w-3.5 h-3.5 ${tone.color}`} />
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={current.id + activeIndex + "-title"}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="card-header"
+            >
+              {current.title}
+            </motion.span>
+          </AnimatePresence>
+        </div>
 
         {insights.length > 1 && (
           <div className="flex items-center gap-0.5">
@@ -120,25 +144,20 @@ export default function InsightsCarousel() {
         )}
       </div>
 
-      {/* Insight content */}
+      {/* Insight message */}
       <div className="relative overflow-hidden min-h-[44px]">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
-          <motion.div
+          <motion.p
             key={current.id + activeIndex}
             custom={direction}
             initial={{ opacity: 0, x: direction * 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: direction * -20 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="flex items-start gap-3"
+            className="text-sm leading-relaxed text-[var(--color-fg)]"
           >
-            <span className={`text-[9px] mt-[5px] flex-shrink-0 ${toneColor[current.tone]}`}>
-              {toneIcon[current.tone]}
-            </span>
-            <p className="text-sm leading-relaxed text-[var(--color-fg)]">
-              {current.message}
-            </p>
-          </motion.div>
+            {current.message}
+          </motion.p>
         </AnimatePresence>
       </div>
 

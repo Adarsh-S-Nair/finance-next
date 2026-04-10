@@ -317,7 +317,7 @@ export default function TopHoldingsCard() {
                     className={`mt-0.5 text-[11px] font-medium tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
                   >
                     {gainPct >= 0 ? "+" : ""}
-                    {gainPct.toFixed(2)}%
+                    {gainPct.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                   </div>
                 )}
               </div>

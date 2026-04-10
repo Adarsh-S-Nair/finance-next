@@ -1,4 +1,5 @@
 import type { Insight } from '../types';
+import { formatNumber } from '../types';
 
 interface SpendingPaceData {
   currentMonthSpending: number;
@@ -19,16 +20,18 @@ export function spendingPace(data: SpendingPaceData): Insight | null {
   if (change < 0) {
     return {
       id: 'spending-pace',
+      title: 'Spending Pace',
       priority: 2,
-      message: `You're spending ${absChange}% less than this point last month. Nice.`,
+      message: `You're spending ${formatNumber(absChange)}% less than this point last month. Nice.`,
       tone: 'positive',
     };
   }
 
   return {
     id: 'spending-pace',
+    title: 'Spending Pace',
     priority: 2,
-    message: `You're spending ${absChange}% faster than this point last month.`,
+    message: `You're spending ${formatNumber(absChange)}% faster than this point last month.`,
     tone: 'negative',
   };
 }

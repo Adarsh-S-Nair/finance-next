@@ -63,7 +63,7 @@ export default function NetWorthBanner() {
           <span className={`text-xs font-semibold ${
             percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
           }`}>
-            {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toFixed(1)}%
+            {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
           </span>
         )}
       </div>

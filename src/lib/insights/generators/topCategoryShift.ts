@@ -1,4 +1,5 @@
 import type { Insight } from '../types';
+import { formatNumber } from '../types';
 
 interface CategoryData {
   label: string;
@@ -39,8 +40,9 @@ export function topCategoryShift(data: TopCategoryShiftData): Insight | null {
 
   return {
     id: 'top-category-shift',
+    title: topCategory.label,
     priority: 4,
-    message: `${topCategory.label} spending is ${pct}% higher than your typical month.`,
+    message: `${topCategory.label} spending is ${formatNumber(pct)}% higher than your typical month.`,
     tone: 'negative',
   };
 }
