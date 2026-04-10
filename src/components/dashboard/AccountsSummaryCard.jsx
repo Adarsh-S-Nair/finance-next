@@ -96,15 +96,15 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
 
   if (total === 0) {
     return (
-      <div className={`space-y-4 ${className}`}>
-        <div className="flex justify-between items-center mb-1">
+      <div className={className}>
+        <div className="flex justify-between items-center mb-5">
           <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
           <span className="text-sm font-semibold text-[var(--color-fg)]">
             <AnimatedCounter value={0} duration={120} />
           </span>
         </div>
-        <div className="w-full h-3 rounded-full overflow-hidden bg-[var(--color-surface-alt)]" />
-        <div className="space-y-2 pt-1">
+        <div className="w-full h-3 rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-6" />
+        <div className="space-y-3.5">
           {segments.map((segment) => {
             let color;
             if (segment.label === 'Investments') color = 'var(--color-neon-green)';
@@ -132,9 +132,9 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
   const displayTotal = total;
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={className}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-1">
+      <div className="flex justify-between items-center mb-5">
         <span className="text-sm font-medium text-[var(--color-fg)]">
           {label}
         </span>
@@ -145,7 +145,7 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
 
       {/* Bar */}
       <div
-        className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface)]"
+        className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-6"
         onMouseLeave={() => setHoveredSegment(null)}
       >
         {segments.map((segment) => {
@@ -177,7 +177,7 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
       </div>
 
       {/* Vertical Legend */}
-      <div className="space-y-2 pt-1">
+      <div className="space-y-3.5">
         {segments.map((segment, index) => {
           let color;
           if (segment.label === 'Investments') color = 'var(--color-neon-green)';
@@ -318,8 +318,8 @@ export function AssetsCard({ width = "full" }) {
 
   return (
     <div className="flex flex-col">
-      <div className="mb-4">
-        <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Assets</div>
+      <div className="mb-6">
+        <div className="card-header">Assets</div>
       </div>
       <SegmentedBar
         segments={assetSegments}
