@@ -9,25 +9,19 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
-  // Use initialMonth if provided, otherwise null (will be set to default later)
   const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
   const [previousMonthName, setPreviousMonthName] = useState("");
 
   const { user, loading: authLoading } = useUser();
 
-  // Update selectedMonth if initialMonth changes (e.g. re-opening the card)
   useEffect(() => {
     if (initialMonth) {
       setSelectedMonth(initialMonth);
     }
   }, [initialMonth]);
 
-  const isLoadingState = (!chartData.length && !selectedMonth); // Simplified loading logic, ideally track fetch state
-
-  // We need a local loading state to track fetch
   const [isFetching, setIsFetching] = useState(true);
 
-  // Generate placeholder chart data for current month (all $0 values)
   const generatePlaceholderChartData = () => {
     const now = new Date();
     const month = now.getMonth();
@@ -40,7 +34,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }));
   };
 
-  // Fetch available months (with retry on failure)
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) { setIsFetching(false); return; }
@@ -55,11 +48,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         const months = result.months || [];
         setAvailableMonths(months);
 
-        // Set current month as default ONLY if no initialMonth was provided
         if (!initialMonth && months.length > 0) {
-          setSelectedMonth(months[0].value); // First item is current month (sorted newest first)
+          setSelectedMonth(months[0].value);
         }
-        // If no months available (fresh account), show placeholder chart with $0 values
         if (months.length === 0) {
           setChartData(generatePlaceholderChartData());
           setIsFetching(false);
@@ -79,7 +70,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     return () => { cancelled = true; };
   }, [authLoading, user?.id, initialMonth]);
 
-  // Fetch data for selected month
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) { setIsFetching(false); return; }
@@ -88,9 +78,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
       setIsFetching(true);
       try {
-        // Parse the month value (format: "YYYY-MM")
         const [year, month] = selectedMonth.split('-');
-        const monthIndex = parseInt(month) - 1; // Convert to 0-indexed
+        const monthIndex = parseInt(month) - 1;
 
         const response = await authFetch(
           `/api/transactions/monthly-overview?month=${monthIndex}&year=${year}`
@@ -120,9 +109,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     setActiveIndex(null);
   }, []);
 
-  // Determine which data point to display (hovered or last with valid spending data)
   const lastValidDataPoint = useMemo(() => {
-    // Find the last data point that has a non-null spending value
     for (let i = chartData.length - 1; i >= 0; i--) {
       if (chartData[i]?.spending !== null && chartData[i]?.spending !== undefined) {
         return chartData[i];
@@ -131,7 +118,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     return chartData[chartData.length - 1] || null;
   }, [chartData]);
 
-  // Find the full previous month total (last non-null previousSpending value)
   const fullPreviousMonthSpending = useMemo(() => {
     for (let i = chartData.length - 1; i >= 0; i--) {
       if (chartData[i]?.previousSpending !== null && chartData[i]?.previousSpending !== undefined) {
@@ -141,12 +127,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     return 0;
   }, [chartData]);
 
-  // When hovering, use the hovered data point but fall back to lastValidDataPoint's spending
-  // if the hovered point has null spending (future dates in current month)
   const currentData = useMemo(() => {
     if (activeIndex !== null && chartData[activeIndex]) {
       const hoveredPoint = chartData[activeIndex];
-      // If hovering over a future date with null spending, use last valid spending value
       if (hoveredPoint.spending === null || hoveredPoint.spending === undefined) {
         return {
           ...hoveredPoint,
@@ -158,7 +141,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     return lastValidDataPoint;
   }, [activeIndex, chartData, lastValidDataPoint]);
 
-  // Previous month spending: show full month total when not hovering, day-matched when hovering
   const displayPreviousSpending = useMemo(() => {
     if (activeIndex !== null && chartData[activeIndex]) {
       return chartData[activeIndex]?.previousSpending ?? 0;
@@ -174,7 +156,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }).format(value);
   };
 
-  // MoM percentage comparison
   const momComparison = useMemo(() => {
     const current = currentData?.spending || 0;
     const previous = displayPreviousSpending || 0;
@@ -185,12 +166,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     if (absChange < 1) return null;
 
     return {
-      percentage: absChange,
+      percentage: absChange.toLocaleString('en-US'),
       direction: change > 0 ? 'up' : 'down',
     };
   }, [currentData?.spending, displayPreviousSpending]);
 
-  // Tooltip data for hovered day
   const hoveredDayTransactions = useMemo(() => {
     if (activeIndex === null || !chartData[activeIndex]) return null;
     const point = chartData[activeIndex];
@@ -203,45 +183,35 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     };
   }, [activeIndex, chartData]);
 
-  // Calculate tooltip horizontal position as percentage from activeIndex
   const tooltipStyle = useMemo(() => {
     if (activeIndex === null || !chartData.length) return {};
     const pct = (activeIndex / Math.max(chartData.length - 1, 1)) * 100;
-    // Clamp so tooltip doesn't overflow edges
     const left = Math.max(10, Math.min(90, pct));
     return { left: `${left}%` };
   }, [activeIndex, chartData.length]);
 
   const showLoading = isFetching;
 
-  // Derive the selected month's display name from the "YYYY-MM" value
   const selectedMonthName = useMemo(() => {
     if (!selectedMonth) return '';
     const [y, m] = selectedMonth.split('-');
     return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
   }, [selectedMonth]);
 
-
-  // Skeleton Loader Component
   const SkeletonLoader = () => (
     <div className="flex flex-col h-full animate-pulse">
-      <div className="pt-0">
-        <div className="flex justify-between items-start mb-6">
-          <div className="h-5 w-32 bg-[var(--color-border)] rounded" />
-          <div className="h-5 w-24 bg-[var(--color-border)] rounded" />
-        </div>
-        <div className="flex gap-4 mb-6">
-          <div>
-            <div className="h-8 w-24 bg-[var(--color-border)] rounded mb-1" />
-            <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
-          </div>
-          <div>
-            <div className="h-8 w-24 bg-[var(--color-border)] rounded mb-1" />
-            <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
-          </div>
-        </div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
+        <div className="h-7 w-24 bg-[var(--color-border)] rounded" />
       </div>
-      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 mt-4 rounded-lg" />
+      <div className="mb-2">
+        <div className="h-9 w-32 bg-[var(--color-border)] rounded mb-2" />
+        <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
+      </div>
+      <div className="mt-2 mb-4">
+        <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
+      </div>
+      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 rounded-lg" />
     </div>
   );
 
@@ -251,98 +221,86 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         <SkeletonLoader />
       ) : (
         <div className="flex flex-col h-full">
-          {/* Custom Header */}
-          {/* Custom Header */}
-          <div className="px-0 pt-0 pb-3 flex justify-between items-start">
-            {/* Left Side: Title and Values */}
-            <div>
-              {/* Title */}
-              <div
-                className={`flex items-center gap-1 mb-3 sm:mb-4 ${onBack ? 'cursor-pointer group' : ''}`}
-                onClick={onBack}
-              >
-                {onBack && (
-                  <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                  </div>
-                )}
-                <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
-                  Monthly Spending
+          {/* Header row: title + dropdown */}
+          <div className="flex items-center justify-between mb-6">
+            <div
+              className={`flex items-center gap-1 ${onBack ? 'cursor-pointer group' : ''}`}
+              onClick={onBack}
+            >
+              {onBack && (
+                <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
                 </div>
-              </div>
-
-              {/* Values Row */}
-              <div className="flex items-baseline gap-6 sm:gap-10">
-                <div>
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
-                    <CurrencyAmount amount={currentData?.spending || 0} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-[var(--color-chart-primary)]" />
-                      <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{selectedMonthName || 'This month'}</span>
-                    </div>
-                    {momComparison && (
-                      <span className={`text-[10px] sm:text-[11px] font-medium ${
-                        momComparison.direction === 'down'
-                          ? 'text-[var(--color-success)]'
-                          : 'text-[var(--color-danger)]'
-                      }`}>
-                        {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-muted)]/50 mb-1">
-                    <CurrencyAmount amount={displayPreviousSpending} />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-600" />
-                    <span className="text-[10px] sm:text-xs font-medium text-[var(--color-muted)]">{previousMonthName || "Previous"}</span>
-                  </div>
-                </div>
-
+              )}
+              <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
+                Monthly Spending
               </div>
             </div>
 
-            {/* Right Side: Controls */}
-            <div className="flex flex-col items-end gap-2">
-              {/* Top Row: Date + Dropdown */}
-              <div className="flex items-center gap-2 sm:gap-4">
-                {/* Dynamic Date Display - hidden on very small screens */}
-                {currentData?.dateString && (
-                  <span className="hidden sm:inline text-sm font-medium text-[var(--color-fg)]">
-                    {currentData.dateString}
-                  </span>
-                )}
-
-                {/* Month Dropdown */}
-                {availableMonths.length > 0 && (
-                  <Dropdown
-                    label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
-                    items={availableMonths.map((month) => ({
-                      label: month.label,
-                      onClick: () => setSelectedMonth(month.value),
-                      selected: month.value === selectedMonth
-                    }))}
-                    size="sm"
-                    align="right"
-                  />
-                )}
-                {availableMonths.length === 0 && (
-                  <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
-                    {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center">
+              {availableMonths.length > 0 && (
+                <Dropdown
+                  label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
+                  items={availableMonths.map((month) => ({
+                    label: month.label,
+                    onClick: () => setSelectedMonth(month.value),
+                    selected: month.value === selectedMonth
+                  }))}
+                  size="sm"
+                  align="right"
+                />
+              )}
+              {availableMonths.length === 0 && (
+                <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
+                  {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+                </span>
+              )}
             </div>
           </div>
 
+          {/* Hero number */}
+          <div className="mb-1">
+            <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)]">
+              <CurrencyAmount amount={currentData?.spending || 0} />
+            </div>
+          </div>
+
+          {/* Current month label + MoM */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-chart-primary)]" />
+              <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                {selectedMonthName || 'This month'}
+              </span>
+            </div>
+            {momComparison && (
+              <span className={`text-[11px] font-semibold ${
+                momComparison.direction === 'down'
+                  ? 'text-emerald-500'
+                  : 'text-rose-500'
+              }`}>
+                {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
+              </span>
+            )}
+          </div>
+
+          {/* Previous month secondary stat */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
+              <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                {previousMonthName || 'Previous'}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
+              {formatCurrency(displayPreviousSpending)}
+            </span>
+          </div>
+
           {/* Chart */}
-          <div ref={chartContainerRef} className="relative flex-1 w-full mt-4" onMouseLeave={handleMouseLeave}>
+          <div ref={chartContainerRef} className="relative flex-1 w-full" onMouseLeave={handleMouseLeave}>
             <LineChart
               data={chartData}
               width="100%"
@@ -378,7 +336,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               showGrid={false}
               xAxisInterval={4}
               formatYAxis={(val) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(val)}
-              formatXAxis={(val) => val.split(' ')[1] || val} // Show day number if possible
+              formatXAxis={(val) => val.split(' ')[1] || val}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
             />
