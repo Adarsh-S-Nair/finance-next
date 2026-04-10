@@ -44,9 +44,7 @@ export function CurrencyAmount({
   return (
     <span className="inline-flex items-baseline">
       {isNegative && <span>-</span>}
-      <span className={`text-[0.65em] font-normal opacity-50 mr-0.5 ${dollarClassName}`}>
-        $
-      </span>
+      <span className={dollarClassName}>$</span>
       <span className={amountClassName}>{formatted}</span>
     </span>
   );

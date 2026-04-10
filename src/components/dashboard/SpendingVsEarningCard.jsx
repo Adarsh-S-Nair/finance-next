@@ -42,7 +42,7 @@ function AnimatedCounter({ value, duration = 1000, showCents = true }) {
     return (
       <span className="inline-flex items-baseline">
         {isNegative && <span>-</span>}
-        <span className="text-[0.65em] font-normal opacity-50 mr-0.5">$</span>
+        <span>$</span>
         <span>{number}</span>
       </span>
     );
@@ -53,7 +53,7 @@ function AnimatedCounter({ value, duration = 1000, showCents = true }) {
   return (
     <span className="inline-flex items-baseline">
       {isNegative && <span>-</span>}
-      <span className="text-[0.65em] font-normal opacity-50 mr-0.5">$</span>
+      <span>$</span>
       <span>{main}</span>
       <span className="text-lg text-[var(--color-muted)] font-medium">.{cents}</span>
     </span>
