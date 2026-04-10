@@ -33,6 +33,8 @@ export default function DashboardPage() {
   const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
+  const [budgets, setBudgets] = useState([]);
+  const [budgetsLoading, setBudgetsLoading] = useState(true);
 
   // Handle return from Stripe Checkout (?upgraded=1)
   useEffect(() => {
@@ -101,26 +103,62 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, [authLoading, user?.id]);
 
+  // Fetch budgets at dashboard level so we can hide the card when empty
+  useEffect(() => {
+    if (authLoading || !user?.id) return;
+    let cancelled = false;
+    setBudgetsLoading(true);
+    authFetch('/api/budgets')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        setBudgets(json?.data || []);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('[dashboard] budgets fetch error:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setBudgetsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [authLoading, user?.id]);
+
+  const hasBudgets = budgets.length > 0;
+
   // Components that receive pre-fetched summary data from the dashboard
   const summaryDataMap = {
     'SpendingVsEarningCard': summaryData?.spendingEarning,
     'TopCategoriesCard': summaryData?.spendingByCategory,
   };
 
+  // Components that receive additional pre-fetched props
+  const extraPropsMap = {
+    'BudgetsCard': { budgets, loading: budgetsLoading },
+  };
+
+  // Items that should be hidden based on current state
+  const isItemHidden = (component) => {
+    if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
+    return false;
+  };
+
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
+      const visibleItems = item.items.filter((sub) => !isItemHidden(sub.component));
+      if (visibleItems.length === 0) return null;
       return (
         <div
           key={item.id}
           className={item.className || `flex flex-col lg:flex-row gap-5 ${item.height || ''}`}
         >
-          {item.items.map((subItem) => {
+          {visibleItems.map((subItem) => {
             const Component = componentMap[subItem.component];
             if (!Component) return null;
-            const extraProps = summaryDataMap[subItem.component]
-              ? { data: summaryDataMap[subItem.component] }
-              : {};
+            const extraProps = {
+              ...(summaryDataMap[subItem.component] ? { data: summaryDataMap[subItem.component] } : {}),
+              ...(extraPropsMap[subItem.component] || {}),
+            };
             return (
               <div
                 key={subItem.id}
@@ -134,11 +172,14 @@ export default function DashboardPage() {
       );
     }
 
+    if (isItemHidden(item.component)) return null;
+
     const Component = componentMap[item.component];
     if (!Component) return null;
-    const extraProps = summaryDataMap[item.component]
-      ? { data: summaryDataMap[item.component] }
-      : {};
+    const extraProps = {
+      ...(summaryDataMap[item.component] ? { data: summaryDataMap[item.component] } : {}),
+      ...(extraPropsMap[item.component] || {}),
+    };
 
     return (
       <div key={item.id} className={item.height || ''}>

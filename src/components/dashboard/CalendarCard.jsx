@@ -3,178 +3,115 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { authFetch } from '../../lib/api/fetch';
 import { useUser } from '../providers/UserProvider';
-import { FiChevronLeft, FiChevronRight, FiTag, FiX } from 'react-icons/fi';
+import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import Drawer from '../ui/Drawer';
 import ViewAllLink from '../ui/ViewAllLink';
 
-const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
-function getDaysInMonth(year, month) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function getFirstDayOfMonth(year, month) {
-  return new Date(year, month, 1).getDay();
-}
-
-// Helper to calculate next due date if the current one is in the past
-const getNextDueDate = (dateStr, frequency) => {
-  if (!dateStr) return null;
+// Get next occurrence on/after today for a recurring stream
+const getNextOccurrence = (stream) => {
+  const baseDate = stream.predicted_next_date || stream.last_date;
+  if (!baseDate) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const date = new Date(dateStr);
 
-  // If date is in future or today, return it
-  if (date >= today) return dateStr;
+  const [y, m, d] = baseDate.split('-').map(Number);
+  let date = new Date(y, m - 1, d);
 
-  // If date is in past, calculate next occurrence based on frequency
-  if (!frequency) return dateStr;
+  if (date >= today) return date;
+  if (!stream.frequency) return date;
 
-  const nextDate = new Date(date);
-  while (nextDate < today) {
-    switch (frequency) {
+  let iterations = 0;
+  while (date < today && iterations < 500) {
+    switch (stream.frequency) {
       case 'WEEKLY':
-        nextDate.setDate(nextDate.getDate() + 7);
+        date.setDate(date.getDate() + 7);
         break;
       case 'BIWEEKLY':
       case 'SEMI_MONTHLY':
-        nextDate.setDate(nextDate.getDate() + 14);
+        date.setDate(date.getDate() + 14);
         break;
       case 'MONTHLY':
-        nextDate.setMonth(nextDate.getMonth() + 1);
+        date.setMonth(date.getMonth() + 1);
         break;
       case 'ANNUALLY':
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        date.setFullYear(date.getFullYear() + 1);
         break;
       default:
-        return dateStr;
+        return date;
     }
+    iterations++;
   }
-
-  return nextDate.toISOString().split('T')[0];
+  return date;
 };
 
-
-// Generate ALL occurrences of a recurring stream for a given month (past and future)
-const getOccurrencesForMonth = (stream, year, month) => {
-  const occurrences = [];
+// Count all occurrences of a stream within the current month (for summary)
+const getMonthOccurrenceCount = (stream, year, month) => {
   const baseDate = stream.last_date || stream.predicted_next_date;
-  if (!baseDate || !stream.frequency) return occurrences;
+  if (!baseDate || !stream.frequency) return 0;
 
   const monthStart = new Date(year, month, 1);
-  const monthEnd = new Date(year, month + 1, 0);
-  monthEnd.setHours(23, 59, 59, 999);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-  // Start from the original recurring date
-  let currentDate = new Date(baseDate);
+  const [y, m, d] = baseDate.split('-').map(Number);
+  let current = new Date(y, m - 1, d);
 
-  // If the base date is after our target month, we can't have occurrences
-  // (unless it's a past-dated stream that hasn't happened yet)
-  if (currentDate > monthEnd) return occurrences;
+  if (current > monthEnd) return 0;
 
-  // Fast forward or rewind to find the first occurrence in or before the target month
-  // First, if we're way before the month, fast forward
+  let count = 0;
   let iterations = 0;
-  const maxIterations = 500; // Safety limit for very old streams
-
-  while (currentDate < monthStart && iterations < maxIterations) {
-    const nextDate = new Date(currentDate);
+  while (current <= monthEnd && iterations < 500) {
+    if (current >= monthStart) count++;
     switch (stream.frequency) {
       case 'WEEKLY':
-        nextDate.setDate(nextDate.getDate() + 7);
+        current.setDate(current.getDate() + 7);
         break;
       case 'BIWEEKLY':
       case 'SEMI_MONTHLY':
-        nextDate.setDate(nextDate.getDate() + 14);
+        current.setDate(current.getDate() + 14);
         break;
       case 'MONTHLY':
-        nextDate.setMonth(nextDate.getMonth() + 1);
+        current.setMonth(current.getMonth() + 1);
         break;
       case 'ANNUALLY':
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        current.setFullYear(current.getFullYear() + 1);
         break;
       default:
-        return occurrences;
-    }
-
-    // If next occurrence would be past the month, stop at current
-    if (nextDate > monthEnd) break;
-
-    currentDate = nextDate;
-    iterations++;
-  }
-
-  // Now collect all occurrences within this month
-  iterations = 0;
-  const monthIterationLimit = 10;
-
-  while (currentDate <= monthEnd && iterations < monthIterationLimit) {
-    if (currentDate >= monthStart && currentDate <= monthEnd) {
-      occurrences.push(currentDate.toISOString().split('T')[0]);
-    }
-
-    // Move to next occurrence
-    switch (stream.frequency) {
-      case 'WEEKLY':
-        currentDate.setDate(currentDate.getDate() + 7);
-        break;
-      case 'BIWEEKLY':
-      case 'SEMI_MONTHLY':
-        currentDate.setDate(currentDate.getDate() + 14);
-        break;
-      case 'MONTHLY':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case 'ANNUALLY':
-        currentDate.setFullYear(currentDate.getFullYear() + 1);
-        break;
-      default:
-        iterations = monthIterationLimit;
+        return count;
     }
     iterations++;
   }
+  return count;
+};
 
-  return occurrences;
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
+const formatRelativeDate = (date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays > 1 && diffDays <= 6) return `In ${diffDays} days`;
+  return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 export default function CalendarCard({ className = '' }) {
   const { user, isPro, loading: authLoading } = useUser();
-  const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [recurring, setRecurring] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [hoveredDate, setHoveredDate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-  // Format currency helper
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  // Format date for tooltip
-  const formatDateForTooltip = (dateStr) => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Fetch recurring streams (Pro only)
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) { setLoading(false); return; }
@@ -186,7 +123,6 @@ export default function CalendarCard({ className = '' }) {
       }
       try {
         setLoading(true);
-        // Fetch all recurring streams (both inflow and outflow) by removing streamType filter
         const response = await authFetch(`/api/recurring/get`);
         if (!response.ok) throw new Error('Failed to fetch');
         const result = await response.json();
@@ -200,116 +136,50 @@ export default function CalendarCard({ className = '' }) {
     fetchRecurring();
   }, [authLoading, user?.id, isPro]);
 
-  // Build calendar grid
-  const calendarDays = useMemo(() => {
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
-    const days = [];
+  // Upcoming items: next 6 occurrences sorted by date
+  const upcoming = useMemo(() => {
+    return recurring
+      .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
+      .filter((item) => item.nextDate)
+      .sort((a, b) => a.nextDate - b.nextDate)
+      .slice(0, 6);
+  }, [recurring]);
 
-    // Previous month's trailing days
-    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const daysInPrevMonth = getDaysInMonth(prevYear, prevMonth);
-
-    for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({
-        day: daysInPrevMonth - i,
-        isCurrentMonth: false,
-        isPrevMonth: true,
-        date: `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(daysInPrevMonth - i).padStart(2, '0')}`
-      });
-    }
-
-    // Current month days
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push({
-        day,
-        isCurrentMonth: true,
-        isPrevMonth: false,
-        date: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      });
-    }
-
-    // Next month's leading days to complete the grid (6 rows * 7 days = 42)
-    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-    const remainingDays = 42 - days.length;
-
-    for (let day = 1; day <= remainingDays; day++) {
-      days.push({
-        day,
-        isCurrentMonth: false,
-        isPrevMonth: false,
-        date: `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      });
-    }
-
-    return days;
-  }, [currentMonth, currentYear]);
-
-  // Map dates to their recurring streams for displayed months
-  const dateToStreams = useMemo(() => {
-    const map = {};
-
-    // Check current month, prev month, and next month for occurrences
-    const monthsToCheck = [
-      { year: currentYear, month: currentMonth },
-      { year: currentMonth === 0 ? currentYear - 1 : currentYear, month: currentMonth === 0 ? 11 : currentMonth - 1 },
-      { year: currentMonth === 11 ? currentYear + 1 : currentYear, month: currentMonth === 11 ? 0 : currentMonth + 1 }
-    ];
-
-    recurring.forEach(stream => {
-      monthsToCheck.forEach(({ year, month }) => {
-        const occurrences = getOccurrencesForMonth(stream, year, month);
-        occurrences.forEach(date => {
-          if (!map[date]) map[date] = [];
-          map[date].push(stream);
-        });
-      });
-    });
-
-    return map;
-  }, [recurring, currentMonth, currentYear]);
-
-  const todayString = useMemo(() => {
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  }, []);
-
-  // Calculate monthly summary stats - paid vs remaining
+  // Current month summary (outflows only) — paid vs remaining
   const monthlySummary = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const today = new Date(year, month, now.getDate());
+    today.setHours(0, 0, 0, 0);
+
     let paidAmount = 0;
     let remainingAmount = 0;
     let paidCount = 0;
     let remainingCount = 0;
-    const seenStreams = new Map(); // Track stream id -> { amount, isPast }
 
-    // Count unique streams and their amounts for current month
-    Object.entries(dateToStreams).forEach(([date, streams]) => {
-      // Check if date is in current displayed month
-      const [year, month] = date.split('-').map(Number);
-      if (year === currentYear && month === currentMonth + 1) {
-        const isPastDate = date < todayString;
+    recurring.forEach((stream) => {
+      if (stream.stream_type !== 'outflow') return;
+      const occurrenceCount = getMonthOccurrenceCount(stream, year, month);
+      if (occurrenceCount === 0) return;
 
-        streams.forEach(stream => {
-          // Only count outflows (bills) for the summary/progress bar
-          if (stream.stream_type === 'outflow' && !seenStreams.has(stream.id)) {
-            seenStreams.set(stream.id, {
-              amount: stream.last_amount || 0,
-              isPast: isPastDate
-            });
-          }
-        });
-      }
-    });
+      // Determine if next occurrence is still ahead or already passed
+      const next = getNextOccurrence(stream);
+      const nextInThisMonth = next && next.getFullYear() === year && next.getMonth() === month;
+      const amount = Math.abs(stream.last_amount || 0);
 
-    // Sum up paid and remaining
-    seenStreams.forEach(({ amount, isPast }) => {
-      if (isPast) {
-        paidAmount += amount;
-        paidCount++;
-      } else {
+      if (nextInThisMonth) {
         remainingAmount += amount;
-        remainingCount++;
+        remainingCount += 1;
+        // Any occurrences before "next" are already paid
+        if (occurrenceCount > 1) {
+          paidAmount += amount * (occurrenceCount - 1);
+          paidCount += occurrenceCount - 1;
+        }
+      } else {
+        // All this month's occurrences are in the past
+        paidAmount += amount * occurrenceCount;
+        paidCount += occurrenceCount;
       }
     });
 
@@ -318,110 +188,31 @@ export default function CalendarCard({ className = '' }) {
     const paidPercentage = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
 
     return { paidAmount, remainingAmount, totalAmount, paidCount, remainingCount, totalCount, paidPercentage };
-  }, [dateToStreams, currentMonth, currentYear, todayString]);
-
-  const goToPrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else {
-      setCurrentMonth(currentMonth - 1);
-    }
-  };
-
-  const goToNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(currentMonth + 1);
-    }
-  };
-
-  const goToToday = () => {
-    setCurrentMonth(today.getMonth());
-    setCurrentYear(today.getFullYear());
-  };
-
-  // Render the event indicator - positioned bottom-right, slightly overlapping date
-  const renderEventIndicator = (streams, isPast = false) => {
-    if (!streams || streams.length === 0) return null;
-
-    const maxVisible = 2;
-    const visibleStreams = streams.slice(0, maxVisible);
-    const overflow = streams.length - maxVisible;
-
-    return (
-      <div
-        className={`absolute -bottom-0.5 -right-0.5 flex items-center ${isPast ? 'opacity-60 saturate-50' : ''}`}
-      >
-        <div className="flex -space-x-1.5">
-          {visibleStreams.map((stream, idx) => (
-            <div
-              key={stream.id || idx}
-              className="w-4 h-4 rounded-full border-[1.5px] border-[var(--color-surface)] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm"
-              style={{
-                backgroundColor: (!DISABLE_LOGOS && stream.icon_url && stream.merchant_name)
-                  ? 'transparent'
-                  : (stream.category_hex_color || 'var(--color-accent)'),
-                zIndex: 10 + (maxVisible - idx),
-              }}
-            >
-              {(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? (
-                <img
-                  src={stream.icon_url}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <DynamicIcon
-                  iconLib={stream.category_icon_lib}
-                  iconName={stream.category_icon_name}
-                  className="w-2.5 h-2.5 text-white"
-                  fallback={FiTag}
-                />
-              )}
-            </div>
-          ))}
-          {overflow > 0 && (
-            <div
-              className="w-4 h-4 rounded-full border-[1.5px] border-[var(--color-surface)] flex items-center justify-center bg-[var(--color-muted)] shadow-sm"
-              style={{ zIndex: 10 }}
-            >
-              <span className="text-[8px] font-bold text-white">+{overflow}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  }, [recurring]);
 
   if (loading) {
     return (
       <div className={`flex flex-col ${className}`}>
         <div className="animate-pulse">
-          {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="h-4 bg-[var(--color-border)] rounded w-40" />
             <div className="h-4 bg-[var(--color-border)] rounded w-14" />
           </div>
-          {/* Month nav */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-4 bg-[var(--color-border)] rounded w-8" />
-            <div className="h-4 bg-[var(--color-border)] rounded w-28" />
-            <div className="h-4 bg-[var(--color-border)] rounded w-8" />
+          <div className="mb-4">
+            <div className="h-7 bg-[var(--color-border)] rounded w-32 mb-2" />
+            <div className="h-1.5 bg-[var(--color-border)] rounded w-full mb-2" />
+            <div className="h-3 bg-[var(--color-border)] rounded w-full" />
           </div>
-          {/* Day labels */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="h-3 bg-[var(--color-border)] rounded mx-auto w-6" />
-            ))}
-          </div>
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {[...Array(35)].map((_, i) => (
-              <div key={i} className="h-9 bg-[var(--color-border)] rounded" />
+          <div className="space-y-3 mt-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[var(--color-border)]" />
+                <div className="flex-1">
+                  <div className="h-3 bg-[var(--color-border)] rounded w-2/3 mb-1.5" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-1/3" />
+                </div>
+                <div className="h-3 bg-[var(--color-border)] rounded w-14" />
+              </div>
             ))}
           </div>
         </div>
@@ -431,7 +222,6 @@ export default function CalendarCard({ className = '' }) {
 
   return (
     <div className={`flex flex-col ${className}`}>
-
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="card-header">Recurring Transactions</h3>
@@ -439,13 +229,13 @@ export default function CalendarCard({ className = '' }) {
       </div>
 
       {/* Bills Summary Header */}
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="flex items-baseline justify-between mb-2">
           <div>
             <span className="text-2xl font-semibold text-[var(--color-fg)] tracking-tight">
               {formatCurrency(monthlySummary.remainingAmount)}
             </span>
-            <span className="text-xs text-[var(--color-muted)] ml-1">remaining</span>
+            <span className="text-xs text-[var(--color-muted)] ml-1">remaining this month</span>
           </div>
           <div className="text-xs text-[var(--color-muted)] font-medium">
             {monthlySummary.totalCount} bill{monthlySummary.totalCount !== 1 ? 's' : ''}
@@ -466,139 +256,73 @@ export default function CalendarCard({ className = '' }) {
         </div>
       </div>
 
-      {/* Month Navigation */}
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={goToPrevMonth}
-          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-          aria-label="Previous month"
-        >
-          <FiChevronLeft className="w-4 h-4" />
-        </button>
-
-        <div className="text-sm font-medium text-[var(--color-fg)]">
-          {MONTHS[currentMonth]} {currentYear}
+      {/* Up Next Section */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
+          Up Next
         </div>
-
-        <button
-          onClick={goToNextMonth}
-          className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-          aria-label="Next month"
-        >
-          <FiChevronRight className="w-4 h-4" />
-        </button>
       </div>
 
-      {/* Days of Week Header */}
-      <div className="grid grid-cols-7 mb-2">
-        {DAYS_OF_WEEK.map((day) => (
-          <div
-            key={day}
-            className="text-center text-[10px] font-medium text-[var(--color-muted)] uppercase tracking-wider py-1"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
+      {upcoming.length > 0 ? (
+        <div className="flex flex-col -mx-2">
+          {upcoming.map(({ stream, nextDate }, idx) => {
+            const showLogo = !DISABLE_LOGOS && stream.icon_url && stream.merchant_name;
+            const isInflow = stream.stream_type === 'inflow';
+            const amount = stream.last_amount || 0;
 
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1">
-        {calendarDays.map((dayData, index) => {
-          const isToday = dayData.date === todayString;
-          const streams = dateToStreams[dayData.date] || [];
-          const hasEvents = streams.length > 0;
-          const isHovered = hoveredDate === dayData.date;
-          const isPastDate = dayData.date < todayString;
-
-          return (
-            <div
-              key={index}
-              className={`
-                relative flex items-center justify-center
-                text-xs transition-all duration-150 rounded-lg cursor-default aspect-square
-                ${dayData.isCurrentMonth
-                  ? 'text-[var(--color-fg)]'
-                  : 'text-[var(--color-muted)]/40'
-                }
-                ${isToday
-                  ? 'bg-[var(--color-muted)]/15'
-                  : ''
-                }
-                ${hasEvents ? 'cursor-pointer hover:bg-[var(--color-surface-alt)]' : ''}
-              `}
-              onMouseEnter={() => hasEvents && setHoveredDate(dayData.date)}
-              onMouseLeave={() => setHoveredDate(null)}
-            >
-              {/* Date number */}
-              <span
-                className={`
-                  leading-none font-medium
-                  ${isToday ? 'font-semibold' : ''}
-                `}
+            return (
+              <div
+                key={stream.id || idx}
+                className="flex items-center gap-4 py-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
               >
-                {dayData.day}
-              </span>
-
-              {/* Event icons - bottom right corner, slightly overlapping */}
-              {renderEventIndicator(streams, isPastDate)}
-
-              {/* Hover Tooltip */}
-              {isHovered && hasEvents && (
                 <div
-                  className="absolute z-50 bottom-full left-1/2 mb-2 pointer-events-none tooltip-pop"
-                  style={{ minWidth: '160px' }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                  style={{
+                    backgroundColor: showLogo
+                      ? 'transparent'
+                      : (stream.category_hex_color || 'var(--color-accent)'),
+                  }}
                 >
-                  <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-2.5">
-                    {/* Date header */}
-                    <div className="text-[10px] font-medium text-[var(--color-muted)] mb-2">
-                      {formatDateForTooltip(dayData.date)}
-                    </div>
+                  {showLogo ? (
+                    <img
+                      src={stream.icon_url}
+                      alt={stream.merchant_name || ''}
+                      className="w-full h-full object-cover rounded-full"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <DynamicIcon
+                      iconLib={stream.category_icon_lib}
+                      iconName={stream.category_icon_name}
+                      className="h-5 w-5 text-white"
+                      fallback={FiTag}
+                    />
+                  )}
+                </div>
 
-                    {/* Recurring items */}
-                    <div className="space-y-1.5">
-                      {streams.map((stream, idx) => (
-                        <div key={stream.id || idx} className="flex items-center gap-2">
-                          <div
-                            className="w-4 h-4 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                            style={{
-                              backgroundColor: (!DISABLE_LOGOS && stream.icon_url && stream.merchant_name)
-                                ? 'transparent'
-                                : (stream.category_hex_color || 'var(--color-accent)'),
-                            }}
-                          >
-                            {(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? (
-                              <img
-                                src={stream.icon_url}
-                                alt=""
-                                className="w-full h-full object-cover rounded-full"
-                              />
-                            ) : (
-                              <DynamicIcon
-                                iconLib={stream.category_icon_lib}
-                                iconName={stream.category_icon_name}
-                                className="w-2.5 h-2.5 text-white"
-                                fallback={FiTag}
-                              />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[11px] font-medium text-[var(--color-fg)] truncate max-w-[150px]">
-                              {stream.merchant_name || stream.description}
-                            </div>
-                          </div>
-                          <div className={`text-[11px] font-semibold tabular-nums ${stream.stream_type === 'inflow' ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
-                            {stream.stream_type === 'inflow' ? '+' : ''}{formatCurrency(stream.last_amount)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="min-w-0 flex-1 mr-4">
+                  <div className="font-medium text-[var(--color-fg)] truncate text-sm">
+                    {stream.merchant_name || stream.description || 'Recurring'}
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                    {formatRelativeDate(nextDate)}
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+                <div className="text-right flex-shrink-0">
+                  <div className={`font-medium text-sm tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+                    {isInflow ? '+' : ''}{formatCurrency(amount)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-xs text-[var(--color-muted)]">
+          {isPro ? 'No upcoming recurring transactions' : 'Upgrade to Pro to see recurring transactions'}
+        </div>
+      )}
 
       {/* View All Drawer */}
       <Drawer
@@ -609,7 +333,6 @@ export default function CalendarCard({ className = '' }) {
       >
         <div className="space-y-1">
           {recurring.sort((a, b) => {
-            // Sort by date (next due)
             const dateA = a.predicted_next_date || a.last_date;
             const dateB = b.predicted_next_date || b.last_date;
             return new Date(dateA) - new Date(dateB);

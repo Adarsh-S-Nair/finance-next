@@ -7,29 +7,34 @@ import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
 import * as Icons from "lucide-react";
 
-export default function BudgetsCard() {
+export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp }) {
   const { user, loading: authLoading } = useUser();
-  const [budgets, setBudgets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [budgetsState, setBudgetsState] = useState([]);
+  const [loadingState, setLoadingState] = useState(true);
+
+  // If parent provides budgets, use them; otherwise fetch internally
+  const controlled = budgetsProp !== undefined;
+  const budgets = controlled ? budgetsProp : budgetsState;
+  const loading = controlled ? !!loadingProp : loadingState;
 
   useEffect(() => {
-    console.log("[BudgetsCard] effect: authLoading=", authLoading, "user=", !!user?.id);
+    if (controlled) return;
     if (authLoading) return;
-    if (!user?.id) { setLoading(false); return; }
+    if (!user?.id) { setLoadingState(false); return; }
     async function fetchBudgets() {
-      setLoading(true);
+      setLoadingState(true);
       try {
         const res = await authFetch(`/api/budgets`);
         const json = await res.json();
-        setBudgets(json.data || []);
+        setBudgetsState(json.data || []);
       } catch (e) {
         console.error("Error fetching budgets:", e);
       } finally {
-        setLoading(false);
+        setLoadingState(false);
       }
     }
     fetchBudgets();
-  }, [authLoading, user?.id]);
+  }, [controlled, authLoading, user?.id]);
 
   // Calculate aggregate totals
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
