@@ -35,6 +35,7 @@ export default function NetWorthBanner() {
   const liabilities = currentNetWorth?.liabilities ?? 0;
   const total = assets + liabilities;
   const assetsPct = total > 0 ? (assets / total) * 100 : 100;
+  const liabilitiesPct = total > 0 ? (liabilities / total) * 100 : 0;
 
   return (
     <div>
@@ -43,9 +44,10 @@ export default function NetWorthBanner() {
         <div className="card-header">Net Worth</div>
         <Link
           href="/accounts"
-          className="text-xs font-medium text-[var(--color-fg)]/70 hover:text-[var(--color-fg)] transition-colors"
+          className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors text-lg leading-none"
+          title="View accounts"
         >
-          View accounts &#8250;
+          &#8250;
         </Link>
       </div>
 
@@ -54,12 +56,18 @@ export default function NetWorthBanner() {
         {formatCurrency(netWorth)}
       </div>
 
-      {/* Segmented bar */}
-      <div className="w-full h-1.5 flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-3">
+      {/* Segmented bar — two separate segments with a gap */}
+      <div className="w-full flex gap-1 mb-3">
         {assets > 0 && (
           <div
-            className="h-full rounded-full transition-all duration-500"
+            className="h-1.5 rounded-full transition-all duration-500"
             style={{ width: `${assetsPct}%`, backgroundColor: "#059669" }}
+          />
+        )}
+        {liabilities > 0 && (
+          <div
+            className="h-1.5 rounded-full transition-all duration-500"
+            style={{ width: `${liabilitiesPct}%`, backgroundColor: "#ef4444" }}
           />
         )}
       </div>
@@ -74,7 +82,7 @@ export default function NetWorthBanner() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-surface-alt)]" />
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#ef4444" }} />
           <span>Liabilities</span>
           <span className="text-[var(--color-fg)] font-medium tabular-nums ml-1">
             {formatCurrency(liabilities)}

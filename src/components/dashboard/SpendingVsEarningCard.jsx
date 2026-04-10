@@ -6,7 +6,7 @@ import SpendingEarningChart from "./SpendingEarningChartV2";
 import { useUser } from "../providers/UserProvider";
 import TimeRangeSelector from "../ui/TimeRangeSelector";
 import { useRouter } from "next/navigation";
-import ViewAllLink from "../ui/ViewAllLink";
+
 
 
 // Animated counter component for smooth number transitions
@@ -229,7 +229,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
 
             {/* Right Side Actions */}
             <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
-              <ViewAllLink href="/accounts">View Accounts</ViewAllLink>
             </div>
           </div>
         </div>
