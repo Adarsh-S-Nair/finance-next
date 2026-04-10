@@ -42,7 +42,7 @@ export const dashboardLayout = {
     {
       id: 'sidebar-group',
       type: 'row',
-      className: 'flex flex-col md:flex-row lg:flex-col gap-5',
+      className: 'flex flex-col md:flex-row lg:flex-col gap-8',
       items: [
         {
           id: 'budgets',

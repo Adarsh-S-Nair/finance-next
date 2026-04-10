@@ -150,7 +150,7 @@ export default function DashboardPage() {
       return (
         <div
           key={item.id}
-          className={item.className || `flex flex-col lg:flex-row gap-5 ${item.height || ''}`}
+          className={item.className || `flex flex-col lg:flex-row gap-8 ${item.height || ''}`}
         >
           {visibleItems.map((subItem) => {
             const Component = componentMap[subItem.component];
@@ -202,9 +202,9 @@ export default function DashboardPage() {
 
   return (
     <PageContainer title={greeting} documentTitle="Dashboard">
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
         {/* Main Content Area */}
-        <div className="lg:col-span-7 space-y-5">
+        <div className="lg:col-span-7 space-y-8">
           {dashboardLayout.main.map((item) => (
             <div key={item.id}>
               {renderItem(item)}
@@ -213,7 +213,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="lg:col-span-3 space-y-5">
+        <div className="lg:col-span-3 space-y-8">
           {!isPro && <UpgradeBanner />}
           {dashboardLayout.sidebar.map((item) => {
             // Hide pro-only cards (budgets, calendar) for free users

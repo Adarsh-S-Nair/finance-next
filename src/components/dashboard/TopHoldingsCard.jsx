@@ -286,7 +286,7 @@ export default function TopHoldingsCard() {
           return (
             <div
               key={h.ticker}
-              className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+              className="flex items-center gap-3 py-4 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
             >
               <HoldingLogo
                 ticker={h.ticker}

@@ -195,9 +195,9 @@ export default function AccountsPage() {
   if (loading) {
     return (
       <PageContainer title="Accounts">
-        <div className="space-y-8 animate-pulse">
+        <div className="space-y-10 animate-pulse">
           {/* Summary skeleton */}
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex flex-col lg:flex-row gap-8">
             <div className="lg:w-2/3">
               <div className="h-4 bg-[var(--color-border)] rounded w-24 mb-4" />
               <div className="h-8 bg-[var(--color-border)] rounded w-40 mb-2" />
@@ -284,12 +284,12 @@ export default function AccountsPage() {
   return (
     <NetWorthHoverProvider>
       <PageContainer title="Accounts">
-        <div className="space-y-8">
+        <div className="space-y-10">
           {hasAccounts ? (
             <>
               {/* Summary Section */}
               <div className="w-full">
-                <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex flex-col lg:flex-row gap-8">
                   <div className="lg:w-2/3">
                     <NetWorthCard width="full" />
                   </div>

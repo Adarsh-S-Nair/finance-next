@@ -342,10 +342,10 @@ export default function InvestmentsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Summary Section: chart (2/3) + (allocation + accounts stacked) (1/3) */}
       <div className="w-full">
-        <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex flex-col gap-8 lg:flex-row">
           <div className="lg:w-2/3">
             <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
           </div>
@@ -361,7 +361,7 @@ export default function InvestmentsPage() {
           row styling: generous padding, subtle hover, no dividers, sparkline
           between the shares and value columns. */}
       {combinedHoldings.length > 0 && (
-        <div className="flex flex-col gap-6 pt-4 lg:flex-row">
+        <div className="flex flex-col gap-8 pt-4 lg:flex-row">
           <div className="lg:w-2/3">
             <div className="mb-6 px-1">
               <h2 className="text-lg font-medium text-[var(--color-fg)]">Holdings</h2>
