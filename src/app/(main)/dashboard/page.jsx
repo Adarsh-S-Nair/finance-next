@@ -13,6 +13,7 @@ import TopHoldingsCard from "../../../components/dashboard/TopHoldingsCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
+import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 
@@ -24,6 +25,7 @@ const componentMap = {
   'BudgetsCard': BudgetsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,
+  'NetWorthBanner': NetWorthBanner,
 };
 
 export default function DashboardPage() {

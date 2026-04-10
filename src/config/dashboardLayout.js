@@ -9,6 +9,11 @@
 export const dashboardLayout = {
   // Main content area (left side, wider)
   main: [
+    // Net Worth Banner (simple number + link to accounts)
+    {
+      id: 'net-worth-banner',
+      component: 'NetWorthBanner',
+    },
     // Monthly Overview Chart (full width, hero card)
     {
       id: 'monthly-overview',
