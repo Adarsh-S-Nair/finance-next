@@ -16,8 +16,8 @@ type Props = {
 };
 
 const FRAME_CLASS: Record<NonNullable<Props["frame"]>, string> = {
-  default: "pb-6",
-  toolbar: "pt-16 pb-6",
+  default: "pt-6 pb-10 md:pt-10",
+  toolbar: "pt-16 pb-10",
 };
 
 export default function PageContainer({

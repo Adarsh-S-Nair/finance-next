@@ -79,14 +79,14 @@ export default function AccountsCard({ accounts }) {
           No investment accounts yet.
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-8">
           {byInstitution.map((inst) => (
-            <div key={inst.id} className="space-y-1">
+            <div key={inst.id} className="space-y-3">
               {inst.accounts.map((account) => (
                 <Link
                   key={account.id}
                   href={`/investments/${account.id}`}
-                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-card-highlight)]"
+                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-[var(--color-card-highlight)]"
                 >
                   <InstitutionAvatar logo={inst.logo} name={inst.name} size={32} />
                   <div className="min-w-0 flex-1">

@@ -69,7 +69,7 @@ function Sparkline({ data, width = 88, height = 28 }) {
   );
 }
 
-function HoldingLogo({ ticker, logo, assetType, size = 40 }) {
+function HoldingLogo({ ticker, logo, metaLoaded = true, assetType, size = 40 }) {
   const dim = `${size}px`;
   return (
     <div
@@ -87,11 +87,16 @@ function HoldingLogo({ ticker, logo, assetType, size = 40 }) {
           }}
         />
       )}
-      <div className="flex h-full w-full items-center justify-center">
-        <span className="text-[11px] font-semibold text-[var(--color-muted)]">
-          {assetType === "cash" ? "$" : ticker.slice(0, 3)}
-        </span>
-      </div>
+      {/* Only show the text fallback once ticker metadata has loaded and
+          confirmed the logo is absent. Prevents a brief "BTC" flash on
+          the first paint before logos arrive. */}
+      {metaLoaded && !logo && (
+        <div className="flex h-full w-full items-center justify-center">
+          <span className="text-[11px] font-semibold text-[var(--color-muted)]">
+            {assetType === "cash" ? "$" : ticker.slice(0, 3)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -146,8 +151,9 @@ export default function InvestmentsPage() {
       );
 
       if (uniqueTickers.length > 0) {
-        // Fetch ticker metadata and live quotes in parallel. Sparklines
-        // come from a separate batch below because they fan out per-ticker.
+        // Block render on tickers + quotes (both are fast) so holding rows
+        // have their logos ready on first paint and we don't see the
+        // "BTC" text fallback flash.
         const [tickerResult, quoteResult] = await Promise.allSettled([
           supabase
             .from("tickers")
@@ -175,36 +181,38 @@ export default function InvestmentsPage() {
           setQuotes(quoteResult.value.quotes);
         }
 
-        // Sparklines: 30-day 1d close prices per ticker, fanned out in parallel.
-        // Cash holdings (CUR:USD, etc.) are skipped since their price is always 1.
+        // Sparklines are slower (per-ticker fan-out to Yahoo/CoinGecko),
+        // so kick them off in the background AFTER the main load resolves.
+        // Rows reserve the space and the lines pop in when ready.
         const spTickers = uniqueTickers.filter(
           (t) => !t.startsWith("CUR:") && (holdingsData || []).find((h) => h.ticker === t)?.asset_type !== "cash"
         );
         if (spTickers.length > 0) {
-          const endTs = Math.floor(Date.now() / 1000);
-          const startTs = endTs - 30 * 24 * 60 * 60;
-
-          const sparkResults = await Promise.allSettled(
-            spTickers.map((ticker) =>
-              fetch(
-                `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`
+          (async () => {
+            const endTs = Math.floor(Date.now() / 1000);
+            const startTs = endTs - 30 * 24 * 60 * 60;
+            const sparkResults = await Promise.allSettled(
+              spTickers.map((ticker) =>
+                fetch(
+                  `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`
+                )
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((json) => ({ ticker, prices: json?.prices || [] }))
               )
-                .then((r) => (r.ok ? r.json() : null))
-                .then((json) => ({ ticker, prices: json?.prices || [] }))
-            )
-          );
+            );
 
-          const spMap = {};
-          for (const result of sparkResults) {
-            if (result.status === "fulfilled" && result.value) {
-              const { ticker, prices } = result.value;
-              const series = (prices || [])
-                .map((p) => Number(p?.price))
-                .filter((n) => Number.isFinite(n));
-              if (series.length >= 2) spMap[ticker] = series;
+            const spMap = {};
+            for (const result of sparkResults) {
+              if (result.status === "fulfilled" && result.value) {
+                const { ticker, prices } = result.value;
+                const series = (prices || [])
+                  .map((p) => Number(p?.price))
+                  .filter((n) => Number.isFinite(n));
+                if (series.length >= 2) spMap[ticker] = series;
+              }
             }
-          }
-          setSparklines(spMap);
+            setSparklines(spMap);
+          })();
         } else {
           setSparklines({});
         }
@@ -310,7 +318,10 @@ export default function InvestmentsPage() {
     return combinedHoldings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
   }, [combinedHoldings]);
 
-  if (loading && accounts.length === 0) {
+  // Keep the spinner visible until the initial load (including ticker
+  // metadata) is done. This prevents a brief flash where holding rows
+  // render with "BTC"-style text fallbacks before their logos arrive.
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-fg)]" />
@@ -338,7 +349,7 @@ export default function InvestmentsPage() {
           <div className="lg:w-2/3">
             <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
           </div>
-          <div className="flex flex-col gap-8 lg:w-1/3">
+          <div className="flex flex-col gap-14 lg:w-1/3">
             <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
             <AccountsCard accounts={accounts} />
           </div>
