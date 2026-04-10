@@ -135,7 +135,7 @@ export default function CalendarCard({ className = '' }) {
     <div className={`flex flex-col ${className}`}>
       {/* Title Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="card-header">Recurring Transactions</h3>
+        <h3 className="card-header">Upcoming</h3>
         <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
       </div>
 
