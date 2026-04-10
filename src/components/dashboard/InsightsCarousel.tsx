@@ -81,8 +81,8 @@ export default function InsightsCarousel() {
   if (loading) {
     return (
       <div className="w-full">
-        <div className="h-3 w-16 animate-pulse rounded bg-[var(--color-border)] mb-4" />
-        <div className="space-y-2">
+        <div className="h-3 w-16 animate-pulse rounded bg-[var(--color-border)] mb-6" />
+        <div className="space-y-2.5">
           <div className="h-3.5 w-full animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
@@ -96,15 +96,12 @@ export default function InsightsCarousel() {
 
   return (
     <div className="w-full">
-      {/* Header with nav */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Header with chevron nav */}
+      <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Insights</h3>
 
         {insights.length > 1 && (
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-[var(--color-muted)] tabular-nums mr-1.5">
-              {activeIndex + 1}/{insights.length}
-            </span>
+          <div className="flex items-center gap-0.5">
             <button
               onClick={goPrev}
               className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
@@ -124,30 +121,30 @@ export default function InsightsCarousel() {
       </div>
 
       {/* Insight content */}
-      <div className="relative overflow-hidden min-h-[40px]">
+      <div className="relative overflow-hidden min-h-[44px]">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={current.id + activeIndex}
             custom={direction}
-            initial={{ opacity: 0, x: direction * 24 }}
+            initial={{ opacity: 0, x: direction * 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction * -24 }}
+            exit={{ opacity: 0, x: direction * -20 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="flex items-start gap-2.5"
+            className="flex items-start gap-3"
           >
-            <span className={`text-[10px] mt-[3px] flex-shrink-0 ${toneColor[current.tone]}`}>
+            <span className={`text-[9px] mt-[5px] flex-shrink-0 ${toneColor[current.tone]}`}>
               {toneIcon[current.tone]}
             </span>
-            <p className="text-[13px] leading-relaxed text-[var(--color-fg)]">
+            <p className="text-sm leading-relaxed text-[var(--color-fg)]">
               {current.message}
             </p>
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Progress dots */}
+      {/* Progress bar */}
       {insights.length > 1 && (
-        <div className="flex items-center gap-1 mt-4">
+        <div className="flex items-center gap-1 mt-6">
           {insights.map((_, i) => (
             <div
               key={i}
