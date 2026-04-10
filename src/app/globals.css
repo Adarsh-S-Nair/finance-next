@@ -185,7 +185,7 @@ html {
 body {
   overflow-x: hidden;
   min-height: 100vh;
-  font-family: var(--font-poppins), sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
 }
 
 .route-transition {
