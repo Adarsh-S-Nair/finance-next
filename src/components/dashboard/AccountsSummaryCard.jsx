@@ -363,7 +363,7 @@ export function LiabilitiesCard({ width = "full" }) {
   return (
     <div className="flex flex-col">
       <div className="mb-4">
-        <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Liabilities</div>
+        <div className="card-header">Liabilities</div>
       </div>
       <SegmentedBar
         segments={liabilitySegments}

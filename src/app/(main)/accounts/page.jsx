@@ -293,11 +293,11 @@ export default function AccountsPage() {
                   <div className="lg:w-2/3">
                     <NetWorthCard width="full" />
                   </div>
-                  <div className="lg:w-1/3 flex flex-col gap-4">
+                  <div className="lg:w-1/3 flex flex-col gap-10">
                     {/* Mobile Carousel Container */}
                     <div
                       ref={scrollContainerRef}
-                      className="flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] lg:block lg:space-y-6 lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth"
+                      className="flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] lg:block lg:space-y-10 lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth"
                       style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                       onScroll={(e) => {
                         const { scrollLeft, offsetWidth } = e.currentTarget;
