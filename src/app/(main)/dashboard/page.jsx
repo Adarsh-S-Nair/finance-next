@@ -9,7 +9,7 @@ import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
-import RecentTransactionsCard from "../../../components/dashboard/RecentTransactionsCard";
+import TopHoldingsCard from "../../../components/dashboard/TopHoldingsCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
@@ -20,7 +20,7 @@ import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 const componentMap = {
   'MonthlyOverviewCard': MonthlyOverviewCard,
   'SpendingVsEarningCard': SpendingVsEarningCard,
-  'RecentTransactionsCard': RecentTransactionsCard,
+  'TopHoldingsCard': TopHoldingsCard,
   'BudgetsCard': BudgetsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,

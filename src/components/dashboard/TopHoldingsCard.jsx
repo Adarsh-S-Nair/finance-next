@@ -1,0 +1,331 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "../../lib/supabase/client";
+import { useUser } from "../providers/UserProvider";
+import ViewAllLink from "../ui/ViewAllLink";
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(amount || 0));
+}
+
+function formatShares(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: num < 1 ? 4 : 2,
+    maximumFractionDigits: num < 1 ? 6 : 4,
+  });
+}
+
+/**
+ * Tiny inline SVG sparkline — 30-day daily close.
+ */
+function Sparkline({ data, width = 64, height = 24 }) {
+  if (!data || data.length < 2) {
+    return <div style={{ width, height }} aria-hidden="true" />;
+  }
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const padY = 2;
+  const drawableH = height - padY * 2;
+  const points = data
+    .map((val, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = padY + drawableH - ((val - min) / range) * drawableH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const isUp = data[data.length - 1] >= data[0];
+  return (
+    <svg width={width} height={height} className="flex-shrink-0 overflow-visible">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={isUp ? "#10b981" : "#f43f5e"}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HoldingLogo({ ticker, logo, assetType, size = 36 }) {
+  const dim = `${size}px`;
+  return (
+    <div
+      className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
+      style={{ width: dim, height: dim }}
+    >
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={ticker}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div className="flex h-full w-full items-center justify-center">
+        <span className="text-[10px] font-semibold text-[var(--color-muted)]">
+          {assetType === "cash" ? "$" : ticker.slice(0, 3)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const MAX_DISPLAY = 5;
+
+export default function TopHoldingsCard() {
+  const { user, isPro } = useUser();
+  const [holdings, setHoldings] = useState([]);
+  const [tickerMeta, setTickerMeta] = useState({});
+  const [quotes, setQuotes] = useState({});
+  const [sparklines, setSparklines] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        // Investment accounts
+        const { data: accounts } = await supabase
+          .from("accounts")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("type", "investment");
+
+        if (!accounts || accounts.length === 0) {
+          if (!cancelled) {
+            setHoldings([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        const accountIds = accounts.map((a) => a.id);
+
+        // All holdings
+        const { data: holdingsData } = await supabase
+          .from("holdings")
+          .select("ticker, shares, avg_cost, asset_type")
+          .in("account_id", accountIds);
+
+        if (!holdingsData || holdingsData.length === 0) {
+          if (!cancelled) {
+            setHoldings([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Aggregate by ticker
+        const byTicker = new Map();
+        for (const h of holdingsData) {
+          const key = h.ticker;
+          const existing = byTicker.get(key);
+          if (existing) {
+            const totalShares = existing.shares + Number(h.shares || 0);
+            const totalCost =
+              existing.avg_cost * existing.shares + Number(h.avg_cost || 0) * Number(h.shares || 0);
+            byTicker.set(key, {
+              ticker: key,
+              shares: totalShares,
+              avg_cost: totalShares > 0 ? totalCost / totalShares : 0,
+              asset_type: h.asset_type || existing.asset_type,
+            });
+          } else {
+            byTicker.set(key, {
+              ticker: key,
+              shares: Number(h.shares || 0),
+              avg_cost: Number(h.avg_cost || 0),
+              asset_type: h.asset_type,
+            });
+          }
+        }
+
+        const aggregated = Array.from(byTicker.values());
+        const uniqueTickers = aggregated
+          .map((h) => h.ticker)
+          .filter((t) => t && !t.startsWith("CUR:"));
+
+        // Fetch ticker meta + quotes in parallel
+        const [tickerResult, quoteResult] = await Promise.allSettled([
+          supabase
+            .from("tickers")
+            .select("symbol, name, logo, asset_type")
+            .in("symbol", uniqueTickers),
+          fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
+            r.ok ? r.json() : null
+          ),
+        ]);
+
+        if (cancelled) return;
+
+        const metaMap = {};
+        if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
+          for (const row of tickerResult.value.data) {
+            metaMap[row.symbol] = { logo: row.logo, name: row.name, assetType: row.asset_type };
+          }
+        }
+        setTickerMeta(metaMap);
+
+        const quotesMap = {};
+        if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
+          Object.assign(quotesMap, quoteResult.value.quotes);
+        }
+        setQuotes(quotesMap);
+
+        // Sort by market value descending, take top N (skip cash)
+        const enriched = aggregated
+          .filter((h) => h.asset_type !== "cash" && !h.ticker.startsWith("CUR:"))
+          .map((h) => {
+            const price = quotesMap[h.ticker]?.price;
+            const marketValue = price != null ? h.shares * price : h.shares * h.avg_cost;
+            return { ...h, marketValue };
+          })
+          .sort((a, b) => b.marketValue - a.marketValue)
+          .slice(0, MAX_DISPLAY);
+
+        setHoldings(enriched);
+        setLoading(false);
+
+        // Sparklines in background
+        const spTickers = enriched.map((h) => h.ticker);
+        if (spTickers.length > 0) {
+          const endTs = Math.floor(Date.now() / 1000);
+          const startTs = endTs - 30 * 24 * 60 * 60;
+          const sparkResults = await Promise.allSettled(
+            spTickers.map((ticker) =>
+              fetch(
+                `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`
+              )
+                .then((r) => (r.ok ? r.json() : null))
+                .then((json) => ({ ticker, prices: json?.prices || [] }))
+            )
+          );
+          if (cancelled) return;
+          const spMap = {};
+          for (const result of sparkResults) {
+            if (result.status === "fulfilled" && result.value) {
+              const { ticker, prices } = result.value;
+              const series = (prices || [])
+                .map((p) => Number(p?.price))
+                .filter((n) => Number.isFinite(n));
+              if (series.length >= 2) spMap[ticker] = series;
+            }
+          }
+          setSparklines(spMap);
+        }
+      } catch (err) {
+        console.error("Error loading top holdings:", err);
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Don't show the card for users without investments
+  if (!loading && holdings.length === 0) return null;
+
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-border)]" />
+          <div className="h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
+        </div>
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="h-9 w-9 animate-pulse rounded-full bg-[var(--color-border)]" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)]" />
+                <div className="h-2.5 w-14 animate-pulse rounded bg-[var(--color-border)]" />
+              </div>
+              <div className="h-3 w-16 animate-pulse rounded bg-[var(--color-border)]" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="card-header">Top Holdings</h3>
+        <ViewAllLink href="/investments" />
+      </div>
+
+      <div className="space-y-0.5">
+        {holdings.map((h) => {
+          const meta = tickerMeta[h.ticker];
+          const displayName = meta?.name || h.ticker;
+          const sparkData = sparklines[h.ticker];
+          const quote = quotes[h.ticker];
+          const price = quote?.price;
+          const gainPct =
+            h.avg_cost > 0 && price != null
+              ? (((price - h.avg_cost) / h.avg_cost) * 100)
+              : 0;
+
+          return (
+            <div
+              key={h.ticker}
+              className="flex items-center justify-between gap-3 px-2 py-3.5"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <HoldingLogo
+                  ticker={h.ticker}
+                  logo={meta?.logo}
+                  assetType={h.asset_type}
+                  size={36}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] text-[var(--color-fg)]">
+                    {displayName}
+                  </div>
+                  <div className="mt-0.5 text-xs text-[var(--color-muted)]">
+                    {formatShares(h.shares)} shares
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden sm:block lg:hidden xl:block">
+                <Sparkline data={sparkData} width={64} height={24} />
+              </div>
+
+              <div className="flex-shrink-0 text-right">
+                <div className="text-[13px] tabular-nums text-[var(--color-fg)]">
+                  {formatCurrency(h.marketValue)}
+                </div>
+                {price != null && (
+                  <div
+                    className={`mt-0.5 text-xs tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                  >
+                    {gainPct >= 0 ? "+" : ""}
+                    {gainPct.toFixed(2)}%
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

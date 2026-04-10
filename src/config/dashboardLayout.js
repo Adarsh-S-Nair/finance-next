@@ -55,8 +55,8 @@ export const dashboardLayout = {
       ]
     },
     {
-      id: 'recent-transactions',
-      component: 'RecentTransactionsCard'
+      id: 'top-holdings',
+      component: 'TopHoldingsCard'
     }
   ]
 };
