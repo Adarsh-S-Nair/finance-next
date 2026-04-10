@@ -15,7 +15,6 @@ import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
-import Card from "../../../components/ui/Card";
 
 // Map string keys to actual components
 const componentMap = {
@@ -127,9 +126,7 @@ export default function DashboardPage() {
                 key={subItem.id}
                 className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
-                <Card variant="glass" className="h-full">
-                  <Component {...(subItem.props || {})} {...extraProps} />
-                </Card>
+                <Component {...(subItem.props || {})} {...extraProps} />
               </div>
             );
           })}
@@ -145,9 +142,7 @@ export default function DashboardPage() {
 
     return (
       <div key={item.id} className={item.height || ''}>
-        <Card variant="glass" className="h-full">
-          <Component {...(item.props || {})} {...extraProps} />
-        </Card>
+        <Component {...(item.props || {})} {...extraProps} />
       </div>
     );
   };
