@@ -16,18 +16,11 @@ export function spendingPace(data: SpendingPaceData): Insight | null {
 
   if (absChange < 5) return null;
 
-  const formatted = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(currentMonthSpending);
-
   if (change < 0) {
     return {
       id: 'spending-pace',
       priority: 2,
-      message: `You've spent ${formatted} this month — ${absChange}% less than this point last month.`,
+      message: `You're spending ${absChange}% less than this point last month. Nice.`,
       tone: 'positive',
     };
   }
@@ -35,7 +28,7 @@ export function spendingPace(data: SpendingPaceData): Insight | null {
   return {
     id: 'spending-pace',
     priority: 2,
-    message: `You've spent ${formatted} this month — ${absChange}% more than this point last month.`,
+    message: `You're spending ${absChange}% faster than this point last month.`,
     tone: 'negative',
   };
 }
