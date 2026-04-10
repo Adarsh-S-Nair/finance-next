@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import Card from "../ui/Card";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 
@@ -98,13 +97,34 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
   if (total === 0) {
     return (
       <div className={`space-y-4 ${className}`}>
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center mb-1">
           <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
           <span className="text-sm font-semibold text-[var(--color-fg)]">
             <AnimatedCounter value={0} duration={120} />
           </span>
         </div>
-        <div className="w-full h-2 bg-[var(--color-border)]/20 rounded-full overflow-hidden" />
+        <div className="w-full h-3 rounded-full overflow-hidden bg-[var(--color-surface-alt)]" />
+        <div className="space-y-2 pt-1">
+          {segments.map((segment) => {
+            let color;
+            if (segment.label === 'Investments') color = 'var(--color-neon-green)';
+            else if (segment.label === 'Cash') color = '#059669';
+            else if (segment.label === 'Loans') color = '#b91c1c';
+            else if (segment.label === 'Credit') color = '#ef4444';
+            return (
+              <div key={segment.label} className="flex items-center justify-between text-xs opacity-60">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-[var(--color-muted)]">{segment.label}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[var(--color-fg)] font-medium tabular-nums">{formatCurrency(0)}</span>
+                  <span className="text-[var(--color-muted)] font-mono text-[10px]">0.0%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -249,12 +269,12 @@ const useAccountData = () => {
     const assetSegments = [
       { label: 'Cash', amount: assetsData.cash },
       { label: 'Investments', amount: assetsData.investments },
-    ].filter(segment => segment.amount > 0);
+    ];
 
     const liabilitySegments = [
       { label: 'Credit', amount: liabilitiesData.credit },
       { label: 'Loans', amount: liabilitiesData.loans },
-    ].filter(segment => segment.amount > 0);
+    ];
 
     return {
       loading: false,
@@ -272,7 +292,7 @@ export function AssetsCard({ width = "full" }) {
   const { isHovering } = useNetWorthHover();
 
   if (loading) return (
-    <Card width={width} variant="glass" className="animate-pulse">
+    <div className="animate-pulse">
       <div className="mb-4">
         <div className="h-3 bg-[var(--color-border)] rounded w-12" />
       </div>
@@ -293,11 +313,11 @@ export function AssetsCard({ width = "full" }) {
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 
   return (
-    <Card width={width} variant="glass" className="flex flex-col">
+    <div className="flex flex-col">
       <div className="mb-4">
         <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Assets</div>
       </div>
@@ -307,7 +327,7 @@ export function AssetsCard({ width = "full" }) {
         label="Total Assets"
         isAnimated={isHovering}
       />
-    </Card>
+    </div>
   );
 }
 
@@ -316,7 +336,7 @@ export function LiabilitiesCard({ width = "full" }) {
   const { isHovering } = useNetWorthHover();
 
   if (loading) return (
-    <Card width={width} variant="glass" className="animate-pulse">
+    <div className="animate-pulse">
       <div className="mb-4">
         <div className="h-3 bg-[var(--color-border)] rounded w-16" />
       </div>
@@ -337,11 +357,11 @@ export function LiabilitiesCard({ width = "full" }) {
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 
   return (
-    <Card width={width} variant="glass" className="flex flex-col">
+    <div className="flex flex-col">
       <div className="mb-4">
         <div className="text-xs text-[var(--color-muted)] font-light uppercase tracking-wider">Liabilities</div>
       </div>
@@ -351,7 +371,7 @@ export function LiabilitiesCard({ width = "full" }) {
         label="Total Liabilities"
         isAnimated={isHovering}
       />
-    </Card>
+    </div>
   );
 }
 

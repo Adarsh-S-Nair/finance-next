@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import Card from "../ui/Card";
 import TimeRangeSelector from "../ui/TimeRangeSelector";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
@@ -338,7 +337,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
 
   if (loading) {
     return (
-      <Card width={width} className="animate-pulse" variant="glass">
+      <div className="animate-pulse">
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <div className="h-4 bg-[var(--color-border)] rounded w-20 mb-2" />
@@ -346,14 +345,14 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
           </div>
         </div>
         <div className="mt-4 h-32 bg-[var(--color-border)] rounded" />
-      </Card>
+      </div>
     );
   }
 
   // Handle error state
   if (error) {
     return (
-      <Card width={width} variant="glass">
+      <div>
         <div className="mb-4">
           <div className="text-sm text-[var(--color-muted)] font-light">Net Worth</div>
           <div className="text-2xl font-light text-neon-blue">
@@ -375,7 +374,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -448,8 +447,8 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   };
 
   return (
-    <Card width={width} onMouseLeave={handleCardMouseLeave} variant="glass" padding="none">
-      <div className="mb-4 px-6 pt-6">
+    <div onMouseLeave={handleCardMouseLeave}>
+      <div className="mb-4">
         <div className="flex justify-between items-start">
           <div>
             <div className="card-header mb-1">Net Worth</div>
@@ -517,7 +516,7 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
       </div>
 
       {/* Time Range Selector */}
-      <div className="mt-2 pt-2 px-6 pb-4 border-t border-[var(--color-border)]/50">
+      <div className="mt-2 pt-2">
         <TimeRangeSelector
           ranges={availableRanges}
           activeRange={timeRange}
@@ -525,6 +524,6 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
           layoutId="netWorthTimeRange"
         />
       </div>
-    </Card>
+    </div>
   );
 }

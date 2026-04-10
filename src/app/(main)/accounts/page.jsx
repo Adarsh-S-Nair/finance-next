@@ -196,30 +196,28 @@ export default function AccountsPage() {
     return (
       <PageContainer title="Accounts">
         <div className="space-y-8 animate-pulse">
-          {/* Summary cards skeleton */}
+          {/* Summary skeleton */}
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="lg:w-2/3">
-              <Card variant="glass" className="h-[260px]">
-                <div className="h-4 bg-[var(--color-border)] rounded w-24 mb-4" />
-                <div className="h-8 bg-[var(--color-border)] rounded w-40 mb-2" />
-                <div className="h-3 bg-[var(--color-border)] rounded w-20 mb-6" />
-                <div className="flex-1 bg-[var(--color-border)] opacity-30 rounded-lg h-[120px]" />
-              </Card>
+              <div className="h-4 bg-[var(--color-border)] rounded w-24 mb-4" />
+              <div className="h-8 bg-[var(--color-border)] rounded w-40 mb-2" />
+              <div className="h-3 bg-[var(--color-border)] rounded w-20 mb-6" />
+              <div className="bg-[var(--color-border)] opacity-30 rounded-lg h-[180px]" />
             </div>
-            <div className="lg:w-1/3 flex flex-col gap-6">
-              <Card variant="glass">
+            <div className="lg:w-1/3 flex flex-col gap-8">
+              <div>
                 <div className="h-3 bg-[var(--color-border)] rounded w-12 mb-4" />
                 <div className="h-6 bg-[var(--color-border)] rounded w-28 mb-4" />
                 <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
+                  {[...Array(2)].map((_, i) => (
                     <div key={i} className="flex justify-between">
                       <div className="h-4 bg-[var(--color-border)] rounded w-24" />
                       <div className="h-4 bg-[var(--color-border)] rounded w-16" />
                     </div>
                   ))}
                 </div>
-              </Card>
-              <Card variant="glass" className="hidden lg:block">
+              </div>
+              <div className="hidden lg:block">
                 <div className="h-3 bg-[var(--color-border)] rounded w-16 mb-4" />
                 <div className="h-6 bg-[var(--color-border)] rounded w-28 mb-4" />
                 <div className="space-y-3">
@@ -230,7 +228,7 @@ export default function AccountsPage() {
                     </div>
                   ))}
                 </div>
-              </Card>
+              </div>
             </div>
           </div>
 
@@ -334,8 +332,8 @@ export default function AccountsPage() {
                   <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
                 </div>
 
-                {/* Unified Accounts Card */}
-                <Card padding="none" variant="glass" className="overflow-hidden !bg-transparent border-0 shadow-none hover:shadow-none backdrop-blur-none">
+                {/* Unified Accounts List */}
+                <div className="overflow-hidden">
                   {/* Cash & Checking Section */}
                   {categorizedAccounts.cash.length > 0 && (
                     <>
@@ -423,7 +421,7 @@ export default function AccountsPage() {
                       ))}
                     </>
                   )}
-                </Card>
+                </div>
               </div>
             </>
           ) : (
