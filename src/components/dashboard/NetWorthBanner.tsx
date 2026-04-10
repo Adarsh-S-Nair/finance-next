@@ -18,32 +18,46 @@ export default function NetWorthBanner() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-between animate-pulse">
-        <div>
-          <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-2" />
-          <div className="h-8 w-36 bg-[var(--color-border)] rounded" />
+      <div className="glass-panel rounded-2xl p-5 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-3" />
+            <div className="h-9 w-44 bg-[var(--color-border)] rounded mb-3" />
+            <div className="flex gap-6">
+              <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
+              <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   const netWorth = currentNetWorth?.netWorth ?? 0;
+  const assets = currentNetWorth?.assets ?? 0;
+  const liabilities = currentNetWorth?.liabilities ?? 0;
 
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="card-header mb-1">Net Worth</div>
-        <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
-          {formatCurrency(netWorth)}
+    <div className="glass-panel rounded-2xl p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="card-header mb-2">Net Worth</div>
+          <div className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight mb-2">
+            {formatCurrency(netWorth)}
+          </div>
+          <div className="flex gap-6 text-xs text-[var(--color-muted)]">
+            <span>Assets {formatCurrency(assets)}</span>
+            <span>Liabilities {formatCurrency(liabilities)}</span>
+          </div>
         </div>
+        <Link
+          href="/accounts"
+          className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors text-xl leading-none"
+          title="View accounts"
+        >
+          &#8250;
+        </Link>
       </div>
-      <Link
-        href="/accounts"
-        className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors text-lg"
-        title="View accounts"
-      >
-        &#8250;
-      </Link>
     </div>
   );
 }
