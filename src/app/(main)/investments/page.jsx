@@ -268,27 +268,30 @@ export default function InvestmentsPage() {
         </div>
       </div>
 
-      {/* Combined holdings across all accounts */}
+      {/* Combined holdings across all accounts — constrained to the 2/3
+          column under the chart (same flex layout as the summary row to
+          get pixel-exact width alignment), laid out as a 2-column grid. */}
       {combinedHoldings.length > 0 && (
-        <div className="pt-4">
-          <div className="mb-6 px-1">
-            <h2 className="text-lg font-medium text-[var(--color-fg)]">Holdings</h2>
-          </div>
+        <div className="flex flex-col gap-6 pt-4 lg:flex-row">
+          <div className="lg:w-2/3">
+            <div className="mb-6 px-1">
+              <h2 className="text-lg font-medium text-[var(--color-fg)]">Holdings</h2>
+            </div>
 
-          <div className="divide-y divide-[var(--color-border)]">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
             {combinedHoldings.map((h) => {
               const meta = tickerMeta[h.ticker];
               const displayName = meta?.name || h.ticker;
               return (
-                <div key={h.ticker} className="flex items-center gap-4 px-5 py-4">
+                <div key={h.ticker} className="flex items-center gap-3">
                   <HoldingLogo
                     ticker={h.ticker}
                     logo={meta?.logo}
                     assetType={h.asset_type}
-                    size={40}
+                    size={36}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="mb-0.5 flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-[var(--color-fg)]">
                         {displayName}
                       </span>
@@ -298,8 +301,8 @@ export default function InvestmentsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-[var(--color-muted)]">
-                      {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
+                    <div className="mt-0.5 text-xs text-[var(--color-muted)]">
+                      {formatShares(h.shares)} shares
                     </div>
                   </div>
                   <div className="text-right">
@@ -318,7 +321,9 @@ export default function InvestmentsPage() {
                 </div>
               );
             })}
+            </div>
           </div>
+          <div className="hidden lg:block lg:w-1/3" />
         </div>
       )}
     </div>

@@ -216,7 +216,7 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-            Total portfolio value
+            Investments value
           </div>
           <div className="mt-1 text-3xl font-medium tabular-nums text-[var(--color-fg)]">
             {formatCurrency(currentDisplayValue)}

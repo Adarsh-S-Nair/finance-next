@@ -3,17 +3,15 @@
 /**
  * AccountsCard
  *
- * Compact list of the user's investment accounts, grouped by institution.
- * Designed to sit in the 1/3 side column under AllocationCard, mirroring the
- * AssetsCard / LiabilitiesCard placement pattern on the accounts page.
- *
- * Props:
- *   accounts: Array<{ id, name, subtype, mask, balances, institutions: { id, name, logo } }>
+ * Minimal list of the user's investment accounts. Each row carries the
+ * institution logo on the left, account name + subtext in the middle, and
+ * balance on the right. Accounts from the same institution are grouped
+ * together via tighter vertical spacing; institutions are separated by
+ * a larger gap. No dividers, no chevrons. Entire row is clickable.
  */
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { LuChevronRight } from "react-icons/lu";
 import { PiBankFill } from "react-icons/pi";
 
 function formatCurrency(amount) {
@@ -21,6 +19,31 @@ function formatCurrency(amount) {
     style: "currency",
     currency: "USD",
   }).format(Number(amount || 0));
+}
+
+function InstitutionAvatar({ logo, name, size = 32 }) {
+  const dim = `${size}px`;
+  return (
+    <div
+      className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
+      style={{ width: dim, height: dim }}
+    >
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={name || ""}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div className="flex h-full w-full items-center justify-center">
+        <PiBankFill className="h-3.5 w-3.5 text-[var(--color-muted)]" />
+      </div>
+    </div>
+  );
 }
 
 export default function AccountsCard({ accounts }) {
@@ -52,70 +75,39 @@ export default function AccountsCard({ accounts }) {
       </div>
 
       {byInstitution.length === 0 ? (
-        <div className="py-2 text-sm text-[var(--color-muted)]">No investment accounts yet.</div>
+        <div className="py-2 text-sm text-[var(--color-muted)]">
+          No investment accounts yet.
+        </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {byInstitution.map((inst) => (
-            <div key={inst.id}>
-              {/* Institution header */}
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50">
-                    {inst.logo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={inst.logo}
-                        alt={inst.name}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          const fallback = e.currentTarget.nextElementSibling;
-                          if (fallback) fallback.style.display = "flex";
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className={`h-full w-full items-center justify-center ${inst.logo ? "hidden" : "flex"}`}
-                    >
-                      <PiBankFill className="h-2.5 w-2.5 text-[var(--color-muted)]" />
+            <div key={inst.id} className="space-y-1">
+              {inst.accounts.map((account) => (
+                <Link
+                  key={account.id}
+                  href={`/investments/${account.id}`}
+                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--color-card-highlight)]"
+                >
+                  <InstitutionAvatar logo={inst.logo} name={inst.name} size={32} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-[var(--color-fg)]">
+                      {account.name}
                     </div>
-                  </div>
-                  <span className="truncate text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted)] opacity-80">
-                    {inst.name}
-                  </span>
-                </div>
-                <span className="text-[11px] font-semibold tabular-nums text-[var(--color-muted)]">
-                  {formatCurrency(inst.total)}
-                </span>
-              </div>
-
-              {/* Accounts in this institution */}
-              <div className="divide-y divide-[var(--color-border)]/60">
-                {inst.accounts.map((account) => (
-                  <Link
-                    key={account.id}
-                    href={`/investments/${account.id}`}
-                    className="group flex items-center justify-between py-2.5 transition-colors hover:opacity-80"
-                  >
-                    <div className="min-w-0 flex-1 pr-3">
-                      <div className="truncate text-sm font-medium text-[var(--color-fg)]">
-                        {account.name}
-                      </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+                      <span className="truncate">{inst.name}</span>
                       {account.mask && (
-                        <div className="mt-0.5 font-mono text-[11px] text-[var(--color-muted)]">
-                          •••• {account.mask}
-                        </div>
+                        <>
+                          <span className="text-[var(--color-border)]">•</span>
+                          <span className="font-mono">{account.mask}</span>
+                        </>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
-                        {formatCurrency(account.balances?.current)}
-                      </span>
-                      <LuChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-[var(--color-muted)] transition-colors group-hover:text-[var(--color-fg)]" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
+                    {formatCurrency(account.balances?.current)}
+                  </div>
+                </Link>
+              ))}
             </div>
           ))}
         </div>
