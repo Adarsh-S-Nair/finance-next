@@ -30,20 +30,31 @@ function AnimatedCounter({ value, duration = 1000, showCents = true }) {
     window.requestAnimationFrame(step);
   }, [value]);
 
-  const formatted = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  const number = new Intl.NumberFormat('en-US', {
+    style: 'decimal',
     minimumFractionDigits: showCents ? 2 : 0,
     maximumFractionDigits: showCents ? 2 : 0,
-  }).format(displayValue);
+  }).format(Math.abs(displayValue));
 
-  if (!showCents) return <span>{formatted}</span>;
+  const isNegative = displayValue < 0;
 
-  const [main, cents] = formatted.split('.');
+  if (!showCents) {
+    return (
+      <span className="inline-flex items-baseline">
+        {isNegative && <span>-</span>}
+        <span className="text-[0.65em] font-normal opacity-50 mr-0.5">$</span>
+        <span>{number}</span>
+      </span>
+    );
+  }
+
+  const [main, cents] = number.split('.');
 
   return (
-    <span>
-      {main}
+    <span className="inline-flex items-baseline">
+      {isNegative && <span>-</span>}
+      <span className="text-[0.65em] font-normal opacity-50 mr-0.5">$</span>
+      <span>{main}</span>
       <span className="text-lg text-[var(--color-muted)] font-medium">.{cents}</span>
     </span>
   );

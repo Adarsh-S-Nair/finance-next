@@ -5,6 +5,7 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
+import { CurrencyAmount } from "../../lib/formatCurrency";
 import * as Icons from "lucide-react";
 
 export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp }) {
@@ -128,8 +129,8 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
       {/* Hero Section - Focus on Remaining */}
       <div className="mb-8">
         <div className="flex flex-col gap-1 mb-4">
-          <span className="text-4xl font-semibold text-[var(--color-fg)] tracking-tight">
-            {formatCurrency(remaining)}
+          <span className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
+            <CurrencyAmount amount={remaining} />
           </span>
           <span className="text-sm text-[var(--color-muted)] font-medium">
             Remaining

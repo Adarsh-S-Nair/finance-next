@@ -3,15 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useNetWorth } from "../providers/NetWorthProvider";
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
 
 export default function NetWorthBanner() {
   const { currentNetWorth, loading } = useNetWorth();
@@ -20,7 +12,7 @@ export default function NetWorthBanner() {
     return (
       <div className="animate-pulse">
         <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-2" />
-        <div className="h-9 w-44 bg-[var(--color-border)] rounded mb-4" />
+        <div className="h-11 w-52 bg-[var(--color-border)] rounded mb-5" />
         <div className="h-2.5 w-full bg-[var(--color-border)] rounded-full mb-3" />
         <div className="flex justify-between">
           <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
@@ -51,11 +43,11 @@ export default function NetWorthBanner() {
       </div>
 
       {/* Number */}
-      <div className="text-3xl font-semibold text-[var(--color-fg)] tracking-tight mb-4">
-        {formatCurrency(netWorth)}
+      <div className="text-4xl font-normal text-[var(--color-fg)] tracking-tight mb-5">
+        <CurrencyAmount amount={netWorth} />
       </div>
 
-      {/* Segmented bar — two separate segments with a gap */}
+      {/* Segmented bar */}
       <div className="w-full flex gap-1 mb-3">
         {assets > 0 && (
           <div

@@ -3,6 +3,7 @@ import { authFetch } from "../../lib/api/fetch";
 import LineChart from "../ui/LineChart";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
+import { CurrencyAmount } from "../../lib/formatCurrency";
 
 export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);
@@ -275,8 +276,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               {/* Values Row */}
               <div className="flex items-baseline gap-6 sm:gap-10">
                 <div>
-                  <div className="text-xl sm:text-2xl font-medium tracking-tight text-[var(--color-fg)] mb-1">
-                    {formatCurrency(currentData?.spending || 0)}
+                  <div className="text-xl sm:text-2xl font-normal tracking-tight text-[var(--color-fg)] mb-1">
+                    <CurrencyAmount amount={currentData?.spending || 0} />
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5">
@@ -295,8 +296,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xl sm:text-2xl font-medium tracking-tight text-[var(--color-muted)]/50 mb-1">
-                    {formatCurrency(displayPreviousSpending)}
+                  <div className="text-xl sm:text-2xl font-normal tracking-tight text-[var(--color-muted)]/50 mb-1">
+                    <CurrencyAmount amount={displayPreviousSpending} />
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-600" />
