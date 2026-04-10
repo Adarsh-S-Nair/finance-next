@@ -7,6 +7,7 @@ import { supabase } from "../../../lib/supabase/client";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useInvestmentsHeader } from "./InvestmentsHeaderContext";
 import { authFetch } from "../../../lib/api/fetch";
+import InvestmentsChart from "./InvestmentsChart";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -205,22 +206,12 @@ export default function InvestmentsPage() {
 
   return (
     <div className="space-y-10 py-4">
-      {/* Totals */}
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-          Total portfolio value
-        </div>
-        <div className="mt-1 text-3xl font-medium tabular-nums text-[var(--color-fg)]">
-          {formatCurrency(totalValue)}
-        </div>
-        {totalCost > 0 && (
-          <div className={`mt-1 text-sm tabular-nums ${totalGain >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-            {totalGain >= 0 ? "+" : ""}
-            {formatCurrency(totalGain)} ({totalGain >= 0 ? "+" : ""}
-            {totalGainPct.toFixed(2)}%)
-          </div>
-        )}
-      </div>
+      {/* Chart + totals */}
+      <InvestmentsChart
+        userId={user?.id}
+        currentValue={totalValue}
+        costBasis={totalCost}
+      />
 
       {/* Accounts list */}
       <div>
