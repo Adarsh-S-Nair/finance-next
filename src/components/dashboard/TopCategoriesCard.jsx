@@ -175,38 +175,17 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="h-[440px]">
-        <div className="animate-pulse flex flex-col h-full">
-          {/* Header */}
-          <div className="pb-2 flex items-center justify-between">
-            <div className="h-4 bg-[var(--color-border)] rounded w-32" />
-            <div className="h-6 bg-[var(--color-border)] rounded w-24" />
-          </div>
-          {/* Donut chart placeholder */}
-          <div className="flex justify-center items-center flex-1">
-            <div className="w-56 h-56 rounded-full border-[18px] border-[var(--color-border)] opacity-30" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-[400px]">
-        <div className="h-full flex items-center justify-center text-zinc-400">
-          Failed to load data
-        </div>
-      </div>
-    );
-  }
+  // Chart loading skeleton (donut only, no header)
+  const ChartSkeleton = () => (
+    <div className="flex justify-center items-center flex-1 animate-pulse">
+      <div className="w-56 h-56 rounded-full border-[18px] border-[var(--color-border)] opacity-30" />
+    </div>
+  );
 
   return (
     <div className="h-[440px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
-        {/* Custom Header with Dropdown */}
+        {/* Header — always visible, never replaced by skeleton */}
         <div className="pb-2 flex items-center justify-between">
           <div className="card-header">
             Top Spending
@@ -219,8 +198,14 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           />
         </div>
 
-        {/* Chart Section - empty donut when no categories */}
-        {categories.length === 0 ? (
+        {/* Chart Section */}
+        {loading ? (
+          <ChartSkeleton />
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center text-zinc-400">
+            Failed to load data
+          </div>
+        ) : categories.length === 0 ? (
           <EmptyDonut />
         ) : (
         <div className="flex-1 min-h-0 relative">

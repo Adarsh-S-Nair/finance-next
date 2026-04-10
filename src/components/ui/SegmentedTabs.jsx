@@ -25,9 +25,9 @@ export default function SegmentedTabs({
   );
 
   const sizeClasses = {
-    xs: "text-[10px] px-2 py-1",
-    sm: "text-[11px] px-2.5 py-1",
-    md: "text-xs px-3 py-1.5",
+    xs: "text-[10px] px-2.5 py-1.5",
+    sm: "text-[11px] px-3 py-2",
+    md: "text-xs px-3.5 py-2.5",
   };
   const buttonSize = sizeClasses[size] || sizeClasses.sm;
 
@@ -35,7 +35,7 @@ export default function SegmentedTabs({
 
   return (
     <div
-      className={`inline-flex items-center rounded-lg p-0.5 bg-[var(--color-surface-alt)] ${className}`}
+      className={`inline-flex items-center rounded-full bg-[var(--color-surface-alt)] ${className}`}
     >
       <div className="relative">
         <div
@@ -49,9 +49,9 @@ export default function SegmentedTabs({
                 key={opt.value}
                 type="button"
                 onClick={() => onChange?.(opt.value)}
-                className={`relative z-10 rounded-md font-medium whitespace-nowrap transition-colors cursor-pointer ${buttonSize} ${
+                className={`relative z-10 rounded-full font-medium whitespace-nowrap transition-colors duration-200 cursor-pointer ${buttonSize} ${
                   isActive
-                    ? "text-[var(--color-fg)]"
+                    ? "text-[var(--color-bg)]"
                     : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
                 }`}
               >
@@ -63,7 +63,7 @@ export default function SegmentedTabs({
         {activeIndex >= 0 && (
           <span
             aria-hidden="true"
-            className="absolute inset-y-0 z-0 rounded-md bg-[var(--color-surface)] shadow-sm border border-[var(--color-border)] transition-all duration-200 ease-out"
+            className="absolute inset-0 z-0 rounded-full bg-[var(--color-fg)] transition-all duration-200 ease-out"
             style={{
               width: `${100 / options.length}%`,
               left: `${(100 / options.length) * activeIndex}%`,
