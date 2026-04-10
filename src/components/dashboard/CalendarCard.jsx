@@ -46,45 +46,6 @@ const getNextOccurrence = (stream) => {
   return date;
 };
 
-// Count all occurrences of a stream within the current month (for summary)
-const getMonthOccurrenceCount = (stream, year, month) => {
-  const baseDate = stream.last_date || stream.predicted_next_date;
-  if (!baseDate || !stream.frequency) return 0;
-
-  const monthStart = new Date(year, month, 1);
-  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
-  const [y, m, d] = baseDate.split('-').map(Number);
-  let current = new Date(y, m - 1, d);
-
-  if (current > monthEnd) return 0;
-
-  let count = 0;
-  let iterations = 0;
-  while (current <= monthEnd && iterations < 500) {
-    if (current >= monthStart) count++;
-    switch (stream.frequency) {
-      case 'WEEKLY':
-        current.setDate(current.getDate() + 7);
-        break;
-      case 'BIWEEKLY':
-      case 'SEMI_MONTHLY':
-        current.setDate(current.getDate() + 14);
-        break;
-      case 'MONTHLY':
-        current.setMonth(current.getMonth() + 1);
-        break;
-      case 'ANNUALLY':
-        current.setFullYear(current.getFullYear() + 1);
-        break;
-      default:
-        return count;
-    }
-    iterations++;
-  }
-  return count;
-};
-
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -145,51 +106,6 @@ export default function CalendarCard({ className = '' }) {
       .slice(0, 6);
   }, [recurring]);
 
-  // Current month summary (outflows only) — paid vs remaining
-  const monthlySummary = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const today = new Date(year, month, now.getDate());
-    today.setHours(0, 0, 0, 0);
-
-    let paidAmount = 0;
-    let remainingAmount = 0;
-    let paidCount = 0;
-    let remainingCount = 0;
-
-    recurring.forEach((stream) => {
-      if (stream.stream_type !== 'outflow') return;
-      const occurrenceCount = getMonthOccurrenceCount(stream, year, month);
-      if (occurrenceCount === 0) return;
-
-      // Determine if next occurrence is still ahead or already passed
-      const next = getNextOccurrence(stream);
-      const nextInThisMonth = next && next.getFullYear() === year && next.getMonth() === month;
-      const amount = Math.abs(stream.last_amount || 0);
-
-      if (nextInThisMonth) {
-        remainingAmount += amount;
-        remainingCount += 1;
-        // Any occurrences before "next" are already paid
-        if (occurrenceCount > 1) {
-          paidAmount += amount * (occurrenceCount - 1);
-          paidCount += occurrenceCount - 1;
-        }
-      } else {
-        // All this month's occurrences are in the past
-        paidAmount += amount * occurrenceCount;
-        paidCount += occurrenceCount;
-      }
-    });
-
-    const totalAmount = paidAmount + remainingAmount;
-    const totalCount = paidCount + remainingCount;
-    const paidPercentage = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
-
-    return { paidAmount, remainingAmount, totalAmount, paidCount, remainingCount, totalCount, paidPercentage };
-  }, [recurring]);
-
   if (loading) {
     return (
       <div className={`flex flex-col ${className}`}>
@@ -198,20 +114,15 @@ export default function CalendarCard({ className = '' }) {
             <div className="h-4 bg-[var(--color-border)] rounded w-40" />
             <div className="h-4 bg-[var(--color-border)] rounded w-14" />
           </div>
-          <div className="mb-4">
-            <div className="h-7 bg-[var(--color-border)] rounded w-32 mb-2" />
-            <div className="h-1.5 bg-[var(--color-border)] rounded w-full mb-2" />
-            <div className="h-3 bg-[var(--color-border)] rounded w-full" />
-          </div>
-          <div className="space-y-3 mt-4">
-            {[...Array(5)].map((_, i) => (
+          <div className="space-y-3">
+            {[...Array(6)].map((_, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[var(--color-border)]" />
+                <div className="w-8 h-8 rounded-full bg-[var(--color-border)]" />
                 <div className="flex-1">
-                  <div className="h-3 bg-[var(--color-border)] rounded w-2/3 mb-1.5" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-1/3" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-2/3 mb-1.5" />
+                  <div className="h-2 bg-[var(--color-border)] rounded w-1/3" />
                 </div>
-                <div className="h-3 bg-[var(--color-border)] rounded w-14" />
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
               </div>
             ))}
           </div>
@@ -228,41 +139,6 @@ export default function CalendarCard({ className = '' }) {
         <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
       </div>
 
-      {/* Bills Summary Header */}
-      <div className="mb-5">
-        <div className="flex items-baseline justify-between mb-2">
-          <div>
-            <span className="text-2xl font-semibold text-[var(--color-fg)] tracking-tight">
-              {formatCurrency(monthlySummary.remainingAmount)}
-            </span>
-            <span className="text-xs text-[var(--color-muted)] ml-1">remaining this month</span>
-          </div>
-          <div className="text-xs text-[var(--color-muted)] font-medium">
-            {monthlySummary.totalCount} bill{monthlySummary.totalCount !== 1 ? 's' : ''}
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
-          <div
-            className="h-full rounded-full transition-all duration-500 ease-out bg-[var(--color-accent)]"
-            style={{ width: `${monthlySummary.paidPercentage}%` }}
-          />
-        </div>
-
-        <div className="flex justify-between text-[10px] text-[var(--color-muted)]">
-          <span>{formatCurrency(monthlySummary.paidAmount)} paid</span>
-          <span>out of {formatCurrency(monthlySummary.totalAmount)}</span>
-        </div>
-      </div>
-
-      {/* Up Next Section */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
-          Up Next
-        </div>
-      </div>
-
       {upcoming.length > 0 ? (
         <div className="flex flex-col -mx-2">
           {upcoming.map(({ stream, nextDate }, idx) => {
@@ -273,10 +149,10 @@ export default function CalendarCard({ className = '' }) {
             return (
               <div
                 key={stream.id || idx}
-                className="flex items-center gap-4 py-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+                className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                  className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
                   style={{
                     backgroundColor: showLogo
                       ? 'transparent'
@@ -294,23 +170,23 @@ export default function CalendarCard({ className = '' }) {
                     <DynamicIcon
                       iconLib={stream.category_icon_lib}
                       iconName={stream.category_icon_name}
-                      className="h-5 w-5 text-white"
+                      className="h-4 w-4 text-white"
                       fallback={FiTag}
                     />
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1 mr-4">
-                  <div className="font-medium text-[var(--color-fg)] truncate text-sm">
+                <div className="min-w-0 flex-1 mr-3">
+                  <div className="font-medium text-[var(--color-fg)] truncate text-xs">
                     {stream.merchant_name || stream.description || 'Recurring'}
                   </div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
                     {formatRelativeDate(nextDate)}
                   </div>
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                  <div className={`font-medium text-sm tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+                  <div className={`font-medium text-xs tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
                     {isInflow ? '+' : ''}{formatCurrency(amount)}
                   </div>
                 </div>
