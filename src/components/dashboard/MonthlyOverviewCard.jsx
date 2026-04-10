@@ -204,12 +204,15 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
         <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
         <div className="h-7 w-24 bg-[var(--color-border)] rounded" />
       </div>
-      <div className="mb-2">
-        <div className="h-9 w-32 bg-[var(--color-border)] rounded mb-2" />
-        <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
-      </div>
-      <div className="mt-2 mb-4">
-        <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
+      <div className="flex items-start gap-8 mb-6">
+        <div>
+          <div className="h-9 w-28 bg-[var(--color-border)] rounded mb-2" />
+          <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
+        </div>
+        <div>
+          <div className="h-9 w-24 bg-[var(--color-border)] rounded mb-2" />
+          <div className="h-3 w-14 bg-[var(--color-border)] rounded" />
+        </div>
       </div>
       <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 rounded-lg" />
     </div>
@@ -260,43 +263,44 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
             </div>
           </div>
 
-          {/* Hero number */}
-          <div className="mb-1">
-            <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)]">
-              <CurrencyAmount amount={currentData?.spending || 0} />
+          {/* Numbers side by side */}
+          <div className="flex items-start gap-8 mb-6">
+            {/* Current month */}
+            <div>
+              <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1.5">
+                <CurrencyAmount amount={currentData?.spending || 0} />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-fg)]" />
+                  <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                    {selectedMonthName || 'This month'}
+                  </span>
+                </div>
+                {momComparison && (
+                  <span className={`text-[11px] font-semibold ${
+                    momComparison.direction === 'down'
+                      ? 'text-emerald-500'
+                      : 'text-rose-500'
+                  }`}>
+                    {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Current month label + MoM */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-chart-primary)]" />
-              <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-                {selectedMonthName || 'This month'}
-              </span>
+            {/* Previous month */}
+            <div>
+              <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)]/40 mb-1.5">
+                <CurrencyAmount amount={displayPreviousSpending} />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-border)]" />
+                <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
+                  {previousMonthName || 'Previous'}
+                </span>
+              </div>
             </div>
-            {momComparison && (
-              <span className={`text-[11px] font-semibold ${
-                momComparison.direction === 'down'
-                  ? 'text-emerald-500'
-                  : 'text-rose-500'
-              }`}>
-                {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
-              </span>
-            )}
-          </div>
-
-          {/* Previous month secondary stat */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
-              <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-                {previousMonthName || 'Previous'}
-              </span>
-            </div>
-            <span className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
-              {formatCurrency(displayPreviousSpending)}
-            </span>
           </div>
 
           {/* Chart */}
@@ -305,27 +309,25 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               data={chartData}
               width="100%"
               height="100%"
-              margin={{ top: 24, right: 16, bottom: 0, left: 16 }}
+              margin={{ top: 16, right: 16, bottom: 0, left: 16 }}
               lines={[
                 {
                   dataKey: "previousSpending",
-                  strokeColor: "var(--color-muted)",
-                  strokeWidth: 2,
-                  strokeOpacity: 0.4,
-                  showArea: true,
-                  areaOpacity: 0.05,
+                  strokeColor: "var(--color-border)",
+                  strokeWidth: 1.5,
+                  strokeOpacity: 1,
+                  strokeDasharray: "4 4",
+                  showArea: false,
                   gradientId: "monthlyOverviewPrevious"
                 },
                 {
                   dataKey: "spending",
-                  strokeColor: "var(--color-chart-primary)",
-                  strokeWidth: 2.5,
+                  strokeColor: "var(--color-fg)",
+                  strokeWidth: 2,
                   strokeOpacity: 1,
                   showArea: true,
-                  areaOpacity: 0.55,
+                  areaOpacity: 0.06,
                   gradientId: "monthlyOverviewSpending",
-                  fadeIn: true,
-                  endpointGlow: true,
                 }
               ]}
               showDots={false}
