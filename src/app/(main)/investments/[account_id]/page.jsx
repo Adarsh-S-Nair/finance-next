@@ -32,6 +32,7 @@ export default function InvestmentAccountPage() {
   const [account, setAccount] = useState(null);
   const [holdings, setHoldings] = useState([]);
   const [quotes, setQuotes] = useState({});
+  const [tickerMeta, setTickerMeta] = useState({});
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -68,14 +69,31 @@ export default function InvestmentAccountPage() {
 
         const uniqueTickers = Array.from(new Set((h || []).map((x) => x.ticker).filter(Boolean)));
         if (uniqueTickers.length > 0) {
-          try {
-            const resp = await fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`);
-            if (resp.ok) {
-              const quoteJson = await resp.json();
-              if (!cancelled) setQuotes(quoteJson?.quotes || {});
+          const [tickerResult, quoteResult] = await Promise.allSettled([
+            supabase
+              .from("tickers")
+              .select("symbol, name, logo, asset_type")
+              .in("symbol", uniqueTickers),
+            fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
+              r.ok ? r.json() : null
+            ),
+          ]);
+
+          if (!cancelled) {
+            if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
+              const map = {};
+              for (const row of tickerResult.value.data) {
+                map[row.symbol] = {
+                  logo: row.logo || null,
+                  name: row.name || null,
+                  assetType: row.asset_type || null,
+                };
+              }
+              setTickerMeta(map);
             }
-          } catch (quoteErr) {
-            console.warn("Failed to fetch quotes", quoteErr);
+            if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
+              setQuotes(quoteResult.value.quotes);
+            }
           }
         }
       } catch (err) {
@@ -168,34 +186,63 @@ export default function InvestmentAccountPage() {
           <div className="py-6 text-sm text-[var(--color-muted)]">No holdings on this account yet.</div>
         ) : (
           <div className="divide-y divide-[var(--color-border)]">
-            {enrichedHoldings.map((h) => (
-              <div key={h.id} className="flex items-center gap-4 py-4">
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-alt)]">
-                  <span className="text-[11px] font-semibold text-[var(--color-muted)]">
-                    {h.ticker.slice(0, 3)}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-medium text-[var(--color-fg)]">{h.ticker}</div>
-                  <div className="mt-0.5 text-xs text-[var(--color-muted)]">
-                    {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm tabular-nums text-[var(--color-fg)]">
-                    {formatCurrency(h.marketValue)}
-                  </div>
-                  {h.price != null && (
-                    <div
-                      className={`mt-0.5 text-xs tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
-                    >
-                      {h.gain >= 0 ? "+" : ""}
-                      {h.gainPct.toFixed(2)}%
+            {enrichedHoldings.map((h) => {
+              const meta = tickerMeta[h.ticker];
+              const displayName = meta?.name || h.ticker;
+              return (
+                <div key={h.id} className="flex items-center gap-4 py-4">
+                  <div
+                    className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
+                    style={{ width: 40, height: 40 }}
+                  >
+                    {meta?.logo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={meta.logo}
+                        alt={h.ticker}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    )}
+                    <div className="flex h-full w-full items-center justify-center">
+                      <span className="text-[11px] font-semibold text-[var(--color-muted)]">
+                        {h.asset_type === "cash" ? "$" : h.ticker.slice(0, 3)}
+                      </span>
                     </div>
-                  )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <span className="truncate text-sm font-medium text-[var(--color-fg)]">
+                        {displayName}
+                      </span>
+                      {displayName !== h.ticker && (
+                        <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
+                          {h.ticker}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-[var(--color-muted)]">
+                      {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
+                      {formatCurrency(h.marketValue)}
+                    </div>
+                    {h.price != null && (
+                      <div
+                        className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                      >
+                        {h.gain >= 0 ? "+" : ""}
+                        {h.gainPct.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

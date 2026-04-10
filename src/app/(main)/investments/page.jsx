@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { LuChevronRight, LuTrendingUp } from "react-icons/lu";
-import { PiBankFill } from "react-icons/pi";
+import { LuTrendingUp } from "react-icons/lu";
 import { supabase } from "../../../lib/supabase/client";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useInvestmentsHeader } from "./InvestmentsHeaderContext";
 import { authFetch } from "../../../lib/api/fetch";
 import InvestmentsChart from "./InvestmentsChart";
 import AllocationCard from "./AllocationCard";
+import AccountsCard from "./AccountsCard";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -30,70 +29,30 @@ function formatShares(value) {
 
 /* ── Sub-components ──────────────────────────────────────── */
 
-function CategoryHeader({ title, total, isFirst }) {
+function HoldingLogo({ ticker, logo, assetType, size = 40 }) {
+  const dim = `${size}px`;
   return (
-    <div className={`flex items-center justify-between px-5 py-3 ${isFirst ? "" : "pt-5"}`}>
-      <h3 className="text-xs font-medium uppercase tracking-wider text-[var(--color-muted)] opacity-80">
-        {title}
-      </h3>
-      <div className="text-xs font-semibold tabular-nums text-[var(--color-muted)]">
-        {formatCurrency(total)}
+    <div
+      className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
+      style={{ width: dim, height: dim }}
+    >
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={ticker}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div className="flex h-full w-full items-center justify-center">
+        <span className="text-[11px] font-semibold text-[var(--color-muted)]">
+          {assetType === "cash" ? "$" : ticker.slice(0, 3)}
+        </span>
       </div>
     </div>
-  );
-}
-
-function AccountRow({ account, institution }) {
-  return (
-    <Link
-      href={`/investments/${account.id}`}
-      className="group flex items-center justify-between rounded-lg px-5 py-3.5 transition-all duration-200 hover:bg-[var(--color-card-highlight)]"
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-3.5">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50">
-          {institution?.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={institution.logo}
-              alt={institution.name}
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-                const fallback = e.currentTarget.nextElementSibling;
-                if (fallback) fallback.style.display = "flex";
-              }}
-            />
-          ) : null}
-          <div
-            className={`h-full w-full items-center justify-center ${institution?.logo ? "hidden" : "flex"}`}
-          >
-            <PiBankFill className="h-4 w-4 text-[var(--color-muted)]" />
-          </div>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="mb-0.5 text-sm font-medium text-[var(--color-fg)]">{account.name}</div>
-          <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            <span className="max-w-[180px] truncate">{institution?.name || "Unknown"}</span>
-            {account.mask && (
-              <>
-                <span className="text-[var(--color-border)]">•</span>
-                <span className="font-mono">•••• {account.mask}</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="ml-4 flex items-center gap-2">
-        <div className="text-right">
-          <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
-            {formatCurrency(account.balances?.current)}
-          </div>
-        </div>
-        <LuChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--color-muted)] transition-colors group-hover:text-[var(--color-fg)]" />
-      </div>
-    </Link>
   );
 }
 
@@ -105,6 +64,7 @@ export default function InvestmentsPage() {
   const [accounts, setAccounts] = useState([]);
   const [holdings, setHoldings] = useState([]);
   const [quotes, setQuotes] = useState({});
+  const [tickerMeta, setTickerMeta] = useState({}); // symbol → { logo, name, asset_type }
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -143,16 +103,38 @@ export default function InvestmentsPage() {
       const uniqueTickers = Array.from(
         new Set((holdingsData || []).map((h) => h.ticker).filter(Boolean))
       );
+
       if (uniqueTickers.length > 0) {
-        try {
-          const resp = await fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`);
-          if (resp.ok) {
-            const quoteJson = await resp.json();
-            setQuotes(quoteJson?.quotes || {});
+        // Fetch ticker metadata (logo, name, sector) and live quotes in parallel
+        const [tickerResult, quoteResult] = await Promise.allSettled([
+          supabase
+            .from("tickers")
+            .select("symbol, name, logo, asset_type, sector")
+            .in("symbol", uniqueTickers),
+          fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
+            r.ok ? r.json() : null
+          ),
+        ]);
+
+        if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
+          const map = {};
+          for (const row of tickerResult.value.data) {
+            map[row.symbol] = {
+              logo: row.logo || null,
+              name: row.name || null,
+              assetType: row.asset_type || null,
+              sector: row.sector || null,
+            };
           }
-        } catch (quoteErr) {
-          console.warn("Failed to fetch quotes", quoteErr);
+          setTickerMeta(map);
         }
+
+        if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
+          setQuotes(quoteResult.value.quotes);
+        }
+      } else {
+        setTickerMeta({});
+        setQuotes({});
       }
     } catch (err) {
       console.error("Error loading investments:", err);
@@ -243,28 +225,6 @@ export default function InvestmentsPage() {
       .sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
   }, [holdings, quotes]);
 
-  // Group accounts by institution for the "All Accounts" section
-  const accountsByInstitution = useMemo(() => {
-    const map = new Map();
-    for (const account of accounts) {
-      const inst = account.institutions || {};
-      const key = inst.id || account.institution_id || "unknown";
-      if (!map.has(key)) {
-        map.set(key, {
-          id: key,
-          name: inst.name || "Unknown",
-          logo: inst.logo || null,
-          accounts: [],
-          total: 0,
-        });
-      }
-      const entry = map.get(key);
-      entry.accounts.push(account);
-      entry.total += Number(account.balances?.current) || 0;
-    }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [accounts]);
-
   const totalValue = useMemo(() => {
     return accounts.reduce((sum, a) => sum + (Number(a.balances?.current) || 0), 0);
   }, [accounts]);
@@ -295,37 +255,16 @@ export default function InvestmentsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Summary Section: chart (2/3) + allocation (1/3) */}
+      {/* Summary Section: chart (2/3) + (allocation + accounts stacked) (1/3) */}
       <div className="w-full">
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="lg:w-2/3">
             <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
           </div>
-          <div className="lg:w-1/3">
+          <div className="flex flex-col gap-8 lg:w-1/3">
             <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
+            <AccountsCard accounts={accounts} />
           </div>
-        </div>
-      </div>
-
-      {/* All Accounts grouped by institution */}
-      <div className="pt-4">
-        <div className="mb-6 px-1">
-          <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
-        </div>
-
-        <div className="overflow-hidden">
-          {accountsByInstitution.map((inst, i) => (
-            <div key={inst.id}>
-              <CategoryHeader title={inst.name} total={inst.total} isFirst={i === 0} />
-              {inst.accounts.map((account) => (
-                <AccountRow
-                  key={account.id}
-                  account={account}
-                  institution={{ name: inst.name, logo: inst.logo }}
-                />
-              ))}
-            </div>
-          ))}
         </div>
       </div>
 
@@ -337,36 +276,48 @@ export default function InvestmentsPage() {
           </div>
 
           <div className="divide-y divide-[var(--color-border)]">
-            {combinedHoldings.map((h) => (
-              <div key={h.ticker} className="flex items-center gap-4 px-5 py-4">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50">
-                  <span className="text-[11px] font-semibold text-[var(--color-muted)]">
-                    {h.ticker.slice(0, 3)}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-0.5 truncate text-sm font-medium text-[var(--color-fg)]">
-                    {h.ticker}
-                  </div>
-                  <div className="text-xs text-[var(--color-muted)]">
-                    {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
-                    {formatCurrency(h.marketValue)}
-                  </div>
-                  {h.price != null && (
-                    <div
-                      className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
-                    >
-                      {h.gain >= 0 ? "+" : ""}
-                      {h.gainPct.toFixed(2)}%
+            {combinedHoldings.map((h) => {
+              const meta = tickerMeta[h.ticker];
+              const displayName = meta?.name || h.ticker;
+              return (
+                <div key={h.ticker} className="flex items-center gap-4 px-5 py-4">
+                  <HoldingLogo
+                    ticker={h.ticker}
+                    logo={meta?.logo}
+                    assetType={h.asset_type}
+                    size={40}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <span className="truncate text-sm font-medium text-[var(--color-fg)]">
+                        {displayName}
+                      </span>
+                      {displayName !== h.ticker && (
+                        <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
+                          {h.ticker}
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <div className="text-xs text-[var(--color-muted)]">
+                      {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
+                      {formatCurrency(h.marketValue)}
+                    </div>
+                    {h.price != null && (
+                      <div
+                        className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                      >
+                        {h.gain >= 0 ? "+" : ""}
+                        {h.gainPct.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
