@@ -251,14 +251,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[var(--color-content-bg)] relative">
-      {/* Global ambient glow — right edge, layered on top of everything */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-[0.04] dark:opacity-[0.07]"
-        style={{
-          zIndex: 9999,
-          background: 'linear-gradient(to left, var(--color-chart-primary) 0%, transparent 60%)',
-        }}
-      />
+      {/* Ambient blue glow lives on body::before in globals.css — it needs
+          to cover the full viewport including portaled modals, which means
+          it can't live inside any React-rendered stacking context. */}
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

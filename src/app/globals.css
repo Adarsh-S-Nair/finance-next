@@ -2,6 +2,25 @@
 @source "../../node_modules/@slate-ui/react/dist";
 @import "../styles/colors.css";
 
+/* Global ambient glow — right-edge blue gradient that spans the full
+   viewport. Placed on body::before so it escapes any React stacking
+   context (transforms/backdrop-filters on descendants would otherwise
+   clip a JSX-rendered `fixed inset-0` div). pointer-events: none so it
+   never intercepts clicks. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: linear-gradient(to left, var(--color-chart-primary) 0%, transparent 60%);
+  opacity: 0.04;
+}
+
+.dark body::before {
+  opacity: 0.07;
+}
+
 /* App-wide utility tweaks */
 .container {
   max-width: 1400px;
