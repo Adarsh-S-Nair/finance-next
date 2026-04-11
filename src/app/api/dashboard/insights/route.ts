@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         amount,
         date,
         accounts!inner(user_id),
-        system_categories(id, label, category_groups(id, name, hex_color)),
+        system_categories(id, label, hex_color, category_groups(id, name, hex_color)),
         transaction_splits(amount, is_settled),
         transaction_repayments(id)
       `)

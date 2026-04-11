@@ -54,6 +54,7 @@ export async function POST(request) {
           ),
           system_categories (
             label,
+            hex_color,
             category_groups (
               icon_lib,
               icon_name,
@@ -109,7 +110,7 @@ export async function POST(request) {
       category_name: tx.system_categories?.label,
       category_icon_lib: tx.system_categories?.category_groups?.icon_lib,
       category_icon_name: tx.system_categories?.category_groups?.icon_name,
-      category_hex_color: tx.system_categories?.category_groups?.hex_color,
+      category_hex_color: tx.system_categories?.hex_color || tx.system_categories?.category_groups?.hex_color,
     }));
 
     // 7. Determine match criteria for display

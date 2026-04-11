@@ -2,7 +2,6 @@ import { FiCalendar, FiTag, FiCreditCard, FiMapPin, FiCheckCircle, FiClock, FiAc
 import { motion, AnimatePresence } from "framer-motion";
 import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
-import { muteColor } from "../../lib/muteColor";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 
@@ -69,7 +68,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               style={{
                 backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
                   ? 'transparent'
-                  : muteColor(transaction.category_hex_color)
+                  : (transaction.category_hex_color || 'var(--color-accent)')
               }}
             >
               {(!DISABLE_LOGOS && transaction.icon_url) ? (
@@ -143,7 +142,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                 <div className="flex items-center gap-2 group-hover:translate-x-[-2px] transition-transform min-w-0 flex-1 justify-end pl-4">
                   <div
                     className="w-2 h-2 rounded-full ring-1 ring-inset ring-black/5 dark:ring-white/10 flex-shrink-0"
-                    style={{ backgroundColor: muteColor(transaction.category_hex_color) }}
+                    style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
                   />
                   <span className="text-sm text-[var(--color-fg)] truncate text-right">{transaction.category_name}</span>
                   <FiArrowUpRight className="w-3 h-3 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />

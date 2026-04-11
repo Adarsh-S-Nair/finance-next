@@ -73,22 +73,46 @@ function extractDetailedLabel(detailedKey, primaryKey) {
 }
 
 /**
- * Generate a unique hex color for new categories
+ * Muted color palette for category groups (18 distinct tones).
  */
-function generateColor(existingColors, index) {
-    const palette = [
-        '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
-        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-        '#14B8A6', '#A855F7', '#DC2626', '#059669', '#D97706',
-        '#7C3AED', '#BE185D', '#0D9488', '#CA8A04', '#9333EA',
-    ];
+const GROUP_PALETTE = [
+    '#8ba3bf', '#b0a090', '#7a9e8e', '#b09aaf', '#9ab3b3',
+    '#c4a882', '#8e8faa', '#a3b5a0', '#b5929a', '#8caab5',
+    '#a89a82', '#91a8a0', '#b8a3b3', '#9db09a', '#a8949e',
+    '#85a6a6', '#bca88e', '#9c97b0', '#a0b392', '#b39a8e',
+];
 
-    const color = palette[index % palette.length];
+/**
+ * Generate a unique muted hex color for a category group.
+ */
+function generateGroupColor(existingColors, index) {
+    const color = GROUP_PALETTE[index % GROUP_PALETTE.length];
     if (existingColors.includes(color)) {
-        // Generate a random color if palette is exhausted
-        return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+        return generateMutedColor(index * 17); // deterministic fallback
     }
     return color;
+}
+
+/**
+ * Generate a unique muted hex color for a system category.
+ * Uses HSL with low saturation spread evenly across the hue wheel.
+ */
+function generateMutedColor(index) {
+    // Golden angle spacing for maximum hue separation
+    const hue = (index * 137.508) % 360;
+    const saturation = 18 + (index % 3) * 5;  // 18-28%
+    const lightness = 58 + (index % 5) * 4;   // 58-74%
+
+    // HSL to hex
+    const s = saturation / 100;
+    const l = lightness / 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+        const k = (n + hue / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 async function fetchPlaidTaxonomy() {
@@ -119,7 +143,7 @@ async function getExistingCategories() {
 
     const { data: categories, error: categoriesError } = await supabase
         .from('system_categories')
-        .select('id, label, plaid_category_key, group_id');
+        .select('id, label, plaid_category_key, group_id, hex_color');
 
     if (categoriesError) throw categoriesError;
 
@@ -178,7 +202,7 @@ async function syncCategories() {
                     name: displayName,
                     plaid_category_key: key,
                     icon_url: `${PLAID_ICON_BASE_URL}/PFC_${key}.png`,
-                    hex_color: generateColor(existingColors, colorIndex++),
+                    hex_color: generateGroupColor(existingColors, colorIndex++),
                 });
             }
         }
@@ -251,11 +275,14 @@ async function syncCategories() {
             if (g.plaid_category_key) updatedGroupKeyToId.set(g.plaid_category_key, g.id);
         });
 
-        // Resolve group_ids for new categories
-        const categoriesToInsert = newCategories.map(c => ({
+        // Resolve group_ids and assign unique colors for new categories
+        // Offset the color index by existing category count for uniqueness
+        const existingCategoryCount = categories.length;
+        const categoriesToInsert = newCategories.map((c, i) => ({
             label: c.label,
             plaid_category_key: c.plaid_category_key,
             group_id: updatedGroupKeyToId.get(c.primaryKey) || null,
+            hex_color: generateMutedColor(existingCategoryCount + i),
         }));
 
         // Insert new categories

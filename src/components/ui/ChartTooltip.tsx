@@ -1,5 +1,4 @@
 import React from 'react';
-import { muteColor } from '../../lib/muteColor';
 
 export default function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
   if (active && payload && payload.length) {
@@ -17,7 +16,7 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
       }).format(val);
     };
 
-    const color = muteColor(data.color || data.fill || data.hex_color);
+    const color = data.color || data.fill || data.hex_color || 'var(--color-accent)';
 
     return (
       <div className="bg-[var(--color-surface)]/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-[var(--color-border)] text-xs min-w-[140px]">

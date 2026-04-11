@@ -47,6 +47,7 @@ export async function GET(request) {
         accounts!inner (id, name, mask),
         system_categories!inner (
           label,
+          hex_color,
           group_id,
           category_groups (
             icon_lib,
@@ -91,6 +92,7 @@ export async function GET(request) {
         system_categories!inner (
           id,
           label,
+          hex_color,
           group_id,
           category_groups (
             id,
@@ -297,7 +299,7 @@ export async function GET(request) {
       account_name: transaction.accounts?.name || 'Unknown Account',
       category_icon_lib: transaction.system_categories?.category_groups?.icon_lib || null,
       category_icon_name: transaction.system_categories?.category_groups?.icon_name || null,
-      category_hex_color: transaction.system_categories?.category_groups?.hex_color || null,
+      category_hex_color: transaction.system_categories?.hex_color || transaction.system_categories?.category_groups?.hex_color || null,
       category_name: transaction.system_categories?.label || null,
       is_repayment: transaction.transaction_repayments && transaction.transaction_repayments.length > 0,
       // Preserve transaction.icon_url from DB; do not override with institution logo

@@ -86,6 +86,7 @@ export async function GET(request) {
               date,
               category_id,
               system_categories (
+                hex_color,
                 category_groups (
                   icon_lib,
                   icon_name,
@@ -112,6 +113,7 @@ export async function GET(request) {
               date,
               category_id,
               system_categories (
+                hex_color,
                 category_groups (
                   icon_lib,
                   icon_name,
@@ -161,7 +163,7 @@ export async function GET(request) {
               stream.icon_url = tx.icon_url || null;
               stream.category_icon_lib = tx.system_categories?.category_groups?.icon_lib;
               stream.category_icon_name = tx.system_categories?.category_groups?.icon_name;
-              stream.category_hex_color = tx.system_categories?.category_groups?.hex_color;
+              stream.category_hex_color = tx.system_categories?.hex_color || tx.system_categories?.category_groups?.hex_color;
             }
           });
         }

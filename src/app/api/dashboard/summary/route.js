@@ -63,6 +63,7 @@ export async function GET(request) {
         system_categories(
           id,
           label,
+          hex_color,
           category_groups(
             id,
             name,
@@ -231,7 +232,7 @@ function buildSpendingByCategory(transactions, matchedIds, since, endDate) {
       categoryData[key] = {
         id: key,
         label: category.label,
-        hex_color: category.category_groups?.hex_color || '#6B7280',
+        hex_color: category.hex_color || category.category_groups?.hex_color || '#6B7280',
         icon_name: category.category_groups?.icon_name,
         icon_lib: category.category_groups?.icon_lib,
         total_spent: 0,

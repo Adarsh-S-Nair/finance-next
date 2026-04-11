@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { FiTag, FiAlertCircle } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
-import { muteColor } from '../../lib/muteColor';
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
@@ -41,7 +40,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
             style={{
               backgroundColor: showLogo
                 ? 'transparent'
-                : muteColor(transaction.category_hex_color)
+                : (transaction.category_hex_color || 'var(--color-accent)')
             }}
           >
             {showLogo ? (
