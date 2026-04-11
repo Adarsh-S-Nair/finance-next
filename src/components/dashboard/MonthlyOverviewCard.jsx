@@ -265,7 +265,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               </div>
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
+              {activeIndex !== null && currentData?.dateString && (
+                <span className="text-[11px] font-medium text-[var(--color-muted)] animate-fade-in">
+                  {currentData.dateString}
+                </span>
+              )}
               {availableMonths.length > 0 && (
                 <Dropdown
                   label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}

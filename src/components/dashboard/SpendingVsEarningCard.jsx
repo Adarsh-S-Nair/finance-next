@@ -129,9 +129,10 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
             <CurrencyAmount amount={averageCashflow} />
           </div>
 
-          {/* Income / Spending breakdown on hover — positioned top-right */}
+          {/* Month + Income / Spending breakdown on hover — positioned top-right */}
           {hoveredData && (
             <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 text-[11px] animate-fade-in">
+              <span className="card-header mb-1">{hoveredData.monthName}</span>
               <div className="flex items-center gap-1 text-[var(--color-muted)]">
                 <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
                 <span>in</span>
