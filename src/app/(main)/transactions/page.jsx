@@ -124,19 +124,21 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
     </div>
   );
 
-  // Desktop topbar content — search limited to ~1/3 width
+  // Desktop topbar content — search on left, tools right-aligned
   const desktopContent = (
-    <div className="flex items-center gap-6 w-full">
-      <div className="relative max-w-xs w-full">
-        <FiSearch className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
+    <div className="flex items-center w-full">
+      <div className="relative max-w-xs w-full flex items-center">
+        <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
         <input
           placeholder="Search transactions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-6 py-1 border-b border-transparent input-focus-bar leading-normal"
+          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none ml-2 border-b border-transparent input-focus-bar"
         />
       </div>
-      {toolButtons}
+      <div className="ml-auto">
+        {toolButtons}
+      </div>
     </div>
   );
 
@@ -280,7 +282,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
     <div className="space-y-6 pb-24 animate-fade-in pl-1">
       {sortedDates.map((dateKey, groupIndex) => (
         <div key={dateKey} className="relative">
-          <div className="sticky top-[124px] z-20 py-4 pointer-events-none">
+          <div className="sticky top-16 z-20 py-4 pointer-events-none">
             <div className="px-4 md:px-5">
               <span className="text-sm font-medium text-[var(--color-muted)]">
                 {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
@@ -1346,7 +1348,7 @@ function TransactionsContent() {
 
   if ((loading && !debouncedSearchQuery) || !user?.id) {
     return (
-      <PageContainer padding="pb-10" showHeader={false}>
+      <PageContainer padding="pt-2 pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1406,7 +1408,7 @@ function TransactionsContent() {
   // Show error state
   if (error) {
     return (
-      <PageContainer padding="pb-10" showHeader={false}>
+      <PageContainer padding="pt-2 pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1480,7 +1482,7 @@ function TransactionsContent() {
   };
 
   return (
-    <PageContainer padding="pb-10" showHeader={false}>
+    <PageContainer padding="pt-2 pb-10" showHeader={false}>
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
