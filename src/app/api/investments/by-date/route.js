@@ -129,7 +129,7 @@ export async function GET(request) {
 
     const hasHoldings = holdings && holdings.length > 0;
 
-    // Determine date range from snapshots
+    // Determine date range
     const { data: allSnapshots } = await supabaseAdmin
       .from('account_snapshots')
       .select('account_id, current_balance, recorded_at')
@@ -137,11 +137,18 @@ export async function GET(request) {
       .order('recorded_at', { ascending: true });
 
     const sortedSnapshotDates = [...new Set((allSnapshots || []).map(s => toISODateString(new Date(s.recorded_at))))].sort();
-    const earliestDate = sortedSnapshotDates[0] || todayISO;
+    const earliestSnapshotDate = sortedSnapshotDates[0] || todayISO;
 
     const lookbackStart = new Date(todayISO);
     lookbackStart.setDate(lookbackStart.getDate() - (MAX_DAYS - 1));
-    const startDate = new Date(earliestDate) > lookbackStart ? earliestDate : toISODateString(lookbackStart);
+    const lookbackStartISO = toISODateString(lookbackStart);
+
+    // When holdings are available, use the full lookback window since we can
+    // calculate portfolio values from holdings × prices for any historical date.
+    // For snapshot-only fallback, limit to dates since the first snapshot.
+    const startDate = hasHoldings
+      ? lookbackStartISO
+      : (new Date(earliestSnapshotDate) > lookbackStart ? earliestSnapshotDate : lookbackStartISO);
     const dateRange = buildDateRange(startDate, todayISO).slice(-MAX_DAYS);
 
     // ─── Holdings-based calculation (dense daily data) ───
