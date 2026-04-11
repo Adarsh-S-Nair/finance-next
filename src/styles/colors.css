@@ -188,11 +188,11 @@ body {
   box-shadow: none;
 }
 
-/* Animated bottom border that expands from center on focus */
+/* Animated bottom border that expands from left on focus */
 .input-focus-bar {
   background-image: linear-gradient(var(--color-fg), var(--color-fg));
   background-size: 0% 2px;
-  background-position: center bottom;
+  background-position: left bottom;
   background-repeat: no-repeat;
   transition: background-size 0.3s ease-out;
 }

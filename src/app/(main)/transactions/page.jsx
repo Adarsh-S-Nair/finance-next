@@ -9,12 +9,13 @@ import Card from "../../../components/ui/Card";
 import { FiRefreshCw, FiFilter, FiSearch, FiTag, FiLoader, FiChevronDown, FiChevronUp, FiX, FiDollarSign, FiCalendar, FiTrendingUp, FiTrendingDown, FiClock, FiAlertCircle } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../../components/providers/UserProvider";
 import Input from "../../../components/ui/Input";
 import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
-import PageToolbar from "../../../components/layout/PageToolbar";
+
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
 import TransactionRow from "../../../components/transactions/TransactionRow";
@@ -78,51 +79,58 @@ function TransactionSkeleton() {
   );
 }
 
-// SearchToolbar component for consistent styling
+// SearchToolbar — portals into the topbar on desktop, renders inline on mobile
 function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters, activeFilterCount }) {
-  return (
-    <PageToolbar>
-      <div className="flex items-center gap-4">
-        <div className="flex-1 max-w-4xl">
-          <div className="relative rounded-lg bg-[var(--color-surface-alt)] focus-within:bg-[color-mix(in_oklab,var(--color-surface-alt),var(--color-fg)_4%)] transition-colors duration-200">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
-            <Input
-              placeholder="Search transactions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-transparent border-0 outline-none focus:outline-none ring-0 focus:ring-0 focus:border-0 focus-visible:outline-none shadow-none text-base"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <Button
-            onClick={onRefresh}
-            variant="ghost"
-            size="icon"
-            aria-label="Refresh Transactions"
-            disabled={loading}
-            className="hover:bg-[var(--color-surface-alt)]"
-          >
-            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Filter Transactions"
-            onClick={onOpenFilters}
-            className="hover:bg-[var(--color-surface-alt)] relative"
-          >
-            <FiFilter className="h-4 w-4" />
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center animate-fade-in">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
-        </div>
+  const toolbarContent = (
+    <div className="flex items-center gap-3 w-full">
+      <div className="relative flex-1">
+        <FiSearch className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
+        <input
+          placeholder="Search transactions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-6 pb-1 border-b border-transparent input-focus-bar"
+        />
       </div>
-    </PageToolbar>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          aria-label="Refresh Transactions"
+          className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
+        >
+          <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+        <button
+          onClick={onOpenFilters}
+          aria-label="Filter Transactions"
+          className="relative w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+        >
+          <FiFilter className="h-4 w-4" />
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  const portalRoot = mounted ? document.getElementById("page-title-portal") : null;
+
+  return (
+    <>
+      {/* Desktop: portal into topbar */}
+      {portalRoot && createPortal(toolbarContent, portalRoot)}
+      {/* Mobile: inline, hidden on desktop */}
+      <div className="md:hidden py-3">
+        {toolbarContent}
+      </div>
+    </>
   );
 }
 
@@ -1279,7 +1287,7 @@ function TransactionsContent() {
 
   if ((loading && !debouncedSearchQuery) || !user?.id) {
     return (
-      <PageContainer frame="toolbar" showHeader={false}>
+      <PageContainer frame="default" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1339,7 +1347,7 @@ function TransactionsContent() {
   // Show error state
   if (error) {
     return (
-      <PageContainer frame="toolbar" showHeader={false}>
+      <PageContainer frame="default" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1413,7 +1421,7 @@ function TransactionsContent() {
   };
 
   return (
-    <PageContainer frame="toolbar" showHeader={false}>
+    <PageContainer frame="default" showHeader={false}>
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
