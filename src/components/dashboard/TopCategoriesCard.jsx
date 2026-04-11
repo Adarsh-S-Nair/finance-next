@@ -7,7 +7,7 @@ import { useUser } from "../providers/UserProvider";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
-import { muteColor } from "../../lib/muteColor";
+import { dedupeAndMute } from "../../lib/muteColor";
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
@@ -25,7 +25,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   ];
 
   const sliceColors = useMemo(
-    () => categories.map((cat) => muteColor(cat.hex_color || '#71717a')),
+    () => dedupeAndMute(categories.map((cat) => cat.hex_color)),
     [categories]
   );
 

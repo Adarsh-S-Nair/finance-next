@@ -33,3 +33,32 @@ export function muteColor(hex: string, amount = 0.45): string {
 
   return `#${mr.toString(16).padStart(2, '0')}${mg.toString(16).padStart(2, '0')}${mb.toString(16).padStart(2, '0')}`;
 }
+
+/**
+ * Mute an array of hex colors, then shift duplicates so siblings that
+ * share a parent group color end up as distinct tints of the same hue.
+ *
+ * Use this for chart slices where multiple categories can have the
+ * same base hex_color (e.g. two system categories under Loan Payments).
+ */
+export function dedupeAndMute(hexColors: (string | undefined | null)[]): string[] {
+  // First pass: mute everything
+  const muted = hexColors.map((h) => muteColor(h || '#71717a'));
+
+  // Second pass: shift duplicates
+  const seen: Record<string, number> = {};
+  return muted.map((color) => {
+    const key = color.toLowerCase();
+    const n = seen[key] || 0;
+    seen[key] = n + 1;
+    if (n === 0) return color;
+
+    // Parse and shift — alternate lighter/darker per occurrence
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    const shift = n % 2 === 1 ? 35 * Math.ceil(n / 2) : -30 * Math.ceil(n / 2);
+    const clamp = (v: number) => Math.max(0, Math.min(255, v + shift));
+    return `#${[r, g, b].map(clamp).map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  });
+}
