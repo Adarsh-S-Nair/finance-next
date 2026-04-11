@@ -80,7 +80,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                         <div className="flex items-center gap-2.5">
                           <div
                             className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: group.hex_color || 'var(--color-muted)' }}
+                            style={{ backgroundColor: category.hex_color || group.hex_color || 'var(--color-muted)' }}
                           />
                           <span className={clsx(
                             "text-sm",

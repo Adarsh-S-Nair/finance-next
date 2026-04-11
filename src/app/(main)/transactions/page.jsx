@@ -981,7 +981,7 @@ function TransactionsContent() {
         setCategoryGroupsError(null);
         const { data, error } = await supabase
           .from('category_groups')
-          .select('id, name, icon_lib, icon_name, hex_color, system_categories(id, label)')
+          .select('id, name, icon_lib, icon_name, hex_color, system_categories(id, label, hex_color)')
           .order('name', { ascending: true });
 
         if (error) throw error;
