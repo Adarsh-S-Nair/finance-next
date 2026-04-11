@@ -4,7 +4,6 @@ import { ReactNode, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { LuChevronLeft } from "react-icons/lu";
 
 type DrawerView = {
   id: string;
@@ -123,8 +122,8 @@ export default function Drawer({
             "fixed inset-0 z-50 flex overflow-hidden overscroll-contain",
             // Bottom sheet on mobile
             "items-end p-0",
-            // Right-side drawer from small screens and up
-            "sm:items-start sm:justify-end sm:p-4"
+            // Right-side drawer flush to edge on desktop
+            "sm:items-stretch sm:justify-end"
           )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -143,18 +142,18 @@ export default function Drawer({
             role="dialog"
             aria-modal="true"
             className={clsx(
-              "relative z-10 w-full border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl flex flex-col",
+              "relative z-10 w-full bg-[var(--color-content-bg)] flex flex-col",
               // Mobile bottom sheet look
               "rounded-t-lg rounded-b-none",
-              // Desktop drawer look - all corners rounded
-              "sm:rounded-lg",
+              // Desktop: flush to right edge, no rounding
+              "sm:rounded-none sm:border-l sm:border-[var(--color-border)]",
               // Width constraints only from small screens and up
               size === "sm" && "sm:max-w-sm",
               size === "md" && "sm:max-w-md",
               size === "lg" && "sm:max-w-lg",
               size === "xl" && "sm:max-w-xl",
-              // Height constraints - no overflow here, content area handles scrolling
-              "h-[75vh] sm:h-full sm:max-h-[100vh]",
+              // Height constraints
+              "h-[75vh] sm:h-full",
               "overflow-hidden",
               className
             )}
@@ -162,7 +161,7 @@ export default function Drawer({
             initial={isMobile ? { y: "100%", opacity: 1 } : { x: "100%", opacity: 1 }}
             animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
             exit={isMobile ? { y: "100%", opacity: 1 } : { x: "100%", opacity: 1 }}
-            transition={isMobile ? { type: "tween", duration: 0.2, ease: "easeOut" } : { type: "tween", duration: 0.2, ease: "easeOut" }}
+            transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
             // Enable swipe-to-dismiss on mobile
             drag={isMobile ? "y" : false}
             dragConstraints={isMobile ? { top: 0, bottom: 0 } : undefined}
@@ -170,33 +169,33 @@ export default function Drawer({
             dragMomentum={false}
             onDragEnd={(event, info) => {
               if (!isMobile) return;
-              const draggedFarEnough = info.offset.y > 90; // pulled down ~90px
-              const fastEnough = info.velocity.y > 800; // fast downward flick
+              const draggedFarEnough = info.offset.y > 90;
+              const fastEnough = info.velocity.y > 800;
               if (draggedFarEnough || fastEnough) onClose();
             }}
           >
-            {/* Mobile drag handle - fixed at top */}
-            <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none bg-[var(--color-content-bg)] z-30">
+            {/* Mobile drag handle */}
+            <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none z-30">
               <div className="h-1.5 w-12 rounded-full bg-[var(--color-border)]" />
             </div>
 
-            {/* Header with back button - fixed at top */}
-            <div className="px-4 py-3 border-b border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-20">
+            {/* Header */}
+            <div className="px-5 py-4 flex-none z-20">
               <div className="flex items-center gap-3">
                 {showBackButton && (
                   <button
                     onClick={onBack}
-                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)] transition-colors cursor-pointer"
+                    className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
                     aria-label="Go back"
                   >
-                    <LuChevronLeft className="h-4 w-4 text-[var(--color-fg)]" />
+                    <span className="text-sm leading-none">&#8249;</span>
                   </button>
                 )}
                 {(displayTitle || displayDescription) && (
                   <div className="flex-1">
-                    {displayTitle && <h3 className="text-base font-normal text-[var(--color-fg)]">{displayTitle}</h3>}
+                    {displayTitle && <h3 className="text-base font-medium text-[var(--color-fg)]">{displayTitle}</h3>}
                     {displayDescription && (
-                      <p className="mt-1 text-sm text-[var(--color-muted)]">{displayDescription}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-muted)]">{displayDescription}</p>
                     )}
                   </div>
                 )}
@@ -211,15 +210,15 @@ export default function Drawer({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -20, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className={clsx("h-full", currentView?.noPadding ? "" : "px-4 pb-4")}
+                className={clsx("h-full", currentView?.noPadding ? "" : "px-5 pb-5")}
               >
                 {displayContent}
               </motion.div>
             </div>
 
-            {/* Footer - fixed at bottom */}
+            {/* Footer */}
             {footer && (
-              <div className="p-4 border-t border-[var(--color-border)]/50 flex-none bg-[var(--color-content-bg)] z-20">
+              <div className="px-5 py-4 border-t border-[var(--color-border)] flex-none z-20">
                 <div className="flex items-center justify-end gap-2">{footer}</div>
               </div>
             )}
