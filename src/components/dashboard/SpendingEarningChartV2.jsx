@@ -27,7 +27,6 @@ const MONTH_GROUP_WIDTH = 80;
 
 export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = [] }) {
   const [activeMonthIndex, setActiveMonthIndex] = useState(null);
-  const [tooltipInfo, setTooltipInfo] = useState(null);
   const containerRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(280);
@@ -105,20 +104,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const onMove = (e, month, index) => {
     setActiveMonthIndex(index);
 
-    if (scrollContainerRef.current) {
-      const scrollLeft = scrollContainerRef.current.scrollLeft;
-      const cx = margin.left + stepX * index + stepX / 2;
-      const tooltipLeft = cx - scrollLeft;
-
-      setTooltipInfo({
-        month,
-        net: netVals[index],
-        income: incomeVals[index],
-        spending: spendingVals[index],
-        left: tooltipLeft,
-      });
-    }
-
     if (onHover) {
       onHover({
         monthName: data[index].monthName,
@@ -130,7 +115,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
   const onLeave = () => {
     setActiveMonthIndex(null);
-    setTooltipInfo(null);
     if (onHover) onHover(null);
   };
 
@@ -154,43 +138,11 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         }}
       />
 
-      {/* Tooltip */}
-      {tooltipInfo && (
-        <div
-          className="absolute pointer-events-none tooltip-pop"
-          style={{
-            left: tooltipInfo.left,
-            top: -8,
-            transform: 'translateX(-50%) translateY(-100%)',
-            zIndex: 1000,
-          }}
-        >
-          <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 text-xs whitespace-nowrap">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{tooltipInfo.month}</span>
-            <div className="text-sm font-semibold mt-1 text-white">
-              {tooltipInfo.net >= 0 ? '+' : ''}{formatCurrency(tooltipInfo.net)}
-            </div>
-            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-zinc-400">
-              <span>{formatCurrency(tooltipInfo.income)} in</span>
-              <span>{formatCurrency(tooltipInfo.spending)} out</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div
         ref={scrollContainerRef}
         className="w-full h-full overflow-x-auto scrollbar-hide"
         style={{ scrollBehavior: 'smooth' }}
-        onScroll={() => {
-          updateFadeIndicators();
-          if (activeMonthIndex !== null && scrollContainerRef.current) {
-            const scrollLeft = scrollContainerRef.current.scrollLeft;
-            const cx = margin.left + stepX * activeMonthIndex + stepX / 2;
-            const tooltipLeft = cx - scrollLeft;
-            setTooltipInfo((prev) => (prev ? { ...prev, left: tooltipLeft } : null));
-          }
-        }}
+        onScroll={updateFadeIndicators}
       >
         <svg
           width={width}
@@ -268,19 +220,22 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                     style={{ transition: 'opacity 0.2s ease' }}
                   />
 
-                  {/* Value label on active bar */}
-                  {isActive && (
-                    <text
-                      x={barX + barWidth / 2}
-                      y={isPositive ? barY - 8 : barY + barH + 16}
-                      textAnchor="middle"
-                      fontSize="11"
-                      fontWeight="600"
-                      fill="var(--color-fg)"
-                    >
-                      {net >= 0 ? '+' : ''}{formatCurrency(net)}
-                    </text>
-                  )}
+                  {/* Value label — always rendered, animated via opacity + translate */}
+                  <text
+                    x={barX + barWidth / 2}
+                    y={isPositive ? barY - 8 : barY + barH + 16}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="600"
+                    fill="var(--color-fg)"
+                    style={{
+                      opacity: isActive ? 1 : 0,
+                      transform: `translateY(${isActive ? 0 : (isPositive ? 4 : -4)}px)`,
+                      transition: 'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    }}
+                  >
+                    {net >= 0 ? '+' : ''}{formatCurrency(net)}
+                  </text>
 
                   {/* Invisible hover rect */}
                   <rect

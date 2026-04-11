@@ -129,27 +129,14 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
             <CurrencyAmount amount={averageCashflow} />
           </div>
 
-          {/* Income / Spending when hovering */}
+          {/* Income / Spending breakdown on hover */}
           {hoveredData && (
-            <div className="flex items-center gap-5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-                  In
-                </span>
-                <span className="text-xs font-semibold text-[var(--color-fg)] tabular-nums ml-0.5">
-                  <CurrencyAmount amount={displayIncome} />
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
-                  Out
-                </span>
-                <span className="text-xs font-semibold text-[var(--color-fg)] tabular-nums ml-0.5">
-                  <CurrencyAmount amount={displaySpending} />
-                </span>
-              </div>
+            <div className="flex items-center gap-1 text-[11px] text-[var(--color-muted)]">
+              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
+              <span>in</span>
+              <span className="mx-1">·</span>
+              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displaySpending} /></span>
+              <span>out</span>
             </div>
           )}
         </div>
