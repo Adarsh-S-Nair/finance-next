@@ -127,13 +127,13 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
   // Desktop topbar content — search on left, tools right-aligned
   const desktopContent = (
     <div className="flex items-center w-full">
-      <div className="relative max-w-xs w-full flex items-center">
+      <div className="max-w-sm w-full flex items-center gap-2 pb-1 input-focus-bar">
         <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
         <input
           placeholder="Search transactions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none ml-2 border-b border-transparent input-focus-bar"
+          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
         />
       </div>
       <div className="ml-auto">

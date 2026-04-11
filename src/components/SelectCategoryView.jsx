@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { FiSearch } from "react-icons/fi";
 import clsx from "clsx";
 import { motion } from "framer-motion";
 
@@ -35,14 +36,17 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
     <div className="flex flex-col h-full">
       {/* Search */}
       <div className="px-5 pt-1 pb-4">
-        <input
-          type="text"
-          placeholder="Search categories..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          autoFocus
-          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none border-b border-[var(--color-border)] pb-2 input-focus-bar"
-        />
+        <div className="flex items-center gap-2 pb-2 border-b border-[var(--color-border)] input-focus-bar">
+          <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Search categories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+            className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
+          />
+        </div>
       </div>
 
       {/* Category list */}

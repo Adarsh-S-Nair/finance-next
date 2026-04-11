@@ -196,7 +196,8 @@ body {
   background-repeat: no-repeat;
   transition: background-size 0.3s ease-out;
 }
-.input-focus-bar:focus {
+.input-focus-bar:focus,
+.input-focus-bar:focus-within {
   background-size: 100% 2px;
 }
 
