@@ -291,11 +291,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
             {/* Previous month */}
             <div>
-              <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)]/40 mb-1.5">
+              <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)] mb-1.5">
                 <CurrencyAmount amount={displayPreviousSpending} />
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-border)]" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-muted)]" />
                 <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
                   {previousMonthName || 'Previous'}
                 </span>
@@ -313,7 +313,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               lines={[
                 {
                   dataKey: "previousSpending",
-                  strokeColor: "var(--color-border)",
+                  strokeColor: "var(--color-muted)",
                   strokeWidth: 1.5,
                   strokeOpacity: 1,
                   strokeDasharray: "4 4",
