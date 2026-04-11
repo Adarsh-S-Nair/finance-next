@@ -54,7 +54,12 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         <div className="flex items-center gap-4 px-5 py-6">
           {/* Logo / Icon */}
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${(!DISABLE_LOGOS && transaction.icon_url) ? '' : 'bg-[var(--color-fg)]'}`}
+            className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{
+              backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+                ? 'transparent'
+                : (transaction.category_hex_color || 'var(--color-accent)')
+            }}
           >
             {(!DISABLE_LOGOS && transaction.icon_url) ? (
               <img
@@ -71,7 +76,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             <DynamicIcon
               iconLib={transaction.category_icon_lib}
               iconName={transaction.category_icon_name}
-              className="h-5 w-5 text-[var(--color-on-primary)]"
+              className="h-5 w-5 text-white"
               fallback={FiTag}
               style={{
                 display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block',
@@ -124,6 +129,10 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             >
               <span className="card-header flex-shrink-0">Category</span>
               <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
+                <div
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
+                />
                 <span className="text-sm text-[var(--color-fg)] truncate text-right">{transaction.category_name}</span>
                 <span className="text-[var(--color-muted)] text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">&#8250;</span>
               </div>
