@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FiTag } from "react-icons/fi";
 import clsx from "clsx";
 import { motion } from "framer-motion";
 
