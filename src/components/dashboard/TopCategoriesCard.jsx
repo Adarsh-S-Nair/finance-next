@@ -8,22 +8,23 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
-const FALLBACK_COLOR = '#71717a';
+// Muted, desaturated palette that fits the zinc-based UI.
+// Ordered so adjacent slices always have good contrast.
+const SLICE_PALETTE = [
+  '#71717a', // zinc-500
+  '#a1a1aa', // zinc-400
+  '#52525b', // zinc-600
+  '#d4d4d8', // zinc-300
+  '#3f3f46', // zinc-700
+  '#e4e4e7', // zinc-200
+  '#a3a3a3', // neutral-400
+  '#737373', // neutral-500
+  '#d4d4d4', // neutral-300
+  '#525252', // neutral-600
+];
 
-function dedupeColors(categories) {
-  const seen = {};
-  return categories.map((cat) => {
-    const base = (cat.hex_color || FALLBACK_COLOR).toLowerCase();
-    const n = seen[base] || 0;
-    seen[base] = n + 1;
-    if (n === 0) return base;
-    const r = parseInt(base.slice(1, 3), 16);
-    const g = parseInt(base.slice(3, 5), 16);
-    const b = parseInt(base.slice(5, 7), 16);
-    const shift = n % 2 === 1 ? 40 * Math.ceil(n / 2) : -30 * Math.ceil(n / 2);
-    const clamp = (v) => Math.max(0, Math.min(255, v + shift));
-    return `#${[r, g, b].map(clamp).map(v => v.toString(16).padStart(2, '0')).join('')}`;
-  });
+function getSliceColors(count) {
+  return Array.from({ length: count }, (_, i) => SLICE_PALETTE[i % SLICE_PALETTE.length]);
 }
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
@@ -41,7 +42,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     { label: 'Last 30 Days', value: 'last30' },
   ];
 
-  const sliceColors = useMemo(() => dedupeColors(categories), [categories]);
+  const sliceColors = useMemo(() => getSliceColors(categories.length), [categories.length]);
 
   const containerRef = React.useRef(null);
 
@@ -111,7 +112,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
 
   const ChartSkeleton = () => (
     <div className="flex flex-col items-center justify-center flex-1 animate-pulse gap-6">
-      <div className="w-44 h-44 rounded-full border-[14px] border-[var(--color-border)] opacity-30" />
+      <div className="w-44 h-44 rounded-full border-[10px] border-[var(--color-border)] opacity-30" />
       <div className="w-full space-y-3">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="flex items-center justify-between">
@@ -195,10 +196,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                     data={categories}
                     cx="50%"
                     cy="48%"
-                    innerRadius="65%"
-                    outerRadius="85%"
+                    innerRadius="72%"
+                    outerRadius="86%"
                     paddingAngle={3}
-                    cornerRadius={6}
+                    cornerRadius={5}
                     dataKey="total_spent"
                     stroke="none"
                     isAnimationActive={false}
