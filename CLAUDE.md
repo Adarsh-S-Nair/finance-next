@@ -109,6 +109,18 @@ Example: `src/app/api/budgets/route.js:4-56`
 - **Main App**: Vercel (auto-deploy on push)
 - **Market Data Engine**: Fly.io (Docker container in `engine/`)
 
+## Database Migrations
+
+**CRITICAL:** When applying migrations via Supabase MCP (`apply_migration`), you **must also create a matching local migration file** in `supabase/migrations/`. The CI/CD pipeline runs `supabase db push` which compares the remote migration history table against local files — if a remote migration version has no local `.sql` file, the deploy **will fail**.
+
+**Workflow:**
+1. Apply migration via MCP `apply_migration` (this runs it on the remote DB and records the version)
+2. Note the version timestamp from the MCP result (e.g. `20260411024907`)
+3. Create `supabase/migrations/<version>_<name>.sql` with the same SQL content
+4. Commit and push the migration file along with your code changes
+
+**Never** apply a migration remotely without committing the corresponding local file in the same push.
+
 ---
 
 ## Logging & Debugging
