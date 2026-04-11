@@ -4,6 +4,8 @@ import LineChart from "../ui/LineChart";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount } from "../../lib/formatCurrency";
+import DynamicIcon from "../DynamicIcon";
+import { FiTag } from "react-icons/fi";
 
 export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const [activeIndex, setActiveIndex] = useState(null);
@@ -346,25 +348,41 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
             {/* Transaction tooltip on hover */}
             {hoveredDayTransactions && (
               <div
-                className="absolute top-2 z-10 -translate-x-1/2 pointer-events-none animate-fade-in"
+                className="absolute top-2 z-10 -translate-x-1/2 pointer-events-none tooltip-pop"
                 style={tooltipStyle}
               >
-                <div className="bg-[var(--color-bg)] border border-[var(--color-fg)]/[0.08] rounded-lg shadow-lg px-3 py-2.5 min-w-[160px] max-w-[220px]">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-muted)]/60 mb-1.5">
+                <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 min-w-[180px] max-w-[260px]">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-2">
                     {hoveredDayTransactions.date}
                   </p>
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-2">
                     {hoveredDayTransactions.transactions.map((tx, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3">
-                        <span className="text-[12px] text-[var(--color-fg)] truncate">{tx.merchant}</span>
-                        <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                      <li key={i} className="flex items-center gap-2">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                          style={{ backgroundColor: tx.icon_url ? 'transparent' : (tx.category_hex_color || '#71717a') }}
+                        >
+                          {tx.icon_url ? (
+                            <img src={tx.icon_url} alt="" className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            <DynamicIcon
+                              iconLib={tx.category_icon_lib}
+                              iconName={tx.category_icon_name}
+                              className="h-3 w-3 text-white"
+                              fallback={FiTag}
+                              style={{ strokeWidth: 2.5 }}
+                            />
+                          )}
+                        </div>
+                        <span className="text-[12px] text-zinc-200 truncate flex-1">{tx.merchant}</span>
+                        <span className="text-[12px] text-zinc-400 tabular-nums flex-shrink-0">
                           {formatCurrency(tx.amount)}
                         </span>
                       </li>
                     ))}
                   </ul>
                   {hoveredDayTransactions.moreCount > 0 && (
-                    <p className="text-[10px] text-[var(--color-muted)]/50 mt-1.5">
+                    <p className="text-[10px] text-zinc-500 mt-2">
                       +{hoveredDayTransactions.moreCount} more
                     </p>
                   )}

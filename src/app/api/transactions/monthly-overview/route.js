@@ -15,7 +15,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   // Fetch transactions for the month
   let query = supabaseAdmin
     .from('transactions')
-    .select('id, amount, date, merchant_name, description, accounts!inner(user_id), system_categories(id, label, category_groups(name)), transaction_splits(amount, is_settled), transaction_repayments(id)')
+    .select('id, amount, date, merchant_name, description, icon_url, accounts!inner(user_id), system_categories(id, label, hex_color, category_groups(name, icon_lib, icon_name, hex_color)), transaction_splits(amount, is_settled), transaction_repayments(id)')
     .eq('accounts.user_id', userId)
     .gte('date', startDateStr)
     .lte('date', endDateStr)
@@ -71,6 +71,10 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
         dailyTransactions.get(dayPart).push({
           merchant: tx.merchant_name || tx.description || 'Transaction',
           amount: adjustedSpending,
+          icon_url: tx.icon_url || null,
+          category_icon_lib: tx.system_categories?.category_groups?.icon_lib || null,
+          category_icon_name: tx.system_categories?.category_groups?.icon_name || null,
+          category_hex_color: tx.system_categories?.hex_color || tx.system_categories?.category_groups?.hex_color || null,
         });
       }
     }
@@ -94,6 +98,10 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
     const cappedTxs = dayTxs.slice(0, 5).map(t => ({
       merchant: t.merchant,
       amount: Math.round(t.amount * 100) / 100,
+      icon_url: t.icon_url,
+      category_icon_lib: t.category_icon_lib,
+      category_icon_name: t.category_icon_name,
+      category_hex_color: t.category_hex_color,
     }));
     const moreCount = Math.max(0, dayTxs.length - 5);
 
