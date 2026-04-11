@@ -182,6 +182,7 @@ When working on specific areas, consult these files:
 
 | Topic | File |
 |-------|------|
+| UI Style Guide | `docs/ui_style_guide.md` |
 | Architecture & Patterns | `.claude/docs/architectural_patterns.md` |
 | Log Debugging Guide | `.claude/docs/debugging_logs.md` |
 
