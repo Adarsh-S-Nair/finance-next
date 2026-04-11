@@ -185,6 +185,16 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     };
   }, [activeIndex, chartData]);
 
+  // Cache last tooltip data so it can render during exit animation
+  const lastTooltipData = useRef(null);
+  const lastTooltipStyle = useRef({});
+  if (hoveredDayTransactions) {
+    lastTooltipData.current = hoveredDayTransactions;
+  }
+
+  const isTooltipVisible = !!hoveredDayTransactions;
+  const tooltipData = hoveredDayTransactions || lastTooltipData.current;
+
   const tooltipStyle = useMemo(() => {
     if (activeIndex === null || !chartData.length) return {};
     const pct = (activeIndex / Math.max(chartData.length - 1, 1)) * 100;
@@ -196,6 +206,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     }
     return { left: `${pct}%`, transform: 'translateX(-50%)' };
   }, [activeIndex, chartData.length]);
+
+  // Cache tooltip position for exit animation
+  if (Object.keys(tooltipStyle).length > 0) {
+    lastTooltipStyle.current = tooltipStyle;
+  }
+  const displayTooltipStyle = Object.keys(tooltipStyle).length > 0 ? tooltipStyle : lastTooltipStyle.current;
 
   const showLoading = isFetching;
 
@@ -350,18 +366,24 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
               onMouseLeave={handleMouseLeave}
             />
 
-            {/* Transaction tooltip on hover */}
-            {hoveredDayTransactions && (
+            {/* Transaction tooltip on hover — always mounted for exit animation */}
+            {tooltipData && (
               <div
-                className="absolute top-2 z-10 pointer-events-none tooltip-pop"
-                style={tooltipStyle}
+                className="absolute top-2 z-10 pointer-events-none"
+                style={{
+                  ...displayTooltipStyle,
+                  opacity: isTooltipVisible ? 1 : 0,
+                  scale: isTooltipVisible ? 1 : 0.85,
+                  translateY: isTooltipVisible ? 0 : 8,
+                  transition: 'opacity 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.8, 0.64, 1), translate 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                }}
               >
                 <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 min-w-[180px] max-w-[260px]">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">
-                    {hoveredDayTransactions.date}
+                    {tooltipData.date}
                   </p>
                   <ul className="space-y-2">
-                    {hoveredDayTransactions.transactions.map((tx, i) => (
+                    {tooltipData.transactions.map((tx, i) => (
                       <li key={i} className="flex items-center gap-2">
                         <div
                           className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
@@ -386,9 +408,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                       </li>
                     ))}
                   </ul>
-                  {hoveredDayTransactions.moreCount > 0 && (
+                  {tooltipData.moreCount > 0 && (
                     <p className="text-[10px] text-zinc-500 mt-2">
-                      +{hoveredDayTransactions.moreCount} more
+                      +{tooltipData.moreCount} more
                     </p>
                   )}
                 </div>

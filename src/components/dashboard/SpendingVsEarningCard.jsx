@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import SpendingEarningChart from "./SpendingEarningChartV2";
 import { useUser } from "../providers/UserProvider";
-import TimeRangeSelector from "../ui/TimeRangeSelector";
+
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
@@ -150,19 +150,6 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
             data={chartData}
             onHover={(data) => setHoveredData(data)}
             onSelectMonth={handleSelectMonth}
-          />
-        </div>
-
-        {/* Time Range Selector */}
-        <div className="mt-2 pt-2 border-t border-[var(--color-border)]/50 -mx-5 px-5">
-          <TimeRangeSelector
-            ranges={['6M', '1Y', 'YTD']}
-            activeRange={selectedPeriod === '6' ? '6M' : selectedPeriod === '12' ? '1Y' : 'YTD'}
-            onRangeChange={(range) => {
-              const map = { '6M': '6', '1Y': '12', 'YTD': 'ytd' };
-              setSelectedPeriod(map[range] || '6');
-            }}
-            layoutId="cashflowTimeRange"
           />
         </div>
       </div>

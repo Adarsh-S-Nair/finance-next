@@ -151,6 +151,16 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
           className="h-full"
           style={{ minWidth: width }}
           onMouseLeave={onLeave}
+          onMouseMove={(e) => {
+            // Clear hover when cursor is outside the data region
+            const svgRect = e.currentTarget.getBoundingClientRect();
+            const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+            const x = e.clientX - svgRect.left + scrollLeft;
+            const dataEndX = margin.left + stepX * months.length;
+            if (x > dataEndX || x < margin.left) {
+              onLeave();
+            }
+          }}
         >
           {/* Zero baseline */}
           <line
