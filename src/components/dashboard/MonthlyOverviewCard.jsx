@@ -188,8 +188,13 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   const tooltipStyle = useMemo(() => {
     if (activeIndex === null || !chartData.length) return {};
     const pct = (activeIndex / Math.max(chartData.length - 1, 1)) * 100;
-    const left = Math.max(10, Math.min(90, pct));
-    return { left: `${left}%` };
+    // Clamp and adjust transform so tooltip stays within bounds
+    if (pct < 20) {
+      return { left: `${Math.max(2, pct)}%`, transform: 'translateX(0)' };
+    } else if (pct > 80) {
+      return { left: `${Math.min(98, pct)}%`, transform: 'translateX(-100%)' };
+    }
+    return { left: `${pct}%`, transform: 'translateX(-50%)' };
   }, [activeIndex, chartData.length]);
 
   const showLoading = isFetching;
@@ -348,7 +353,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
             {/* Transaction tooltip on hover */}
             {hoveredDayTransactions && (
               <div
-                className="absolute top-2 z-10 -translate-x-1/2 pointer-events-none tooltip-pop"
+                className="absolute top-2 z-10 pointer-events-none tooltip-pop"
                 style={tooltipStyle}
               >
                 <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 min-w-[180px] max-w-[260px]">
