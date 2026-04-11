@@ -79,57 +79,109 @@ function TransactionSkeleton() {
   );
 }
 
-// SearchToolbar — portals into the topbar on desktop, renders inline on mobile
+// SearchToolbar — portals into topbar on all screen sizes
 function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters, activeFilterCount }) {
   const [mounted, setMounted] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileInputRef = useRef(null);
+
   useEffect(() => { setMounted(true); }, []);
 
-  const toolbarContent = (
-    <div className="flex items-center gap-3 w-full">
+  useEffect(() => {
+    if (mobileSearchOpen && mobileInputRef.current) {
+      mobileInputRef.current.focus();
+    }
+  }, [mobileSearchOpen]);
+
+  const toolButtons = (
+    <div className="flex items-center gap-1 flex-shrink-0">
+      <button
+        onClick={onRefresh}
+        disabled={loading}
+        aria-label="Refresh"
+        className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
+      >
+        <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+      </button>
+      <button
+        onClick={onOpenFilters}
+        aria-label="Filter"
+        className="relative w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+      >
+        <FiFilter className="h-4 w-4" />
+        {activeFilterCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+            {activeFilterCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+
+  // Desktop topbar content
+  const desktopContent = (
+    <div className="flex items-center gap-4 w-full">
       <div className="relative flex-1">
         <FiSearch className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
         <input
           placeholder="Search transactions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-6 pb-1 border-b border-transparent input-focus-bar"
+          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-7 pb-1 border-b border-transparent input-focus-bar"
         />
       </div>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          aria-label="Refresh Transactions"
-          className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
-        >
-          <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-        <button
-          onClick={onOpenFilters}
-          aria-label="Filter Transactions"
-          className="relative w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-        >
-          <FiFilter className="h-4 w-4" />
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {toolButtons}
     </div>
   );
 
   const portalRoot = mounted ? document.getElementById("page-title-portal") : null;
+  const mobilePortalRoot = mounted ? document.getElementById("page-mobile-start-portal") : null;
 
   return (
     <>
-      {/* Desktop: portal into topbar */}
-      {portalRoot && createPortal(toolbarContent, portalRoot)}
-      {/* Mobile: inline, hidden on desktop */}
-      <div className="md:hidden py-3">
-        {toolbarContent}
-      </div>
+      {/* Desktop: portal into topbar title area */}
+      {portalRoot && createPortal(desktopContent, portalRoot)}
+
+      {/* Mobile: search icon portaled into topbar */}
+      {mobilePortalRoot && createPortal(
+        <button
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="Search"
+          className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+        >
+          <FiSearch className="h-5 w-5" />
+        </button>,
+        mobilePortalRoot
+      )}
+
+      {/* Mobile: expanded search overlay — covers the topbar */}
+      <AnimatePresence>
+        {mobileSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-x-0 top-0 z-50 h-16 bg-[var(--color-content-bg)] flex items-center px-4 gap-3 md:hidden"
+          >
+            <button
+              onClick={() => setMobileSearchOpen(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors flex-shrink-0"
+              aria-label="Close search"
+            >
+              <span className="text-lg leading-none">&#8249;</span>
+            </button>
+            <input
+              ref={mobileInputRef}
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
+            />
+            {toolButtons}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -1287,7 +1339,7 @@ function TransactionsContent() {
 
   if ((loading && !debouncedSearchQuery) || !user?.id) {
     return (
-      <PageContainer frame="default" showHeader={false}>
+      <PageContainer padding="pt-2 pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1347,7 +1399,7 @@ function TransactionsContent() {
   // Show error state
   if (error) {
     return (
-      <PageContainer frame="default" showHeader={false}>
+      <PageContainer padding="pt-2 pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1421,7 +1473,7 @@ function TransactionsContent() {
   };
 
   return (
-    <PageContainer frame="default" showHeader={false}>
+    <PageContainer padding="pt-2 pb-10" showHeader={false}>
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
