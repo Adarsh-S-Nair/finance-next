@@ -8,19 +8,19 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
-// Muted, desaturated palette that fits the zinc-based UI.
-// Ordered so adjacent slices always have good contrast.
+// Muted, desaturated palette — real hues pulled back to fit the zinc UI.
+// Each color has enough tint to distinguish categories without being loud.
 const SLICE_PALETTE = [
-  '#71717a', // zinc-500
-  '#a1a1aa', // zinc-400
-  '#52525b', // zinc-600
-  '#d4d4d8', // zinc-300
-  '#3f3f46', // zinc-700
-  '#e4e4e7', // zinc-200
-  '#a3a3a3', // neutral-400
-  '#737373', // neutral-500
-  '#d4d4d4', // neutral-300
-  '#525252', // neutral-600
+  '#8da4bf', // slate blue
+  '#b0a090', // warm taupe
+  '#7a9e8e', // sage green
+  '#b09aaf', // dusty lavender
+  '#9ab3b3', // muted teal
+  '#c4a882', // sand
+  '#8e8faa', // cool mauve
+  '#a3b5a0', // faded olive
+  '#b5929a', // dusty rose
+  '#8caab5', // steel blue
 ];
 
 function getSliceColors(count) {
