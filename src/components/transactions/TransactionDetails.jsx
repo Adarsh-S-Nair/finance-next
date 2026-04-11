@@ -54,7 +54,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         <div className="flex items-center gap-4 px-5 py-6">
           {/* Logo / Icon */}
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+            className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${(!DISABLE_LOGOS && transaction.icon_url) ? '' : 'bg-[var(--color-fg)]'}`}
           >
             {(!DISABLE_LOGOS && transaction.icon_url) ? (
               <img
@@ -71,10 +71,11 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             <DynamicIcon
               iconLib={transaction.category_icon_lib}
               iconName={transaction.category_icon_name}
-              className="h-5 w-5 text-[var(--color-muted)]"
+              className="h-5 w-5 text-[var(--color-on-primary)]"
               fallback={FiTag}
               style={{
-                display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block'
+                display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block',
+                strokeWidth: 2.5,
               }}
             />
           </div>

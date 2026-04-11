@@ -152,7 +152,7 @@ export default function CalendarCard({ className = '' }) {
                 className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
               >
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                  className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${!showLogo ? 'bg-[var(--color-fg)]' : ''}`}
                 >
                   {showLogo ? (
                     <img
@@ -165,7 +165,8 @@ export default function CalendarCard({ className = '' }) {
                     <DynamicIcon
                       iconLib={stream.category_icon_lib}
                       iconName={stream.category_icon_name}
-                      className="h-4 w-4 text-[var(--color-muted)]"
+                      className="h-4 w-4 text-[var(--color-on-primary)]"
+                      style={{ strokeWidth: 2.5 }}
                       fallback={FiTag}
                     />
                   )}
@@ -210,7 +211,7 @@ export default function CalendarCard({ className = '' }) {
           }).map((stream, idx) => (
             <div key={stream.id || idx} className="flex items-center gap-3 p-3 hover:bg-[var(--color-surface-alt)] rounded-xl transition-colors">
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? '' : 'bg-[var(--color-fg)]'}`}
               >
                 {(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? (
                   <img src={stream.icon_url} alt="" className="w-full h-full object-cover" />
@@ -218,8 +219,9 @@ export default function CalendarCard({ className = '' }) {
                   <DynamicIcon
                     iconLib={stream.category_icon_lib}
                     iconName={stream.category_icon_name}
-                    className="w-5 h-5 text-[var(--color-muted)]"
+                    className="w-5 h-5 text-[var(--color-on-primary)]"
                     fallback={FiTag}
+                    style={{ strokeWidth: 2.5 }}
                   />
                 )}
               </div>

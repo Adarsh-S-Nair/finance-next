@@ -67,7 +67,7 @@ function TransactionIconCircle({ transaction }) {
 
   return (
     <div
-      className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+      className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${!showLogo ? 'bg-[var(--color-fg)]' : ''}`}
     >
       {showLogo ? (
         <img
@@ -82,8 +82,9 @@ function TransactionIconCircle({ transaction }) {
         <DynamicIcon
           iconLib={transaction.category_icon_lib}
           iconName={transaction.category_icon_name}
-          className="h-4 w-4 text-[var(--color-muted)]"
+          className="h-4 w-4 text-[var(--color-on-primary)]"
           fallback={FiTag}
+          style={{ strokeWidth: 2.5 }}
         />
       )}
     </div>
