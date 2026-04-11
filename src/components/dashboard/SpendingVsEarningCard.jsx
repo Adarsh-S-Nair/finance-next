@@ -118,25 +118,28 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
 
       <div className={`h-full flex flex-col ${showLoading ? 'opacity-0' : ''}`}>
         {/* Header */}
-        <div className="shrink-0 mb-4">
+        <div className="shrink-0 mb-4 relative">
           <div className="card-header mb-4">
             Avg. Monthly Cashflow
           </div>
 
           {/* Hero number */}
-          <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)] mb-2">
+          <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[var(--color-fg)]">
             <span>{isPositiveCashflow ? '+' : ''}</span>
             <CurrencyAmount amount={averageCashflow} />
           </div>
 
-          {/* Income / Spending breakdown on hover */}
+          {/* Income / Spending breakdown on hover — positioned top-right */}
           {hoveredData && (
-            <div className="flex items-center gap-1 text-[11px] text-[var(--color-muted)]">
-              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
-              <span>in</span>
-              <span className="mx-1">·</span>
-              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displaySpending} /></span>
-              <span>out</span>
+            <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 text-[11px] animate-fade-in">
+              <div className="flex items-center gap-1 text-[var(--color-muted)]">
+                <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
+                <span>in</span>
+              </div>
+              <div className="flex items-center gap-1 text-[var(--color-muted)]">
+                <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displaySpending} /></span>
+                <span>out</span>
+              </div>
             </div>
           )}
         </div>

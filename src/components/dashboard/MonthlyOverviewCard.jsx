@@ -357,7 +357,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
                 style={tooltipStyle}
               >
                 <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 min-w-[180px] max-w-[260px]">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">
                     {hoveredDayTransactions.date}
                   </p>
                   <ul className="space-y-2">

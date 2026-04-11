@@ -223,15 +223,16 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   {/* Value label — always rendered, animated via opacity + translate */}
                   <text
                     x={barX + barWidth / 2}
-                    y={isPositive ? barY - 8 : barY + barH + 16}
+                    y={isPositive ? barY - 14 : barY + barH + 20}
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight="600"
                     fill="var(--color-fg)"
                     style={{
                       opacity: isActive ? 1 : 0,
-                      transform: `translateY(${isActive ? 0 : (isPositive ? 4 : -4)}px)`,
-                      transition: 'opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      transform: `translateY(${isActive ? 0 : (isPositive ? 8 : -8)}px) scale(${isActive ? 1 : 0.85})`,
+                      transformOrigin: `${barX + barWidth / 2}px ${isPositive ? barY - 14 : barY + barH + 20}px`,
+                      transition: 'opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
                     }}
                   >
                     {net >= 0 ? '+' : ''}{formatCurrency(net)}
