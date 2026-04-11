@@ -7,6 +7,7 @@ import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
 import Link from 'next/link';
 import ViewAllLink from '../ui/ViewAllLink';
+import { muteColor } from '../../lib/muteColor';
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
@@ -71,7 +72,7 @@ function TransactionIconCircle({ transaction }) {
       style={{
         backgroundColor: showLogo
           ? 'transparent'
-          : (transaction.category_hex_color || 'var(--color-accent)')
+          : muteColor(transaction.category_hex_color)
       }}
     >
       {showLogo ? (

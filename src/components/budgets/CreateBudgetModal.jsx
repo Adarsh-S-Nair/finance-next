@@ -10,6 +10,7 @@ import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip } from "@slate-ui/react";
+import { muteColor } from "../../lib/muteColor";
 
 export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
   const { user } = useUser();
@@ -104,7 +105,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
         type: 'category',
         spent: c.total_spent,
         monthlyAvg: Math.round(c.total_spent / months),
-        hexColor: c.hex_color || '#6B7280',
+        hexColor: muteColor(c.hex_color),
         iconName: c.icon_name,
         iconLib: c.icon_lib
       }));
@@ -657,7 +658,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                               <div
                                 className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center overflow-hidden"
                                 style={{
-                                  backgroundColor: tx.icon_url ? 'transparent' : (tx.category_hex_color || 'var(--color-border)')
+                                  backgroundColor: tx.icon_url ? 'transparent' : muteColor(tx.category_hex_color)
                                 }}
                               >
                                 {tx.icon_url ? (
@@ -668,7 +669,7 @@ export default function CreateBudgetModal({ isOpen, onClose, onCreated }) {
                                     onError={(e) => {
                                       e.target.style.display = 'none';
                                       e.target.nextSibling.style.display = 'block';
-                                      e.target.parentElement.style.backgroundColor = tx.category_hex_color || 'var(--color-border)';
+                                      e.target.parentElement.style.backgroundColor = muteColor(tx.category_hex_color);
                                     }}
                                   />
                                 ) : null}

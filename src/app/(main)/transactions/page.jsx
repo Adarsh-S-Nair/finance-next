@@ -21,6 +21,7 @@ import TransactionRow from "../../../components/transactions/TransactionRow";
 import SplitTransactionView from "../../../components/transactions/SplitTransactionView";
 import RepaymentView from "../../../components/transactions/RepaymentView";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { muteColor } from "../../../lib/muteColor";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
@@ -486,8 +487,8 @@ const FiltersContent = ({
                         <div
                           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm transition-all duration-300 group-hover/header:scale-105 group-hover/header:shadow-md"
                           style={{
-                            backgroundColor: group.hex_color || 'var(--color-accent)',
-                            boxShadow: `0 2px 8px -1px ${group.hex_color}30`
+                            backgroundColor: muteColor(group.hex_color),
+                            boxShadow: `0 2px 8px -1px ${muteColor(group.hex_color)}30`
                           }}
                         >
                           <DynamicIcon

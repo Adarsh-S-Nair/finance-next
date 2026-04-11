@@ -6,6 +6,7 @@ import DynamicIcon from "./DynamicIcon";
 import Input from "./ui/Input";
 import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
+import { muteColor } from "../lib/muteColor";
 
 export default function SelectCategoryView({ categoryGroups = [], onSelectCategory, currentCategoryId }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,7 +103,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                       style={{
-                        backgroundColor: group.hex_color || 'var(--color-muted)',
+                        backgroundColor: muteColor(group.hex_color),
                       }}
                     >
                       <DynamicIcon
@@ -152,7 +153,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
                                       ? "text-white"
                                       : "bg-[var(--color-surface)] text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] border border-[var(--color-border)]/30 font-light"
                                   )}
-                                  style={isSelected ? { backgroundColor: group.hex_color || 'var(--color-accent)' } : {}}
+                                  style={isSelected ? { backgroundColor: muteColor(group.hex_color) } : {}}
                                 >
                                   <span>{category.label}</span>
                                   {isSelected && (

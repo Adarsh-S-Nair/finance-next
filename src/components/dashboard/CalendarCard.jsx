@@ -7,6 +7,7 @@ import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import Drawer from '../ui/Drawer';
 import ViewAllLink from '../ui/ViewAllLink';
+import { muteColor } from '../../lib/muteColor';
 
 // Get next occurrence on/after today for a recurring stream
 const getNextOccurrence = (stream) => {
@@ -156,7 +157,7 @@ export default function CalendarCard({ className = '' }) {
                   style={{
                     backgroundColor: showLogo
                       ? 'transparent'
-                      : (stream.category_hex_color || 'var(--color-accent)'),
+                      : muteColor(stream.category_hex_color),
                   }}
                 >
                   {showLogo ? (
@@ -219,7 +220,7 @@ export default function CalendarCard({ className = '' }) {
                 style={{
                   backgroundColor: (!DISABLE_LOGOS && stream.icon_url && stream.merchant_name)
                     ? 'transparent'
-                    : (stream.category_hex_color || 'var(--color-accent)'),
+                    : muteColor(stream.category_hex_color),
                 }}
               >
                 {(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? (
