@@ -93,6 +93,12 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
     }
   }, [mobileSearchOpen]);
 
+  const handleMobileBlur = () => {
+    if (!searchQuery.trim()) {
+      setMobileSearchOpen(false);
+    }
+  };
+
   const toolButtons = (
     <div className="flex items-center gap-1 flex-shrink-0">
       <button
@@ -118,16 +124,16 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
     </div>
   );
 
-  // Desktop topbar content
+  // Desktop topbar content — search limited to ~1/3 width
   const desktopContent = (
-    <div className="flex items-center gap-4 w-full">
-      <div className="relative flex-1">
+    <div className="flex items-center gap-6 w-full">
+      <div className="relative max-w-xs w-full">
         <FiSearch className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
         <input
           placeholder="Search transactions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-7 pb-1 border-b border-transparent input-focus-bar"
+          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none pl-6 py-1 border-b border-transparent input-focus-bar leading-normal"
         />
       </div>
       {toolButtons}
@@ -176,6 +182,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
               placeholder="Search transactions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={handleMobileBlur}
               className="flex-1 bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
             />
             {toolButtons}
@@ -1339,7 +1346,7 @@ function TransactionsContent() {
 
   if ((loading && !debouncedSearchQuery) || !user?.id) {
     return (
-      <PageContainer padding="pt-2 pb-10" showHeader={false}>
+      <PageContainer padding="pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1399,7 +1406,7 @@ function TransactionsContent() {
   // Show error state
   if (error) {
     return (
-      <PageContainer padding="pt-2 pb-10" showHeader={false}>
+      <PageContainer padding="pb-10" showHeader={false}>
         <SearchToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1473,7 +1480,7 @@ function TransactionsContent() {
   };
 
   return (
-    <PageContainer padding="pt-2 pb-10" showHeader={false}>
+    <PageContainer padding="pb-10" showHeader={false}>
       <SearchToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
