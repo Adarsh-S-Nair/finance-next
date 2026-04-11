@@ -37,11 +37,6 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
         <div className="relative">
           <div
             className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300 ${selected ? 'ring-2 ring-[var(--color-accent)]/20' : ''}`}
-            style={{
-              backgroundColor: showLogo
-                ? 'transparent'
-                : (transaction.category_hex_color || 'var(--color-accent)')
-            }}
           >
             {showLogo ? (
               <img
@@ -56,7 +51,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
               <DynamicIcon
                 iconLib={transaction.category_icon_lib}
                 iconName={transaction.category_icon_name}
-                className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
+                className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-[var(--color-muted)]`}
                 fallback={FiTag}
               />
             )}

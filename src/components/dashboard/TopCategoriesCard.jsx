@@ -23,8 +23,14 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     { label: 'Last 30 Days', value: 'last30' },
   ];
 
+  // Predetermined chart palette — muted, harmonious tones
+  const CHART_PALETTE = [
+    '#6b7280', '#8b5cf6', '#3b82f6', '#14b8a6', '#f59e0b',
+    '#ef4444', '#ec4899', '#06b6d4', '#84cc16', '#f97316',
+  ];
+
   const sliceColors = useMemo(
-    () => categories.map((cat) => cat.hex_color || '#71717a'),
+    () => categories.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
     [categories]
   );
 
