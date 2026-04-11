@@ -41,7 +41,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           autoFocus
-          className="w-full bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none border-b border-[var(--color-border)] pb-2 focus:border-[var(--color-fg)] transition-colors"
+          className="w-full bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none border-b border-[var(--color-border)] pb-2 input-focus-bar"
         />
       </div>
 

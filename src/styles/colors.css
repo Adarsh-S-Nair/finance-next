@@ -174,11 +174,30 @@ body {
   min-width: 100%;
 }
 
-/* Focus outline color harmonized across components */
-:where(button, [role="button"], a, input, select, textarea):focus-visible {
+/* Focus outline for interactive elements (buttons, links) */
+:where(button, [role="button"], a):focus-visible {
   outline: 1px solid var(--color-ring);
   outline-offset: 2px;
   box-shadow: none;
+}
+
+/* Suppress all focus outlines on form inputs — expanding bar handles focus */
+:where(input, select, textarea):focus,
+:where(input, select, textarea):focus-visible {
+  outline: none !important;
+  box-shadow: none;
+}
+
+/* Animated bottom border that expands from center on focus */
+.input-focus-bar {
+  background-image: linear-gradient(var(--color-fg), var(--color-fg));
+  background-size: 0% 2px;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  transition: background-size 0.3s ease-out;
+}
+.input-focus-bar:focus {
+  background-size: 100% 2px;
 }
 
 /* Thin, minimal scrollbar styling */

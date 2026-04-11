@@ -13,9 +13,8 @@ const Input = forwardRef<HTMLInputElement, Props>(function Input(
     <input
       ref={ref}
       className={clsx(
-        "w-full rounded-md border bg-[var(--color-content-bg)] px-3 py-2 text-base outline-none",
-        "border-[color-mix(in_oklab,var(--color-fg),transparent_90%)] focus:border-[var(--color-fg)]",
-        isInvalid && "border-[var(--color-danger)] focus:border-[var(--color-danger)]",
+        "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-2 text-base outline-none input-focus-bar",
+        isInvalid && "border-[var(--color-danger)]",
         className
       )}
       {...props}
@@ -24,5 +23,3 @@ const Input = forwardRef<HTMLInputElement, Props>(function Input(
 });
 
 export default Input;
-
-
