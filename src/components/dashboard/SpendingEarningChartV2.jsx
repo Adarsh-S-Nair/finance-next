@@ -23,7 +23,6 @@ function roundedBottomPath(x, y, w, h, r) {
   return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h - r2} Q ${x + w} ${y + h} ${x + w - r2} ${y + h} L ${x + r2} ${y + h} Q ${x} ${y + h} ${x} ${y + h - r2} Z`;
 }
 
-// Fixed width per month group
 const MONTH_GROUP_WIDTH = 80;
 
 export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = [] }) {
@@ -36,7 +35,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
 
-  // Handle Resize
   useEffect(() => {
     if (!containerRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
@@ -50,7 +48,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Update fade indicators based on scroll position
   const updateFadeIndicators = () => {
     if (!scrollContainerRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
@@ -59,7 +56,6 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     setShowRightFade(canScroll && scrollLeft < scrollWidth - clientWidth - 10);
   };
 
-  // Scroll to the right on mount to show most recent months
   useEffect(() => {
     if (scrollContainerRef.current && data.length > 0) {
       requestAnimationFrame(() => {
@@ -71,10 +67,9 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     }
   }, [data.length, containerWidth]);
 
-  // Process data — compute net cashflow per month
-  const { months, netVals, incomeVals, spendingVals, maxAbs, ticks } = useMemo(() => {
+  const { months, netVals, incomeVals, spendingVals, maxAbs } = useMemo(() => {
     if (!data || data.length === 0) {
-      return { months: [], netVals: [], incomeVals: [], spendingVals: [], maxAbs: 0, ticks: [] };
+      return { months: [], netVals: [], incomeVals: [], spendingVals: [], maxAbs: 0 };
     }
 
     const months = data.map(month => month.monthName.substring(0, 3));
@@ -83,24 +78,9 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
     const netVals = data.map((month, i) => incomeVals[i] - spendingVals[i]);
 
     const rawMaxAbs = Math.max(1, ...netVals.map(Math.abs));
+    const maxAbs = rawMaxAbs * 1.15; // 15% padding
 
-    // Generate symmetric ticks around zero
-    const paddingFactor = 1.1;
-    const adjusted = rawMaxAbs * paddingFactor;
-    const targetTicks = 2; // ticks per side
-    const roughStep = adjusted / targetTicks;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep || 1)));
-    const norm = roughStep / magnitude;
-    const niceStep = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
-    const stepValue = niceStep * magnitude;
-    const maxTick = Math.ceil(rawMaxAbs / stepValue) * stepValue;
-
-    const ticks = [];
-    for (let v = -maxTick; v <= maxTick; v += stepValue) {
-      ticks.push(v);
-    }
-
-    return { months, netVals, incomeVals, spendingVals, maxAbs: maxTick, ticks };
+    return { months, netVals, incomeVals, spendingVals, maxAbs };
   }, [data]);
 
   // Dimensions
@@ -114,16 +94,13 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
   const innerHeight = height - margin.top - margin.bottom;
   const stepX = MONTH_GROUP_WIDTH;
 
-  // Single bar — wider than the old paired bars
-  const barWidth = Math.min(28, stepX * 0.4);
+  const barWidth = Math.min(32, stepX * 0.45);
   const barOffset = (stepX - barWidth) / 2;
 
   // Y scaling — symmetric around zero baseline
   const baseline = margin.top + innerHeight / 2;
   const halfHeight = innerHeight / 2;
   const scaleY = maxAbs > 0 ? halfHeight / maxAbs : 1;
-
-  const yFromValue = (v) => baseline - v * scaleY;
 
   const onMove = (e, month, index) => {
     setActiveMonthIndex(index);
@@ -159,7 +136,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
-      {/* Left fade gradient */}
+      {/* Left fade */}
       <div
         className="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none transition-opacity duration-300"
         style={{
@@ -168,7 +145,7 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
         }}
       />
 
-      {/* Right fade gradient */}
+      {/* Right fade */}
       <div
         className="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none transition-opacity duration-300"
         style={{
@@ -223,52 +200,21 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
           style={{ minWidth: width }}
           onMouseLeave={onLeave}
         >
-          <defs>
-            <filter id="bar-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-            {/* Drop shadow on the right side of each bar */}
-            <filter id="bar-shadow" x="-10%" y="-5%" width="130%" height="115%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="shadow" />
-              <feOffset dx="3" dy="1" in="shadow" result="offset" />
-              <feFlood floodColor="black" floodOpacity="0.12" result="color" />
-              <feComposite in="color" in2="offset" operator="in" result="coloredShadow" />
-              <feMerge>
-                <feMergeNode in="coloredShadow" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            {/* Diagonal stripes overlay */}
-            <pattern id="bar-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-surface)" strokeWidth="1.5" strokeOpacity="0.18" />
-            </pattern>
-          </defs>
-
-          {/* Grid lines */}
-          <g>
-            {ticks.map((tick) => {
-              const y = yFromValue(tick);
-              return (
-                <line
-                  key={`tick-${tick}`}
-                  x1={margin.left}
-                  x2={width - margin.right}
-                  y1={y}
-                  y2={y}
-                  stroke="var(--color-border)"
-                  strokeWidth="1"
-                  strokeDasharray={tick === 0 ? undefined : '4 4'}
-                  opacity={tick === 0 ? 0.6 : 0.3}
-                />
-              );
-            })}
-          </g>
+          {/* Zero baseline */}
+          <line
+            x1={margin.left}
+            x2={width - margin.right}
+            y1={baseline}
+            y2={baseline}
+            stroke="var(--color-border)"
+            strokeWidth="1"
+          />
 
           {/* Month labels */}
           <g>
             {months.map((m, i) => {
               const cx = margin.left + stepX * i + stepX / 2;
+              const isActive = activeMonthIndex === i;
               return (
                 <text
                   key={`lbl-${m}-${i}`}
@@ -276,8 +222,9 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
                   y={height - 10}
                   textAnchor="middle"
                   fontSize="10"
-                  fill="var(--color-muted)"
-                  fontWeight="300"
+                  fill={isActive ? 'var(--color-fg)' : 'var(--color-muted)'}
+                  fontWeight={isActive ? '500' : '400'}
+                  style={{ transition: 'fill 0.2s ease' }}
                 >
                   {m}
                 </text>
@@ -291,35 +238,49 @@ export default function SpendingEarningChartV2({ onSelectMonth, onHover, data = 
               const net = netVals[i];
               const barX = margin.left + stepX * i + barOffset;
               const isPositive = net >= 0;
-              const barH = Math.max(2, Math.abs(net) * scaleY); // min 2px so zero months are visible
+              const barH = Math.max(2, Math.abs(net) * scaleY);
               const barY = isPositive ? baseline - barH : baseline;
 
               const barPath = isPositive
-                ? roundedTopPath(barX, barY, barWidth, barH, 4)
-                : roundedBottomPath(barX, barY, barWidth, barH, 4);
+                ? roundedTopPath(barX, barY, barWidth, barH, 5)
+                : roundedBottomPath(barX, barY, barWidth, barH, 5);
 
               const isActive = activeMonthIndex === i;
+              const isDimmed = activeMonthIndex !== null && !isActive;
+
+              // Color: positive = fg, negative = muted red
+              const barColor = isPositive
+                ? 'var(--color-fg)'
+                : 'var(--color-danger)';
 
               return (
                 <g
                   key={`bar-${m}-${i}`}
                   style={{
-                    opacity: activeMonthIndex !== null && !isActive ? 0.5 : 1,
-                    transition: 'all 0.3s ease',
+                    opacity: isDimmed ? 0.25 : 1,
+                    transition: 'opacity 0.2s ease',
                   }}
                 >
                   <path
                     d={barPath}
-                    fill="var(--color-chart-primary)"
-                    filter={isActive ? 'url(#bar-glow)' : 'url(#bar-shadow)'}
-                    style={{ transition: 'all 0.3s ease' }}
+                    fill={barColor}
+                    opacity={isActive ? 1 : 0.7}
+                    style={{ transition: 'opacity 0.2s ease' }}
                   />
-                  {/* Diagonal stripes overlay */}
-                  <path
-                    d={barPath}
-                    fill="url(#bar-stripes)"
-                    style={{ pointerEvents: 'none' }}
-                  />
+
+                  {/* Value label on active bar */}
+                  {isActive && (
+                    <text
+                      x={barX + barWidth / 2}
+                      y={isPositive ? barY - 8 : barY + barH + 16}
+                      textAnchor="middle"
+                      fontSize="11"
+                      fontWeight="600"
+                      fill="var(--color-fg)"
+                    >
+                      {net >= 0 ? '+' : ''}{formatCurrency(net)}
+                    </text>
+                  )}
 
                   {/* Invisible hover rect */}
                   <rect
