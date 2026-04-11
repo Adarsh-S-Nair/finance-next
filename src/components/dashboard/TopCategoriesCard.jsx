@@ -10,20 +10,16 @@ import { CurrencyAmount } from "../../lib/formatCurrency";
 
 const FALLBACK_COLOR = '#71717a';
 
-// When multiple categories share a group color, shift lightness so
-// they read as "tints of the same family" rather than identical slices.
 function dedupeColors(categories) {
-  const seen = {};          // hex -> count of times seen so far
+  const seen = {};
   return categories.map((cat) => {
     const base = (cat.hex_color || FALLBACK_COLOR).toLowerCase();
     const n = seen[base] || 0;
     seen[base] = n + 1;
     if (n === 0) return base;
-    // Parse hex → RGB, then lighten/darken per occurrence
     const r = parseInt(base.slice(1, 3), 16);
     const g = parseInt(base.slice(3, 5), 16);
     const b = parseInt(base.slice(5, 7), 16);
-    // Alternate: odd occurrences lighten, even darken — keeps them distinct
     const shift = n % 2 === 1 ? 40 * Math.ceil(n / 2) : -30 * Math.ceil(n / 2);
     const clamp = (v) => Math.max(0, Math.min(255, v + shift));
     return `#${[r, g, b].map(clamp).map(v => v.toString(16).padStart(2, '0')).join('')}`;
@@ -38,22 +34,18 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeIndex, setActiveIndex] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth'); // 'thisMonth' or 'last30'
+  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
 
-  // Period options for dropdown
   const periodOptions = [
     { label: 'This Month', value: 'thisMonth' },
     { label: 'Last 30 Days', value: 'last30' },
   ];
 
-  // Resolve colors — shift lightness when siblings share a group color
   const sliceColors = useMemo(() => dedupeColors(categories), [categories]);
-
 
   const containerRef = React.useRef(null);
 
   useEffect(() => {
-    // If externalData is provided for the default period, use it
     if (externalData && selectedPeriod === 'thisMonth') {
       const topCategories = (externalData.categories || []).slice(0, 10);
       setCategories(topCategories);
@@ -67,26 +59,18 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     async function fetchData() {
       try {
         setLoading(true);
-
-        // Calculate date range based on selected period
         const now = new Date();
         let apiUrl;
-
         if (selectedPeriod === 'thisMonth') {
-          // Use exact month boundaries for consistency with monthly-overview
           const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
           const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
           apiUrl = `/api/transactions/spending-by-category?startDate=${startDate}&endDate=${endDate}`;
         } else {
-          // Last 30 days
           apiUrl = `/api/transactions/spending-by-category?days=30`;
         }
-
         const res = await authFetch(apiUrl);
         if (!res.ok) throw new Error("Failed to fetch data");
         const data = await res.json();
-
-        // Take top 10 categories for comprehensive breakdown
         const topCategories = data.categories.slice(0, 10);
         setCategories(topCategories);
         setTotalSpending(data.totalSpending || 0);
@@ -97,99 +81,94 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         setLoading(false);
       }
     }
-
     fetchData();
   }, [authLoading, user?.id, selectedPeriod, externalData]);
 
-  // Handle Mouse Leave Logic
   useEffect(() => {
     if (activeIndex === null) return;
-
     const handleGlobalMouseMove = (e) => {
       if (!containerRef.current) return;
-
       const rect = containerRef.current.getBoundingClientRect();
       const isOutside =
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom;
-
-      if (isOutside) {
-        setActiveIndex(null);
-      }
+        e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top || e.clientY > rect.bottom;
+      if (isOutside) setActiveIndex(null);
     };
-
     window.addEventListener('mousemove', handleGlobalMouseMove);
     return () => window.removeEventListener('mousemove', handleGlobalMouseMove);
   }, [activeIndex]);
 
-  const onPieEnter = (_, index) => {
-    setActiveIndex(index);
-  };
+  const onPieEnter = (_, index) => setActiveIndex(index);
+  const onPieLeave = () => setActiveIndex(null);
 
-  const onPieLeave = () => {
-    setActiveIndex(null);
-  };
-
-  const onPieClick = (data, index) => {
+  const onPieClick = (data) => {
     if (!data || !data.id) return;
-    // Navigate to transactions filtered by this specific category
     router.push(`/transactions?categoryIds=${data.id}&dateRange=30days`);
   };
 
-  const renderFormattedAmount = (value) => {
-    return <CurrencyAmount amount={value} cents />;
-  };
+  // Display up to 5 categories in the legend
+  const legendCategories = categories.slice(0, 5);
 
-  // Empty donut (single gray ring) for when there's no spending data
-  const EmptyDonut = () => (
-    <div className="flex-1 min-h-0 relative">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={[{ value: 1 }]}
-            cx="50%"
-            cy="48%"
-            innerRadius={110}
-            outerRadius={128}
-            paddingAngle={0}
-            dataKey="value"
-            stroke="none"
-            isAnimationActive={false}
-            style={{ pointerEvents: 'none' }}
-          >
-            <Cell fill="var(--color-border)" opacity={0.5} />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      {/* Center Text */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-[4%]">
-        <div className="text-3xl font-medium text-[var(--color-muted)] mb-1">
-          {renderFormattedAmount(0)}
-        </div>
-        <div className="text-xs text-[var(--color-muted)] font-medium text-center px-4">
-          No spending yet
-        </div>
+  const ChartSkeleton = () => (
+    <div className="flex flex-col items-center justify-center flex-1 animate-pulse gap-6">
+      <div className="w-44 h-44 rounded-full border-[14px] border-[var(--color-border)] opacity-30" />
+      <div className="w-full space-y-3">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--color-border)]" />
+              <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
+            </div>
+            <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
+          </div>
+        ))}
       </div>
     </div>
   );
 
-  // Chart loading skeleton (donut only, no header)
-  const ChartSkeleton = () => (
-    <div className="flex justify-center items-center flex-1 animate-pulse">
-      <div className="w-56 h-56 rounded-full border-[18px] border-[var(--color-border)] opacity-30" />
+  const EmptyState = () => (
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="relative w-44 h-44 mb-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={[{ value: 1 }]}
+              cx="50%"
+              cy="50%"
+              innerRadius={58}
+              outerRadius={70}
+              dataKey="value"
+              stroke="none"
+              isAnimationActive={false}
+            >
+              <Cell fill="var(--color-border)" opacity={0.4} />
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="text-lg font-medium text-[var(--color-muted)]">
+            <CurrencyAmount amount={0} />
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-[var(--color-muted)] font-medium">
+        No spending yet
+      </div>
     </div>
   );
+
+  // Values shown in center
+  const centerValue = activeIndex !== null ? categories[activeIndex].total_spent : totalSpending;
+  const centerLabel = activeIndex !== null
+    ? categories[activeIndex].label
+    : periodOptions.find(p => p.value === selectedPeriod)?.label;
 
   return (
     <div className="h-[440px] relative">
       <div ref={containerRef} className="flex flex-col h-full">
-        {/* Header — always visible, never replaced by skeleton */}
-        <div className="pb-2 flex items-center justify-between">
-          <div className="card-header">
-            Top Spending
-          </div>
+        {/* Header */}
+        <div className="pb-4 flex items-center justify-between">
+          <div className="card-header">Top Spending</div>
           <SegmentedTabs
             options={periodOptions}
             value={selectedPeriod}
@@ -198,7 +177,6 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           />
         </div>
 
-        {/* Chart Section */}
         {loading ? (
           <ChartSkeleton />
         ) : error ? (
@@ -206,116 +184,121 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
             Failed to load data
           </div>
         ) : categories.length === 0 ? (
-          <EmptyDonut />
+          <EmptyState />
         ) : (
-        <div className="flex-1 min-h-0 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <defs>
-                <filter id="donut-glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                {/* Drop shadow for depth on idle segments */}
-                <filter id="donut-shadow" x="-15%" y="-15%" width="140%" height="140%">
-                  <feDropShadow dx="2" dy="2" stdDeviation="2.5" floodColor="black" floodOpacity="0.2" />
-                </filter>
-              </defs>
-              {/* Shadow Pie Layer — offset dark shadow behind visible segments */}
-              <Pie
-                data={categories}
-                cx="50%"
-                cy="48%"
-                innerRadius={110}
-                outerRadius={128}
-                paddingAngle={4}
-                cornerRadius={9}
-                dataKey="total_spent"
-                stroke="none"
-                isAnimationActive={false}
-                style={{ pointerEvents: 'none' }}
-                filter="url(#donut-shadow)"
-              >
-                {categories.map((entry, index) => (
-                  <Cell
-                    key={`shadow-${index}`}
-                    fill="black"
-                    opacity={0}
+          <>
+            {/* Donut */}
+            <div className="relative w-full flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categories}
+                    cx="50%"
+                    cy="48%"
+                    innerRadius="65%"
+                    outerRadius="85%"
+                    paddingAngle={3}
+                    cornerRadius={6}
+                    dataKey="total_spent"
+                    stroke="none"
+                    isAnimationActive={false}
+                    style={{ pointerEvents: 'none', outline: 'none' }}
+                  >
+                    {categories.map((_, index) => {
+                      const color = sliceColors[index] || FALLBACK_COLOR;
+                      const isActive = activeIndex === index;
+                      const isDimmed = activeIndex !== null && !isActive;
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={isDimmed ? 'var(--color-border)' : color}
+                          opacity={isDimmed ? 0.4 : 1}
+                          style={{
+                            transition: 'all 0.2s ease',
+                            outline: 'none',
+                          }}
+                        />
+                      );
+                    })}
+                  </Pie>
+
+                  {/* Invisible interaction layer */}
+                  <Pie
+                    data={categories}
+                    cx="50%"
+                    cy="48%"
+                    innerRadius="50%"
+                    outerRadius="95%"
+                    paddingAngle={3}
+                    dataKey="total_spent"
+                    onMouseEnter={onPieEnter}
+                    onMouseLeave={onPieLeave}
+                    onClick={onPieClick}
+                    stroke="none"
+                    fill="transparent"
+                    isAnimationActive={false}
+                    style={{ cursor: 'pointer' }}
                   />
-                ))}
-              </Pie>
-              {/* Visible Pie Layer */}
-              <Pie
-                data={categories}
-                cx="50%"
-                cy="48%"
-                innerRadius={110}
-                outerRadius={128}
-                paddingAngle={4}
-                cornerRadius={9}
-                dataKey="total_spent"
-                stroke="none"
-                isAnimationActive={false}
-                style={{ pointerEvents: 'none' }}
-              >
-                {categories.map((entry, index) => {
-                  const color = sliceColors[index] || FALLBACK_COLOR;
-                  const isActive = activeIndex === index;
-                  const isIdle = activeIndex === null;
-                  return (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={isActive || isIdle ? color : 'var(--color-border)'}
-                      opacity={isActive ? 1 : isIdle ? 1 : 0.4}
-                      filter={isActive ? 'url(#donut-glow)' : 'url(#donut-shadow)'}
-                      style={{
-                        transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                        outline: 'none',
-                        transform: isActive ? 'scale(1.04)' : 'scale(1)',
-                        transformOrigin: 'center center',
-                        transformBox: 'fill-box'
-                      }}
-                    />
-                  );
-                })}
-              </Pie>
+                </PieChart>
+              </ResponsiveContainer>
 
-              {/* Invisible Interaction Layer - Larger hit area */}
-              <Pie
-                data={categories}
-                cx="50%"
-                cy="48%"
-                innerRadius={90} // Start slightly inside
-                outerRadius={148} // Extend further out
-                paddingAngle={4}
-                dataKey="total_spent"
-                onMouseEnter={onPieEnter}
-                onMouseLeave={onPieLeave}
-                onClick={onPieClick}
-                stroke="none"
-                fill="transparent"
-                isAnimationActive={false}
-                style={{ cursor: 'pointer' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+              {/* Center text */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-[4%]">
+                <div className="text-2xl font-medium text-[var(--color-fg)] mb-0.5">
+                  <CurrencyAmount amount={centerValue} />
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)] font-medium">
+                  {centerLabel}
+                </div>
+              </div>
+            </div>
 
-          {/* Center Text */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-[4%]">
-            <div className="text-3xl font-medium text-[var(--color-fg)] mb-1">
-              {(() => {
-                const value = activeIndex !== null ? categories[activeIndex].total_spent : totalSpending;
-                return renderFormattedAmount(value);
-              })()}
+            {/* Legend */}
+            <div className="pt-2 space-y-2.5">
+              {legendCategories.map((cat, i) => {
+                const color = sliceColors[i] || FALLBACK_COLOR;
+                const pct = totalSpending > 0
+                  ? ((cat.total_spent / totalSpending) * 100).toFixed(0)
+                  : 0;
+                const isActive = activeIndex === i;
+                const isDimmed = activeIndex !== null && !isActive;
+
+                return (
+                  <div
+                    key={cat.id || i}
+                    className="flex items-center justify-between cursor-pointer"
+                    style={{
+                      opacity: isDimmed ? 0.35 : 1,
+                      transition: 'opacity 0.2s ease',
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onMouseLeave={() => setActiveIndex(null)}
+                    onClick={() => onPieClick(cat)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className={`text-xs truncate ${isActive ? 'text-[var(--color-fg)] font-medium' : 'text-[var(--color-muted)]'}`}
+                        style={{ transition: 'color 0.2s ease' }}
+                      >
+                        {cat.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                      <span className="text-xs font-semibold text-[var(--color-fg)] tabular-nums">
+                        <CurrencyAmount amount={cat.total_spent} />
+                      </span>
+                      <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-7 text-right">
+                        {pct}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="text-xs text-[var(--color-muted)] font-medium text-center px-4">
-              {activeIndex !== null ? categories[activeIndex].label : periodOptions.find(p => p.value === selectedPeriod)?.label}
-            </div>
-          </div>
-        </div>
+          </>
         )}
       </div>
     </div>
