@@ -4,6 +4,9 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { getPlaidProducts } from '../../../../lib/tierConfig';
+import { createLogger } from '../../../../lib/logger';
+
+const logger = createLogger('plaid-exchange-token');
 
 export async function POST(request) {
   try {
@@ -32,7 +35,11 @@ export async function POST(request) {
     // Get accounts from Plaid
     const accountsResponse = await getAccounts(access_token);
     const { accounts: allAccounts, institution_id } = accountsResponse;
-    console.log(`📊 Found ${allAccounts.length} total accounts for institution: ${institution_id || accountsResponse.item?.institution_id}`);
+    const resolvedInstitutionId = institution_id || accountsResponse.item?.institution_id;
+    logger.info('Received accounts from Plaid', {
+      totalAccounts: allAccounts.length,
+      institutionId: resolvedInstitutionId,
+    });
 
     // Filter out investment accounts if tier doesn't include investments product
     const accounts = tierAllowsInvestments
@@ -40,26 +47,22 @@ export async function POST(request) {
       : allAccounts.filter(a => a.type !== 'investment');
 
     if (!tierAllowsInvestments && allAccounts.some(a => a.type === 'investment')) {
-      console.log(`🔒 Filtered out ${allAccounts.filter(a => a.type === 'investment').length} investment account(s) — tier "${subscriptionTier}" does not include investments`);
+      logger.info('Filtered out investment accounts by tier', {
+        filtered: allAccounts.filter(a => a.type === 'investment').length,
+        tier: subscriptionTier,
+      });
     }
 
     if (accounts.length === 0) {
-      console.warn('⚠️ No accounts available after tier filtering');
+      logger.warn('No accounts available after tier filtering', {
+        totalAccounts: allAccounts.length,
+        tier: subscriptionTier,
+      });
       return Response.json(
         { error: 'No accounts found', details: 'No eligible accounts found for your plan. Investment accounts require a Pro subscription.' },
         { status: 400 }
       );
     }
-
-    // Debug logging for account details
-    console.log('🔍 DEBUG: Full accounts response from exchange-token:', JSON.stringify(accountsResponse, null, 2));
-    console.log('🔍 DEBUG: Individual accounts from exchange-token:', accounts.map(acc => ({
-      account_id: acc.account_id,
-      name: acc.name,
-      type: acc.type,
-      subtype: acc.subtype,
-      mask: acc.mask
-    })));
 
     // Detect which products are needed based on the account types returned
     const hasInvestmentAccounts = accounts.some(a => a.type === 'investment');
@@ -71,7 +74,7 @@ export async function POST(request) {
     if (hasInvestmentAccounts) products.push('investments');
     if (products.length === 0) products.push('transactions'); // fallback
 
-    console.log(`🏷️ Detected products from accounts: ${products.join(', ')}`);
+    logger.info('Detected products from accounts', { products });
 
     // Get institution info (with fallback)
     let institution = null;
@@ -149,12 +152,16 @@ export async function POST(request) {
           }
         }
         if (institutionError) {
-          console.error('Error upserting institution:', institutionError);
+          logger.error('Failed to upsert institution', institutionError, {
+            institutionId: actualInstitutionId,
+          });
         } else {
           institutionData = instData;
         }
       } catch (instError) {
-        console.error('Error getting institution info, continuing without it:', instError);
+        logger.error('Failed to fetch institution info, continuing without it', instError, {
+          institutionId: actualInstitutionId,
+        });
       }
     }
 
@@ -169,7 +176,10 @@ export async function POST(request) {
         .maybeSingle();
       existingPlaidItem = existingItem || null;
       if (existingPlaidItem) {
-        console.log(`🔄 Update mode: merging into existing plaid_item ${existingPlaidItemId} (item_id: ${existingPlaidItem.item_id})`);
+        logger.info('Update mode: merging into existing plaid_item', {
+          plaidItemId: existingPlaidItemId,
+          itemId: existingPlaidItem.item_id,
+        });
       }
     }
 
@@ -207,7 +217,10 @@ export async function POST(request) {
         .single());
     }
     if (plaidItemError) {
-      console.error('Error upserting plaid item:', plaidItemError);
+      logger.error('Failed to upsert plaid item', plaidItemError, {
+        itemId: item_id,
+        existingPlaidItemId,
+      });
       return Response.json(
         { error: 'Failed to save plaid item', details: plaidItemError.message },
         { status: 500 }
@@ -261,7 +274,9 @@ export async function POST(request) {
             institution_id: institutionData?.id || existingAccount.institution_id,
             plaid_item_id: plaidItemData.id,
           });
-          console.log(`🔄 Matched existing investment account ${existingAccount.id}, will update in place`);
+          logger.debug('Matched existing investment account, will update in place', {
+            accountId: existingAccount.id,
+          });
         } else {
           accountsToInsert.push({
             user_id: userId,
@@ -311,7 +326,7 @@ export async function POST(request) {
           .select()
           .single();
         if (updateError) {
-          console.error('Error updating account:', updateError);
+          logger.error('Failed to update account', updateError, { accountId: id });
         } else {
           updatedAccounts.push(updated);
         }
@@ -328,7 +343,9 @@ export async function POST(request) {
         })
         .select();
       if (insertError) {
-        console.error('Error upserting accounts:', insertError);
+        logger.error('Failed to upsert accounts', insertError, {
+          count: accountsToInsert.length,
+        });
         return Response.json(
           { error: 'Failed to save accounts', details: insertError.message },
           { status: 500 }
@@ -339,23 +356,22 @@ export async function POST(request) {
 
     // Combine updated and inserted accounts
     const accountsData = [...updatedAccounts, ...insertedAccounts];
-    console.log(`✅ Saved ${accountsData.length} accounts successfully`);
-    console.log('🔍 DEBUG: Saved accounts:', accountsData.map(acc => ({
-      id: acc.id,
-      subtype: acc.subtype
-    })));
+    logger.info('Saved accounts', {
+      total: accountsData.length,
+      updated: updatedAccounts.length,
+      inserted: insertedAccounts.length,
+    });
 
     // Create account snapshots for the newly created accounts
     try {
-      console.log('📸 Creating account snapshots...');
       const snapshotResult = await createAccountSnapshots(accounts, accountsData.map(acc => acc.id));
       if (snapshotResult.success) {
-        console.log(`✅ Created ${snapshotResult.data.length} account snapshots successfully`);
+        logger.info('Created account snapshots', { count: snapshotResult.data.length });
       } else {
-        console.warn('⚠️ Failed to create account snapshots:', snapshotResult.error);
+        logger.warn('Failed to create account snapshots', { error: snapshotResult.error });
       }
     } catch (snapshotError) {
-      console.warn('Error creating account snapshots:', snapshotError);
+      logger.error('Exception while creating account snapshots', snapshotError);
     }
 
     // Use after() to keep the serverless function alive until syncs complete
@@ -363,7 +379,6 @@ export async function POST(request) {
       // Trigger transaction sync for depository/credit accounts
       if (hasTransactionAccounts && accountsData.length > 0) {
         try {
-          console.log('🔄 Starting transaction sync...');
           const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
           const syncRequest = {
             headers: { get: () => null },
@@ -372,13 +387,21 @@ export async function POST(request) {
           const syncResponse = await syncEndpoint(syncRequest);
           if (!syncResponse.ok) {
             const syncErrorBody = await syncResponse.json().catch(() => ({}));
-            console.error('⚠️ Transaction sync failed:', JSON.stringify(syncErrorBody));
+            logger.error('Transaction sync failed after exchange', null, {
+              plaidItemId: plaidItemData.id,
+              body: syncErrorBody,
+            });
           } else {
             const syncResult = await syncResponse.json();
-            console.log(`✅ Transaction sync completed: ${syncResult.transactions_synced} transactions synced`);
+            logger.info('Transaction sync completed after exchange', {
+              plaidItemId: plaidItemData.id,
+              transactions_synced: syncResult.transactions_synced,
+            });
           }
         } catch (syncError) {
-          console.warn('Error triggering transaction sync:', syncError);
+          logger.error('Exception triggering transaction sync', syncError, {
+            plaidItemId: plaidItemData.id,
+          });
         }
       }
 
@@ -386,7 +409,6 @@ export async function POST(request) {
       if (hasInvestmentAccounts && accountsData.length > 0) {
         // Sync holdings
         try {
-          console.log('🔄 Starting holdings sync...');
           const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
           const holdingsSyncRequest = {
             headers: { get: () => null },
@@ -394,34 +416,50 @@ export async function POST(request) {
           };
           const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
           if (!holdingsSyncResponse.ok) {
-            console.warn('⚠️ Holdings sync failed, but account linking succeeded');
+            logger.warn('Holdings sync failed after exchange, but account linking succeeded', {
+              plaidItemId: plaidItemData.id,
+              status: holdingsSyncResponse.status,
+            });
           } else {
             const holdingsSyncResult = await holdingsSyncResponse.json();
-            console.log(`✅ Holdings sync completed: ${holdingsSyncResult.holdings_synced} holdings synced`);
+            logger.info('Holdings sync completed after exchange', {
+              plaidItemId: plaidItemData.id,
+              holdings_synced: holdingsSyncResult.holdings_synced,
+            });
           }
         } catch (holdingsSyncError) {
-          console.warn('Error triggering holdings sync:', holdingsSyncError);
+          logger.error('Exception triggering holdings sync', holdingsSyncError, {
+            plaidItemId: plaidItemData.id,
+          });
         }
 
         // Sync investment transactions
         try {
-          console.log('🔄 Starting investment transactions sync...');
           const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
           const invTxSyncRequest = {
             headers: { get: () => null },
             json: async () => ({ plaidItemId: plaidItemData.id, userId }),
           };
-          const investmentTransactionsSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
-          if (!investmentTransactionsSyncResponse.ok) {
-            console.warn('⚠️ Investment transactions sync failed, but account linking succeeded');
+          const invTxResponse = await invTxSyncEndpoint(invTxSyncRequest);
+          if (!invTxResponse.ok) {
+            logger.warn('Investment transactions sync failed after exchange', {
+              plaidItemId: plaidItemData.id,
+              status: invTxResponse.status,
+            });
           } else {
-            const investmentTransactionsSyncResult = await investmentTransactionsSyncResponse.json();
-            console.log(`✅ Investment transactions sync completed: ${investmentTransactionsSyncResult.transactions_synced} transactions synced`);
+            const invTxResult = await invTxResponse.json();
+            logger.info('Investment transactions sync completed after exchange', {
+              plaidItemId: plaidItemData.id,
+              transactions_synced: invTxResult.transactions_synced,
+            });
           }
-        } catch (investmentTransactionsSyncError) {
-          console.warn('Error triggering investment transactions sync:', investmentTransactionsSyncError);
+        } catch (invTxError) {
+          logger.error('Exception triggering investment transactions sync', invTxError, {
+            plaidItemId: plaidItemData.id,
+          });
         }
       }
+      await logger.flush();
     });
 
     return Response.json({
@@ -431,7 +469,8 @@ export async function POST(request) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Error exchanging token:', error);
+    logger.error('Error exchanging token', error);
+    await logger.flush();
     return Response.json(
       { error: 'Failed to exchange token' },
       { status: 500 }

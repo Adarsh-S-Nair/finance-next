@@ -28,6 +28,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { verifyCronSecret } from '../../../../lib/api/cron';
+import { createLogger } from '../../../../lib/logger';
+
+const logger = createLogger('cron-account-snapshots');
 
 // Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
@@ -136,10 +139,7 @@ export async function GET(request) {
   if (authError) return authError;
 
   try {
-    console.log('\n📸 ACCOUNT SNAPSHOTS CRON JOB');
-    console.log('========================================');
-    console.log(`Started at: ${new Date().toISOString()}`);
-    console.log('========================================\n');
+    const opId = logger.startOperation('account-snapshots-cron');
 
     // ------------------------------------------------------------------
     // Phase 0: Refresh investment balances from Plaid
@@ -160,12 +160,14 @@ export async function GET(request) {
         .not('plaid_item_id', 'is', null);
 
       if (invItemsError) {
-        console.warn('⚠️  Failed to look up investment items, skipping holdings refresh:', invItemsError.message);
+        logger.warn('Failed to look up investment items, skipping holdings refresh', {
+          error: invItemsError.message,
+        });
       } else if (investmentItems && investmentItems.length > 0) {
         const uniqueItems = Array.from(
           new Map(investmentItems.map(r => [r.plaid_item_id, r])).values()
         );
-        console.log(`🔄 Refreshing holdings for ${uniqueItems.length} investment plaid_items before snapshotting...`);
+        logger.info('Refreshing holdings before snapshotting', { count: uniqueItems.length });
 
         const { POST: holdingsSyncEndpoint } = await import('../../plaid/investments/holdings/sync/route.js');
         for (const item of uniqueItems) {
@@ -176,15 +178,20 @@ export async function GET(request) {
             };
             const syncResponse = await holdingsSyncEndpoint(syncRequest);
             if (!syncResponse.ok) {
-              console.warn(`⚠️  Holdings sync failed for item ${item.plaid_item_id}`);
+              logger.warn('Holdings sync returned non-ok during cron refresh', {
+                plaidItemId: item.plaid_item_id,
+                status: syncResponse.status,
+              });
             }
           } catch (syncErr) {
-            console.warn(`⚠️  Exception during holdings sync for item ${item.plaid_item_id}:`, syncErr?.message || syncErr);
+            logger.error('Exception during holdings sync in cron refresh', syncErr, {
+              plaidItemId: item.plaid_item_id,
+            });
           }
         }
       }
     } catch (refreshErr) {
-      console.warn('⚠️  Phase 0 investment refresh crashed, continuing with stale data:', refreshErr?.message || refreshErr);
+      logger.error('Phase 0 investment refresh crashed, continuing with stale data', refreshErr);
     }
 
     // ------------------------------------------------------------------
@@ -201,7 +208,9 @@ export async function GET(request) {
     }
 
     if (!accounts || accounts.length === 0) {
-      console.log('ℹ️  No accounts found');
+      logger.info('No accounts found, exiting early');
+      logger.endOperation(opId, { snapshotsCreated: 0, snapshotsSkipped: 0, thinned: 0 });
+      await logger.flush();
       return NextResponse.json({
         success: true,
         message: 'No accounts found',
@@ -211,7 +220,7 @@ export async function GET(request) {
       });
     }
 
-    console.log(`📊 Found ${accounts.length} accounts across all users`);
+    logger.info('Fetched accounts for snapshotting', { count: accounts.length });
 
     const accountIds = accounts.map(a => a.id);
 
@@ -282,8 +291,6 @@ export async function GET(request) {
     let createdCount = 0;
 
     if (snapshotsToInsert.length > 0) {
-      console.log(`💾 Inserting ${snapshotsToInsert.length} new snapshots...`);
-
       const { data: inserted, error: insertError } = await supabaseAdmin
         .from('account_snapshots')
         .insert(snapshotsToInsert)
@@ -294,17 +301,14 @@ export async function GET(request) {
       }
 
       createdCount = inserted?.length || 0;
-      console.log(`✅ Created ${createdCount} snapshots`);
+      logger.info('Inserted account snapshots', { created: createdCount, skipped: skippedCount });
     } else {
-      console.log('ℹ️  No new snapshots needed (all balances unchanged)');
+      logger.info('No new snapshots needed', { skipped: skippedCount });
     }
-
-    console.log(`⏭️  Skipped ${skippedCount} accounts (balance unchanged)\n`);
 
     // ------------------------------------------------------------------
     // Phase 2: Snapshot thinning
     // ------------------------------------------------------------------
-    console.log('🧹 Running snapshot thinning...');
 
     const now = new Date();
     const cutoff365 = new Date(now); cutoff365.setDate(now.getDate() - 365);
@@ -321,7 +325,9 @@ export async function GET(request) {
       .order('recorded_at', { ascending: true });
 
     if (oldError) {
-      console.error('⚠️  Error fetching old snapshots for thinning:', oldError.message);
+      logger.error('Error fetching old snapshots for thinning, skipping this run', null, {
+        error: oldError.message,
+      });
       // Non-fatal — skip thinning this run
     } else if (oldSnapshots && oldSnapshots.length > 0) {
       // Also need the first snapshot and latest snapshot per account for safety invariants.
@@ -335,7 +341,9 @@ export async function GET(request) {
         .order('recorded_at', { ascending: false });
 
       if (latestError) {
-        console.error('⚠️  Error fetching latest snapshots for thinning:', latestError.message);
+        logger.error('Error fetching latest snapshots for thinning', null, {
+          error: latestError.message,
+        });
       }
 
       const latestIdByAccount = new Map();
@@ -371,12 +379,10 @@ export async function GET(request) {
         allIdsToDelete.push(...idsToDelete);
       }
 
+      let deletedTotal = 0;
       if (allIdsToDelete.length > 0) {
-        console.log(`🗑️  Deleting ${allIdsToDelete.length} thinned snapshots...`);
-
         // Batch deletes in chunks of 500 to avoid URL length limits
         const chunkSize = 500;
-        let deletedTotal = 0;
 
         for (let i = 0; i < allIdsToDelete.length; i += chunkSize) {
           const chunk = allIdsToDelete.slice(i, i + chunkSize);
@@ -386,25 +392,27 @@ export async function GET(request) {
             .in('id', chunk);
 
           if (deleteError) {
-            console.error(`⚠️  Error deleting chunk: ${deleteError.message}`);
+            logger.error('Error deleting thinned-snapshots chunk', null, {
+              error: deleteError.message,
+              chunkSize: chunk.length,
+            });
           } else {
             deletedTotal += chunk.length;
           }
         }
 
-        console.log(`✅ Thinned ${deletedTotal} snapshots`);
+        logger.info('Thinned snapshots', { deleted: deletedTotal, targeted: allIdsToDelete.length });
       } else {
-        console.log('ℹ️  No snapshots eligible for thinning');
+        logger.info('No snapshots eligible for thinning');
       }
 
-      const thinCount = allIdsToDelete.length;
-
-      console.log('\n========================================');
-      console.log('✅ CRON JOB COMPLETE');
-      console.log(`   Snapshots created:  ${createdCount}`);
-      console.log(`   Snapshots skipped:  ${skippedCount}`);
-      console.log(`   Snapshots thinned:  ${thinCount}`);
-      console.log('========================================\n');
+      const thinCount = deletedTotal;
+      logger.endOperation(opId, {
+        snapshotsCreated: createdCount,
+        snapshotsSkipped: skippedCount,
+        snapshotsThinned: thinCount,
+      });
+      await logger.flush();
 
       return NextResponse.json({
         success: true,
@@ -415,12 +423,12 @@ export async function GET(request) {
       });
     }
 
-    console.log('\n========================================');
-    console.log('✅ CRON JOB COMPLETE');
-    console.log(`   Snapshots created:  ${createdCount}`);
-    console.log(`   Snapshots skipped:  ${skippedCount}`);
-    console.log(`   Snapshots thinned:  0`);
-    console.log('========================================\n');
+    logger.endOperation(opId, {
+      snapshotsCreated: createdCount,
+      snapshotsSkipped: skippedCount,
+      snapshotsThinned: 0,
+    });
+    await logger.flush();
 
     return NextResponse.json({
       success: true,
@@ -431,7 +439,8 @@ export async function GET(request) {
     });
 
   } catch (error) {
-    console.error('❌ Account snapshots cron job failed:', error);
+    logger.error('Account snapshots cron job failed', error);
+    await logger.flush();
     return NextResponse.json(
       {
         success: false,
