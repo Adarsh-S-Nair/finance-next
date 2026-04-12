@@ -14,21 +14,21 @@
  */
 
 import { supabaseAdmin } from '../../../../../../lib/supabase/admin';
-import { resolveUserId } from '../../../../../../lib/api/auth';
+import { requireVerifiedUserId } from '../../../../../../lib/api/auth';
 import { canAccess } from '../../../../../../lib/tierConfig';
 import { syncInvestmentTransactionsForItem } from '../../../../../../lib/plaid/investmentTransactionSync';
 
 export async function POST(request) {
   let plaidItemId = null;
   try {
+    const userId = requireVerifiedUserId(request);
     const body = await request.json();
     plaidItemId = body.plaidItemId ?? null;
-    const userId = resolveUserId(request, body.userId);
     const forceSync = Boolean(body.forceSync);
 
-    if (!plaidItemId || !userId) {
+    if (!plaidItemId) {
       return Response.json(
-        { error: 'Plaid item ID and user ID are required' },
+        { error: 'Plaid item ID is required' },
         { status: 400 }
       );
     }
@@ -46,6 +46,7 @@ export async function POST(request) {
     const result = await syncInvestmentTransactionsForItem({ plaidItemId, userId, forceSync });
     return Response.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     if (error?.httpStatus === 404) {
       return Response.json({ error: error.message || 'Plaid item not found' }, { status: 404 });
     }

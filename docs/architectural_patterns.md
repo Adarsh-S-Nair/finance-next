@@ -13,7 +13,11 @@ you shouldn't have to reinvent where things go.
 A route handler does exactly four things:
 
 1. Parse the request.
-2. Resolve auth (via `resolveUserId` / `requireVerifiedUserId`).
+2. Resolve auth (via `requireVerifiedUserId`). **Never** read the user ID out
+   of the request body — that's an IDOR waiting to happen. If a route needs
+   to be callable from another route handler (e.g. `exchange-token` →
+   `transactions/sync`), the caller must forward the verified `x-user-id`
+   header on the inner request.
 3. Dispatch to a lib function.
 4. Format the HTTP response (success or error).
 
@@ -56,9 +60,9 @@ src/lib/plaid/transactionSync/
 ```js
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const body = await request.json();
-    const userId = resolveUserId(request, body.userId);
-    if (!body.plaidItemId || !userId) return badRequest();
+    if (!body.plaidItemId) return badRequest();
 
     const result = await syncTransactionsForItem({
       plaidItemId: body.plaidItemId,
@@ -67,6 +71,7 @@ export async function POST(request) {
     });
     return Response.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     if (error?.httpStatus === 404) return notFound(error.message);
     return serverError('Failed to sync transactions', error?.message);
   }

@@ -13,6 +13,12 @@ export function getVerifiedUserId(request: NextRequest | Request): string | null
  * Reads the verified user ID injected by middleware.
  * Throws a 401 Response if the user ID is missing.
  *
+ * This is the only supported way for HTTP route handlers to resolve the
+ * caller's identity. Never read user IDs out of the request body — doing so
+ * lets an authenticated user impersonate another user by passing a different
+ * UUID (IDOR). If a route needs to be callable internally (e.g. from another
+ * route handler), the caller must forward the verified x-user-id header.
+ *
  * Usage:
  *   const userId = requireVerifiedUserId(request);
  */
@@ -25,18 +31,4 @@ export function requireVerifiedUserId(request: NextRequest | Request): string {
     );
   }
   return userId;
-}
-
-/**
- * For routes that can be called both externally (via HTTP, middleware injects header)
- * and internally (via direct function import, no middleware, userId in body/options).
- *
- * Prefers the middleware-injected header, falls back to the provided bodyUserId.
- * Returns null if neither is available.
- */
-export function resolveUserId(
-  request: NextRequest | Request,
-  bodyUserId?: string | null
-): string | null {
-  return getVerifiedUserId(request) || bodyUserId || null;
 }

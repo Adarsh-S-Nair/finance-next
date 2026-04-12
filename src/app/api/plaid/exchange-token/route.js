@@ -377,13 +377,17 @@ export async function POST(request) {
 
     // Use after() to keep the serverless function alive until syncs complete
     after(async () => {
+      // Forward the verified userId via header so internal route handlers
+      // pick it up through requireVerifiedUserId().
+      const internalHeaders = new Headers({ 'x-user-id': userId });
+
       // Trigger transaction sync for depository/credit accounts
       if (hasTransactionAccounts && accountsData.length > 0) {
         try {
           const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
           const syncRequest = {
-            headers: { get: () => null },
-            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+            headers: internalHeaders,
+            json: async () => ({ plaidItemId: plaidItemData.id }),
           };
           const syncResponse = await syncEndpoint(syncRequest);
           if (!syncResponse.ok) {
@@ -412,8 +416,8 @@ export async function POST(request) {
         try {
           const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
           const holdingsSyncRequest = {
-            headers: { get: () => null },
-            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
+            headers: internalHeaders,
+            json: async () => ({ plaidItemId: plaidItemData.id }),
           };
           const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest);
           if (!holdingsSyncResponse.ok) {

@@ -13,21 +13,21 @@
  * See `docs/architectural_patterns.md` for the pattern.
  */
 
-import { resolveUserId } from '../../../../../../lib/api/auth';
+import { requireVerifiedUserId } from '../../../../../../lib/api/auth';
 import { syncHoldingsForItem } from '../../../../../../lib/plaid/holdingsSync';
 
 export async function POST(request) {
   let plaidItemId = null;
   try {
+    const userId = requireVerifiedUserId(request);
     const body = await request.json();
     plaidItemId = body.plaidItemId ?? null;
-    const userId = resolveUserId(request, body.userId);
     const includeDebug = Boolean(body.includeDebug);
     const forceSync = Boolean(body.forceSync);
 
-    if (!plaidItemId || !userId) {
+    if (!plaidItemId) {
       return Response.json(
-        { error: 'Plaid item ID and user ID are required' },
+        { error: 'Plaid item ID is required' },
         { status: 400 }
       );
     }
@@ -40,6 +40,7 @@ export async function POST(request) {
     });
     return Response.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     // HoldingsSyncError carries an httpStatus; map it to the matching response.
     if (error?.httpStatus === 403) {
       return Response.json(

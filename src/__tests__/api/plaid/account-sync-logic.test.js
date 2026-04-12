@@ -30,7 +30,9 @@ describe('Account Connection Sync Logic Tests', () => {
     })
 
     it('should verify sync call parameters and structure', () => {
-      // This test documents the expected sync call structure
+      // This test documents the expected sync call structure. The caller's
+      // userId must NOT be in the request body — it's resolved from the
+      // middleware-injected x-user-id header by requireVerifiedUserId().
       const syncCallStructure = {
         url: '`${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/transactions/sync`',
         method: 'POST',
@@ -38,8 +40,7 @@ describe('Account Connection Sync Logic Tests', () => {
           'Content-Type': 'application/json'
         },
         body: {
-          plaidItemId: 'plaidItemData.id',
-          userId: 'userId'
+          plaidItemId: 'plaidItemData.id'
         }
       }
 
@@ -49,9 +50,8 @@ describe('Account Connection Sync Logic Tests', () => {
       expect(syncCallStructure.method).toBe('POST')
       expect(syncCallStructure.headers['Content-Type']).toBe('application/json')
       expect(syncCallStructure.body).toHaveProperty('plaidItemId')
-      expect(syncCallStructure.body).toHaveProperty('userId')
+      expect(syncCallStructure.body).not.toHaveProperty('userId')
       expect(syncCallStructure.body.plaidItemId).toBe('plaidItemData.id')
-      expect(syncCallStructure.body.userId).toBe('userId')
     })
 
     it('should verify sync call timing and location', () => {

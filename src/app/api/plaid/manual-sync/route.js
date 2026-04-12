@@ -1,14 +1,16 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 
 const logger = createLogger('manual-sync-trigger');
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const { plaidItemId, includeHoldingsDebug = false } = await request.json();
 
-    logger.info('Manual sync trigger requested', { plaidItemId, includeHoldingsDebug });
+    logger.info('Manual sync trigger requested', { plaidItemId, includeHoldingsDebug, userId });
 
     if (!plaidItemId) {
       return Response.json(
@@ -17,12 +19,14 @@ export async function POST(request) {
       );
     }
 
-    // Get the plaid item
+    // Get the plaid item — scoped to the caller so users can only trigger
+    // syncs on their own items.
     const { data: plaidItem, error: itemError } = await supabaseAdmin
       .from('plaid_items')
       .select('*')
       .eq('id', plaidItemId)
-      .single();
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (itemError || !plaidItem) {
       return Response.json(
@@ -33,7 +37,7 @@ export async function POST(request) {
 
     logger.info('Triggering sync for item', {
       item_id: plaidItem.item_id,
-      user_id: plaidItem.user_id,
+      user_id: userId,
       products: plaidItem.products || []
     });
 
@@ -51,14 +55,15 @@ export async function POST(request) {
       investment_transactions_sync: null
     };
 
-    const internalHeaders = { get: () => null };
+    // Forward the verified userId via header so internal route handlers
+    // pick it up through requireVerifiedUserId().
+    const internalHeaders = new Headers({ 'x-user-id': userId });
     if (shouldRunTransactionsSync) {
       const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
       const syncRequest = {
         headers: internalHeaders,
         json: async () => ({
           plaidItemId: plaidItem.id,
-          userId: plaidItem.user_id,
           forceSync: true
         })
       };
@@ -77,7 +82,6 @@ export async function POST(request) {
         headers: internalHeaders,
         json: async () => ({
           plaidItemId: plaidItem.id,
-          userId: plaidItem.user_id,
           forceSync: true,
           includeDebug: includeHoldingsDebug
         })
@@ -93,7 +97,7 @@ export async function POST(request) {
       try {
         const invTxSyncResult = await syncInvestmentTransactionsForItem({
           plaidItemId: plaidItem.id,
-          userId: plaidItem.user_id,
+          userId,
           forceSync: true,
         });
         responsePayload.investment_transactions_sync = {
@@ -121,6 +125,7 @@ export async function POST(request) {
     return Response.json(responsePayload);
 
   } catch (error) {
+    if (error instanceof Response) return error;
     logger.error('Error triggering manual sync', error);
     await logger.flush();
 

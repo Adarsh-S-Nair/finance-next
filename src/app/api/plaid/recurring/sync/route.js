@@ -14,23 +14,16 @@
  */
 
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
-import { resolveUserId } from '../../../../../lib/api/auth';
+import { requireVerifiedUserId } from '../../../../../lib/api/auth';
 import { canAccess } from '../../../../../lib/tierConfig';
 import { syncRecurringForUser } from '../../../../../lib/plaid/recurringSync';
 
 export async function POST(request) {
   try {
+    const userId = requireVerifiedUserId(request);
     const body = await request.json();
-    const userId = resolveUserId(request, body.userId);
     const forceReset = Boolean(body.forceReset);
     const plaidItemId = body.plaidItemId ?? null;
-
-    if (!userId) {
-      return Response.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
 
     // Tier gate: recurring is a Pro feature
     const { data: userProfile } = await supabaseAdmin

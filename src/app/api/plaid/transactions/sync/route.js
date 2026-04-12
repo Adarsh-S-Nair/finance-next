@@ -11,21 +11,21 @@
  * See `docs/architectural_patterns.md` for the pattern.
  */
 
-import { resolveUserId } from '../../../../../lib/api/auth';
+import { requireVerifiedUserId } from '../../../../../lib/api/auth';
 import { syncTransactionsForItem } from '../../../../../lib/plaid/transactionSync';
 
 export async function POST(request) {
   let plaidItemId = null;
   try {
+    const userId = requireVerifiedUserId(request);
     const body = await request.json();
     plaidItemId = body.plaidItemId ?? null;
-    const userId = resolveUserId(request, body.userId);
     // Truthy check matches legacy behavior — accepts `true`, `"true"`, `1`, etc.
     const forceSync = Boolean(body.forceSync);
 
-    if (!plaidItemId || !userId) {
+    if (!plaidItemId) {
       return Response.json(
-        { error: 'Plaid item ID and user ID are required' },
+        { error: 'Plaid item ID is required' },
         { status: 400 }
       );
     }
@@ -33,6 +33,7 @@ export async function POST(request) {
     const result = await syncTransactionsForItem({ plaidItemId, userId, forceSync });
     return Response.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     if (error?.httpStatus === 404) {
       return Response.json({ error: error.message || 'Plaid item not found' }, { status: 404 });
     }
