@@ -1,11 +1,29 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { FiBell } from "react-icons/fi"; // Outline icon
+import { FiBell } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import { FiAlertCircle, FiChevronRight } from "react-icons/fi";
 import Link from "next/link";
+
+type NotificationRowProps = {
+  title: string;
+  description: string;
+  href: string;
+  onClick?: () => void;
+};
+
+const NotificationRow = ({ title, description, href, onClick }: NotificationRowProps) => (
+  <Link href={href} onClick={onClick}>
+    <div className="flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors">
+      <div className="flex-1 min-w-0 mr-3">
+        <p className="text-sm font-medium text-[var(--color-fg)] truncate">{title}</p>
+        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">{description}</p>
+      </div>
+      <span className="text-[var(--color-muted)] text-base leading-none flex-shrink-0">&#8250;</span>
+    </div>
+  </Link>
+);
 
 export default function AlertsIcon() {
   const { profile } = useUser();
@@ -82,7 +100,7 @@ export default function AlertsIcon() {
         whileTap="click"
         animate={isOpen ? "click" : "idle"}
         variants={jiggleVariants}
-        aria-label="Alerts"
+        aria-label="Notifications"
       >
         <FiBell className="w-5 h-5" />
 
@@ -92,79 +110,51 @@ export default function AlertsIcon() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-bg)]"
+              className="absolute top-2 right-2 w-2 h-2 bg-[var(--color-fg)] rounded-full border-2 border-[var(--color-content-bg)]"
             />
           )}
         </AnimatePresence>
       </motion.button>
 
-      {/* Tooltip (only when closed) */}
-      {!isOpen && (
-        <div className="absolute top-full right-0 mt-2 px-2 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap">
-          <p className="text-xs text-[var(--color-fg)]">Alerts</p>
-        </div>
-      )}
-
       {/* Popover */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute top-full right-0 mt-3 w-80 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl z-50 overflow-hidden"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full right-0 mt-2 w-80 bg-[var(--color-content-bg)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 overflow-hidden"
           >
-            {/* Standardized Header */}
-            <div className="px-4 pt-4 pb-2 border-b border-[var(--color-border)]/50">
-              <h3 className="text-sm font-medium text-[var(--color-muted)]">Alerts</h3>
+            {/* Header */}
+            <div className="px-5 py-3 border-b border-[var(--color-border)]">
+              <h3 className="text-sm font-medium text-[var(--color-fg)]">Notifications</h3>
             </div>
 
-            <div className="max-h-[300px] overflow-y-auto mt-2">
+            {/* Body */}
+            <div className="max-h-[360px] overflow-y-auto">
               {counts.count > 0 ? (
-                <div className="p-2">
-                  {/* Unmatched Transfers Alert */}
+                <div>
                   {counts.unmatchedTransferCount > 0 && (
-                    <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
-                      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
-                        <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
-                          <FiAlertCircle className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--color-fg)]">Unmatched Transfers</p>
-                          <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                            You have {counts.unmatchedTransferCount} transfer{counts.unmatchedTransferCount !== 1 ? 's' : ''} that need review.
-                          </p>
-                        </div>
-                        <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
-                      </div>
-                    </Link>
+                    <NotificationRow
+                      href="/transactions?status=attention"
+                      onClick={() => setIsOpen(false)}
+                      title="Unmatched transfers"
+                      description={`${counts.unmatchedTransferCount} transfer${counts.unmatchedTransferCount !== 1 ? 's' : ''} need review`}
+                    />
                   )}
-
-                  {/* Unknown Accounts Alert */}
                   {counts.unknownAccountCount > 0 && (
-                    <Link href="/transactions?status=attention" onClick={() => setIsOpen(false)}>
-                      <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-bg)] transition-colors cursor-pointer group">
-                        <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
-                          <FiAlertCircle className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--color-fg)]">Unknown Accounts</p>
-                          <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                            You have {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? 's' : ''} from unknown accounts.
-                          </p>
-                        </div>
-                        <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors self-center" />
-                      </div>
-                    </Link>
+                    <NotificationRow
+                      href="/transactions?status=attention"
+                      onClick={() => setIsOpen(false)}
+                      title="Unknown accounts"
+                      description={`${counts.unknownAccountCount} transaction${counts.unknownAccountCount !== 1 ? 's' : ''} from unknown accounts`}
+                    />
                   )}
                 </div>
               ) : (
-                <div className="p-8 text-center">
-                  <div className="w-12 h-12 rounded-full bg-[var(--color-bg)] flex items-center justify-center mx-auto mb-3 text-[var(--color-muted)]">
-                    <FiBell className="w-5 h-5 opacity-50" />
-                  </div>
-                  <p className="text-sm text-[var(--color-muted)]">No new alerts</p>
+                <div className="px-5 py-10 text-center">
+                  <p className="text-sm text-[var(--color-muted)]">You&apos;re all caught up</p>
                 </div>
               )}
             </div>

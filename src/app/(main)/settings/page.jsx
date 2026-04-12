@@ -19,6 +19,42 @@ import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import { authFetch } from "../../../lib/api/fetch";
 
+// Section wrapper: small uppercase heading + optional action, with a trailing
+// border-b separator so every section on the page feels consistent.
+function SettingsSection({ label, action, children }) {
+  return (
+    <section className="py-5 border-b border-[var(--color-border)]">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+          {label}
+        </h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Single settings row: label + optional description on the left, control on the right.
+function SettingsRow({ label, description, control, value, overflowVisible = false }) {
+  return (
+    <div className={`flex items-center justify-between gap-4 py-3.5 ${overflowVisible ? 'overflow-visible relative z-10' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-[var(--color-fg)]">{label}</div>
+        {description && (
+          <div className="text-xs text-[var(--color-muted)] mt-0.5">{description}</div>
+        )}
+      </div>
+      <div className="flex-shrink-0 flex items-center gap-3">
+        {value && (
+          <span className="text-sm text-[var(--color-muted)]">{value}</span>
+        )}
+        {control}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { logout, profile, isPro, user, refreshProfile } = useUser();
@@ -240,74 +276,47 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <div className="max-w-5xl mx-auto space-y-10">
+      <div className="max-w-3xl mx-auto">
 
         {/* Profile Section */}
-        <section aria-labelledby="profile-heading">
-          <h2 id="profile-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Profile</h2>
-          <div className="flex items-start gap-4 pb-6 border-b border-[var(--color-border)]">
-            {/* Avatar */}
-            <div className="flex-shrink-0 mt-1">
-              {profile?.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt="Profile avatar"
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center">
-                  <span className="text-lg font-semibold text-[var(--color-accent)]">
-                    {(displayName === "—" ? "?" : displayName)[0].toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </div>
-            {/* Name + Email */}
-            <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div>
-                <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-0.5">Name</div>
-                <div className="text-sm text-[var(--color-fg)]">
-                  {displayName}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-0.5">Email</div>
-                <div className="text-sm text-[var(--color-fg)] truncate">{user?.email || "—"}</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Subscription Section */}
-        <section aria-labelledby="subscription-heading">
-          <h2 id="subscription-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Subscription</h2>
-          <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-medium text-[var(--color-fg)]">Current plan</div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                  isPro
-                    ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                    : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)]'
-                }`}>
-                  {isPro ? 'Pro' : 'Free'}
+        <SettingsSection label="Profile">
+          <div className="flex items-center gap-4 py-4">
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="Profile avatar"
+                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center flex-shrink-0">
+                <span className="text-base font-medium text-[var(--color-fg)]">
+                  {(displayName === "—" ? "?" : displayName)[0].toUpperCase()}
                 </span>
               </div>
-              <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                {isPro
-                  ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
-                  : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
-              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-[var(--color-fg)] truncate">{displayName}</div>
+              <div className="text-xs text-[var(--color-muted)] truncate mt-0.5">{user?.email || "—"}</div>
             </div>
-            <div className="ml-4 flex-shrink-0">
-              {isPro ? (
+          </div>
+        </SettingsSection>
+
+        {/* Subscription Section */}
+        <SettingsSection label="Subscription">
+          <SettingsRow
+            label="Current plan"
+            description={isPro
+              ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
+              : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
+            control={
+              isPro ? (
                 <Button
                   onClick={handleManageSubscription}
                   disabled={isPortalLoading}
                   variant="primary"
                   size="sm"
                 >
-                  {isPortalLoading ? 'Loading...' : 'Manage Subscription'}
+                  {isPortalLoading ? 'Loading...' : 'Manage'}
                 </Button>
               ) : (
                 <Button
@@ -315,281 +324,253 @@ export default function SettingsPage() {
                   variant="primary"
                   size="sm"
                 >
-                  Upgrade to Pro
+                  Upgrade
                 </Button>
-              )}
-            </div>
-          </div>
-        </section>
+              )
+            }
+            value={isPro ? 'Pro' : 'Free'}
+          />
+        </SettingsSection>
 
         {/* Appearance Section */}
-        <section aria-labelledby="appearance-heading">
-          <h2 id="appearance-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Appearance</h2>
-          <div className="divide-y divide-[var(--color-border)] border-b border-[var(--color-border)]">
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <div className="text-sm font-medium text-[var(--color-fg)]">Theme</div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">Switch between light and dark mode.</div>
-              </div>
-              <ThemeToggle />
-            </div>
-            {/* overflow-visible wrapper so AccentPicker dropdown isn't clipped */}
-            <div className="flex items-center justify-between py-3 overflow-visible relative z-10">
-              <div>
-                <div className="text-sm font-medium text-[var(--color-fg)]">Accent color</div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">Choose a highlight color for the UI.</div>
-              </div>
-              <AccentPicker />
-            </div>
-          </div>
-        </section>
+        <SettingsSection label="Appearance">
+          <SettingsRow
+            label="Theme"
+            description="Switch between light and dark mode."
+            control={<ThemeToggle />}
+          />
+          <SettingsRow
+            label="Accent color"
+            description="Choose a highlight color for the UI."
+            control={<AccentPicker />}
+            overflowVisible
+          />
+        </SettingsSection>
 
         {/* Connected Institutions Section */}
-        <section aria-labelledby="institutions-heading">
-          <div className="flex items-center justify-between mb-4">
-            <h2 id="institutions-heading" className="text-sm font-medium text-[var(--color-muted)] uppercase tracking-wider">Connected Institutions</h2>
-            <Button
+        <SettingsSection
+          label="Connected Institutions"
+          action={
+            <button
+              type="button"
               onClick={handleAddAccount}
-              variant="ghost"
-              size="sm"
-              className="text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 text-xs h-8"
+              className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
             >
-              <FaPlus className="h-3 w-3 mr-1.5" />
-              Add Account
-            </Button>
-          </div>
-          <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
-            {accountsLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--color-accent)] mx-auto mb-2"></div>
-                  <p className="text-xs text-[var(--color-muted)]">Loading...</p>
-                </div>
-              </div>
-            ) : accounts.length === 0 ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="text-center">
-                  <div className="w-8 h-8 rounded-full bg-[var(--color-surface)] flex items-center justify-center mx-auto mb-2 border border-[var(--color-border)]">
-                    <PiBankFill className="h-4 w-4 text-[var(--color-muted)]" />
-                  </div>
-                  <p className="text-xs text-[var(--color-muted)]">No institutions connected</p>
-                  <Button
-                    onClick={handleAddAccount}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 text-xs h-7"
-                  >
-                    Connect Bank
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--color-border)]">
-                {accounts.map((institution) => {
-                  const isExpanded = expandedInstitutions[institution.id];
-                  return (
-                    <div key={institution.id} className="group">
-                      {/* Institution Header Row */}
-                      <div
-                        className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]/40"
-                        onClick={() => toggleInstitutionExpanded(institution.id)}
-                      >
-                        <div className="w-7 h-7 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {institution.logo ? (
-                            <img
-                              src={institution.logo}
-                              alt={`${institution.name} logo`}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                          ) : null}
-                          <PiBankFill
-                            className={`h-3.5 w-3.5 text-[var(--color-accent)] ${institution.logo ? 'hidden' : 'block'}`}
+              <FaPlus className="h-3 w-3" />
+              Add account
+            </button>
+          }
+        >
+          {accountsLoading ? (
+            <div className="py-6 text-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--color-fg)]/40 mx-auto mb-2"></div>
+              <p className="text-xs text-[var(--color-muted)]">Loading…</p>
+            </div>
+          ) : accounts.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-[var(--color-muted)] mb-3">No institutions connected</p>
+              <Button
+                onClick={handleAddAccount}
+                variant="outline"
+                size="sm"
+              >
+                Connect bank
+              </Button>
+            </div>
+          ) : (
+            <div>
+              {accounts.map((institution) => {
+                const isExpanded = expandedInstitutions[institution.id];
+                return (
+                  <div key={institution.id} className="group">
+                    {/* Institution row */}
+                    <div
+                      className="flex items-center gap-3 py-3.5 cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]/60 -mx-2 px-2 rounded-md"
+                      onClick={() => toggleInstitutionExpanded(institution.id)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {institution.logo ? (
+                          <img
+                            src={institution.logo}
+                            alt={`${institution.name} logo`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
                           />
+                        ) : null}
+                        <PiBankFill
+                          className={`h-4 w-4 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-[var(--color-fg)] truncate">{institution.name}</div>
+                        <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                          {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-[var(--color-fg)] truncate">{institution.name}</div>
-                          <div className="text-[11px] text-[var(--color-muted)]">
-                            {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          {/* Show "Add investments" button for pro users whose institution has no investment accounts */}
-                          {isPro && !institution.accounts.some(a => a.type === 'investment') && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddInvestments(institution);
-                              }}
-                              className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-all text-[11px] font-medium mr-0.5 flex items-center gap-1"
-                              title="Add investment accounts"
-                            >
-                              <FaPlus className="h-2.5 w-2.5" />
-                              <span className="hidden sm:inline">Investments</span>
-                            </button>
-                          )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {isPro && !institution.accounts.some(a => a.type === 'investment') && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDisconnectInstitution(institution);
+                              handleAddInvestments(institution);
                             }}
-                            className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
-                            title="Disconnect all accounts"
+                            className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-all text-[11px] font-medium flex items-center gap-1"
+                            title="Add investment accounts"
                           >
-                            <IoUnlink className="h-3.5 w-3.5" />
+                            <FaPlus className="h-2.5 w-2.5" />
+                            <span className="hidden sm:inline">Investments</span>
                           </button>
-                          <div className="p-1.5 text-[var(--color-muted)]">
-                            <HiChevronDown
-                              className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Animated Accounts List */}
-                      <div
-                        className={`grid transition-all duration-200 ease-out ${
-                          isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                        }`}
-                      >
-                        <div className="overflow-hidden">
-                          <div className="pb-2">
-                            {institution.accounts.map((account) => (
-                              <div
-                                key={account.id}
-                                className="group/account flex items-center gap-3 py-2 pl-14 pr-4 hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-[var(--color-fg)] truncate">
-                                      {account.name}
-                                    </span>
-                                    {account.mask && (
-                                      <span className="text-[11px] text-[var(--color-muted)] tabular-nums">
-                                        {account.mask}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="text-[11px] text-[var(--color-muted)] capitalize">
-                                      {account.type}
-                                    </span>
-                                    {account.balance !== undefined && (
-                                      <>
-                                        <span className="text-[var(--color-muted)]">·</span>
-                                        <span className="text-[11px] text-[var(--color-muted)] tabular-nums">
-                                          ${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </span>
-                                      </>
-                                    )}
-                                    {account.createdAt && (
-                                      <>
-                                        <span className="text-[var(--color-muted)]">·</span>
-                                        <span className="text-[11px] text-[var(--color-muted)]">
-                                          Added {new Date(account.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDisconnectAccount(account, institution);
-                                  }}
-                                  className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover/account:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
-                                  title={`Disconnect ${account.name}`}
-                                >
-                                  <IoUnlink className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDisconnectInstitution(institution);
+                          }}
+                          className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
+                          title="Disconnect all accounts"
+                        >
+                          <IoUnlink className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="p-1.5 text-[var(--color-muted)]">
+                          <HiChevronDown
+                            className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
+                          />
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </section>
+
+                    {/* Animated Accounts List */}
+                    <div
+                      className={`grid transition-all duration-200 ease-out ${
+                        isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="pb-1">
+                          {institution.accounts.map((account) => (
+                            <div
+                              key={account.id}
+                              className="group/account flex items-center gap-3 py-2.5 pl-11 pr-2 -mx-2 hover:bg-[var(--color-surface-alt)]/40 rounded-md transition-colors"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-[var(--color-fg)] truncate">
+                                    {account.name}
+                                  </span>
+                                  {account.mask && (
+                                    <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                                      ··{account.mask}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs text-[var(--color-muted)] capitalize">
+                                    {account.type}
+                                  </span>
+                                  {account.balance !== undefined && (
+                                    <>
+                                      <span className="text-[var(--color-muted)] text-xs">·</span>
+                                      <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                                        ${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDisconnectAccount(account, institution);
+                                }}
+                                className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover/account:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
+                                title={`Disconnect ${account.name}`}
+                              >
+                                <IoUnlink className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SettingsSection>
 
         {/* Session Section */}
-        <section aria-labelledby="session-heading">
-          <h2 id="session-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Session</h2>
-          <div className="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
-            <div>
-              <div className="text-sm font-medium text-[var(--color-fg)]">Sign out</div>
-              <div className="text-xs text-[var(--color-muted)] mt-0.5">Sign out of your account on this device.</div>
-            </div>
-            <Button
-              onClick={async () => {
-                await Promise.race([
-                  supabase.auth.signOut(),
-                  new Promise((resolve) => setTimeout(resolve, 3000)),
-                ]);
-                if (typeof window !== 'undefined') {
-                  for (let i = localStorage.length - 1; i >= 0; i--) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith('sb-')) localStorage.removeItem(key);
+        <SettingsSection label="Session">
+          <SettingsRow
+            label="Sign out"
+            description="Sign out of your account on this device."
+            control={
+              <Button
+                onClick={async () => {
+                  await Promise.race([
+                    supabase.auth.signOut(),
+                    new Promise((resolve) => setTimeout(resolve, 3000)),
+                  ]);
+                  if (typeof window !== 'undefined') {
+                    for (let i = localStorage.length - 1; i >= 0; i--) {
+                      const key = localStorage.key(i);
+                      if (key && key.startsWith('sb-')) localStorage.removeItem(key);
+                    }
                   }
-                }
-                logout();
-                router.replace("/");
-              }}
-              variant="primary"
-              size="sm"
-            >
-              Sign Out
-            </Button>
-          </div>
-        </section>
+                  logout();
+                  router.replace("/");
+                }}
+                variant="primary"
+                size="sm"
+              >
+                Sign out
+              </Button>
+            }
+          />
+        </SettingsSection>
 
         {/* Danger Zone */}
-        <section aria-labelledby="danger-heading">
-          <h2 id="danger-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Danger Zone</h2>
-          <div className="flex items-center justify-between py-3 border-b border-[color-mix(in_oklab,var(--color-danger),transparent_80%)]">
-            <div>
-              <div className="text-sm font-medium text-[var(--color-fg)]">Delete account</div>
-              <div className="text-xs text-[var(--color-muted)] mt-0.5">Permanently delete your account and all associated data.</div>
-            </div>
-            <Button
-              onClick={() => setConfirmOpen(true)}
-              variant="danger"
-              size="sm"
-            >
-              Delete Account
-            </Button>
-          </div>
-        </section>
+        <SettingsSection label="Danger Zone">
+          <SettingsRow
+            label="Delete account"
+            description="Permanently delete your account and all associated data."
+            control={
+              <Button
+                onClick={() => setConfirmOpen(true)}
+                variant="danger"
+                size="sm"
+              >
+                Delete
+              </Button>
+            }
+          />
+        </SettingsSection>
 
         {/* Debug Tools */}
         {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
-          <section aria-labelledby="debug-heading">
-            <h2 id="debug-heading" className="text-sm font-medium text-[var(--color-muted)] mb-4 uppercase tracking-wider">Debug Tools</h2>
-            <div className="flex items-center justify-between py-3 border-b border-amber-500/20">
-              <div>
-                <div className="text-sm font-medium text-amber-600 dark:text-amber-500 flex items-center gap-2">
+          <SettingsSection label="Debug Tools">
+            <SettingsRow
+              label={
+                <span className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
                   <FiTool className="h-3.5 w-3.5" />
                   Resync Transactions
-                </div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                  Force a full re-download of all transaction history from Plaid.
-                </div>
-              </div>
-              <button
-                onClick={handleResync}
-                disabled={isResyncing}
-                className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:underline transition-colors disabled:opacity-50"
-              >
-                {isResyncing ? 'Syncing...' : 'Resync All'}
-              </button>
-            </div>
-          </section>
+                </span>
+              }
+              description="Force a full re-download of all transaction history from Plaid."
+              control={
+                <button
+                  onClick={handleResync}
+                  disabled={isResyncing}
+                  className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:underline transition-colors disabled:opacity-50"
+                >
+                  {isResyncing ? 'Syncing…' : 'Resync all'}
+                </button>
+              }
+            />
+          </SettingsSection>
         )}
 
       </div>
