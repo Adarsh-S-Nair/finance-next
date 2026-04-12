@@ -87,8 +87,17 @@ export async function middleware(request: NextRequest) {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    // During build or misconfiguration, let through (routes will handle it)
-    return NextResponse.next();
+    // Fail closed on misconfiguration. We can't verify the token, so we must
+    // not forward the request to downstream handlers (some of which trust
+    // body-supplied userIds when x-user-id is absent).
+    console.error(
+      '[middleware] Supabase env vars missing — refusing to serve protected route',
+      { pathname }
+    );
+    return NextResponse.json(
+      { error: 'Service unavailable', message: 'Authentication service not configured' },
+      { status: 503 }
+    );
   }
 
   try {
