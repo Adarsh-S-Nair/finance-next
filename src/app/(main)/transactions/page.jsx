@@ -176,7 +176,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
             >
               <span className="text-lg leading-none">&#8249;</span>
             </button>
-            <div className="flex-1 flex items-center gap-2 pb-1 input-focus-bar">
+            <div className="flex-1 h-8 flex items-center gap-2 input-focus-bar">
               <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
               <input
                 ref={mobileInputRef}

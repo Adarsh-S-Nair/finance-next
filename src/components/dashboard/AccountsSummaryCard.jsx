@@ -318,7 +318,7 @@ export function AssetsCard({ width = "full" }) {
 
   return (
     <div className="flex flex-col">
-      <div className="mb-6">
+      <div className="mb-4">
         <div className="card-header">Assets</div>
       </div>
       <SegmentedBar

@@ -295,7 +295,7 @@ export default function AccountsPage() {
                   </div>
                   <div className="lg:w-1/3 flex flex-col gap-6 lg:gap-10">
                     {/* Mobile: tabbed toggle between Assets / Liabilities */}
-                    <div className="flex justify-center lg:hidden">
+                    <div className="flex justify-start lg:hidden">
                       <SegmentedTabs
                         size="xs"
                         value={summaryTab}
