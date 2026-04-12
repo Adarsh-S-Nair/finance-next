@@ -5,7 +5,7 @@ import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
 import Card from "../../../components/ui/Card";
-import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX } from "react-icons/fi";
+import { FiRefreshCw, FiFilter, FiSearch, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { createPortal } from "react-dom";
@@ -325,7 +325,7 @@ const FilterSelector = ({ options, value, onChange, label }) => {
               onClick={() => onChange(option.value)}
               className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors ${
                 isActive
-                  ? 'bg-[var(--color-bg)] text-[var(--color-fg)] shadow-sm'
+                  ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
                   : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
               }`}
             >
@@ -360,44 +360,23 @@ const FiltersContent = ({
 }) => {
   const [categorySearch, setCategorySearch] = useState("");
 
-  // Build a flat list of all categories with their group info, filtered by search
-  const filteredCategoryRows = useMemo(() => {
+  // Filter groups by search query, keeping only groups with matches
+  const filteredGroups = useMemo(() => {
     const query = categorySearch.trim().toLowerCase();
-    const rows = [];
+    if (!query) return categoryGroups;
 
-    categoryGroups.forEach(group => {
-      const groupMatches = !query || group.name.toLowerCase().includes(query);
-      const matchingChildren = (group.system_categories || []).filter(cat => {
-        if (!query) return true;
-        return groupMatches || cat.label.toLowerCase().includes(query);
-      });
-
-      if (matchingChildren.length === 0) return;
-
-      rows.push({ type: 'group', group });
-      matchingChildren.forEach(category => {
-        rows.push({ type: 'category', group, category });
-      });
-    });
-
-    return rows;
+    return categoryGroups
+      .map(group => {
+        const groupMatches = group.name.toLowerCase().includes(query);
+        if (groupMatches) return group;
+        const matchingChildren = (group.system_categories || []).filter(cat =>
+          cat.label.toLowerCase().includes(query)
+        );
+        if (matchingChildren.length === 0) return null;
+        return { ...group, system_categories: matchingChildren };
+      })
+      .filter(Boolean);
   }, [categoryGroups, categorySearch]);
-
-  // Build the list of selected items as chips
-  const selectedChips = useMemo(() => {
-    const chips = [];
-    categoryGroups.forEach(group => {
-      if (selectedGroupIds.includes(group.id)) {
-        chips.push({ kind: 'group', id: group.id, label: group.name, color: group.hex_color });
-      }
-      (group.system_categories || []).forEach(cat => {
-        if (selectedCategoryIds.includes(cat.id)) {
-          chips.push({ kind: 'category', id: cat.id, label: cat.label, color: group.hex_color });
-        }
-      });
-    });
-    return chips;
-  }, [categoryGroups, selectedGroupIds, selectedCategoryIds]);
 
   const dateOptions = [
     { value: 'all', label: 'All time' },
@@ -527,28 +506,6 @@ const FiltersContent = ({
         <div className="space-y-3">
           <SectionLabel>Categories</SectionLabel>
 
-          {/* Selected chips */}
-          {selectedChips.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {selectedChips.map((chip) => (
-                <button
-                  key={`${chip.kind}-${chip.id}`}
-                  onClick={() => chip.kind === 'group' ? toggleGroup(chip.id) : toggleCategory(chip.id)}
-                  className="group flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-full bg-[var(--color-surface-alt)] hover:bg-[var(--color-border)] transition-colors"
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: chip.color || 'var(--color-muted)' }}
-                  />
-                  <span className="text-[11px] font-medium text-[var(--color-fg)]">
-                    {chip.label}
-                  </span>
-                  <FiX className="w-3 h-3 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors" />
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Search */}
           <div className="relative">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" />
@@ -561,78 +518,100 @@ const FiltersContent = ({
             />
           </div>
 
-          {/* Flat list */}
-          <div className="max-h-80 overflow-y-auto -mx-1 px-1">
-            {loadingCategoryGroups ? (
-              <div className="space-y-2 py-1">
-                {[...Array(6)].map((_, idx) => (
-                  <div key={idx} className="h-7 bg-[var(--color-surface-alt)] rounded animate-pulse" />
-                ))}
-              </div>
-            ) : categoryGroupsError ? (
-              <div className="py-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
-            ) : filteredCategoryRows.length === 0 ? (
-              <div className="py-6 text-center text-xs text-[var(--color-muted)]">No categories found</div>
-            ) : (
-              <div>
-                {filteredCategoryRows.map((row, idx) => {
-                  if (row.type === 'group') {
-                    const isGroupSelected = selectedGroupIds.includes(row.group.id);
-                    return (
-                      <div
-                        key={`group-${row.group.id}`}
-                        className={`flex items-center justify-between px-2 ${idx === 0 ? 'pt-1' : 'pt-3'} pb-1`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: row.group.hex_color || 'var(--color-muted)' }}
-                          />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] truncate">
-                            {row.group.name}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => toggleGroup(row.group.id)}
-                          className={`text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                            isGroupSelected
-                              ? 'text-[var(--color-fg)]'
-                              : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                          }`}
-                        >
-                          {isGroupSelected ? 'Deselect all' : 'Select all'}
-                        </button>
-                      </div>
-                    );
-                  }
+          {/* Pill grid */}
+          {loadingCategoryGroups ? (
+            <div className="flex flex-wrap gap-1.5 py-1">
+              {[...Array(8)].map((_, idx) => (
+                <div key={idx} className="h-6 w-20 bg-[var(--color-surface-alt)] rounded animate-pulse" />
+              ))}
+            </div>
+          ) : categoryGroupsError ? (
+            <div className="py-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="py-6 text-center text-xs text-[var(--color-muted)]">No categories found</div>
+          ) : (
+            <div className="space-y-4">
+              {filteredGroups.map((group) => {
+                const totalChildCount = group.system_categories?.length || 0;
+                const selectedChildCount = group.system_categories?.filter(c => selectedCategoryIds.includes(c.id)).length || 0;
+                const isGroupSelected = selectedGroupIds.includes(group.id);
+                const allSelected = isGroupSelected || (totalChildCount > 0 && selectedChildCount === totalChildCount);
 
-                  const isGroupSelected = selectedGroupIds.includes(row.group.id);
-                  const isCatSelected = selectedCategoryIds.includes(row.category.id) || isGroupSelected;
-                  return (
-                    <button
-                      key={`cat-${row.category.id}`}
-                      onClick={() => !isGroupSelected && toggleCategory(row.category.id)}
-                      disabled={isGroupSelected}
-                      className={`flex items-center justify-between w-full px-2 py-2 rounded-md text-left transition-colors ${
-                        isCatSelected
-                          ? 'bg-[var(--color-surface-alt)]'
-                          : 'hover:bg-[var(--color-surface-alt)]/60'
-                      } disabled:cursor-default`}
-                    >
-                      <span className={`text-xs ${isCatSelected ? 'text-[var(--color-fg)] font-medium' : 'text-[var(--color-fg)]'}`}>
-                        {row.category.label}
-                      </span>
-                      {isCatSelected && (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
-                          <path d="M3 7.5L5.5 10L11 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                const handleGroupClick = () => {
+                  if (allSelected) {
+                    // Deselect everything in this group
+                    if (isGroupSelected) toggleGroup(group.id);
+                    group.system_categories?.forEach(cat => {
+                      if (selectedCategoryIds.includes(cat.id)) toggleCategory(cat.id);
+                    });
+                  } else {
+                    // Select every category in this group individually so the user can deselect one at a time
+                    group.system_categories?.forEach(cat => {
+                      if (!selectedCategoryIds.includes(cat.id)) toggleCategory(cat.id);
+                    });
+                  }
+                };
+
+                return (
+                  <div key={group.id}>
+                    {/* Group header */}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: group.hex_color || 'var(--color-muted)' }}
+                        />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] truncate">
+                          {group.name}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGroupClick}
+                        className="text-[10px] font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+                      >
+                        {allSelected ? 'Clear' : 'All'}
+                      </button>
+                    </div>
+
+                    {/* Pill grid */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(group.system_categories || []).map((category) => {
+                        const isCatSelected = selectedCategoryIds.includes(category.id) || isGroupSelected;
+
+                        const handlePillClick = () => {
+                          if (isGroupSelected) {
+                            // Convert legacy group-level selection into individual cats minus the clicked one
+                            toggleGroup(group.id);
+                            group.system_categories?.forEach(c => {
+                              if (c.id !== category.id && !selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
+                            });
+                          } else {
+                            toggleCategory(category.id);
+                          }
+                        };
+
+                        return (
+                          <button
+                            key={category.id}
+                            type="button"
+                            onClick={handlePillClick}
+                            className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                              isCatSelected
+                                ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
+                                : 'bg-[var(--color-surface-alt)] text-[var(--color-fg)] hover:bg-[var(--color-border)]'
+                            }`}
+                          >
+                            {category.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
