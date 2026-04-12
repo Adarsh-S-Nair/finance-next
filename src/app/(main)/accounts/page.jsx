@@ -276,9 +276,19 @@ export default function AccountsPage() {
 
   const hasAccounts = allAccounts.length > 0;
 
-  // While redirecting (no accounts), render nothing
+  // When the user truly has zero accounts, some upstream page pushes them
+  // to /setup. While that handoff is in flight (or if we're on this page
+  // for any reason with no accounts), show a spinner rather than a blank
+  // white screen — the latter looks like a broken page and causes support
+  // tickets saying "accounts disappeared."
   if (!hasAccounts && !error && !loading) {
-    return null;
+    return (
+      <PageContainer title="Accounts">
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-fg)]" />
+        </div>
+      </PageContainer>
+    );
   }
 
   return (

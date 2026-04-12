@@ -7,6 +7,13 @@ import { useAccounts } from "../../../components/providers/AccountsProvider";
 import AccountSetupFlow from "../../../components/ftux/AccountSetupFlow";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 
+// Safety net: how long we'll wait for AccountsProvider to report
+// `initialized` before assuming something's stuck (three 401/429 retries
+// + fetch round-trips, rounded up) and letting the user through the FTUX
+// anyway. Without this, an authenticated user with a flaky accounts fetch
+// would see an indefinite spinner on /setup.
+const ACCOUNTS_INITIALIZATION_TIMEOUT_MS = 8000;
+
 function SetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -14,6 +21,7 @@ function SetupContent() {
   const { accounts, loading: accountsLoading, initialized: accountsInitialized, refreshAccounts } = useAccounts();
   const [completing, setCompleting] = useState(false);
   const [initialStep, setInitialStep] = useState(null); // null = still resolving
+  const [accountsWaitTimedOut, setAccountsWaitTimedOut] = useState(false);
   const flowActiveRef = useRef(false);
 
   // Derive the unauthenticated state from UserProvider to avoid deadlocking
@@ -27,14 +35,34 @@ function SetupContent() {
     // If authenticated, the next useEffect will handle it
   }, [user, userLoading]);
 
-  // Once accounts are initialized and user is known, determine proper step
+  // Safety-net timeout: if AccountsProvider never reports `initialized`
+  // (three 401/429 retries exhaust, request times out, etc.) we'd
+  // otherwise sit on a spinner forever. Give it N seconds, then fall
+  // through to the welcome step so the user isn't stuck.
+  useEffect(() => {
+    if (!user || userLoading) return;
+    if (accountsInitialized || initialStep !== null) return;
+
+    const timer = setTimeout(() => {
+      setAccountsWaitTimedOut(true);
+    }, ACCOUNTS_INITIALIZATION_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [user, userLoading, accountsInitialized, initialStep]);
+
+  // Once accounts are initialized and user is known, determine proper step.
+  // Also fires on accountsWaitTimedOut so a stuck provider doesn't strand
+  // the user on a spinner.
   useEffect(() => {
     if (!user) return; // Not authenticated yet — step 0 is set above
     if (initialStep !== null) return; // Already resolved
 
-    if (!accountsInitialized || accountsLoading) return;
+    const proceedWithoutAccounts = accountsWaitTimedOut && !accountsInitialized;
+    if (!proceedWithoutAccounts && (!accountsInitialized || accountsLoading)) return;
 
-    if (accounts.length > 0 && !flowActiveRef.current) {
+    // If the provider never initialized we don't trust the accounts list,
+    // so skip the "user already has accounts → dashboard" short-circuit
+    // and just drop into the welcome step.
+    if (!proceedWithoutAccounts && accounts.length > 0 && !flowActiveRef.current) {
       // User has accounts — onboarding complete, redirect to dashboard
       router.replace("/dashboard");
       return;
@@ -58,7 +86,7 @@ function SetupContent() {
     } else {
       setInitialStep(2); // Default to welcome step for authenticated users
     }
-  }, [user, accountsInitialized, accountsLoading, accounts, profile, initialStep, router, searchParams]);
+  }, [user, accountsInitialized, accountsLoading, accounts, profile, initialStep, router, searchParams, accountsWaitTimedOut]);
 
   const handleComplete = async () => {
     flowActiveRef.current = false;

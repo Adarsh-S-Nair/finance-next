@@ -34,7 +34,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isPro, loading: authLoading, refreshProfile } = useUser();
-  const { accounts, loading: accountsLoading, initialized: accountsInitialized } = useAccounts();
+  const {
+    accounts,
+    loading: accountsLoading,
+    initialized: accountsInitialized,
+    error: accountsError,
+    refreshAccounts,
+  } = useAccounts();
   const [greeting, setGreeting] = useState("Dashboard");
   const [summaryData, setSummaryData] = useState(null);
   const [budgets, setBudgets] = useState([]);
@@ -194,14 +200,52 @@ export default function DashboardPage() {
 
   const hasInstitutions = accounts.length > 0;
 
+  // Only bounce to /setup when we know for a fact the user has no
+  // accounts. An errored fetch (500, network failure) must NOT trigger
+  // a redirect — that used to make transient outages look like brand-new
+  // users and wipe them into the onboarding flow.
   useEffect(() => {
-    if (accountsInitialized && !accountsLoading && !hasInstitutions) {
+    if (
+      accountsInitialized &&
+      !accountsLoading &&
+      !accountsError &&
+      !hasInstitutions
+    ) {
       router.replace("/setup");
     }
-  }, [accountsInitialized, accountsLoading, hasInstitutions, router]);
+  }, [accountsInitialized, accountsLoading, accountsError, hasInstitutions, router]);
 
+  // Surface a real error state instead of silently rendering an empty
+  // dashboard when the accounts fetch failed.
+  if (accountsError) {
+    return (
+      <PageContainer title="Dashboard">
+        <div className="mx-auto max-w-md py-24 text-center">
+          <h2 className="text-lg font-medium text-[var(--color-fg)]">
+            We couldn&apos;t load your accounts
+          </h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">{accountsError}</p>
+          <button
+            type="button"
+            onClick={() => refreshAccounts(true)}
+            className="mt-6 inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-fg)] transition-colors hover:bg-[var(--color-surface-alt)]"
+          >
+            Try again
+          </button>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  // While we're actively redirecting to /setup (user has zero accounts),
+  // render a spinner instead of a blank white page so the handoff feels
+  // intentional.
   if (accountsInitialized && !accountsLoading && !hasInstitutions) {
-    return null;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-fg)]" />
+      </div>
+    );
   }
 
   return (

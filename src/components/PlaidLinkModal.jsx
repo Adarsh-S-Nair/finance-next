@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { FiCheckCircle, FiLoader, FiXCircle } from 'react-icons/fi';
 import Modal from './ui/Modal';
@@ -22,6 +22,10 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   const [showMockPicker, setShowMockPicker] = useState(false);
   // Track the plaidItemId returned from link-token in update mode
   const [activePlaidItemId, setActivePlaidItemId] = useState(plaidItemId);
+  // Handle for the "close after success" delay. We hold it so we can
+  // cancel it if the modal is closed or the component unmounts before
+  // the delay elapses — otherwise setState fires on a dead component.
+  const successCloseTimerRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -30,8 +34,22 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setSuccess(false);
       setLoading(false);
       setActivePlaidItemId(plaidItemId);
+      if (successCloseTimerRef.current) {
+        clearTimeout(successCloseTimerRef.current);
+        successCloseTimerRef.current = null;
+      }
     }
   }, [isOpen, plaidItemId]);
+
+  // Cancel any in-flight success-close timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (successCloseTimerRef.current) {
+        clearTimeout(successCloseTimerRef.current);
+        successCloseTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const exchangeToken = async (publicToken) => {
     try {
@@ -65,7 +83,12 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       onSuccessCallback?.(data);
       setSuccess(true);
 
-      setTimeout(() => {
+      // Cancel any prior in-flight timer before starting a new one.
+      if (successCloseTimerRef.current) {
+        clearTimeout(successCloseTimerRef.current);
+      }
+      successCloseTimerRef.current = setTimeout(() => {
+        successCloseTimerRef.current = null;
         onClose();
         setSuccess(false);
         setLinkToken(null);

@@ -73,32 +73,42 @@ export function AccountsProvider({ children }) {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await authFetch(`/api/plaid/accounts`);
-      
+
       if (!response.ok) {
         if (response.status === 401 || response.status === 429) {
           // Auth not ready or rate limited — don't mark as initialized so
-          // dashboard doesn't prematurely redirect to /setup
+          // dashboard doesn't prematurely redirect to /setup. The retry
+          // loop below will have another go.
           setLoading(false);
           return;
         }
-        // Other errors: treat as empty
-        setAccounts([]);
+        // Real server error (5xx, etc.): surface it so the Accounts page
+        // can render its error state with a Try Again button. Don't wipe
+        // any existing accounts list — keep showing the last-known data.
+        const detail =
+          response.status >= 500
+            ? "We couldn't reach the accounts service. Please try again."
+            : `Failed to load accounts (${response.status}).`;
+        setError(detail);
         setLastFetched(Date.now());
         setInitialized(true);
         return;
       }
-      
+
       const data = await response.json();
       const transformedAccounts = transformAccountsData(data.accounts || []);
       setAccounts(transformedAccounts);
       setLastFetched(Date.now());
       setInitialized(true);
     } catch (err) {
-      console.error('Error fetching accounts:', err);
-      setAccounts([]);
-      setError(null); // Don't surface the error to the UI
+      // Network failure / thrown error in the client. Surface the message
+      // so the user knows something went wrong — don't silently treat it
+      // as "zero accounts," which used to make a transient outage look
+      // like an empty connection.
+      console.error('[AccountsProvider] Error fetching accounts:', err);
+      setError(err?.message || 'Failed to load accounts. Please try again.');
       setInitialized(true);
     } finally {
       setLoading(false);
