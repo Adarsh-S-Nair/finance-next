@@ -19,6 +19,10 @@ function isPublicRoute(pathname: string): boolean {
   return false;
 }
 
+function getClientIp(request: NextRequest): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -27,15 +31,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Let public routes through
+  // Public routes still get per-IP rate limiting (except webhooks, which
+  // have retry semantics and are authenticated by signature instead).
+  // Without this, /api/market-data/* is an unauthenticated fan-out to
+  // Yahoo/CoinGecko that anyone can blow through our quota with.
   if (isPublicRoute(pathname)) {
+    const isWebhook = pathname.endsWith('/webhook');
+    if (!isWebhook) {
+      const ip = getClientIp(request);
+      const rateLimited = checkRateLimit(`ip:${ip}`, pathname);
+      if (rateLimited) return rateLimited;
+    }
     return NextResponse.next();
   }
 
-  // Rate limit by IP (skip webhooks — they have their own retry logic)
+  // Protected routes: also rate limit by IP (skip webhooks)
   const isWebhook = pathname.endsWith('/webhook');
   if (!isWebhook) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const ip = getClientIp(request);
     const rateLimited = checkRateLimit(`ip:${ip}`, pathname);
     if (rateLimited) return rateLimited;
   }
