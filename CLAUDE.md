@@ -125,23 +125,10 @@ Example: `src/app/api/budgets/route.js:4-56`
 
 ## Logging & Debugging
 
-Logs are stored in Axiom and can be queried via the `/api/logs/query` endpoint.
-
-### Quick Log Queries
-
-```bash
-# Find errors in the last hour
-GET /api/logs/query?level=error&hours=1
-
-# Search for specific text
-GET /api/logs/query?q=sync%20failed&hours=24
-
-# Filter by context (e.g., plaid webhooks)
-GET /api/logs/query?context=plaid-webhook&level=error&hours=24
-
-# Trace a request by correlation ID
-GET /api/logs/query?requestId=a1b2c3d4
-```
+Logs are stored in Axiom. Query them from the Axiom web UI or CLI, not from
+an in-app endpoint. (A public `/api/logs/query` endpoint previously existed
+but was removed because any authenticated user could query every other
+user's logs — it's a developer tool, not a product feature.)
 
 ### Logging Contexts
 
