@@ -38,7 +38,11 @@ export async function POST(request) {
         .eq('user_id', userId);
 
       if (deleteError) {
-        logger.error('Error deleting existing streams', { error: deleteError.message });
+        logger.error('Error deleting existing streams', null, {
+          error: deleteError.message,
+          code: deleteError.code,
+          userId,
+        });
       }
     }
 
@@ -187,11 +191,11 @@ export async function POST(request) {
           || String(itemError)
           || 'Unknown error';
 
-        logger.error('Error syncing recurring for item', {
+        logger.error('Error syncing recurring for item', itemError, {
           plaidItemId: item.id,
-          error: errorMessage,
-          errorCode: errorCode,
-          errorType: itemError.response?.data?.error_type,
+          plaidErrorMessage: errorMessage,
+          plaidErrorCode: errorCode,
+          plaidErrorType: itemError.response?.data?.error_type,
         });
         errors.push({
           plaidItemId: item.id,
@@ -245,18 +249,19 @@ export async function POST(request) {
               });
 
             if (customUpsertError) {
-              logger.error('Error upserting custom streams', {
+              logger.error('Error upserting custom streams', null, {
                 error: customUpsertError.message,
                 code: customUpsertError.code,
                 details: customUpsertError.details,
-                hint: customUpsertError.hint
+                hint: customUpsertError.hint,
+                plaidItemId: item.id,
               });
             } else {
               customDetected += customStreams.length;
             }
           }
         } catch (gapError) {
-          logger.error('Error in gap filler detection', { plaidItemId: item.id, error: gapError.message });
+          logger.error('Error in gap filler detection', gapError, { plaidItemId: item.id });
         }
       }
     }
@@ -279,7 +284,7 @@ export async function POST(request) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    logger.error('Error in recurring sync', { error: error.message });
+    logger.error('Error in recurring sync', error);
     await logger.flush();
 
     return Response.json(
