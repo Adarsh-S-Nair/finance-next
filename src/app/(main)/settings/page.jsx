@@ -10,7 +10,6 @@ import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
 import { FaPlus } from "react-icons/fa";
-import { HiChevronDown } from "react-icons/hi2";
 import { IoUnlink } from "react-icons/io5";
 import { FiTool } from "react-icons/fi";
 import { LuLogOut } from "react-icons/lu";
@@ -83,7 +82,6 @@ export default function SettingsPage() {
   const { accounts, loading: accountsLoading, refreshAccounts } = useAccounts();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [disconnectModal, setDisconnectModal] = useState({ isOpen: false, institution: null });
   const [disconnectAccountModal, setDisconnectAccountModal] = useState({ isOpen: false, account: null, institution: null });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
@@ -92,8 +90,6 @@ export default function SettingsPage() {
   const [upgradePlaidItemId, setUpgradePlaidItemId] = useState(null);
   const [isResyncing, setIsResyncing] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
-
-  const [expandedInstitutions, setExpandedInstitutions] = useState({});
 
   const handleResync = async () => {
     if (!confirm("Are you sure? This will reset your transaction history and trigger a full resync.")) return;
@@ -162,62 +158,6 @@ export default function SettingsPage() {
       setBusy(false);
     }
   }
-
-  const handleDisconnectInstitution = (institution) => {
-    setDisconnectModal({ isOpen: true, institution });
-  };
-
-  const handleConfirmDisconnect = async () => {
-    const { institution } = disconnectModal;
-
-    if (!institution.plaidItemId) {
-      alert('Unable to disconnect: Missing Plaid item information.');
-      return;
-    }
-
-    try {
-      setIsDisconnecting(true);
-      console.log('Disconnecting institution:', institution.name, 'plaidItemId:', institution.plaidItemId);
-
-      const response = await authFetch('/api/plaid/disconnect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          plaidItemId: institution.plaidItemId,
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Failed to disconnect');
-      }
-
-      const result = await response.json();
-      console.log('Disconnect successful:', result);
-
-      refreshAccounts();
-      setDisconnectModal({ isOpen: false, institution: null });
-
-    } catch (error) {
-      console.error('Error disconnecting institution:', error);
-      alert(`Failed to disconnect ${institution.name}: ${error.message}`);
-    } finally {
-      setIsDisconnecting(false);
-    }
-  };
-
-  const handleCancelDisconnect = () => {
-    setDisconnectModal({ isOpen: false, institution: null });
-  };
-
-  const toggleInstitutionExpanded = (institutionId) => {
-    setExpandedInstitutions(prev => ({
-      ...prev,
-      [institutionId]: !prev[institutionId]
-    }));
-  };
 
   const handleDisconnectAccount = (account, institution) => {
     setDisconnectAccountModal({ isOpen: true, account, institution });
@@ -298,7 +238,7 @@ export default function SettingsPage() {
 
   return (
     <PageContainer title="Settings">
-      <div className="max-w-3xl mx-auto">
+      <div>
 
         {/* Profile Section */}
         <SettingsSection label="Profile">
@@ -383,122 +323,87 @@ export default function SettingsPage() {
               </button>
             </div>
           ) : (
-            <div>
+            <div className="space-y-5">
               {accounts.map((institution) => {
-                const isExpanded = expandedInstitutions[institution.id];
+                const canAddInvestments = isPro && !institution.accounts.some(a => a.type === 'investment');
                 return (
-                  <div key={institution.id} className="group">
-                    {/* Institution row */}
-                    <div
-                      className="flex items-center gap-3 py-3.5 cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]/60 -mx-2 px-2 rounded-md"
-                      onClick={() => toggleInstitutionExpanded(institution.id)}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {institution.logo ? (
-                          <img
-                            src={institution.logo}
-                            alt={`${institution.name} logo`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
+                  <div key={institution.id}>
+                    {/* Institution sub-header */}
+                    <div className="flex items-center justify-between gap-4 mb-1 pt-1">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {institution.logo ? (
+                            <img
+                              src={institution.logo}
+                              alt={`${institution.name} logo`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                          ) : null}
+                          <PiBankFill
+                            className={`h-3 w-3 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`}
                           />
-                        ) : null}
-                        <PiBankFill
-                          className={`h-4 w-4 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-[var(--color-fg)] truncate">{institution.name}</div>
-                        <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                          {institution.accounts.length} account{institution.accounts.length !== 1 ? 's' : ''}
                         </div>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] truncate">
+                          {institution.name}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        {isPro && !institution.accounts.some(a => a.type === 'investment') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddInvestments(institution);
-                            }}
-                            className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-all text-[11px] font-medium flex items-center gap-1"
-                            title="Add investment accounts"
-                          >
-                            <FaPlus className="h-2.5 w-2.5" />
-                            <span className="hidden sm:inline">Investments</span>
-                          </button>
-                        )}
+                      {canAddInvestments && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDisconnectInstitution(institution);
-                          }}
-                          className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
-                          title="Disconnect all accounts"
+                          type="button"
+                          onClick={() => handleAddInvestments(institution)}
+                          className="text-[11px] font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors whitespace-nowrap"
                         >
-                          <IoUnlink className="h-3.5 w-3.5" />
+                          Add investments
                         </button>
-                        <div className="p-1.5 text-[var(--color-muted)]">
-                          <HiChevronDown
-                            className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
-                          />
-                        </div>
-                      </div>
+                      )}
                     </div>
 
-                    {/* Animated Accounts List */}
-                    <div
-                      className={`grid transition-all duration-200 ease-out ${
-                        isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                      }`}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="pb-1">
-                          {institution.accounts.map((account) => (
-                            <div
-                              key={account.id}
-                              className="group/account flex items-center gap-3 py-2.5 pl-11 pr-2 -mx-2 hover:bg-[var(--color-surface-alt)]/40 rounded-md transition-colors"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-[var(--color-fg)] truncate">
-                                    {account.name}
-                                  </span>
-                                  {account.mask && (
-                                    <span className="text-xs text-[var(--color-muted)] tabular-nums">
-                                      ··{account.mask}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-xs text-[var(--color-muted)] capitalize">
-                                    {account.type}
-                                  </span>
-                                  {account.balance !== undefined && (
-                                    <>
-                                      <span className="text-[var(--color-muted)] text-xs">·</span>
-                                      <span className="text-xs text-[var(--color-muted)] tabular-nums">
-                                        ${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDisconnectAccount(account, institution);
-                                }}
-                                className="p-1.5 rounded text-[var(--color-muted)] opacity-0 group-hover/account:opacity-100 hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-all"
-                                title={`Disconnect ${account.name}`}
-                              >
-                                <IoUnlink className="h-3 w-3" />
-                              </button>
+                    {/* Accounts */}
+                    <div>
+                      {institution.accounts.map((account) => (
+                        <div
+                          key={account.id}
+                          className="flex items-center justify-between gap-4 py-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                                {account.name}
+                              </span>
+                              {account.mask && (
+                                <span className="text-xs text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                                  ··{account.mask}
+                                </span>
+                              )}
                             </div>
-                          ))}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs text-[var(--color-muted)] capitalize">
+                                {account.type}
+                              </span>
+                              {account.balance !== undefined && (
+                                <>
+                                  <span className="text-[var(--color-muted)] text-xs">·</span>
+                                  <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                                    ${Math.abs(account.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnectAccount(account, institution)}
+                            aria-label={`Disconnect ${account.name}`}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-danger)] flex-shrink-0"
+                          >
+                            <IoUnlink className="h-4 w-4" />
+                          </button>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 );
@@ -588,20 +493,6 @@ export default function SettingsPage() {
         requiredText="delete my account"
         showRequiredTextUppercase
         busy={busy}
-      />
-
-      {/* Disconnect Institution Modal */}
-      <ConfirmDialog
-        isOpen={disconnectModal.isOpen}
-        onCancel={handleCancelDisconnect}
-        onConfirm={handleConfirmDisconnect}
-        title={`Disconnect ${disconnectModal.institution?.name}`}
-        description={`Are you sure you want to disconnect ${disconnectModal.institution?.name}? This will remove all associated accounts and transaction data from your dashboard.`}
-        confirmLabel="Disconnect All"
-        cancelLabel="Cancel"
-        variant="danger"
-        busy={isDisconnecting}
-        busyLabel="Disconnecting..."
       />
 
       {/* Disconnect Individual Account Modal */}
