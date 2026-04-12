@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { useAccounts } from "../providers/AccountsProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
+import SegmentedTabs from "../ui/SegmentedTabs";
 
 function categorizeAccount(account: { type?: string; subtype?: string }) {
   const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
@@ -72,6 +73,7 @@ function MiniBar({ label, total, segments }: MiniBarProps) {
 export default function NetWorthBanner() {
   const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
   const { allAccounts, loading: accountsLoading } = useAccounts();
+  const [mobileTab, setMobileTab] = useState<'assets' | 'liabilities'>('assets');
 
   const percentChange = useMemo(() => {
     if (!netWorthHistory || netWorthHistory.length < 2) return null;
@@ -127,47 +129,81 @@ export default function NetWorthBanner() {
   const netWorth = currentNetWorth?.netWorth ?? 0;
 
   return (
-    <Link
-      href="/accounts"
-      className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
-    >
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="card-header">Net Worth</div>
-        <span className="text-[var(--color-muted)] text-lg leading-none">
-          &#8250;
-        </span>
-      </div>
-
-      {/* Number + % change */}
-      <div className="flex items-baseline gap-3 mb-6">
-        <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight">
-          <CurrencyAmount amount={netWorth} />
-        </div>
-        {percentChange !== null && (
-          <span className={`text-xs font-semibold ${
-            percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
-          }`}>
-            {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+    <div>
+      {/* Clickable header + total — navigates to /accounts */}
+      <Link
+        href="/accounts"
+        className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
+      >
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="card-header">Net Worth</div>
+          <span className="text-[var(--color-muted)] text-lg leading-none">
+            &#8250;
           </span>
-        )}
-      </div>
-
-      {/* Assets & Liabilities bars */}
-      {breakdown && (
-        <div className="flex items-start gap-8">
-          <MiniBar
-            label="Assets"
-            total={breakdown.totalAssets}
-            segments={breakdown.assetSegments}
-          />
-          <MiniBar
-            label="Liabilities"
-            total={breakdown.totalLiabilities}
-            segments={breakdown.liabilitySegments}
-          />
         </div>
+
+        {/* Number + % change */}
+        <div className="flex items-baseline gap-3 mb-6">
+          <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight">
+            <CurrencyAmount amount={netWorth} />
+          </div>
+          {percentChange !== null && (
+            <span className={`text-xs font-semibold ${
+              percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            }`}>
+              {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+            </span>
+          )}
+        </div>
+      </Link>
+
+      {/* Assets & Liabilities breakdown — side-by-side on desktop, tabbed on mobile */}
+      {breakdown && (
+        <>
+          {/* Desktop: both side by side */}
+          <div className="hidden md:flex items-start gap-8">
+            <MiniBar
+              label="Assets"
+              total={breakdown.totalAssets}
+              segments={breakdown.assetSegments}
+            />
+            <MiniBar
+              label="Liabilities"
+              total={breakdown.totalLiabilities}
+              segments={breakdown.liabilitySegments}
+            />
+          </div>
+
+          {/* Mobile: tabbed toggle */}
+          <div className="md:hidden">
+            <div className="mb-4">
+              <SegmentedTabs
+                size="xs"
+                value={mobileTab}
+                onChange={(v: string) => setMobileTab(v as 'assets' | 'liabilities')}
+                options={[
+                  { label: 'Assets', value: 'assets' },
+                  { label: 'Liabilities', value: 'liabilities' },
+                ]}
+              />
+            </div>
+            {mobileTab === 'assets' ? (
+              <MiniBar
+                label="Assets"
+                total={breakdown.totalAssets}
+                segments={breakdown.assetSegments}
+              />
+            ) : (
+              <MiniBar
+                label="Liabilities"
+                total={breakdown.totalLiabilities}
+                segments={breakdown.liabilitySegments}
+              />
+            )}
+          </div>
+        </>
       )}
-    </Link>
+    </div>
   );
 }

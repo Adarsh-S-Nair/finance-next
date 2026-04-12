@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
 import Button from "../../../components/ui/Button";
@@ -12,6 +12,7 @@ import { useAccounts } from "../../../components/providers/AccountsProvider";
 import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
+import SegmentedTabs from "../../../components/ui/SegmentedTabs";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 
@@ -134,9 +135,8 @@ export default function AccountsPage() {
     }
   }, [initialized, loading, allAccounts, error, router]);
 
-  // Mobile carousel state
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const scrollContainerRef = useRef(null);
+  // Mobile tab state for the Assets / Liabilities summary toggle
+  const [summaryTab, setSummaryTab] = useState('assets');
 
   // Organize accounts by category
   // Note: account.type in the transformed data is actually account.subtype || account.type
@@ -293,34 +293,26 @@ export default function AccountsPage() {
                   <div className="lg:w-2/3">
                     <NetWorthCard width="full" />
                   </div>
-                  <div className="lg:w-1/3 flex flex-col gap-10">
-                    {/* Mobile Carousel Container */}
-                    <div
-                      ref={scrollContainerRef}
-                      className="flex overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [scrollbar-width:none] lg:block lg:space-y-10 lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth"
-                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                      onScroll={(e) => {
-                        const { scrollLeft, offsetWidth } = e.currentTarget;
-                        const index = Math.round(scrollLeft / offsetWidth);
-                        setActiveCardIndex(index);
-                      }}
-                    >
-                      <div className="min-w-full snap-center lg:min-w-0 pr-4 lg:pr-0 last:pr-0">
-                        <AssetsCard width="full" />
-                      </div>
-                      <div className="min-w-full snap-center lg:min-w-0">
-                        <LiabilitiesCard width="full" />
-                      </div>
+                  <div className="lg:w-1/3 flex flex-col gap-6 lg:gap-10">
+                    {/* Mobile: tabbed toggle between Assets / Liabilities */}
+                    <div className="flex justify-center lg:hidden">
+                      <SegmentedTabs
+                        size="xs"
+                        value={summaryTab}
+                        onChange={(v) => setSummaryTab(v)}
+                        options={[
+                          { label: 'Assets', value: 'assets' },
+                          { label: 'Liabilities', value: 'liabilities' },
+                        ]}
+                      />
                     </div>
 
-                    {/* Pagination Dots (Mobile Only) */}
-                    <div className="flex justify-center gap-2 lg:hidden">
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${activeCardIndex === 0 ? 'bg-[var(--color-fg)] w-4' : 'bg-[var(--color-border)]'}`}
-                      />
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${activeCardIndex === 1 ? 'bg-[var(--color-fg)] w-4' : 'bg-[var(--color-border)]'}`}
-                      />
+                    {/* Mobile: only the selected card; Desktop: both stacked */}
+                    <div className={`${summaryTab === 'assets' ? 'block' : 'hidden'} lg:block`}>
+                      <AssetsCard width="full" />
+                    </div>
+                    <div className={`${summaryTab === 'liabilities' ? 'block' : 'hidden'} lg:block`}>
+                      <LiabilitiesCard width="full" />
                     </div>
                   </div>
                 </div>
