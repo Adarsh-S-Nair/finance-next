@@ -1,6 +1,6 @@
 # Finance Next
 
-Personal finance platform with AI-powered investment strategy, bank account integration, and crypto arbitrage detection.
+Personal finance platform with bank account integration, transaction tracking, budgeting, and investment portfolio monitoring.
 
 ## Tech Stack
 
@@ -11,7 +11,7 @@ Personal finance platform with AI-powered investment strategy, bank account inte
 - **Auth**: Supabase Auth with PKCE flow
 - **Charts**: Recharts
 - **Animation**: Framer Motion
-- **External APIs**: Plaid (banking), CoinGecko (crypto), Yahoo Finance (stocks), Finnhub (market data)
+- **External APIs**: Plaid (banking), CoinGecko (crypto prices), Yahoo Finance (stock prices), Finnhub (ticker metadata), Stripe (billing)
 - **Linting**: ESLint with eslint-config-next
 - **Testing**: Jest + React Testing Library
 
@@ -25,8 +25,7 @@ src/
 │   │   ├── accounts/       # Plaid-connected bank accounts
 │   │   ├── transactions/   # Transaction history
 │   │   ├── budgets/        # Budget tracking
-│   │   ├── investments/    # Stock/crypto portfolios
-│   │   ├── paper-trading/  # AI trading simulation
+│   │   ├── investments/    # Stock/crypto portfolio monitoring
 │   │   └── settings/       # User preferences
 │   └── api/                # API routes (see src/app/api/)
 ├── components/             # React components
@@ -38,21 +37,13 @@ src/
 ├── lib/                    # Utilities and services
 │   ├── supabaseClient.js   # Client-side Supabase (with auth)
 │   ├── supabaseAdmin.js    # Server-side admin client (bypasses RLS)
-│   ├── marketData.js       # Stock/crypto data fetching
-│   ├── spending.js         # Budget calculations
-│   └── portfolioUtils.js   # Portfolio value calculations
+│   ├── marketData.js       # Finnhub ticker metadata helpers
+│   ├── plaid/              # Plaid sync pipelines (transactions, holdings, etc.)
+│   └── spending.js         # Budget calculations
 ├── config/                 # Configuration
 │   └── dashboardLayout.js  # Dashboard card layout config
 └── styles/
     └── colors.css          # CSS variables for light/dark themes
-
-engine/                     # Standalone market data microservice
-├── src/
-│   ├── index.ts            # Main orchestrator
-│   ├── feeds/coinbase.ts   # WebSocket client
-│   └── storage/supabase.ts # Candle persistence
-├── Dockerfile
-└── fly.toml                # Fly.io deployment
 ```
 
 ## Essential Commands
@@ -70,10 +61,6 @@ npm run lint             # Run ESLint
 npm test                 # Run Jest tests
 npm test:watch           # Watch mode
 npm test:coverage        # Generate coverage report
-
-# Data Scripts
-npm run sync:nasdaq100   # Scrape NASDAQ-100 constituents
-npm run populate:tickers # Fetch ticker details from Finnhub
 ```
 
 ## Environment Variables
@@ -82,8 +69,9 @@ Required in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` - Admin key (server-side only)
-- `FINNHUB_API_KEY` - Market data API
-- `GEMINI_API_KEY` - AI trading decisions (optional)
+- `FINNHUB_API_KEY` - Ticker metadata lookups (name, sector, domain)
+- `STRIPE_SECRET_KEY` - Stripe API key (server-side only)
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
 
 ## Key Entry Points
 
@@ -93,7 +81,6 @@ Required in `.env.local`:
 - Supabase client setup: `src/lib/supabaseClient.js:11`
 - Server-side DB access: `src/lib/supabaseAdmin.js:17`
 - Dashboard layout config: `src/config/dashboardLayout.js:10`
-- Market data engine: `engine/src/index.ts:32`
 
 ## API Route Pattern
 
@@ -107,7 +94,6 @@ Example: `src/app/api/budgets/route.js:4-56`
 ## Deployment
 
 - **Main App**: Vercel (auto-deploy on push)
-- **Market Data Engine**: Fly.io (Docker container in `engine/`)
 
 ## Database Migrations
 
@@ -199,7 +185,6 @@ Custom component library maintained in a sibling repo at `../slate-ui` (GitHub: 
 
 ## Working Conventions
 
-- **Trading engine (`engine/`) is deprioritized** — it is not user-facing and should not be reviewed, optimized, or modified unless explicitly requested.
 - **TypeScript strict mode is enabled** — all new `.ts`/`.tsx` files must pass strict checks. When adding new provider hooks consumed by TypeScript files, add a `.d.ts` declaration file alongside the `.jsx` provider.
 - **ESLint is configured** with `eslint-config-next`. React 19 strict rules (`set-state-in-effect`, `refs`, `purity`, `immutability`) are set to warn, not error. New code should avoid these patterns where possible.
 - The codebase is mixed JS/TS (84% JS). Prefer TypeScript for new files, but don't convert existing JS files unless doing meaningful work in them.
