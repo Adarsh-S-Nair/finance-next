@@ -6,7 +6,6 @@ import { checkRateLimit } from './lib/api/rateLimit';
 const PUBLIC_ROUTES = [
   '/api/plaid/webhook',
   '/api/stripe/webhook',
-  '/api/test-logs',
 ];
 
 const PUBLIC_PREFIXES = [
