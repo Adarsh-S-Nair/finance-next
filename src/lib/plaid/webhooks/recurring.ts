@@ -4,13 +4,9 @@
  * Webhook codes handled:
  *   - RECURRING_TRANSACTIONS_UPDATE → trigger a recurring-transactions
  *     sync for the item.
- *
- * TODO(recurring-sync): the recurring sync route is still a 319-line JS
- * file at src/app/api/plaid/recurring/sync/route.js. Once it's extracted
- * into src/lib/plaid/recurringSync/, replace the dynamic-import dance
- * below with a direct lib call.
  */
 
+import { syncRecurringForUser } from '../recurringSync';
 import { loadPlaidItemByItemId } from './loadItem';
 import type {
   PlaidItemContext,
@@ -51,30 +47,14 @@ async function triggerRecurringSync(
   });
 
   try {
-    const { POST: syncEndpoint } = await import(
-      '../../../app/api/plaid/recurring/sync/route.js'
-    );
-    const syncRequest = {
-      headers: { get: () => null },
-      json: async () => ({
-        userId: plaidItem.user_id,
-        plaidItemId: plaidItem.id,
-      }),
-    };
-    const syncResponse = await syncEndpoint(syncRequest);
-    if (syncResponse.ok) {
-      const syncResult = await syncResponse.json();
-      recurringLogger.info('Recurring transactions sync completed', {
-        item_id: plaidItem.item_id,
-        synced: syncResult.synced,
-      });
-    } else {
-      const errorData = await syncResponse.json();
-      recurringLogger.error('Recurring transactions sync failed', null, {
-        item_id: plaidItem.item_id,
-        error: errorData,
-      });
-    }
+    const result = await syncRecurringForUser({
+      userId: plaidItem.user_id,
+      plaidItemId: plaidItem.id,
+    });
+    recurringLogger.info('Recurring transactions sync completed', {
+      item_id: plaidItem.item_id,
+      synced: result.synced,
+    });
   } catch (syncError) {
     recurringLogger.error('Error in webhook-triggered recurring sync', syncError as Error, {
       item_id: plaidItem.item_id,

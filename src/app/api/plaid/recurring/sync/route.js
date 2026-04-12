@@ -1,324 +1,54 @@
-import { getPlaidClient } from '../../../../../lib/plaid/client';
-import { supabaseAdmin } from '../../../../../lib/supabase/admin';
-import { createLogger } from '../../../../../lib/logger';
-import { detectMissedRecurring } from '../../../../../lib/recurringGapFiller';
-import { resolveUserId } from '../../../../../lib/api/auth';
-import { canAccess } from '../../../../../lib/tierConfig';
-
-const logger = createLogger('plaid-recurring-sync');
-
 /**
  * POST /api/plaid/recurring/sync
- * Syncs recurring transaction streams from Plaid for all of a user's connected items.
+ *
+ * Thin HTTP wrapper around the recurring transactions sync pipeline. All
+ * business logic lives in `src/lib/plaid/recurringSync`. This file is
+ * responsible only for:
+ *   1. Parsing and validating the request.
+ *   2. Resolving the authenticated user id.
+ *   3. Checking the Pro tier gate (recurring is a paid feature).
+ *   4. Dispatching to the pipeline.
+ *   5. Formatting the HTTP response (including error shape).
+ *
+ * See `docs/architectural_patterns.md` for the pattern.
  */
+
+import { supabaseAdmin } from '../../../../../lib/supabase/admin';
+import { resolveUserId } from '../../../../../lib/api/auth';
+import { canAccess } from '../../../../../lib/tierConfig';
+import { syncRecurringForUser } from '../../../../../lib/plaid/recurringSync';
+
 export async function POST(request) {
   try {
-    const { userId: bodyUserId, forceReset = false, plaidItemId = null } = await request.json();
-    const userId = resolveUserId(request, bodyUserId);
+    const body = await request.json();
+    const userId = resolveUserId(request, body.userId);
+    const forceReset = Boolean(body.forceReset);
+    const plaidItemId = body.plaidItemId ?? null;
 
-    // Check subscription tier — recurring is a Pro feature
+    if (!userId) {
+      return Response.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Tier gate: recurring is a Pro feature
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('subscription_tier')
       .eq('id', userId)
       .maybeSingle();
-    const subscriptionTier = userProfile?.subscription_tier || 'free';
-    if (!canAccess(subscriptionTier, 'recurring')) {
+    if (!canAccess(userProfile?.subscription_tier || 'free', 'recurring')) {
       return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
     }
 
-    logger.info('Starting recurring transactions sync', { userId, forceReset, plaidItemId });
-
-    // If forceReset, delete all existing recurring streams for this user
-    if (forceReset) {
-      logger.info('Force reset: deleting existing recurring streams', { userId });
-      const { error: deleteError } = await supabaseAdmin
-        .from('recurring_streams')
-        .delete()
-        .eq('user_id', userId);
-
-      if (deleteError) {
-        logger.error('Error deleting existing streams', null, {
-          error: deleteError.message,
-          code: deleteError.code,
-          userId,
-        });
-      }
-    }
-
-    // Get plaid items — either a specific item or all items for the user.
-    // When plaidItemId is provided (e.g. from a webhook), we only sync that
-    // item instead of re-fetching recurring data for every connection.
-    let query = supabaseAdmin
-      .from('plaid_items')
-      .select('id, access_token, recurring_ready')
-      .eq('user_id', userId);
-
-    if (plaidItemId) {
-      query = query.eq('id', plaidItemId);
-    }
-
-    const { data: allItems, error: allItemsError } = await query;
-
-    if (allItemsError) {
-      throw new Error(`Failed to fetch plaid items: ${allItemsError.message}`);
-    }
-
-    if (!allItems || allItems.length === 0) {
-      logger.info('No plaid items found for user', { userId });
-      return Response.json({
-        success: true,
-        message: 'No connected accounts',
-        synced: 0
-      });
-    }
-
-    // Filter to only ready items
-    const plaidItems = allItems.filter(item => item.recurring_ready === true);
-    const notReadyCount = allItems.length - plaidItems.length;
-
-    if (notReadyCount > 0) {
-      logger.info('Some items not ready for recurring detection', {
-        userId,
-        readyCount: plaidItems.length,
-        notReadyCount
-      });
-    }
-
-    if (plaidItems.length === 0) {
-      logger.info('No items ready for recurring detection yet', { userId });
-      return Response.json({
-        success: true,
-        message: 'Accounts are still syncing transaction history. Please try again later.',
-        synced: 0,
-        itemsNotReady: notReadyCount
-      });
-    }
-
-    const client = getPlaidClient();
-    let totalSynced = 0;
-    const errors = [];
-
-    // Process each plaid item
-    for (const item of plaidItems) {
-      try {
-        logger.info('Fetching recurring transactions for item', {
-          plaidItemId: item.id
-        });
-
-        // Call Plaid's recurring transactions API
-        const response = await client.transactionsRecurringGet({
-          access_token: item.access_token,
-          options: {
-            include_personal_finance_category: true,
-            personal_finance_category_version: 'v2'
-          }
-        });
-
-        const { inflow_streams, outflow_streams, updated_datetime } = response.data;
-
-        logger.info('Received recurring streams from Plaid', {
-          plaidItemId: item.id,
-          inflowCount: inflow_streams?.length || 0,
-          outflowCount: outflow_streams?.length || 0,
-        });
-
-        // Process inflow streams (income/deposits)
-        const inflowRecords = (inflow_streams || []).map(stream =>
-          transformStreamToRecord(stream, 'inflow', userId, item.id)
-        );
-
-        // Process outflow streams (expenses/bills)
-        const outflowRecords = (outflow_streams || []).map(stream =>
-          transformStreamToRecord(stream, 'outflow', userId, item.id)
-        );
-
-        const allRecords = [...inflowRecords, ...outflowRecords];
-
-        if (allRecords.length > 0) {
-          // Upsert all streams (keyed by stream_id)
-          const { error: upsertError } = await supabaseAdmin
-            .from('recurring_streams')
-            .upsert(allRecords, {
-              onConflict: 'stream_id',
-              ignoreDuplicates: false
-            });
-
-          if (upsertError) {
-            throw new Error(`Failed to upsert streams: ${upsertError.message}`);
-          }
-
-          totalSynced += allRecords.length;
-        }
-
-        // Mark any streams that are no longer returned by Plaid as inactive
-        const activeStreamIds = allRecords.map(r => r.stream_id);
-        if (activeStreamIds.length > 0) {
-          await supabaseAdmin
-            .from('recurring_streams')
-            .update({ is_active: false })
-            .eq('plaid_item_id', item.id)
-            .not('stream_id', 'in', `(${activeStreamIds.join(',')})`);
-        }
-
-      } catch (itemError) {
-        // Log the full error for debugging
-        console.error('❌ Full error object:', itemError);
-        console.error('❌ Error response:', itemError.response?.data);
-
-        const errorCode = itemError.response?.data?.error_code;
-
-        // If PRODUCT_NOT_READY, mark item as not ready and skip silently
-        // This self-corrects items that were incorrectly marked as ready
-        if (errorCode === 'PRODUCT_NOT_READY') {
-          logger.info('Item not ready for recurring, marking as recurring_ready=false', {
-            plaidItemId: item.id
-          });
-
-          await supabaseAdmin
-            .from('plaid_items')
-            .update({ recurring_ready: false })
-            .eq('id', item.id);
-
-          // Don't add to errors - this is expected and self-correcting
-          continue;
-        }
-
-        // Extract meaningful error message from Plaid API errors
-        const errorMessage = itemError.response?.data?.error_message
-          || errorCode
-          || itemError.message
-          || String(itemError)
-          || 'Unknown error';
-
-        logger.error('Error syncing recurring for item', itemError, {
-          plaidItemId: item.id,
-          plaidErrorMessage: errorMessage,
-          plaidErrorCode: errorCode,
-          plaidErrorType: itemError.response?.data?.error_type,
-        });
-        errors.push({
-          plaidItemId: item.id,
-          error: errorMessage,
-          errorCode: errorCode,
-        });
-      }
-    }
-
-    await logger.flush();
-
-    // Run gap filler only on the first recurring sync for each item.
-    // Once Plaid has had time to detect patterns, its ML-based detection
-    // is more reliable than our heuristic gap filler.
-    let customDetected = 0;
-
-    // Check which items already have Plaid-detected streams
-    const { data: existingStreams } = await supabaseAdmin
-      .from('recurring_streams')
-      .select('plaid_item_id, merchant_name, is_custom_detected')
-      .eq('user_id', userId)
-      .eq('is_custom_detected', false);
-
-    const itemsWithPlaidStreams = new Set((existingStreams || []).map(s => s.plaid_item_id));
-    const existingMerchants = (existingStreams || []).map(s => s.merchant_name).filter(Boolean);
-
-    // Only run gap filler for items that don't have any Plaid-detected streams yet
-    const itemsNeedingGapFiller = plaidItems.filter(item => !itemsWithPlaidStreams.has(item.id));
-
-    if (itemsNeedingGapFiller.length > 0) {
-      logger.info('Running gap filler for items without Plaid streams', {
-        count: itemsNeedingGapFiller.length,
-        skipped: plaidItems.length - itemsNeedingGapFiller.length,
-      });
-
-      for (const item of itemsNeedingGapFiller) {
-        try {
-          const customStreams = await detectMissedRecurring(userId, item.id, existingMerchants);
-
-          if (customStreams.length > 0) {
-            logger.info('Gap filler detected missed patterns', {
-              plaidItemId: item.id,
-              count: customStreams.length,
-              merchants: customStreams.map(s => s.merchant_name)
-            });
-
-            const { error: customUpsertError } = await supabaseAdmin
-              .from('recurring_streams')
-              .upsert(customStreams, {
-                onConflict: 'stream_id'
-              });
-
-            if (customUpsertError) {
-              logger.error('Error upserting custom streams', null, {
-                error: customUpsertError.message,
-                code: customUpsertError.code,
-                details: customUpsertError.details,
-                hint: customUpsertError.hint,
-                plaidItemId: item.id,
-              });
-            } else {
-              customDetected += customStreams.length;
-            }
-          }
-        } catch (gapError) {
-          logger.error('Error in gap filler detection', gapError, { plaidItemId: item.id });
-        }
-      }
-    }
-
-    // Separate consent errors from other errors
-    const consentErrors = errors.filter(e => e.errorCode === 'ADDITIONAL_CONSENT_REQUIRED');
-    const otherErrors = errors.filter(e => e.errorCode !== 'ADDITIONAL_CONSENT_REQUIRED');
-
-    return Response.json({
-      success: otherErrors.length === 0,
-      synced: totalSynced,
-      customDetected,
-      itemsProcessed: plaidItems.length,
-      errors: otherErrors.length > 0 ? otherErrors : undefined,
-      // Include items that need additional consent so frontend can prompt user
-      itemsNeedingConsent: consentErrors.length > 0
-        ? consentErrors.map(e => e.plaidItemId)
-        : undefined,
-    });
-
+    const result = await syncRecurringForUser({ userId, forceReset, plaidItemId });
+    return Response.json(result);
   } catch (error) {
     if (error instanceof Response) return error;
-    logger.error('Error in recurring sync', error);
-    await logger.flush();
-
     return Response.json(
-      { error: 'Failed to sync recurring transactions', details: error.message },
+      { error: 'Failed to sync recurring transactions', details: error?.message },
       { status: 500 }
     );
   }
-}
-
-/**
- * Transform a Plaid stream object into our database record format
- */
-function transformStreamToRecord(stream, streamType, userId, plaidItemId) {
-  return {
-    user_id: userId,
-    plaid_item_id: plaidItemId,
-    account_id: stream.account_id,
-    stream_id: stream.stream_id,
-    stream_type: streamType,
-    description: stream.description,
-    merchant_name: stream.merchant_name || null,
-    frequency: stream.frequency,
-    status: stream.status,
-    is_active: stream.is_active,
-    first_date: stream.first_date,
-    last_date: stream.last_date,
-    predicted_next_date: stream.predicted_next_date || null,
-    average_amount: Math.abs(stream.average_amount?.amount || 0),
-    last_amount: Math.abs(stream.last_amount?.amount || 0),
-    iso_currency_code: stream.average_amount?.iso_currency_code || 'USD',
-    category_primary: stream.personal_finance_category?.primary || null,
-    category_detailed: stream.personal_finance_category?.detailed || null,
-    transaction_ids: stream.transaction_ids || [],
-    updated_at: new Date().toISOString(),
-    synced_at: new Date().toISOString(),
-  };
 }

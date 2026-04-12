@@ -12,6 +12,7 @@
  */
 
 import { supabaseAdmin } from '../../supabase/admin';
+import { syncRecurringForUser } from '../recurringSync';
 import { syncTransactionsForItem } from '../transactionSync';
 import { loadPlaidItemByItemId } from './loadItem';
 import type {
@@ -176,34 +177,22 @@ async function handleTransactionsRemoved(
 }
 
 // ---------------------------------------------------------------------------
-// Recurring sync trigger (still HTTP because recurring sync isn't yet a lib)
+// Recurring sync trigger
 // ---------------------------------------------------------------------------
 
-// TODO(recurring-sync): extract /api/plaid/recurring/sync into a lib
-// function and call it directly here, same as syncTransactionsForItem.
 async function triggerRecurringSync(
   plaidItem: PlaidItemContext,
   txLogger: WebhookLogger
 ): Promise<void> {
   try {
-    const { POST: recurringSyncEndpoint } = await import(
-      '../../../app/api/plaid/recurring/sync/route.js'
-    );
-    const recurringSyncRequest = {
-      headers: { get: () => null },
-      json: async () => ({
-        userId: plaidItem.user_id,
-        plaidItemId: plaidItem.id,
-      }),
-    };
-    const recurringResponse = await recurringSyncEndpoint(recurringSyncRequest);
-    if (recurringResponse.ok) {
-      const recurringResult = await recurringResponse.json();
-      txLogger.info('Recurring sync completed after transaction sync', {
-        item_id: plaidItem.item_id,
-        synced: recurringResult.synced,
-      });
-    }
+    const result = await syncRecurringForUser({
+      userId: plaidItem.user_id,
+      plaidItemId: plaidItem.id,
+    });
+    txLogger.info('Recurring sync completed after transaction sync', {
+      item_id: plaidItem.item_id,
+      synced: result.synced,
+    });
   } catch (recurringError) {
     // Non-fatal — recurring will be picked up by webhook later.
     txLogger.warn('Recurring sync failed after transaction sync', {
