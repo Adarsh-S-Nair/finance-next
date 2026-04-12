@@ -22,7 +22,9 @@ async function resolveUserIdWithRefresh() {
   try {
     const { data } = await supabase.auth.getUser();
     if (data?.user?.id) return data.user.id;
-  } catch {}
+  } catch (err) {
+    console.warn("[userProfile] getUser (initial) failed", err?.message ?? err);
+  }
   // Attempt refreshSession (handles expired tokens on tab return)
   try {
     const refreshRes = await Promise.race([
@@ -38,11 +40,14 @@ async function resolveUserIdWithRefresh() {
   try {
     const { data } = await supabase.auth.getUser();
     if (data?.user?.id) return data.user.id;
-  } catch {}
+  } catch (err) {
+    console.warn("[userProfile] getUser (post-refresh) failed", err?.message ?? err);
+  }
   try {
     const { data } = await supabase.auth.getSession();
     return data?.session?.user?.id ?? null;
-  } catch {
+  } catch (err) {
+    console.warn("[userProfile] getSession (fallback) failed", err?.message ?? err);
     return null;
   }
 }
@@ -70,14 +75,20 @@ export async function upsertUserProfile(partial) {
     ]);
     // @ts-ignore
     userId = userRes?.data?.user?.id ?? null;
-  } catch {}
+  } catch (err) {
+    console.warn("[userProfile] getUser race failed", err?.message ?? err);
+  }
   if (!userId) {
     userId = await resolveUserIdWithRefresh();
   }
   console.log("[userProfile] resolved userId", { userId });
   if (!userId) {
     // Final attempt: trigger sign-in state propagation by re-emitting current session
-    try { await supabase.auth.getSession(); } catch {}
+    try {
+      await supabase.auth.getSession();
+    } catch (err) {
+      console.warn("[userProfile] final getSession attempt failed", err?.message ?? err);
+    }
   }
   if (!userId) return { error: new Error("Not authenticated"), data: null };
   const payload = { id: userId, ...partial };

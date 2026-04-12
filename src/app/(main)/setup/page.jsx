@@ -63,11 +63,19 @@ function SetupContent() {
   const handleComplete = async () => {
     flowActiveRef.current = false;
     setCompleting(true);
-    // Mark onboarding as complete
+    // Mark onboarding as complete. This is best-effort — if the write
+    // fails we still navigate to the dashboard (the user has already
+    // connected accounts at this point), but we log so we can diagnose
+    // cases where users get bounced back to /setup on next load.
     try {
       const { upsertUserProfile } = await import("../../../lib/user/profile");
-      await upsertUserProfile({ onboarding_step: null });
-    } catch {}
+      const { error } = await upsertUserProfile({ onboarding_step: null });
+      if (error) {
+        console.warn("[setup] failed to clear onboarding_step", error);
+      }
+    } catch (err) {
+      console.warn("[setup] onboarding finalize threw", err);
+    }
     await refreshAccounts();
     router.replace("/dashboard");
   };

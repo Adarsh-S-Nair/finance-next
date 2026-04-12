@@ -27,11 +27,30 @@ export default function SignupForm() {
     if (error) {
       setToast({ title: "Sign up failed", description: error.message, variant: "error" });
     } else if (data?.user) {
+      // The auth user exists. Profile upsert is best-effort — if it fails
+      // we still let the user continue, but we surface the problem so they
+      // can try again (or contact support) rather than silently dropping it.
       try {
         const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
-        await upsertUserProfile({ avatar_url: avatarUrl });
-      } catch {}
-      setToast({ title: "Account created", variant: "success" });
+        const { error: profileError } = await upsertUserProfile({ avatar_url: avatarUrl });
+        if (profileError) {
+          console.warn("[SignupForm] profile upsert failed", profileError);
+          setToast({
+            title: "Account created",
+            description: "We couldn't finish setting up your profile — you may need to refresh.",
+            variant: "warning",
+          });
+        } else {
+          setToast({ title: "Account created", variant: "success" });
+        }
+      } catch (err) {
+        console.warn("[SignupForm] profile upsert threw", err);
+        setToast({
+          title: "Account created",
+          description: "We couldn't finish setting up your profile — you may need to refresh.",
+          variant: "warning",
+        });
+      }
       router.push("/setup");
     }
     setIsLoading(false);

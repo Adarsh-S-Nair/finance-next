@@ -202,26 +202,48 @@ function EmailPasswordStep({ onNext, onBack, pendingName }) {
       }
 
       if (data?.user) {
+        // The auth user was created successfully. The profile/metadata
+        // writes below are best-effort — we proceed with the FTUX flow
+        // even if they fail so the user isn't blocked, but we surface
+        // the error on screen so they know something went wrong.
         try {
           const { buildAvatarUrl } = await import("../../lib/user/profile");
           const avatarUrl = buildAvatarUrl(data.user.id, data.user.email);
 
           if (pendingName?.firstName) {
-            await supabase.auth.updateUser({
+            const { error: metaError } = await supabase.auth.updateUser({
               data: {
                 first_name: pendingName.firstName,
                 last_name: pendingName.lastName || null,
               },
             });
+            if (metaError) {
+              console.warn("[AccountSetupFlow] auth metadata update failed", metaError);
+            }
           }
 
-          await upsertUserProfile({
+          const { error: profileError } = await upsertUserProfile({
             avatar_url: avatarUrl,
             first_name: pendingName?.firstName || null,
             last_name: pendingName?.lastName || null,
             onboarding_step: 2,
           });
-        } catch {}
+          if (profileError) {
+            console.warn("[AccountSetupFlow] profile upsert failed", profileError);
+            setError(
+              "Your account was created, but we couldn't finish setting up your profile. Please refresh and try again."
+            );
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn("[AccountSetupFlow] post-signup profile write threw", err);
+          setError(
+            "Your account was created, but we couldn't finish setting up your profile. Please refresh and try again."
+          );
+          setLoading(false);
+          return;
+        }
         onNext(email);
       } else {
         setError("Something went wrong. Please try again.");
