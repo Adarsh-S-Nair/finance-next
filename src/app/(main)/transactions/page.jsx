@@ -562,7 +562,7 @@ const CategoryPickerView = ({
                     <OptionRow
                       key={category.id}
                       label={category.label}
-                      dotColor={group.hex_color || 'var(--color-muted)'}
+                      dotColor={category.hex_color || group.hex_color || 'var(--color-muted)'}
                       selected={selected}
                       onClick={() => handleCategoryClick(group, category)}
                     />
