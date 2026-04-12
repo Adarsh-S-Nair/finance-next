@@ -569,8 +569,8 @@ function ConnectedStep({ plaidData, onComplete }) {
 
   return (
     <div className="flex flex-col items-start text-left w-full max-w-md">
-      {/* Institution logo → dots → green checkmark */}
-      <div className="mb-8 flex items-center gap-2">
+      {/* Institution logo → dots → green checkmark (centered within the column) */}
+      <div className="mb-8 flex items-center gap-2 self-center">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
