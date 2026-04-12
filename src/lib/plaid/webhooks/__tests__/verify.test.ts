@@ -4,7 +4,19 @@ import {
   hashPayload,
   isWebhookTooOld,
   parseJwtHeader,
+  verifyWebhookSignature,
 } from '../verify';
+import type { WebhookLogger } from '../types';
+
+function createTestLogger(): WebhookLogger {
+  const logger: WebhookLogger = {
+    child: () => logger,
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  };
+  return logger;
+}
 
 describe('parseJwtHeader', () => {
   function encodeHeader(obj: unknown): string {
@@ -74,5 +86,25 @@ describe('isWebhookTooOld', () => {
     const ancient = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
     expect(isWebhookTooOld(recent)).toBe(false);
     expect(isWebhookTooOld(ancient)).toBe(true);
+  });
+});
+
+describe('verifyWebhookSignature', () => {
+  it('rejects requests with no signature header', async () => {
+    const result = await verifyWebhookSignature({
+      payload: '{"webhook_type":"TRANSACTIONS"}',
+      signature: null,
+      logger: createTestLogger(),
+    });
+    expect(result).toBe(false);
+  });
+
+  it('rejects requests with an empty signature header', async () => {
+    const result = await verifyWebhookSignature({
+      payload: '{"webhook_type":"TRANSACTIONS"}',
+      signature: '',
+      logger: createTestLogger(),
+    });
+    expect(result).toBe(false);
   });
 });

@@ -81,10 +81,9 @@ export interface VerifyOptions {
  * Verify a Plaid webhook. Returns true if the webhook is authentic and
  * recent, false otherwise. Never throws — logs context on failure.
  *
- * Legacy behavior quirk: if no signature is present at all, this returns
- * `true` to preserve the "allow in development" fallback. Production
- * deployments that care about end-to-end authenticity should require the
- * signature at the route level.
+ * A missing `Plaid-Verification` header is always rejected. The only way
+ * to bypass verification is the route-level `DISABLE_WEBHOOKS` flag, which
+ * is itself gated on `NODE_ENV !== 'production'`.
  */
 export async function verifyWebhookSignature({
   payload,
@@ -93,8 +92,8 @@ export async function verifyWebhookSignature({
 }: VerifyOptions): Promise<boolean> {
   try {
     if (!signature) {
-      logger.warn('No Plaid-Verification header found, skipping verification');
-      return true;
+      logger.error('No Plaid-Verification header found, rejecting webhook');
+      return false;
     }
 
     const header = parseJwtHeader(signature);
