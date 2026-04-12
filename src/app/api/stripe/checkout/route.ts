@@ -65,14 +65,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    // Resolve the base URL for Stripe success/cancel redirects from the
+    // server-configured env var only. Previously this fell back to the
+    // client-controlled `Origin` header, which was an open-redirect vector:
+    // an attacker could spoof `Origin` and Stripe would redirect the user
+    // back onto an attacker-controlled domain after checkout.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      console.error('[stripe/checkout] NEXT_PUBLIC_APP_URL is not configured');
+      return Response.json(
+        { error: 'Service misconfigured', message: 'App URL not set' },
+        { status: 503 }
+      );
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/dashboard?upgraded=1`,
-      cancel_url: `${origin}/settings`,
+      success_url: `${appUrl}/dashboard?upgraded=1`,
+      cancel_url: `${appUrl}/settings`,
       metadata: { supabase_user_id: userId },
       subscription_data: {
         metadata: { supabase_user_id: userId },

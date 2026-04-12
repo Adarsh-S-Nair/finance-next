@@ -37,11 +37,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    // Resolve the return URL from the server-configured env var only.
+    // Previously this fell back to the client-controlled `Origin` header,
+    // which was an open-redirect vector: an attacker could spoof `Origin`
+    // and Stripe would redirect the user back onto an attacker-controlled
+    // domain after the portal session.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      console.error('[stripe/portal] NEXT_PUBLIC_APP_URL is not configured');
+      return Response.json(
+        { error: 'Service misconfigured', message: 'App URL not set' },
+        { status: 503 }
+      );
+    }
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${origin}/settings`,
+      return_url: `${appUrl}/settings`,
     });
 
     return Response.json({ url: portalSession.url });
