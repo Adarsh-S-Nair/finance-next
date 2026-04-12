@@ -2,10 +2,8 @@
 
 import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
-import AccentPicker from "../../../components/AccentPicker";
 import { useState, useEffect } from "react";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
-import Button from "../../../components/ui/Button";
 import { supabase } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -15,6 +13,7 @@ import { FaPlus } from "react-icons/fa";
 import { HiChevronDown } from "react-icons/hi2";
 import { IoUnlink } from "react-icons/io5";
 import { FiTool } from "react-icons/fi";
+import { LuLogOut } from "react-icons/lu";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import { authFetch } from "../../../lib/api/fetch";
@@ -35,8 +34,9 @@ function SettingsSection({ label, action, children }) {
   );
 }
 
-// Single settings row: label + optional description on the left, control on the right.
-function SettingsRow({ label, description, control, value, overflowVisible = false }) {
+// Static row: label + optional description on the left, control on the right.
+// Used for non-actionable rows (Theme toggle, etc.).
+function SettingsRow({ label, description, control, overflowVisible = false }) {
   return (
     <div className={`flex items-center justify-between gap-4 py-3.5 ${overflowVisible ? 'overflow-visible relative z-10' : ''}`}>
       <div className="flex-1 min-w-0">
@@ -45,13 +45,35 @@ function SettingsRow({ label, description, control, value, overflowVisible = fal
           <div className="text-xs text-[var(--color-muted)] mt-0.5">{description}</div>
         )}
       </div>
-      <div className="flex-shrink-0 flex items-center gap-3">
-        {value && (
-          <span className="text-sm text-[var(--color-muted)]">{value}</span>
-        )}
-        {control}
-      </div>
+      {control && <div className="flex-shrink-0">{control}</div>}
     </div>
+  );
+}
+
+// Clickable action row — whole row is the tap target. Optional trailing
+// content (value text, chevron, or icon) goes on the right.
+function SettingsActionRow({ label, description, onClick, trailing, disabled = false, danger = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center justify-between w-full gap-4 py-3.5 -mx-2 px-2 rounded-md text-left transition-colors hover:bg-[var(--color-surface-alt)]/60 disabled:opacity-60 disabled:cursor-default"
+    >
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm font-medium ${danger ? 'text-[var(--color-danger)]' : 'text-[var(--color-fg)]'}`}>
+          {label}
+        </div>
+        {description && (
+          <div className="text-xs text-[var(--color-muted)] mt-0.5">{description}</div>
+        )}
+      </div>
+      {trailing && (
+        <div className="flex-shrink-0 flex items-center gap-2 text-[var(--color-muted)]">
+          {trailing}
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -303,32 +325,21 @@ export default function SettingsPage() {
 
         {/* Subscription Section */}
         <SettingsSection label="Subscription">
-          <SettingsRow
+          <SettingsActionRow
             label="Current plan"
             description={isPro
               ? 'You have access to all Pro features including budgets, investments, and unlimited bank connections.'
               : 'Upgrade to Pro for budgets, investments, and unlimited bank connections.'}
-            control={
-              isPro ? (
-                <Button
-                  onClick={handleManageSubscription}
-                  disabled={isPortalLoading}
-                  variant="primary"
-                  size="sm"
-                >
-                  {isPortalLoading ? 'Loading...' : 'Manage'}
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => setIsUpgradeModalOpen(true)}
-                  variant="primary"
-                  size="sm"
-                >
-                  Upgrade
-                </Button>
-              )
+            onClick={isPro ? handleManageSubscription : () => setIsUpgradeModalOpen(true)}
+            disabled={isPortalLoading}
+            trailing={
+              <>
+                <span className="text-sm text-[var(--color-fg)]">
+                  {isPortalLoading ? 'Loading…' : (isPro ? 'Pro' : 'Free')}
+                </span>
+                <span className="text-base leading-none">&#8250;</span>
+              </>
             }
-            value={isPro ? 'Pro' : 'Free'}
           />
         </SettingsSection>
 
@@ -338,12 +349,6 @@ export default function SettingsPage() {
             label="Theme"
             description="Switch between light and dark mode."
             control={<ThemeToggle />}
-          />
-          <SettingsRow
-            label="Accent color"
-            description="Choose a highlight color for the UI."
-            control={<AccentPicker />}
-            overflowVisible
           />
         </SettingsSection>
 
@@ -368,14 +373,14 @@ export default function SettingsPage() {
             </div>
           ) : accounts.length === 0 ? (
             <div className="py-8 text-center">
-              <p className="text-sm text-[var(--color-muted)] mb-3">No institutions connected</p>
-              <Button
+              <p className="text-sm text-[var(--color-muted)] mb-2">No institutions connected</p>
+              <button
+                type="button"
                 onClick={handleAddAccount}
-                variant="outline"
-                size="sm"
+                className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
               >
-                Connect bank
-              </Button>
+                Connect a bank &#8250;
+              </button>
             </div>
           ) : (
             <div>
@@ -508,7 +513,7 @@ export default function SettingsPage() {
             label="Sign out"
             description="Sign out of your account on this device."
             control={
-              <Button
+              <button
                 onClick={async () => {
                   await Promise.race([
                     supabase.auth.signOut(),
@@ -523,51 +528,43 @@ export default function SettingsPage() {
                   logout();
                   router.replace("/");
                 }}
-                variant="primary"
-                size="sm"
+                aria-label="Sign out"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]"
               >
-                Sign out
-              </Button>
+                <LuLogOut className="h-4 w-4" />
+              </button>
             }
           />
         </SettingsSection>
 
         {/* Danger Zone */}
         <SettingsSection label="Danger Zone">
-          <SettingsRow
+          <SettingsActionRow
             label="Delete account"
             description="Permanently delete your account and all associated data."
-            control={
-              <Button
-                onClick={() => setConfirmOpen(true)}
-                variant="danger"
-                size="sm"
-              >
-                Delete
-              </Button>
-            }
+            onClick={() => setConfirmOpen(true)}
+            danger
+            trailing={<span className="text-base leading-none">&#8250;</span>}
           />
         </SettingsSection>
 
         {/* Debug Tools */}
         {process.env.NEXT_PUBLIC_ENABLE_DEBUG_TOOLS === 'true' && (
           <SettingsSection label="Debug Tools">
-            <SettingsRow
+            <SettingsActionRow
               label={
                 <span className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
                   <FiTool className="h-3.5 w-3.5" />
-                  Resync Transactions
+                  Resync transactions
                 </span>
               }
               description="Force a full re-download of all transaction history from Plaid."
-              control={
-                <button
-                  onClick={handleResync}
-                  disabled={isResyncing}
-                  className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:underline transition-colors disabled:opacity-50"
-                >
-                  {isResyncing ? 'Syncing…' : 'Resync all'}
-                </button>
+              onClick={handleResync}
+              disabled={isResyncing}
+              trailing={
+                <span className="text-sm text-amber-600 dark:text-amber-500">
+                  {isResyncing ? 'Syncing…' : 'Resync'}
+                </span>
               }
             />
           </SettingsSection>
