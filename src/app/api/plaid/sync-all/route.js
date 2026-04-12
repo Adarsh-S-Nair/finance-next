@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 
 const logger = createLogger('sync-all');
 export async function POST(request) {
@@ -90,21 +91,21 @@ export async function POST(request) {
           if (!holdingsSyncResponse.ok) {
             itemResult.success = false;
           }
-          const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
-          const invTxSyncRequest = {
-            headers: internalHeaders,
-            json: async () => ({
+          try {
+            const invTxSyncResult = await syncInvestmentTransactionsForItem({
               plaidItemId: item.id,
-              forceSync
-            })
-          };
-          const invTxSyncResponse = await invTxSyncEndpoint(invTxSyncRequest);
-          const invTxSyncResult = await invTxSyncResponse.json();
-          itemResult.investment_transactions_sync = {
-            success: invTxSyncResponse.ok,
-            ...invTxSyncResult
-          };
-          if (!invTxSyncResponse.ok) {
+              userId,
+              forceSync,
+            });
+            itemResult.investment_transactions_sync = {
+              success: true,
+              ...invTxSyncResult,
+            };
+          } catch (invTxError) {
+            itemResult.investment_transactions_sync = {
+              success: false,
+              error: invTxError.message,
+            };
             itemResult.success = false;
           }
         }

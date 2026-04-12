@@ -7,14 +7,9 @@
  *
  * Failure webhooks (`error` claim set on the payload) are logged and
  * dropped.
- *
- * TODO(investment-transactions-sync): this handler still calls the sync
- * via a dynamic import + fake request object because the route hasn't
- * been extracted into a lib function yet. When that's done, replace the
- * `triggerInvestmentTransactionsSync` body with a direct lib call, same
- * as handleTransactionsWebhook and handleHoldingsWebhook do today.
  */
 
+import { syncInvestmentTransactionsForItem } from '../investmentTransactionSync';
 import { loadPlaidItemByItemId } from './loadItem';
 import type {
   InvestmentsTransactionsWebhookPayload,
@@ -75,33 +70,14 @@ async function triggerInvestmentTransactionsSync(
   });
 
   try {
-    // TODO: replace with direct lib call once investment transactions sync
-    // is extracted into src/lib/plaid/investmentTransactionsSync/.
-    const { POST: syncEndpoint } = await import(
-      '../../../app/api/plaid/investments/transactions/sync/route.js'
-    );
-    const syncRequest = {
-      headers: { get: () => null },
-      json: async () => ({
-        plaidItemId: plaidItem.id,
-        userId: plaidItem.user_id,
-        forceSync: false,
-      }),
-    };
-    const syncResponse = await syncEndpoint(syncRequest);
-    if (syncResponse.ok) {
-      const syncResult = await syncResponse.json();
-      invTxLogger.info('Investment transactions sync completed', {
-        item_id: plaidItem.item_id,
-        transactions_synced: syncResult.transactions_synced,
-      });
-    } else {
-      const errorData = await syncResponse.json();
-      invTxLogger.error('Investment transactions sync failed', null, {
-        item_id: plaidItem.item_id,
-        error: errorData,
-      });
-    }
+    const result = await syncInvestmentTransactionsForItem({
+      plaidItemId: plaidItem.id,
+      userId: plaidItem.user_id,
+    });
+    invTxLogger.info('Investment transactions sync completed', {
+      item_id: plaidItem.item_id,
+      transactions_synced: result.transactions_synced,
+    });
   } catch (syncError) {
     invTxLogger.error(
       'Error in webhook-triggered investment transactions sync',

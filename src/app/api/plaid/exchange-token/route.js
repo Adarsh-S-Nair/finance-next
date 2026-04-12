@@ -5,6 +5,7 @@ import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { getPlaidProducts } from '../../../../lib/tierConfig';
 import { createLogger } from '../../../../lib/logger';
+import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 
 const logger = createLogger('plaid-exchange-token');
 
@@ -435,24 +436,14 @@ export async function POST(request) {
 
         // Sync investment transactions
         try {
-          const { POST: invTxSyncEndpoint } = await import('../investments/transactions/sync/route.js');
-          const invTxSyncRequest = {
-            headers: { get: () => null },
-            json: async () => ({ plaidItemId: plaidItemData.id, userId }),
-          };
-          const invTxResponse = await invTxSyncEndpoint(invTxSyncRequest);
-          if (!invTxResponse.ok) {
-            logger.warn('Investment transactions sync failed after exchange', {
-              plaidItemId: plaidItemData.id,
-              status: invTxResponse.status,
-            });
-          } else {
-            const invTxResult = await invTxResponse.json();
-            logger.info('Investment transactions sync completed after exchange', {
-              plaidItemId: plaidItemData.id,
-              transactions_synced: invTxResult.transactions_synced,
-            });
-          }
+          const invTxResult = await syncInvestmentTransactionsForItem({
+            plaidItemId: plaidItemData.id,
+            userId,
+          });
+          logger.info('Investment transactions sync completed after exchange', {
+            plaidItemId: plaidItemData.id,
+            transactions_synced: invTxResult.transactions_synced,
+          });
         } catch (invTxError) {
           logger.error('Exception triggering investment transactions sync', invTxError, {
             plaidItemId: plaidItemData.id,
