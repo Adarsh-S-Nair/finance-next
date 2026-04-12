@@ -1,44 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FiSun, FiMoon } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
-import { Dropdown } from "@slate-ui/react";
 
 export default function ThemeToggle() {
-  const { profile, setTheme, loading } = useUser();
+  const { profile, setTheme } = useUser();
   const [mounted, setMounted] = useState(false);
-
-  // Determine current theme
-  const currentTheme = profile?.theme || 'light';
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) return <div className="w-24 h-8 bg-[var(--color-surface)] rounded-md animate-pulse" />;
+  if (!mounted) {
+    return <div className="h-9 w-9 rounded-full bg-[var(--color-surface-alt)] animate-pulse" />;
+  }
 
-  const options = [
-    {
-      label: 'Light',
-      onClick: () => setTheme('light'),
-      disabled: currentTheme === 'light'
-    },
-    {
-      label: 'Dark',
-      onClick: () => setTheme('dark'),
-      disabled: currentTheme === 'dark'
-    },
-  ];
-
-  const currentLabel = currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1);
+  const currentTheme = profile?.theme || 'light';
+  const isDark = currentTheme === 'dark';
 
   return (
-    <Dropdown
-      label={currentLabel}
-      items={options}
-      align="right"
-      size="sm"
-      className="w-24"
-    />
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]"
+    >
+      {isDark ? <FiSun className="h-4 w-4" /> : <FiMoon className="h-4 w-4" />}
+    </button>
   );
 }

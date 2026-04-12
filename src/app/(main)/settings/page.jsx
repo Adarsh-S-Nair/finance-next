@@ -9,11 +9,10 @@ import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { PiBankFill } from "react-icons/pi";
-import { FaPlus } from "react-icons/fa";
+import { FiPlus, FiTool } from "react-icons/fi";
 import { IoUnlink } from "react-icons/io5";
-import { FiTool } from "react-icons/fi";
 import { LuLogOut } from "react-icons/lu";
-import PlaidLinkModal from "../../../components/PlaidLinkModal";
+import AddAccountOverlay from "../../../components/AddAccountOverlay";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import { authFetch } from "../../../lib/api/fetch";
 
@@ -84,10 +83,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [disconnectAccountModal, setDisconnectAccountModal] = useState({ isOpen: false, account: null, institution: null });
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false);
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  // plaidItemId to pass into PlaidLinkModal for update-mode investment linking
-  const [upgradePlaidItemId, setUpgradePlaidItemId] = useState(null);
   const [isResyncing, setIsResyncing] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
 
@@ -213,18 +210,7 @@ export default function SettingsPage() {
       setIsUpgradeModalOpen(true);
       return;
     }
-    setUpgradePlaidItemId(null);
-    setIsPlaidModalOpen(true);
-  };
-
-  // Handler for adding investments to an existing connected institution (pro upgrade flow)
-  const handleAddInvestments = (institution) => {
-    if (!institution.plaidItemId) {
-      alert('Unable to add investments: Missing Plaid item information.');
-      return;
-    }
-    setUpgradePlaidItemId(institution.plaidItemId);
-    setIsPlaidModalOpen(true);
+    setIsAddAccountOpen(true);
   };
 
   const meta = user?.user_metadata ?? {};
@@ -299,10 +285,10 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleAddAccount}
-              className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+              aria-label="Add account"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]"
             >
-              <FaPlus className="h-3 w-3" />
-              Add account
+              <FiPlus className="h-5 w-5" />
             </button>
           }
         >
@@ -324,52 +310,40 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="space-y-5">
-              {accounts.map((institution) => {
-                const canAddInvestments = isPro && !institution.accounts.some(a => a.type === 'investment');
-                return (
-                  <div key={institution.id}>
-                    {/* Institution sub-header */}
-                    <div className="flex items-center justify-between gap-4 mb-1 pt-1">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {institution.logo ? (
-                            <img
-                              src={institution.logo}
-                              alt={`${institution.name} logo`}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                          ) : null}
-                          <PiBankFill
-                            className={`h-3 w-3 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`}
-                          />
-                        </div>
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] truncate">
-                          {institution.name}
-                        </span>
-                      </div>
-                      {canAddInvestments && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddInvestments(institution)}
-                          className="text-[11px] font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors whitespace-nowrap"
-                        >
-                          Add investments
-                        </button>
-                      )}
-                    </div>
+              {accounts.map((institution) => (
+                <div key={institution.id}>
+                  {/* Institution sub-header */}
+                  <div className="mb-1 pt-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+                      {institution.name}
+                    </span>
+                  </div>
 
-                    {/* Accounts */}
-                    <div>
-                      {institution.accounts.map((account) => (
-                        <div
-                          key={account.id}
-                          className="flex items-center justify-between gap-4 py-3"
-                        >
-                          <div className="flex-1 min-w-0">
+                  {/* Accounts */}
+                  <div>
+                    {institution.accounts.map((account) => (
+                      <div
+                        key={account.id}
+                        className="flex items-center justify-between gap-4 py-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-8 h-8 rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {institution.logo ? (
+                              <img
+                                src={institution.logo}
+                                alt={`${institution.name} logo`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                            ) : null}
+                            <PiBankFill
+                              className={`h-4 w-4 text-[var(--color-muted)] ${institution.logo ? 'hidden' : 'block'}`}
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-sm font-medium text-[var(--color-fg)] truncate">
                                 {account.name}
@@ -394,20 +368,20 @@ export default function SettingsPage() {
                               )}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDisconnectAccount(account, institution)}
-                            aria-label={`Disconnect ${account.name}`}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-danger)] flex-shrink-0"
-                          >
-                            <IoUnlink className="h-4 w-4" />
-                          </button>
                         </div>
-                      ))}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDisconnectAccount(account, institution)}
+                          aria-label={`Disconnect ${account.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-danger)] flex-shrink-0"
+                        >
+                          <IoUnlink className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </SettingsSection>
@@ -513,19 +487,10 @@ export default function SettingsPage() {
         busyLabel="Disconnecting..."
       />
 
-      {/* Plaid Link Modal — also used for update-mode investment linking on existing institutions */}
-      <PlaidLinkModal
-        isOpen={isPlaidModalOpen}
-        onClose={() => {
-          setIsPlaidModalOpen(false);
-          setUpgradePlaidItemId(null);
-        }}
-        onUpgradeNeeded={() => {
-          setIsPlaidModalOpen(false);
-          setUpgradePlaidItemId(null);
-          setIsUpgradeModalOpen(true);
-        }}
-        plaidItemId={upgradePlaidItemId}
+      {/* Add Account Overlay — same one the topbar opens */}
+      <AddAccountOverlay
+        isOpen={isAddAccountOpen}
+        onClose={() => setIsAddAccountOpen(false)}
       />
 
       {/* Upgrade Modal */}
