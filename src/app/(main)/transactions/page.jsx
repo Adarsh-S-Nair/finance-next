@@ -4,14 +4,12 @@ import PageContainer from "../../../components/layout/PageContainer";
 import Button from "../../../components/ui/Button";
 import Drawer from "../../../components/ui/Drawer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
-import Card from "../../../components/ui/Card";
 import { FiRefreshCw, FiFilter, FiSearch, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../../components/providers/UserProvider";
-import Input from "../../../components/ui/Input";
 import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
 
@@ -311,60 +309,193 @@ TransactionList.displayName = 'TransactionList';
 
 
 
-// Minimal segmented control
-const FilterSelector = ({ options, value, onChange, label }) => {
-  return (
-    <div className="space-y-2">
-      <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">{label}</label>
-      <div className="flex bg-[var(--color-surface-alt)] rounded-md p-0.5">
-        {options.map((option) => {
-          const isActive = value === option.value;
-          return (
-            <button
-              key={option.value}
-              onClick={() => onChange(option.value)}
-              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors ${
-                isActive
-                  ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// ─── Filter primitives ──────────────────────────────────────────────
 
-// Section label helper
-const SectionLabel = ({ children }) => (
-  <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] block">
-    {children}
-  </label>
+// Drilldown row used in the main filter list
+const FilterRow = ({ label, value, onClick, isActive }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex items-center justify-between w-full px-5 py-3.5 text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+  >
+    <span className="text-sm font-medium text-[var(--color-fg)]">{label}</span>
+    <div className="flex items-center gap-2 min-w-0">
+      <span className={`text-sm truncate ${isActive ? 'text-[var(--color-fg)]' : 'text-[var(--color-muted)]'}`}>
+        {value}
+      </span>
+      <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+    </div>
+  </button>
 );
 
-// Extracted Filters Content Component to reuse in both render paths
-const FiltersContent = ({
-  transactionType, setTransactionType,
-  transactionStatus, setTransactionStatus,
-  amountRange, setAmountRange,
-  dateRange, setDateRange,
-  customDateRange, setCustomDateRange,
+// Single-select option row (radio behaviour, with checkmark)
+const OptionRow = ({ label, dotColor, selected, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex items-center justify-between w-full px-5 py-3.5 text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+  >
+    <div className="flex items-center gap-3 min-w-0">
+      {dotColor && (
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: dotColor }}
+        />
+      )}
+      <span className="text-sm text-[var(--color-fg)] truncate">{label}</span>
+    </div>
+    {selected && (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+        <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )}
+  </button>
+);
+
+// Subtle inline section label used inside picker views
+const PickerSectionLabel = ({ children }) => (
+  <div className="px-5 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+    {children}
+  </div>
+);
+
+// ─── Filter list view (main) ────────────────────────────────────────
+
+const FilterListView = ({
+  summaries, activeFilterCount, onClearAll, onSelectFilter
+}) => (
+  <div>
+    {activeFilterCount > 0 && onClearAll && (
+      <div className="flex items-center justify-between px-5 py-3 mb-1 border-b border-[var(--color-border)]">
+        <span className="text-xs text-[var(--color-muted)]">
+          {activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active
+        </span>
+        <button
+          type="button"
+          onClick={onClearAll}
+          className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
+        >
+          Reset all
+        </button>
+      </div>
+    )}
+
+    <FilterRow label="Type" value={summaries.type.label} isActive={summaries.type.active} onClick={() => onSelectFilter('type')} />
+    <FilterRow label="Status" value={summaries.status.label} isActive={summaries.status.active} onClick={() => onSelectFilter('status')} />
+    <FilterRow label="Amount" value={summaries.amount.label} isActive={summaries.amount.active} onClick={() => onSelectFilter('amount')} />
+    <FilterRow label="Date" value={summaries.date.label} isActive={summaries.date.active} onClick={() => onSelectFilter('date')} />
+    <FilterRow label="Categories" value={summaries.categories.label} isActive={summaries.categories.active} onClick={() => onSelectFilter('categories')} />
+  </div>
+);
+
+// ─── Single-select picker (Type, Status) ────────────────────────────
+
+const SingleSelectView = ({ options, value, onChange }) => (
+  <div>
+    {options.map((option) => (
+      <OptionRow
+        key={option.value}
+        label={option.label}
+        selected={value === option.value}
+        onClick={() => onChange(option.value)}
+      />
+    ))}
+  </div>
+);
+
+// ─── Amount picker ──────────────────────────────────────────────────
+
+const AmountPickerView = ({ amountRange, setAmountRange }) => (
+  <div className="pt-1 pb-2 space-y-4">
+    <div>
+      <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-2">Minimum</label>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="0"
+          value={amountRange.min}
+          onChange={(e) => setAmountRange({ ...amountRange, min: e.target.value })}
+          className="w-full pl-7 pr-3 py-3 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+        />
+      </div>
+    </div>
+    <div>
+      <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-2">Maximum</label>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted)]">$</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          placeholder="Any"
+          value={amountRange.max}
+          onChange={(e) => setAmountRange({ ...amountRange, max: e.target.value })}
+          className="w-full pl-7 pr-3 py-3 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+        />
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Date picker ────────────────────────────────────────────────────
+
+const DATE_OPTIONS = [
+  { value: 'all', label: 'All time' },
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This week' },
+  { value: 'month', label: 'This month' },
+  { value: '30days', label: 'Last 30 days' },
+  { value: 'custom', label: 'Custom range' },
+];
+
+const DatePickerView = ({ dateRange, setDateRange, customDateRange, setCustomDateRange }) => (
+  <div>
+    {DATE_OPTIONS.map((option) => (
+      <OptionRow
+        key={option.value}
+        label={option.label}
+        selected={dateRange === option.value}
+        onClick={() => setDateRange(option.value)}
+      />
+    ))}
+    {dateRange === 'custom' && (
+      <div className="px-5 pt-4 pb-2 space-y-4 border-t border-[var(--color-border)]">
+        <div>
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-2">From</label>
+          <input
+            type="date"
+            value={customDateRange.start}
+            onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
+            className="w-full px-3 py-3 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-2">To</label>
+          <input
+            type="date"
+            value={customDateRange.end}
+            onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
+            className="w-full px-3 py-3 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+          />
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+// ─── Category picker ────────────────────────────────────────────────
+
+const CategoryPickerView = ({
+  categoryGroups, loadingCategoryGroups, categoryGroupsError,
   selectedGroupIds, selectedCategoryIds,
   toggleGroup, toggleCategory,
-  categoryGroups,
-  loadingCategoryGroups, categoryGroupsError,
-  activeFilterCount = 0, onClearAll
 }) => {
-  const [categorySearch, setCategorySearch] = useState("");
+  const [search, setSearch] = useState("");
 
-  // Filter groups by search query, keeping only groups with matches
   const filteredGroups = useMemo(() => {
-    const query = categorySearch.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
     if (!query) return categoryGroups;
-
     return categoryGroups
       .map(group => {
         const groupMatches = group.name.toLowerCase().includes(query);
@@ -376,244 +507,72 @@ const FiltersContent = ({
         return { ...group, system_categories: matchingChildren };
       })
       .filter(Boolean);
-  }, [categoryGroups, categorySearch]);
+  }, [categoryGroups, search]);
 
-  const dateOptions = [
-    { value: 'all', label: 'All time' },
-    { value: 'today', label: 'Today' },
-    { value: 'week', label: 'This week' },
-    { value: 'month', label: 'This month' },
-    { value: '30days', label: 'Last 30 days' },
-    { value: 'custom', label: 'Custom' },
-  ];
+  const handleCategoryClick = (group, category) => {
+    const isGroupSelected = selectedGroupIds.includes(group.id);
+    if (isGroupSelected) {
+      // Convert legacy group-level selection into individual selections minus the clicked one
+      toggleGroup(group.id);
+      group.system_categories?.forEach(c => {
+        if (c.id !== category.id && !selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
+      });
+    } else {
+      toggleCategory(category.id);
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* Sticky reset bar */}
-      {activeFilterCount > 0 && onClearAll && (
-        <div className="sticky top-0 z-10 -mx-5 px-5 py-2.5 mb-5 bg-[var(--color-content-bg)] border-b border-[var(--color-border)] flex items-center justify-between">
-          <span className="text-xs text-[var(--color-muted)]">
-            {activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active
-          </span>
-          <button
-            type="button"
-            onClick={onClearAll}
-            className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
-          >
-            Reset all
-          </button>
-        </div>
-      )}
-
-      <div className="space-y-7 pb-2">
-        {/* Type */}
-        <FilterSelector
-          label="Type"
-          value={transactionType}
-          onChange={setTransactionType}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'income', label: 'Income' },
-            { value: 'expense', label: 'Expense' }
-          ]}
-        />
-
-        {/* Status */}
-        <FilterSelector
-          label="Status"
-          value={transactionStatus}
-          onChange={setTransactionStatus}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'completed', label: 'Completed' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'attention', label: 'Attention' }
-          ]}
-        />
-
-        {/* Amount */}
-        <div className="space-y-2">
-          <SectionLabel>Amount</SectionLabel>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">$</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="Min"
-                value={amountRange.min}
-                onChange={(e) => setAmountRange({ ...amountRange, min: e.target.value })}
-                className="w-full pl-6 pr-2 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-              />
-            </div>
-            <span className="text-xs text-[var(--color-muted)]">to</span>
-            <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">$</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="Max"
-                value={amountRange.max}
-                onChange={(e) => setAmountRange({ ...amountRange, max: e.target.value })}
-                className="w-full pl-6 pr-2 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Date Range */}
-        <div className="space-y-2">
-          <SectionLabel>Date</SectionLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {dateOptions.map((option) => {
-              const isActive = dateRange === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setDateRange(option.value)}
-                  className={`py-1.5 px-3 text-xs font-medium rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
-                      : 'bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {dateRange === 'custom' && (
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="date"
-                value={customDateRange.start}
-                onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
-                className="flex-1 py-2 px-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-              />
-              <span className="text-xs text-[var(--color-muted)]">to</span>
-              <input
-                type="date"
-                value={customDateRange.end}
-                onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
-                className="flex-1 py-2 px-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Categories */}
-        <div className="space-y-3">
-          <SectionLabel>Categories</SectionLabel>
-
-          {/* Search */}
-          <div className="relative">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" />
-            <input
-              type="text"
-              placeholder="Search categories"
-              value={categorySearch}
-              onChange={(e) => setCategorySearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-            />
-          </div>
-
-          {/* Pill grid */}
-          {loadingCategoryGroups ? (
-            <div className="flex flex-wrap gap-1.5 py-1">
-              {[...Array(8)].map((_, idx) => (
-                <div key={idx} className="h-6 w-20 bg-[var(--color-surface-alt)] rounded animate-pulse" />
-              ))}
-            </div>
-          ) : categoryGroupsError ? (
-            <div className="py-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
-          ) : filteredGroups.length === 0 ? (
-            <div className="py-6 text-center text-xs text-[var(--color-muted)]">No categories found</div>
-          ) : (
-            <div className="space-y-4">
-              {filteredGroups.map((group) => {
-                const totalChildCount = group.system_categories?.length || 0;
-                const selectedChildCount = group.system_categories?.filter(c => selectedCategoryIds.includes(c.id)).length || 0;
-                const isGroupSelected = selectedGroupIds.includes(group.id);
-                const allSelected = isGroupSelected || (totalChildCount > 0 && selectedChildCount === totalChildCount);
-
-                const handleGroupClick = () => {
-                  if (allSelected) {
-                    // Deselect everything in this group
-                    if (isGroupSelected) toggleGroup(group.id);
-                    group.system_categories?.forEach(cat => {
-                      if (selectedCategoryIds.includes(cat.id)) toggleCategory(cat.id);
-                    });
-                  } else {
-                    // Select every category in this group individually so the user can deselect one at a time
-                    group.system_categories?.forEach(cat => {
-                      if (!selectedCategoryIds.includes(cat.id)) toggleCategory(cat.id);
-                    });
-                  }
-                };
-
-                return (
-                  <div key={group.id}>
-                    {/* Group header */}
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: group.hex_color || 'var(--color-muted)' }}
-                        />
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)] truncate">
-                          {group.name}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGroupClick}
-                        className="text-[10px] font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-                      >
-                        {allSelected ? 'Clear' : 'All'}
-                      </button>
-                    </div>
-
-                    {/* Pill grid */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {(group.system_categories || []).map((category) => {
-                        const isCatSelected = selectedCategoryIds.includes(category.id) || isGroupSelected;
-
-                        const handlePillClick = () => {
-                          if (isGroupSelected) {
-                            // Convert legacy group-level selection into individual cats minus the clicked one
-                            toggleGroup(group.id);
-                            group.system_categories?.forEach(c => {
-                              if (c.id !== category.id && !selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
-                            });
-                          } else {
-                            toggleCategory(category.id);
-                          }
-                        };
-
-                        return (
-                          <button
-                            key={category.id}
-                            type="button"
-                            onClick={handlePillClick}
-                            className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
-                              isCatSelected
-                                ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
-                                : 'bg-[var(--color-surface-alt)] text-[var(--color-fg)] hover:bg-[var(--color-border)]'
-                            }`}
-                          >
-                            {category.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+    <div>
+      {/* Search */}
+      <div className="pb-1">
+        <div className="relative">
+          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
+          <input
+            type="text"
+            placeholder="Search categories"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2.5 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+          />
         </div>
       </div>
+
+      {/* List */}
+      {loadingCategoryGroups ? (
+        <div className="space-y-2 py-2">
+          {[...Array(8)].map((_, idx) => (
+            <div key={idx} className="h-10 bg-[var(--color-surface-alt)] rounded animate-pulse" />
+          ))}
+        </div>
+      ) : categoryGroupsError ? (
+        <div className="py-3 text-sm text-[var(--color-muted)]">{categoryGroupsError}</div>
+      ) : filteredGroups.length === 0 ? (
+        <div className="py-8 text-center text-sm text-[var(--color-muted)]">No categories found</div>
+      ) : (
+        <div className="-mx-5">
+          {filteredGroups.map((group) => {
+            const isGroupSelected = selectedGroupIds.includes(group.id);
+            return (
+              <div key={group.id}>
+                <PickerSectionLabel>{group.name}</PickerSectionLabel>
+                {(group.system_categories || []).map((category) => {
+                  const selected = selectedCategoryIds.includes(category.id) || isGroupSelected;
+                  return (
+                    <OptionRow
+                      key={category.id}
+                      label={category.label}
+                      dotColor={group.hex_color || 'var(--color-muted)'}
+                      selected={selected}
+                      onClick={() => handleCategoryClick(group, category)}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -637,6 +596,7 @@ function TransactionsContent() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [currentDrawerView, setCurrentDrawerView] = useState('transaction-details');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [filterDrawerView, setFilterDrawerView] = useState('list');
   const [categoryGroups, setCategoryGroups] = useState([]);
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
@@ -1044,6 +1004,144 @@ function TransactionsContent() {
     return count;
   };
 
+  // Display summaries shown next to each filter row in the list view
+  const filterSummaries = useMemo(() => {
+    const dateLabel = (DATE_OPTIONS.find(o => o.value === dateRange) || {}).label || 'All time';
+
+    let amountLabel = 'Any';
+    if (amountRange.min || amountRange.max) {
+      const min = amountRange.min ? `$${amountRange.min}` : '';
+      const max = amountRange.max ? `$${amountRange.max}` : '';
+      if (min && max) amountLabel = `${min} – ${max}`;
+      else if (min) amountLabel = `${min}+`;
+      else amountLabel = `Up to ${max}`;
+    }
+
+    const totalCategorySelections = selectedGroupIds.length + selectedCategoryIds.length;
+    let categoryLabel = 'All';
+    if (totalCategorySelections === 1) {
+      const cat = categoryGroups
+        .flatMap(g => g.system_categories || [])
+        .find(c => selectedCategoryIds.includes(c.id));
+      const grp = categoryGroups.find(g => selectedGroupIds.includes(g.id));
+      categoryLabel = cat?.label || grp?.name || '1 selected';
+    } else if (totalCategorySelections > 1) {
+      categoryLabel = `${totalCategorySelections} selected`;
+    }
+
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+    return {
+      type: { label: transactionType === 'all' ? 'All' : cap(transactionType), active: transactionType !== 'all' },
+      status: { label: transactionStatus === 'all' ? 'All' : (transactionStatus === 'attention' ? 'Needs attention' : cap(transactionStatus)), active: transactionStatus !== 'all' },
+      amount: { label: amountLabel, active: amountLabel !== 'Any' },
+      date: { label: dateLabel, active: dateRange !== 'all' },
+      categories: { label: categoryLabel, active: totalCategorySelections > 0 },
+    };
+  }, [transactionType, transactionStatus, amountRange, dateRange, selectedGroupIds, selectedCategoryIds, categoryGroups]);
+
+  // Reset to list view when the filters drawer closes
+  const closeFiltersDrawer = useCallback(() => {
+    setIsFiltersOpen(false);
+    setFilterDrawerView('list');
+  }, []);
+
+  // Type/Status options (used by the picker views)
+  const typeOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'income', label: 'Income' },
+    { value: 'expense', label: 'Expense' },
+  ];
+  const statusOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'attention', label: 'Needs attention' },
+  ];
+
+  const buildFilterDrawerViews = () => [
+    {
+      id: 'list',
+      title: 'Filters',
+      noPadding: true,
+      content: (
+        <FilterListView
+          summaries={filterSummaries}
+          activeFilterCount={getActiveFilterCount()}
+          onClearAll={handleClearAllFilters}
+          onSelectFilter={(id) => setFilterDrawerView(id)}
+        />
+      ),
+    },
+    {
+      id: 'type',
+      title: 'Type',
+      showBackButton: true,
+      noPadding: true,
+      content: (
+        <SingleSelectView
+          options={typeOptions}
+          value={transactionType}
+          onChange={setTransactionType}
+        />
+      ),
+    },
+    {
+      id: 'status',
+      title: 'Status',
+      showBackButton: true,
+      noPadding: true,
+      content: (
+        <SingleSelectView
+          options={statusOptions}
+          value={transactionStatus}
+          onChange={setTransactionStatus}
+        />
+      ),
+    },
+    {
+      id: 'amount',
+      title: 'Amount',
+      showBackButton: true,
+      content: (
+        <AmountPickerView
+          amountRange={amountRange}
+          setAmountRange={setAmountRange}
+        />
+      ),
+    },
+    {
+      id: 'date',
+      title: 'Date',
+      showBackButton: true,
+      noPadding: true,
+      content: (
+        <DatePickerView
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          customDateRange={customDateRange}
+          setCustomDateRange={setCustomDateRange}
+        />
+      ),
+    },
+    {
+      id: 'categories',
+      title: 'Categories',
+      showBackButton: true,
+      content: (
+        <CategoryPickerView
+          categoryGroups={categoryGroups}
+          loadingCategoryGroups={loadingCategoryGroups}
+          categoryGroupsError={categoryGroupsError}
+          selectedGroupIds={selectedGroupIds}
+          selectedCategoryIds={selectedCategoryIds}
+          toggleGroup={toggleGroup}
+          toggleCategory={toggleCategory}
+        />
+      ),
+    },
+  ];
+
   // Clear all filters
   const handleClearAllFilters = () => {
     setSelectedGroupIds([]);
@@ -1310,32 +1408,14 @@ function TransactionsContent() {
         {/* Filters Drawer */}
         <Drawer
           isOpen={isFiltersOpen}
-          onClose={() => setIsFiltersOpen(false)}
+          onClose={closeFiltersDrawer}
           title="Filters"
           size="md"
-        >
-          <FiltersContent
-            transactionType={transactionType}
-            setTransactionType={setTransactionType}
-            transactionStatus={transactionStatus}
-            setTransactionStatus={setTransactionStatus}
-            amountRange={amountRange}
-            setAmountRange={setAmountRange}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            customDateRange={customDateRange}
-            setCustomDateRange={setCustomDateRange}
-            selectedGroupIds={selectedGroupIds}
-            selectedCategoryIds={selectedCategoryIds}
-            toggleGroup={toggleGroup}
-            toggleCategory={toggleCategory}
-            categoryGroups={categoryGroups}
-            loadingCategoryGroups={loadingCategoryGroups}
-            categoryGroupsError={categoryGroupsError}
-            activeFilterCount={getActiveFilterCount()}
-            onClearAll={handleClearAllFilters}
-          />
-        </Drawer>
+          views={buildFilterDrawerViews()}
+          currentViewId={filterDrawerView}
+          onViewChange={setFilterDrawerView}
+          onBack={() => setFilterDrawerView('list')}
+        />
       </PageContainer>
     );
   }
@@ -1495,32 +1575,14 @@ function TransactionsContent() {
       {/* Filters Drawer */}
       <Drawer
         isOpen={isFiltersOpen}
-        onClose={() => setIsFiltersOpen(false)}
+        onClose={closeFiltersDrawer}
         title="Filters"
         size="md"
-      >
-        <FiltersContent
-          transactionType={transactionType}
-          setTransactionType={setTransactionType}
-          transactionStatus={transactionStatus}
-          setTransactionStatus={setTransactionStatus}
-          amountRange={amountRange}
-          setAmountRange={setAmountRange}
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          customDateRange={customDateRange}
-          setCustomDateRange={setCustomDateRange}
-          selectedGroupIds={selectedGroupIds}
-          selectedCategoryIds={selectedCategoryIds}
-          toggleGroup={toggleGroup}
-          toggleCategory={toggleCategory}
-          categoryGroups={categoryGroups}
-          loadingCategoryGroups={loadingCategoryGroups}
-          categoryGroupsError={categoryGroupsError}
-          activeFilterCount={getActiveFilterCount()}
-          onClearAll={handleClearAllFilters}
-        />
-      </Drawer>
+        views={buildFilterDrawerViews()}
+        currentViewId={filterDrawerView}
+        onViewChange={setFilterDrawerView}
+        onBack={() => setFilterDrawerView('list')}
+      />
 
       {/* Transaction Details Drawer */}
       <Drawer
