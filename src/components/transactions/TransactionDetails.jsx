@@ -112,10 +112,10 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
 
         {/* Detail Rows */}
         <div className="px-5 space-y-6">
-          <div className="divide-y divide-[var(--color-border)]">
+          <div>
 
             {/* Status Row */}
-            <div className="flex items-center justify-between py-3.5">
+            <div className="flex items-center justify-between py-2">
               <span className="card-header">Status</span>
               <span className="text-sm text-[var(--color-fg)]">
                 {transaction.pending ? 'Pending' : 'Posted'}
@@ -125,7 +125,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             {/* Category Row */}
             <div
               onClick={onCategoryClick}
-              className="group flex items-center justify-between py-3.5 -mx-2 px-2 rounded-lg cursor-pointer hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+              className="group flex items-center justify-between py-2 -mx-2 px-2 rounded-lg cursor-pointer hover:bg-[var(--color-surface-alt)]/40 transition-colors"
             >
               <span className="card-header flex-shrink-0">Category</span>
               <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
@@ -140,7 +140,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
 
             {/* Account Row */}
             {transaction.account_name && (
-              <div className="flex items-center justify-between py-3.5">
+              <div className="flex items-center justify-between py-2">
                 <span className="card-header">Account</span>
                 <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
                   {institutionLogo && (
@@ -162,7 +162,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
 
             {/* Location Row */}
             {transaction.location && (
-              <div className="flex items-center justify-between py-3.5">
+              <div className="flex items-center justify-between py-2">
                 <span className="card-header">Location</span>
                 <span className="text-sm text-[var(--color-fg)] truncate max-w-[60%] text-right">
                   {typeof transaction.location === 'string'
@@ -177,7 +177,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
           {transaction.transaction_splits && transaction.transaction_splits.length > 0 && (
             <div>
               <div className="card-header mb-3">Reimbursement Requests</div>
-              <div className="divide-y divide-[var(--color-border)]">
+              <div>
                 {transaction.transaction_splits.map((split, idx) => (
                   <div key={idx} className="group flex items-center justify-between py-3.5 -mx-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
@@ -230,7 +230,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
           {transaction.is_repayment && transaction.transaction_repayments && (
             <div>
               <div className="card-header mb-3">Repayment For</div>
-              <div className="divide-y divide-[var(--color-border)]">
+              <div>
                 {transaction.transaction_repayments.map((repayment, idx) => {
                   const originalTx = repayment.transaction_splits?.transactions;
                   if (!originalTx) return null;
