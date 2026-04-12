@@ -93,17 +93,40 @@ export default function BudgetsPage() {
           </div>
         ) : budgets.length === 0 ? (
           <EmptyState>
-            <EmptyState.Hero
-              layout="centered"
-              title="No budgets yet"
-              description="Set a monthly limit for a category or category group and track your spending against it."
-              action={
-                <Button size="lg" onClick={() => setIsModalOpen(true)} className="gap-2">
-                  <LuPlus className="w-4 h-4" />
-                  Create a Budget
-                </Button>
-              }
-            />
+            <div className="py-16 lg:py-24 max-w-xl">
+              <h2 className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] leading-[1.15] mb-6">
+                Set a monthly limit.<br />
+                See where your money goes.
+              </h2>
+
+              <p className="text-sm text-[var(--color-muted)] leading-relaxed max-w-md mb-10">
+                We&apos;ll pull your last three months of spending and suggest a starting
+                amount for each category. Accept the suggestions as-is, or tune them
+                to match your plan.
+              </p>
+
+              <Button size="lg" onClick={() => setIsModalOpen(true)}>
+                Create your first budget
+              </Button>
+
+              <div className="mt-14 pt-8 border-t border-[var(--color-border)] max-w-sm">
+                <div className="card-header mb-4">What to expect</div>
+                <div className="space-y-4">
+                  {[
+                    'Confirm your average monthly income',
+                    'Pick categories from your actual spending',
+                    'Review suggested amounts and tune as needed',
+                  ].map((label, i) => (
+                    <div key={i} className="flex items-baseline gap-4 text-sm">
+                      <span className="text-[var(--color-muted)] tabular-nums font-medium">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span className="text-[var(--color-fg)]">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </EmptyState>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
