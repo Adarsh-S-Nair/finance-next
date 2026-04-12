@@ -48,18 +48,32 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.mode !== 'subscription') break;
 
-        const customerId =
-          typeof session.customer === 'string' ? session.customer : session.customer?.id;
         const userId = session.metadata?.supabase_user_id;
+        const customerId =
+          typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
 
-        if (!userId && !customerId) {
-          console.warn('[stripe/webhook] checkout.session.completed: no user ID or customer ID');
-          break;
+        // Fail closed if supabase_user_id is missing. The checkout route
+        // always sets this on both the session and subscription_data, so
+        // its absence means either (a) a legacy subscription that was
+        // created before that code shipped, or (b) a malformed/forged event.
+        // Either way, falling back to a stripe_customer_id lookup is a
+        // tier-spoofing vector — another user could be upgraded if the
+        // customerId was ever reused, guessed, or deliberately injected.
+        if (!userId) {
+          console.error('[stripe/webhook] checkout.session.completed missing supabase_user_id metadata', {
+            eventId: event.id,
+            sessionId: session.id,
+            customerId,
+          });
+          return Response.json(
+            { error: 'Missing supabase_user_id in session metadata' },
+            { status: 400 }
+          );
         }
 
         await syncSubscriptionTier({
-          userId: userId ?? null,
-          customerId: customerId ?? null,
+          userId,
+          customerId,
           subscriptionStatus: 'active',
           tier: 'pro',
         });
@@ -68,19 +82,31 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
+        const userId = subscription.metadata?.supabase_user_id;
         const customerId =
           typeof subscription.customer === 'string'
             ? subscription.customer
-            : subscription.customer?.id;
-        const userId = subscription.metadata?.supabase_user_id ?? null;
-        const status = subscription.status;
+            : subscription.customer?.id ?? null;
 
+        if (!userId) {
+          console.error('[stripe/webhook] customer.subscription.updated missing supabase_user_id metadata', {
+            eventId: event.id,
+            subscriptionId: subscription.id,
+            customerId,
+          });
+          return Response.json(
+            { error: 'Missing supabase_user_id in subscription metadata' },
+            { status: 400 }
+          );
+        }
+
+        const status = subscription.status;
         // Active/trialing → pro; past_due keeps pro (grace period); anything else → free
         const tier = status === 'active' || status === 'trialing' || status === 'past_due' ? 'pro' : 'free';
 
         await syncSubscriptionTier({
           userId,
-          customerId: customerId ?? null,
+          customerId,
           subscriptionStatus: status,
           tier,
         });
@@ -89,15 +115,27 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
+        const userId = subscription.metadata?.supabase_user_id;
         const customerId =
           typeof subscription.customer === 'string'
             ? subscription.customer
-            : subscription.customer?.id;
-        const userId = subscription.metadata?.supabase_user_id ?? null;
+            : subscription.customer?.id ?? null;
+
+        if (!userId) {
+          console.error('[stripe/webhook] customer.subscription.deleted missing supabase_user_id metadata', {
+            eventId: event.id,
+            subscriptionId: subscription.id,
+            customerId,
+          });
+          return Response.json(
+            { error: 'Missing supabase_user_id in subscription metadata' },
+            { status: 400 }
+          );
+        }
 
         await syncSubscriptionTier({
           userId,
-          customerId: customerId ?? null,
+          customerId,
           subscriptionStatus: 'canceled',
           tier: 'free',
         });
@@ -121,9 +159,9 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 interface SyncParams {
-  /** Supabase user ID from event metadata (may be null if older sessions) */
-  userId: string | null;
-  /** Stripe customer ID — used as fallback lookup if userId is missing */
+  /** Supabase user ID from event metadata. Required — callers validate upstream. */
+  userId: string;
+  /** Stripe customer ID — persisted alongside the tier update for future reference. */
   customerId: string | null;
   /** Raw Stripe subscription status string */
   subscriptionStatus: string;
@@ -147,42 +185,19 @@ async function syncSubscriptionTier({
     subscription_status: subscriptionStatus,
   };
 
-  // Also store the customer ID if we have it (for future lookups)
+  // Also store the customer ID if we have it (for future reference)
   if (customerId) {
     update.stripe_customer_id = customerId;
   }
 
-  if (userId) {
-    // Fast path: we know exactly which user to update
-    const { error } = await supabaseAdmin
-      .from('user_profiles')
-      .update(update)
-      .eq('id', userId);
+  const { error } = await supabaseAdmin
+    .from('user_profiles')
+    .update(update)
+    .eq('id', userId);
 
-    if (error) {
-      console.error('[stripe/webhook] DB update by userId failed:', error);
-    } else {
-      console.log(`[stripe/webhook] Updated user ${userId} → tier=${tier}, status=${subscriptionStatus}`);
-    }
-    return;
+  if (error) {
+    console.error('[stripe/webhook] DB update by userId failed:', error);
+  } else {
+    console.log(`[stripe/webhook] Updated user ${userId} → tier=${tier}, status=${subscriptionStatus}`);
   }
-
-  // Fallback: look up by stripe_customer_id
-  if (customerId) {
-    const { error } = await supabaseAdmin
-      .from('user_profiles')
-      .update(update)
-      .eq('stripe_customer_id', customerId);
-
-    if (error) {
-      console.error('[stripe/webhook] DB update by customerId failed:', error);
-    } else {
-      console.log(
-        `[stripe/webhook] Updated by customerId ${customerId} → tier=${tier}, status=${subscriptionStatus}`
-      );
-    }
-    return;
-  }
-
-  console.warn('[stripe/webhook] Cannot sync: no userId or customerId available');
 }
