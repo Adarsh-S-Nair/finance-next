@@ -17,7 +17,7 @@ type DrawerView = {
 type DrawerProps = {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
+  title?: ReactNode;
   description?: string;
   children?: ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
@@ -146,7 +146,7 @@ export default function Drawer({
               // Mobile bottom sheet look
               "rounded-t-lg rounded-b-none",
               // Desktop: flush to right edge, no rounding
-              "sm:rounded-none sm:border-l sm:border-[var(--color-border)]",
+              "sm:rounded-none",
               // Width constraints only from small screens and up
               size === "sm" && "sm:max-w-sm",
               size === "md" && "sm:max-w-md",

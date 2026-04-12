@@ -312,30 +312,24 @@ TransactionList.displayName = 'TransactionList';
 
 
 
-// Animated Selector Component
+// Minimal segmented control
 const FilterSelector = ({ options, value, onChange, label }) => {
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium text-[var(--color-fg)] px-1">{label}</label>
-      <div className="flex p-1 bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)]/50 relative">
+      <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">{label}</label>
+      <div className="flex bg-[var(--color-surface-alt)] rounded-md p-0.5">
         {options.map((option) => {
           const isActive = value === option.value;
           return (
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className={`flex-1 relative py-1.5 px-3 text-xs font-medium transition-colors duration-200 z-10 ${isActive ? 'text-white' : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                }`}
+              className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors ${
+                isActive
+                  ? 'bg-[var(--color-bg)] text-[var(--color-fg)] shadow-sm'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]'
+              }`}
             >
-              {isActive && (
-                <motion.div
-                  layoutId={`selector-bg-${label}`}
-                  className="absolute inset-0 bg-[var(--color-accent)] rounded-lg shadow-sm"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  style={{ zIndex: -1 }}
-                />
-              )}
               {option.label}
             </button>
           );
@@ -344,6 +338,20 @@ const FilterSelector = ({ options, value, onChange, label }) => {
     </div>
   );
 };
+
+// Section label helper
+const SectionLabel = ({ children, count }) => (
+  <div className="flex items-center justify-between">
+    <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
+      {children}
+    </label>
+    {count > 0 && (
+      <span className="text-[10px] font-medium text-[var(--color-muted)] tabular-nums">
+        {count} selected
+      </span>
+    )}
+  </div>
+);
 
 // Extracted Filters Content Component to reuse in both render paths
 const FiltersContent = ({
@@ -355,7 +363,8 @@ const FiltersContent = ({
   selectedGroupIds, selectedCategoryIds,
   toggleGroup, toggleCategory, toggleGroupExpand,
   expandedGroups, categoryGroups,
-  loadingCategoryGroups, categoryGroupsError
+  loadingCategoryGroups, categoryGroupsError,
+  activeFilterCount = 0, onClearAll
 }) => {
   const [categorySearch, setCategorySearch] = useState("");
 
@@ -372,10 +381,8 @@ const FiltersContent = ({
         );
 
         if (groupMatches) {
-          // If group matches, show all children
           return group;
         } else if (matchingChildren?.length > 0) {
-          // If only children match, show group with filtered children
           return {
             ...group,
             system_categories: matchingChildren
@@ -396,9 +403,36 @@ const FiltersContent = ({
       });
     }
   }, [categorySearch, filteredCategoryGroups]);
+
+  const dateOptions = [
+    { value: 'all', label: 'All time' },
+    { value: 'today', label: 'Today' },
+    { value: 'week', label: 'This week' },
+    { value: 'month', label: 'This month' },
+    { value: '30days', label: 'Last 30 days' },
+    { value: 'custom', label: 'Custom' },
+  ];
+
+  const totalCategorySelections = selectedGroupIds.length + selectedCategoryIds.length;
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-4 space-y-6">
-      {/* Transaction Type Filter */}
+    <div className="flex flex-col h-full overflow-y-auto px-1 py-2 space-y-7">
+      {/* Reset link */}
+      {activeFilterCount > 0 && onClearAll && (
+        <div className="flex items-center justify-between -mb-3">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
+            {activeFilterCount} active
+          </span>
+          <button
+            onClick={onClearAll}
+            className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+          >
+            Reset all
+          </button>
+        </div>
+      )}
+
+      {/* Type */}
       <FilterSelector
         label="Type"
         value={transactionType}
@@ -410,7 +444,7 @@ const FiltersContent = ({
         ]}
       />
 
-      {/* Transaction Status Filter */}
+      {/* Status */}
       <FilterSelector
         label="Status"
         value={transactionStatus}
@@ -419,230 +453,208 @@ const FiltersContent = ({
           { value: 'all', label: 'All' },
           { value: 'completed', label: 'Completed' },
           { value: 'pending', label: 'Pending' },
-          { value: 'attention', label: 'Needs Attention' }
+          { value: 'attention', label: 'Attention' }
         ]}
       />
 
-      {/* Amount Range Filter */}
+      {/* Amount */}
       <div className="space-y-2">
-        <label className="text-xs font-medium text-[var(--color-fg)] px-1">Amount Range</label>
+        <SectionLabel>Amount</SectionLabel>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-[var(--color-muted)] text-xs">$</span>
-            </div>
-            <Input
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">$</span>
+            <input
               type="number"
+              inputMode="decimal"
               placeholder="Min"
               value={amountRange.min}
               onChange={(e) => setAmountRange({ ...amountRange, min: e.target.value })}
-              className="pl-6 py-2 text-xs bg-[var(--color-surface)] border-[var(--color-border)]/50 focus:border-[var(--color-accent)] rounded-xl w-full"
+              className="w-full pl-6 pr-2 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
             />
           </div>
-          <span className="text-[var(--color-muted)]">-</span>
+          <span className="text-xs text-[var(--color-muted)]">to</span>
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-[var(--color-muted)] text-xs">$</span>
-            </div>
-            <Input
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-muted)]">$</span>
+            <input
               type="number"
+              inputMode="decimal"
               placeholder="Max"
               value={amountRange.max}
               onChange={(e) => setAmountRange({ ...amountRange, max: e.target.value })}
-              className="pl-6 py-2 text-xs bg-[var(--color-surface)] border-[var(--color-border)]/50 focus:border-[var(--color-accent)] rounded-xl w-full"
+              className="w-full pl-6 pr-2 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
             />
           </div>
         </div>
       </div>
 
-      {/* Date Range Filter */}
+      {/* Date Range */}
       <div className="space-y-2">
-        <label className="text-xs font-medium text-[var(--color-fg)] px-1">Date Range</label>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { value: 'all', label: 'All Time' },
-            { value: 'today', label: 'Today' },
-            { value: 'week', label: 'This Week' },
-            { value: 'month', label: 'This Month' },
-            { value: '30days', label: 'Last 30 Days' },
-            { value: 'custom', label: 'Custom' },
-          ].map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setDateRange(option.value)}
-              className={`py-2 px-2 text-xs font-medium rounded-xl border transition-all duration-200 ${dateRange === option.value
-                ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm'
-                : 'bg-[var(--color-surface)] border-[var(--color-border)]/50 text-[var(--color-muted)] hover:border-[var(--color-muted)] hover:text-[var(--color-fg)]'
+        <SectionLabel>Date</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {dateOptions.map((option) => {
+            const isActive = dateRange === option.value;
+            return (
+              <button
+                key={option.value}
+                onClick={() => setDateRange(option.value)}
+                className={`py-1.5 px-3 text-xs font-medium rounded-md transition-colors ${
+                  isActive
+                    ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
+                    : 'bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:text-[var(--color-fg)]'
                 }`}
-            >
-              {option.label}
-            </button>
-          ))}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
 
         {dateRange === 'custom' && (
-          <div className="flex items-center gap-2 mt-2 animate-fade-in">
-            <Input
+          <div className="flex items-center gap-2 pt-1">
+            <input
               type="date"
               value={customDateRange.start}
               onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
-              className="flex-1 py-2 text-xs bg-[var(--color-surface)] border-[var(--color-border)]/50 focus:border-[var(--color-accent)] rounded-xl"
+              className="flex-1 py-2 px-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
             />
-            <span className="text-[var(--color-muted)]">-</span>
-            <Input
+            <span className="text-xs text-[var(--color-muted)]">to</span>
+            <input
               type="date"
               value={customDateRange.end}
               onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
-              className="flex-1 py-2 text-xs bg-[var(--color-surface)] border-[var(--color-border)]/50 focus:border-[var(--color-accent)] rounded-xl"
+              className="flex-1 py-2 px-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
             />
           </div>
         )}
       </div>
 
-      {/* Category Filter */}
+      {/* Categories */}
       <div className="space-y-2">
-        <label className="text-xs font-medium text-[var(--color-fg)] px-1">
-          Categories {(selectedGroupIds.length > 0 || selectedCategoryIds.length > 0) && `(${selectedGroupIds.length + selectedCategoryIds.length})`}
-        </label>
-
+        <SectionLabel count={totalCategorySelections}>Categories</SectionLabel>
 
         {/* Category Search */}
-        <div className="relative mb-2">
+        <div className="relative">
           <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" />
-          <Input
-            placeholder="Search categories..."
+          <input
+            type="text"
+            placeholder="Search categories"
             value={categorySearch}
             onChange={(e) => setCategorySearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--color-surface)] border-[var(--color-border)]/50 focus:border-[var(--color-accent)] rounded-xl"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
           />
         </div>
 
-        <div className="pr-1">
+        <div className="pt-1">
           {loadingCategoryGroups ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, idx) => (
-                <div key={idx} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[var(--color-border)]/30 animate-pulse" />
-                    <div className="h-4 w-24 bg-[var(--color-border)]/30 rounded animate-pulse" />
-                  </div>
-                  <div className="flex gap-2 pl-8">
-                    <div className="h-6 w-16 bg-[var(--color-border)]/30 rounded-full animate-pulse" />
-                    <div className="h-6 w-20 bg-[var(--color-border)]/30 rounded-full animate-pulse" />
-                  </div>
+            <div className="space-y-2">
+              {[...Array(4)].map((_, idx) => (
+                <div key={idx} className="flex items-center gap-2.5 py-2">
+                  <div className="w-5 h-5 rounded bg-[var(--color-surface-alt)] animate-pulse" />
+                  <div className="h-3 w-24 bg-[var(--color-surface-alt)] rounded animate-pulse" />
                 </div>
               ))}
             </div>
           ) : categoryGroupsError ? (
-            <div className="py-3 px-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
+            <div className="py-3 text-xs text-[var(--color-muted)]">{categoryGroupsError}</div>
+          ) : filteredCategoryGroups.length === 0 ? (
+            <div className="py-3 text-xs text-[var(--color-muted)]">No categories found</div>
           ) : (
-            <div className="space-y-4">
+            <div>
               {filteredCategoryGroups.map((group) => {
                 const isGroupSelected = selectedGroupIds.includes(group.id);
-                const isExpanded = expandedGroups[group.id];
+                const isExpanded = !!expandedGroups[group.id];
                 const selectedChildCount = group.system_categories?.filter(c => selectedCategoryIds.includes(c.id)).length || 0;
                 const totalChildCount = group.system_categories?.length || 0;
                 const isPartiallySelected = selectedChildCount > 0 && selectedChildCount < totalChildCount;
+                const isFullySelected = isGroupSelected || (totalChildCount > 0 && selectedChildCount === totalChildCount);
 
                 return (
-                  <div key={group.id} className="group/container">
-                    {/* Group Header */}
-                    <div className="flex items-center justify-between py-1.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)] transition-colors duration-200">
+                  <div key={group.id}>
+                    {/* Group Row */}
+                    <div className="flex items-center gap-2 py-1.5">
                       <button
-                        onClick={() => toggleGroupExpand(group.id)}
-                        className="flex items-center gap-2.5 text-left flex-1 min-w-0 group/header"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleGroup(group.id);
+                        }}
+                        aria-label={`Toggle ${group.name}`}
+                        className={`w-4 h-4 rounded-[4px] flex items-center justify-center flex-shrink-0 transition-colors ${
+                          isFullySelected
+                            ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
+                            : isPartiallySelected
+                              ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
+                              : 'border border-[var(--color-border)] hover:border-[var(--color-muted)]'
+                        }`}
                       >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm transition-all duration-300 group-hover/header:scale-105 group-hover/header:shadow-md"
-                          style={{
-                            backgroundColor: group.hex_color || 'var(--color-accent)',
-                            boxShadow: `0 2px 8px -1px ${group.hex_color || 'var(--color-accent)'}30`
-                          }}
-                        >
-                          <DynamicIcon
-                            iconLib={group.icon_lib}
-                            iconName={group.icon_name}
-                            className="h-3.5 w-3.5 text-white"
-                            fallback={FiTag}
-                          />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-[var(--color-fg)] truncate group-hover/header:text-[var(--color-accent)] transition-colors">
-                            {group.name}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-muted)] font-medium">
-                            {group.system_categories?.length || 0} categories
-                          </span>
-                        </div>
+                        {isFullySelected && (
+                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                            <path d="M2.5 6.5L5 9L9.5 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                        {!isFullySelected && isPartiallySelected && (
+                          <div className="w-2 h-[1.5px] bg-current rounded-full" />
+                        )}
                       </button>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleGroup(group.id);
-                          }}
-                          className={`w-7 h-7 rounded-md flex items-center justify-center transition-all duration-200 ${isGroupSelected
-                            ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm scale-100'
-                            : isPartiallySelected
-                              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                              : 'text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)]'
-                            }`}
-                        >
-                          {isGroupSelected ? (
-                            <FiX className="w-3.5 h-3.5" />
-                          ) : isPartiallySelected ? (
-                            <div className="w-1.5 h-1.5 rounded-sm bg-current" />
-                          ) : (
-                            <div className="w-3.5 h-3.5 rounded border-2 border-current opacity-30 group-hover/container:opacity-100 transition-opacity" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => toggleGroupExpand(group.id)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-all duration-200 ${isExpanded ? 'rotate-180 bg-[var(--color-surface)]' : ''}`}
-                        >
-                          <FiChevronDown className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => toggleGroupExpand(group.id)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left py-1 -my-1"
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: group.hex_color || 'var(--color-muted)' }}
+                        />
+                        <span className="text-xs font-medium text-[var(--color-fg)] truncate flex-1">
+                          {group.name}
+                        </span>
+                        {selectedChildCount > 0 && !isGroupSelected && (
+                          <span className="text-[10px] text-[var(--color-muted)] tabular-nums">
+                            {selectedChildCount}/{totalChildCount}
+                          </span>
+                        )}
+                        <FiChevronDown
+                          className={`w-3.5 h-3.5 text-[var(--color-muted)] flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        />
+                      </button>
                     </div>
 
-                    {/* Nested Categories (Grid) */}
+                    {/* Children */}
                     <AnimatePresence initial={false}>
                       {isExpanded && group.system_categories && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25, ease: "easeInOut" }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
                           className="overflow-hidden"
                         >
-                          <div className="grid grid-cols-2 gap-1.5 pl-9 pr-1 pb-2 pt-1">
-                            {group.system_categories.map((category, idx) => {
-                              const isCatSelected = selectedCategoryIds.includes(category.id);
+                          <div className="pl-6 pb-1">
+                            {group.system_categories.map((category) => {
+                              const isCatSelected = selectedCategoryIds.includes(category.id) || isGroupSelected;
                               return (
-                                <motion.button
+                                <button
                                   key={category.id}
-                                  initial={{ opacity: 0, y: 5 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ delay: idx * 0.02, duration: 0.2 }}
                                   onClick={() => toggleCategory(category.id)}
-                                  className={`relative group flex items-center gap-2 p-1.5 rounded-md text-[11px] font-medium border transition-all duration-200 text-left ${isCatSelected
-                                    ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50 text-[var(--color-accent)]'
-                                    : 'bg-[var(--color-surface)] border-transparent hover:border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-fg)]'
-                                    }`}
+                                  disabled={isGroupSelected}
+                                  className="flex items-center gap-2 w-full py-1.5 text-left disabled:opacity-60"
                                 >
-                                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-200 ${isCatSelected ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)] group-hover:bg-[var(--color-muted)]'
-                                    }`} />
-                                  <span className="truncate">{category.label}</span>
-                                  {isCatSelected && (
-                                    <motion.div
-                                      layoutId="check"
-                                      className="absolute right-1.5 text-[var(--color-accent)]"
-                                    >
-                                      <FiX className="w-3 h-3" />
-                                    </motion.div>
-                                  )}
-                                </motion.button>
+                                  <div
+                                    className={`w-4 h-4 rounded-[4px] flex items-center justify-center flex-shrink-0 transition-colors ${
+                                      isCatSelected
+                                        ? 'bg-[var(--color-fg)] text-[var(--color-bg)]'
+                                        : 'border border-[var(--color-border)]'
+                                    }`}
+                                  >
+                                    {isCatSelected && (
+                                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2.5 6.5L5 9L9.5 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className={`text-xs ${isCatSelected ? 'text-[var(--color-fg)]' : 'text-[var(--color-muted)]'}`}>
+                                    {category.label}
+                                  </span>
+                                </button>
                               );
                             })}
                           </div>
@@ -1359,23 +1371,11 @@ function TransactionsContent() {
         />
         <TransactionSkeleton />
 
-        {/* Filters Drawer - Kept here to ensure it's mounted even during loading if needed, though usually loading covers full page */}
+        {/* Filters Drawer */}
         <Drawer
           isOpen={isFiltersOpen}
           onClose={() => setIsFiltersOpen(false)}
-          title={
-            <div className="flex items-center justify-between w-full pr-8">
-              <span>Filters</span>
-              {getActiveFilterCount() > 0 && (
-                <button
-                  onClick={handleClearAllFilters}
-                  className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent)] hover:underline"
-                >
-                  Clear All
-                </button>
-              )}
-            </div>
-          }
+          title="Filters"
           size="md"
         >
           <FiltersContent
@@ -1398,7 +1398,8 @@ function TransactionsContent() {
             categoryGroups={categoryGroups}
             loadingCategoryGroups={loadingCategoryGroups}
             categoryGroupsError={categoryGroupsError}
-            selectedCategories={[]} // Legacy prop, not used but kept for interface consistency if needed
+            activeFilterCount={getActiveFilterCount()}
+            onClearAll={handleClearAllFilters}
           />
         </Drawer>
       </PageContainer>
@@ -1561,19 +1562,7 @@ function TransactionsContent() {
       <Drawer
         isOpen={isFiltersOpen}
         onClose={() => setIsFiltersOpen(false)}
-        title={
-          <div className="flex items-center justify-between w-full pr-8">
-            <span>Filters</span>
-            {getActiveFilterCount() > 0 && (
-              <button
-                onClick={handleClearAllFilters}
-                className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent)] hover:underline"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
-        }
+        title="Filters"
         size="md"
       >
         <FiltersContent
@@ -1596,6 +1585,8 @@ function TransactionsContent() {
           categoryGroups={categoryGroups}
           loadingCategoryGroups={loadingCategoryGroups}
           categoryGroupsError={categoryGroupsError}
+          activeFilterCount={getActiveFilterCount()}
+          onClearAll={handleClearAllFilters}
         />
       </Drawer>
 
