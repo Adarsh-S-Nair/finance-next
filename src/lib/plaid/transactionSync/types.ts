@@ -53,6 +53,13 @@ export interface PlaidAccount {
 /**
  * Row written to the `transactions` table.
  * category_id is assigned by the category-linking pass after build.
+ *
+ * NOTE on `undefined` vs `null`: supabase-js drops `undefined` keys during
+ * JSON serialization, which means an upsert-on-conflict omits those columns
+ * from the UPDATE SET clause, preserving the existing DB value. `null`
+ * explicitly overwrites. For fields that Plaid may stop returning on a
+ * subsequent sync (merchant_name, location, etc.) we pass through whatever
+ * Plaid gave us rather than coercing to null — matching legacy behavior.
  */
 export interface TransactionUpsertRow {
   account_id: string; // DB uuid
@@ -61,17 +68,19 @@ export interface TransactionUpsertRow {
   amount: number;
   currency_code: string;
   pending: boolean;
-  merchant_name: string | null;
+  // Pass-through fields: leave undefined if Plaid didn't provide them.
+  merchant_name: string | null | undefined;
+  personal_finance_category: PlaidPersonalFinanceCategory | null | undefined;
+  location: Record<string, unknown> | null | undefined;
+  payment_channel: string | null | undefined;
+  website: string | null | undefined;
+  pending_plaid_transaction_id: string | null | undefined;
+  // Fields where legacy code explicitly fell back to null.
   icon_url: string | null;
-  personal_finance_category: PlaidPersonalFinanceCategory | null;
   datetime: string | null;
   date: string | null;
   authorized_date: string | null;
   authorized_datetime: string | null;
-  location: Record<string, unknown> | null;
-  payment_channel: string | null;
-  website: string | null;
-  pending_plaid_transaction_id: string | null;
   category_id: string | null;
 }
 
@@ -105,7 +114,8 @@ export interface SyncResult {
   message?: string;
   transactions_synced: number;
   pending_transactions_updated: number;
-  accounts_updated: number;
-  snapshots_created: number;
+  // Absent on the "already syncing" short-circuit to match legacy wire shape.
+  accounts_updated?: number;
+  snapshots_created?: number;
   cursor: string | null;
 }

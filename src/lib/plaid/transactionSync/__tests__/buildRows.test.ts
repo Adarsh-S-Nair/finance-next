@@ -105,6 +105,49 @@ describe('mapTransactionToRow', () => {
     const row = mapTransactionToRow(makeTx({ iso_currency_code: null }), ACCOUNT_MAP);
     expect(row!.currency_code).toBe('USD');
   });
+
+  it('passes through missing optional fields as undefined (not null)', () => {
+    // Rationale: supabase-js drops undefined keys from JSON, so an
+    // upsert-on-conflict leaves the existing DB value untouched. Coercing
+    // to null would overwrite the existing value.
+    const tx = makeTx({
+      merchant_name: undefined,
+      location: undefined,
+      payment_channel: undefined,
+      website: undefined,
+      pending_transaction_id: undefined,
+      personal_finance_category: undefined,
+    });
+    const row = mapTransactionToRow(tx, ACCOUNT_MAP);
+    expect(row).not.toBeNull();
+    // `in` / hasOwnProperty check: the key must be present but the value
+    // must be `undefined`, so JSON.stringify will drop it.
+    expect(row!.merchant_name).toBeUndefined();
+    expect(row!.location).toBeUndefined();
+    expect(row!.payment_channel).toBeUndefined();
+    expect(row!.website).toBeUndefined();
+    expect(row!.pending_plaid_transaction_id).toBeUndefined();
+    expect(row!.personal_finance_category).toBeUndefined();
+
+    // Sanity: JSON.stringify drops these keys entirely.
+    const serialized = JSON.parse(JSON.stringify(row));
+    expect('merchant_name' in serialized).toBe(false);
+    expect('location' in serialized).toBe(false);
+    expect('payment_channel' in serialized).toBe(false);
+  });
+
+  it('falls back to counterparty logo when logo_url is an empty string', () => {
+    // Legacy behavior uses `||` rather than `??` for icon_url, so empty
+    // strings also fall through to the counterparty logo.
+    const row = mapTransactionToRow(
+      makeTx({
+        logo_url: '',
+        counterparties: [{ logo_url: 'https://cdn/counterparty.png' }],
+      }),
+      ACCOUNT_MAP
+    );
+    expect(row!.icon_url).toBe('https://cdn/counterparty.png');
+  });
 });
 
 describe('buildTransactionRows', () => {

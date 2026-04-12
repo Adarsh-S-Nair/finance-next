@@ -56,30 +56,40 @@ export function mapTransactionToRow(
   if (!accountUuid) return null;
 
   const effectiveDate = resolveEffectiveDate(tx);
+  // icon_url fallback: use the tx's own logo if truthy, otherwise fall back
+  // to the first counterparty's logo. Note the use of `||` (not `??`) — the
+  // legacy route used `||`, which means empty-string logos also fall through
+  // to the counterparty. Preserve that behavior.
   const firstCounterpartyLogo =
     tx.counterparties && tx.counterparties.length > 0
       ? tx.counterparties[0]?.logo_url ?? null
       : null;
+  const iconUrl: string | null = tx.logo_url || firstCounterpartyLogo;
 
   return {
     account_id: accountUuid,
     plaid_transaction_id: tx.transaction_id,
     description: tx.name || tx.original_description || 'Unknown',
     // Plaid represents debits as positive; we store them as negative.
-    amount: -Number(tx.amount),
+    // `parseFloat` matches legacy behavior exactly; for the numeric values
+    // Plaid actually returns, it is equivalent to `Number()`.
+    amount: -parseFloat(String(tx.amount)),
     currency_code: tx.iso_currency_code || 'USD',
     pending: tx.pending,
-    merchant_name: tx.merchant_name ?? null,
-    icon_url: tx.logo_url ?? firstCounterpartyLogo,
-    personal_finance_category: tx.personal_finance_category ?? null,
+    // Pass-through: leave undefined when Plaid omits, so supabase-js drops
+    // the key and the existing DB value is preserved on upsert-update.
+    merchant_name: tx.merchant_name,
+    personal_finance_category: tx.personal_finance_category,
+    location: tx.location,
+    payment_channel: tx.payment_channel,
+    website: tx.website,
+    pending_plaid_transaction_id: tx.pending_transaction_id,
+    // Fields where legacy code explicitly fell back to null.
+    icon_url: iconUrl,
     datetime: tx.datetime || (effectiveDate ? new Date(effectiveDate).toISOString() : null),
-    date: effectiveDate,
-    authorized_date: tx.authorized_date ?? null,
-    authorized_datetime: tx.authorized_datetime ?? null,
-    location: tx.location ?? null,
-    payment_channel: tx.payment_channel ?? null,
-    website: tx.website ?? null,
-    pending_plaid_transaction_id: tx.pending_transaction_id ?? null,
+    date: effectiveDate || null,
+    authorized_date: tx.authorized_date || null,
+    authorized_datetime: tx.authorized_datetime || null,
     category_id: null, // set later by the category-linking pass
   };
 }

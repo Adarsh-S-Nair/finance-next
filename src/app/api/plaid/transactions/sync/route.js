@@ -20,7 +20,8 @@ export async function POST(request) {
     const body = await request.json();
     plaidItemId = body.plaidItemId ?? null;
     const userId = resolveUserId(request, body.userId);
-    const forceSync = body.forceSync === true;
+    // Truthy check matches legacy behavior — accepts `true`, `"true"`, `1`, etc.
+    const forceSync = Boolean(body.forceSync);
 
     if (!plaidItemId || !userId) {
       return Response.json(

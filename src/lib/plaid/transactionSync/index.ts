@@ -76,14 +76,13 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
 
     if (plaidItem.sync_status === 'syncing' && !forceSync) {
       logger.info('Item is already syncing, skipping', { plaidItemId });
+      // Match legacy wire shape exactly — no accounts_updated/snapshots_created.
       return {
         success: true,
         message: 'Item is already syncing',
         transactions_synced: 0,
         pending_transactions_updated: 0,
-        accounts_updated: 0,
-        snapshots_created: 0,
-        cursor: plaidItem.transaction_cursor ?? null,
+        cursor: plaidItem.transaction_cursor,
       };
     }
 
