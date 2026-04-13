@@ -530,7 +530,7 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         transition={{ delay: 0.15 }}
         className="mt-10"
       >
-        <SectionLabel className="mb-3">Estimated average</SectionLabel>
+        <SectionLabel className="mb-1">Estimated average</SectionLabel>
         <div className="flex items-end justify-between gap-6">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
@@ -553,7 +553,7 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mt-10"
+        className="mt-8"
       >
         <Button onClick={onContinue} className="h-10 px-6">
           Looks right &mdash; continue
