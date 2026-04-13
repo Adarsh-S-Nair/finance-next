@@ -30,6 +30,14 @@ export default function CreateBudgetOverlay({
   const [spendingHistory, setSpendingHistory] = useState([]);
   const [createdBudgets, setCreatedBudgets] = useState([]);
   const [creating, setCreating] = useState(false);
+  const [adjustedIncome, setAdjustedIncome] = useState(
+    Math.round(monthlyIncome || 0)
+  );
+
+  // Keep adjustedIncome in sync with parent prop (e.g. when data loads).
+  useEffect(() => {
+    setAdjustedIncome(Math.round(monthlyIncome || 0));
+  }, [monthlyIncome]);
 
   // Reset state after overlay closes (delay for exit animation).
   useEffect(() => {
@@ -43,9 +51,10 @@ export default function CreateBudgetOverlay({
       setCreatedBudgets([]);
       setCreating(false);
       setLoading(true);
+      setAdjustedIncome(Math.round(monthlyIncome || 0));
     }, 250);
     return () => clearTimeout(t);
-  }, [isOpen, initialStep]);
+  }, [isOpen, initialStep, monthlyIncome]);
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -238,8 +247,9 @@ export default function CreateBudgetOverlay({
                     transition={{ duration: 0.2 }}
                   >
                     <IncomeStep
-                      monthlyIncome={monthlyIncome}
+                      monthlyIncome={adjustedIncome}
                       incomeMonths={incomeMonths}
+                      onAdjust={setAdjustedIncome}
                     />
                   </motion.div>
                 )}
@@ -258,7 +268,7 @@ export default function CreateBudgetOverlay({
                       onSelect={handleSelectCategory}
                       onCreateAll={handleCreateAll}
                       creating={creating}
-                      monthlyIncome={monthlyIncome}
+                      monthlyIncome={adjustedIncome}
                       existingBudgets={existingBudgets}
                     />
                   </motion.div>
@@ -280,7 +290,7 @@ export default function CreateBudgetOverlay({
                       onBack={handleBack}
                       onCreate={handleCreateSingle}
                       creating={creating}
-                      monthlyIncome={monthlyIncome}
+                      monthlyIncome={adjustedIncome}
                       existingBudgets={existingBudgets}
                     />
                   </motion.div>
@@ -570,16 +580,7 @@ function AnimatedCurrency({ value, duration = 200 }) {
   return <>{formatted}</>;
 }
 
-function IncomeStep({ monthlyIncome, incomeMonths }) {
-  const [adjustedIncome, setAdjustedIncome] = useState(
-    Math.round(monthlyIncome || 0)
-  );
-
-  // Sync when parent data arrives after initial render.
-  useEffect(() => {
-    setAdjustedIncome(Math.round(monthlyIncome || 0));
-  }, [monthlyIncome]);
-
+function IncomeStep({ monthlyIncome, incomeMonths, onAdjust }) {
   const hasZeroMonth = incomeMonths.some(
     (m) => Number(m.earning || 0) === 0
   );
@@ -638,7 +639,7 @@ function IncomeStep({ monthlyIncome, incomeMonths }) {
               <SectionLabel className="mb-1">Estimated average</SectionLabel>
               <div className="flex items-baseline gap-1">
                 <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-                  <AnimatedCurrency value={adjustedIncome} />
+                  <AnimatedCurrency value={monthlyIncome} />
                 </span>
                 <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
               </div>
@@ -646,7 +647,7 @@ function IncomeStep({ monthlyIncome, incomeMonths }) {
 
             <IncomeBreakdownChart
               months={incomeMonths}
-              onAverageChange={setAdjustedIncome}
+              onAverageChange={onAdjust}
               compact
             />
           </div>
@@ -715,16 +716,13 @@ function ChooseStep({
           <SectionLabel className="mb-2">Your spending categories</SectionLabel>
 
           {loading ? (
-            <div className="divide-y divide-[var(--color-border)]">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-4 py-4">
-                  <div className="w-9 h-9 rounded-full bg-[var(--color-border)] animate-pulse flex-shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-4 w-24 bg-[var(--color-border)] rounded animate-pulse" />
-                    <div className="h-3 w-16 bg-[var(--color-border)] rounded animate-pulse" />
-                  </div>
-                  <div className="h-4 w-14 bg-[var(--color-border)] rounded animate-pulse" />
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="h-9 bg-[var(--color-border)] rounded-full animate-pulse"
+                  style={{ width: `${60 + i * 14}px` }}
+                />
               ))}
             </div>
           ) : categories.length === 0 ? (
@@ -732,32 +730,31 @@ function ChooseStep({
               No spending categories found. Transactions need to sync first.
             </div>
           ) : (
-            <div className="divide-y divide-[var(--color-border)]">
+            <div className="flex flex-wrap gap-2">
               {categories.map((cat, i) => (
                 <motion.button
                   key={cat.id}
                   type="button"
                   onClick={() => onSelect(cat)}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + i * 0.04 }}
-                  whileHover={{ x: 2 }}
-                  className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.06 + i * 0.03 }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-3 py-1.5 text-left cursor-pointer hover:border-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] transition-colors"
                 >
                   <CategoryDot
                     hexColor={cat.hexColor}
                     iconName={cat.iconName}
                     iconLib={cat.iconLib}
+                    size={22}
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
-                      {cat.label}
-                    </div>
-                    <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                      ${cat.monthlyAvg.toLocaleString()}/mo avg
-                    </div>
-                  </div>
-                  <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
+                  <span className="text-[13px] font-medium text-[var(--color-fg)] whitespace-nowrap">
+                    {cat.label}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-muted)] tabular-nums whitespace-nowrap">
+                    ${cat.monthlyAvg.toLocaleString()}
+                  </span>
                 </motion.button>
               ))}
             </div>

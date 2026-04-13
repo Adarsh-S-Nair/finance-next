@@ -131,7 +131,7 @@ export default function IncomeBreakdownChart({
                 style={{
                   backgroundColor: isZero
                     ? "var(--color-border)"
-                    : "var(--color-neon-green)",
+                    : "var(--color-success)",
                   originY: 1,
                 }}
               />
