@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiCheck, FiChevronLeft, FiChevronRight } from "react-icons/fi";
@@ -461,12 +461,48 @@ function MonthlyOutlook({
 
 /* ── Step: Confirm monthly income ────────────────────────── */
 
-function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
+function AnimatedCurrency({ value, duration = 200 }) {
+  const [display, setDisplay] = useState(value);
+  const animRef = useRef(null);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (prevRef.current === value) return;
+    const start = prevRef.current;
+    const end = value;
+    prevRef.current = value;
+    const startTime = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+      setDisplay(Math.round(start + (end - start) * ease));
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, [value, duration]);
+
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(Math.round(monthlyIncome || 0));
+  }).format(display);
+
+  return <>{formatted}</>;
+}
+
+function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
+  const [adjustedIncome, setAdjustedIncome] = useState(
+    Math.round(monthlyIncome || 0)
+  );
 
   return (
     <div>
@@ -492,12 +528,12 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="mt-12"
+        className="mt-10"
       >
         <SectionLabel className="mb-2">Estimated average</SectionLabel>
         <div className="flex items-baseline gap-1">
           <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-            {formatted}
+            <AnimatedCurrency value={adjustedIncome} />
           </span>
           <span className="text-sm text-[var(--color-muted)] ml-1">/ month</span>
         </div>
@@ -508,9 +544,12 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22 }}
-          className="mt-12"
+          className="mt-10"
         >
-          <IncomeBreakdownChart months={incomeMonths} />
+          <IncomeBreakdownChart
+            months={incomeMonths}
+            onAverageChange={setAdjustedIncome}
+          />
         </motion.div>
       )}
 
@@ -518,7 +557,7 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mt-12"
+        className="mt-10"
       >
         <Button onClick={onContinue} className="h-10 px-6">
           Looks right &mdash; continue
