@@ -174,6 +174,7 @@ export default function BudgetsPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={fetchBudgets}
         monthlyIncome={monthlyIncome}
+        incomeMonths={incomeMonths}
         existingBudgets={budgets}
       />
       <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />

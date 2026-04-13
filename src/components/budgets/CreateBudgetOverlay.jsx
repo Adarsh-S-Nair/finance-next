@@ -8,15 +8,24 @@ import { FiTag } from "react-icons/fi";
 import Button from "../ui/Button";
 import DynamicIcon from "../DynamicIcon";
 import { LuSparkles } from "react-icons/lu";
+import IncomeBreakdownChart from "./IncomeBreakdownChart";
 
 export default function CreateBudgetOverlay({
   isOpen,
   onClose,
   onCreated,
   monthlyIncome = 0,
+  incomeMonths = [],
   existingBudgets = [],
 }) {
-  const [step, setStep] = useState("choose"); // choose | amount | creating | done
+  // For first-time setup we lead with an income confirmation step so users
+  // can sanity-check the number their budgets will be sized against. Returning
+  // users adding additional budgets jump straight to category selection.
+  const initialStep =
+    existingBudgets.length === 0 && incomeMonths.length > 0
+      ? "income"
+      : "choose";
+  const [step, setStep] = useState(initialStep); // income | choose | amount | done
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -29,7 +38,7 @@ export default function CreateBudgetOverlay({
   useEffect(() => {
     if (isOpen) return;
     const t = setTimeout(() => {
-      setStep("choose");
+      setStep(initialStep);
       setCategories([]);
       setSelectedCategory(null);
       setAmount("");
@@ -39,7 +48,7 @@ export default function CreateBudgetOverlay({
       setLoading(true);
     }, 250);
     return () => clearTimeout(t);
-  }, [isOpen]);
+  }, [isOpen, initialStep]);
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -220,6 +229,22 @@ export default function CreateBudgetOverlay({
           <div className="min-h-screen flex items-center justify-center px-6 py-20">
             <div className="w-full max-w-md">
               <AnimatePresence mode="wait">
+                {step === "income" && (
+                  <motion.div
+                    key="income"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <IncomeStep
+                      monthlyIncome={monthlyIncome}
+                      incomeMonths={incomeMonths}
+                      onContinue={() => setStep("choose")}
+                    />
+                  </motion.div>
+                )}
+
                 {step === "choose" && (
                   <motion.div
                     key="choose"
@@ -430,6 +455,80 @@ function MonthlyOutlook({
           {income > 0 ? Math.round((totalAllocated / income) * 100) : 0}% of income
         </span>
       </div>
+    </div>
+  );
+}
+
+/* ── Step: Confirm monthly income ────────────────────────── */
+
+function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Math.round(monthlyIncome || 0));
+
+  return (
+    <div>
+      <motion.h1
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
+      >
+        Your monthly income
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="text-sm text-[var(--color-muted)] mt-3 leading-relaxed"
+      >
+        We&apos;ll size your budgets against this number, so let&apos;s make
+        sure it looks right before we go further.
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="mt-10"
+      >
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+          Estimated average
+        </div>
+        <div className="text-5xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+          {formatted}
+        </div>
+        <div className="text-xs text-[var(--color-muted)] mt-2">
+          per month
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.22 }}
+        className="mt-10"
+      >
+        <IncomeBreakdownChart
+          months={incomeMonths}
+          avg={monthlyIncome}
+          labelBg="var(--color-content-bg)"
+        />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="mt-10"
+      >
+        <Button onClick={onContinue} className="w-full h-11">
+          Looks right — continue
+        </Button>
+      </motion.div>
     </div>
   );
 }
