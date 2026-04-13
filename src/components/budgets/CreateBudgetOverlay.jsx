@@ -504,6 +504,10 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
     Math.round(monthlyIncome || 0)
   );
 
+  const hasZeroMonth = incomeMonths.some(
+    (m) => Number(m.earning || 0) === 0
+  );
+
   return (
     <div>
       <motion.h1
@@ -524,19 +528,22 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         We&apos;ll size your budgets against this number.
       </motion.p>
 
+      {/* Average + chart on same row, vertically centered */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="mt-10"
       >
-        <SectionLabel className="mb-1">Estimated average</SectionLabel>
-        <div className="flex items-end justify-between gap-6">
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-              <AnimatedCurrency value={adjustedIncome} />
-            </span>
-            <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <SectionLabel className="mb-1">Estimated average</SectionLabel>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+                <AnimatedCurrency value={adjustedIncome} />
+              </span>
+              <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
+            </div>
           </div>
 
           {incomeMonths.length > 0 && (
@@ -549,15 +556,34 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         </div>
       </motion.div>
 
+      {/* $0 month disclaimer */}
+      {hasZeroMonth && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25 }}
+          className="text-[11px] text-[var(--color-muted)] mt-6 leading-relaxed"
+        >
+          A $0 month usually means an account wasn&apos;t connected yet.
+          Connect more institutions for a more accurate average.
+        </motion.p>
+      )}
+
+      {/* Continue — simple text link */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mt-8"
+        className="mt-10"
       >
-        <Button onClick={onContinue} className="h-10 px-6">
-          Looks right &mdash; continue
-        </Button>
+        <button
+          type="button"
+          onClick={onContinue}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-muted)] transition-colors cursor-pointer"
+        >
+          Looks right, continue
+          <FiChevronRight className="h-4 w-4" />
+        </button>
       </motion.div>
     </div>
   );

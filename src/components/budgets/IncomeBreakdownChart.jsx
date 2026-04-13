@@ -11,7 +11,7 @@ import { formatCurrency } from "../../lib/formatCurrency";
  * When `onAverageChange` is provided, clicking anywhere in a bar's column
  * toggles that month out of the average calculation.
  *
- * `compact` hides the header/footer rows for inline use beside the average.
+ * `compact` hides the full-width header for inline use beside the average.
  */
 export default function IncomeBreakdownChart({
   months,
@@ -58,7 +58,7 @@ export default function IncomeBreakdownChart({
 
   return (
     <div>
-      {/* Header — hidden in compact mode */}
+      {/* Header row */}
       {!compact && (
         <div className="flex items-center justify-between mb-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
@@ -69,6 +69,13 @@ export default function IncomeBreakdownChart({
               avg {formatCurrency(avg)}
             </span>
           )}
+        </div>
+      )}
+
+      {/* "tap to exclude" hint — sits right above the bars, right-aligned */}
+      {interactive && compact && (
+        <div className="text-[9px] text-[var(--color-muted)] text-right mb-1.5 tracking-wide">
+          tap to exclude
         </div>
       )}
 
@@ -107,7 +114,7 @@ export default function IncomeBreakdownChart({
                 {isZero ? "$0" : formatCurrencyCompact(earning)}
               </motion.span>
 
-              {/* Bar — visual hover/tap target, but the whole column is clickable */}
+              {/* Bar */}
               <motion.div
                 className="w-6 rounded-sm"
                 whileHover={interactive ? { scaleY: 1.1, scaleX: 1.2 } : undefined}
@@ -122,9 +129,7 @@ export default function IncomeBreakdownChart({
                     : { duration: 0.2 }
                 }
                 style={{
-                  backgroundColor: isZero
-                    ? "var(--color-muted)"
-                    : "var(--color-muted)",
+                  backgroundColor: "var(--color-muted)",
                   originY: 1,
                 }}
               />
@@ -146,16 +151,14 @@ export default function IncomeBreakdownChart({
         })}
       </div>
 
-      {/* Footer hints — shown in compact mode too */}
-      {interactive && (
+      {/* Non-compact footer */}
+      {!compact && interactive && (
         <p className="text-[10px] text-[var(--color-muted)] mt-3 leading-relaxed">
           Tap a bar to exclude it from the average.
-          {hasZeroMonth &&
-            " A $0 month usually means an account wasn\u2019t connected yet."}
         </p>
       )}
 
-      {!interactive && !compact && hasZeroMonth && (
+      {!compact && !interactive && hasZeroMonth && (
         <p className="text-[11px] text-[var(--color-muted)] mt-4 leading-relaxed">
           A $0 month usually means an account wasn&apos;t connected yet.
           Connect more institutions for a more accurate average.
