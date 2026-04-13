@@ -228,6 +228,7 @@ export default function CreateBudgetOverlay({
           {/* Content */}
           <div className="min-h-screen flex items-center justify-center px-6 py-20">
             <div className="w-full max-w-md">
+              <StepProgress current={step} />
               <AnimatePresence mode="wait">
                 {step === "income" && (
                   <motion.div
@@ -261,6 +262,7 @@ export default function CreateBudgetOverlay({
                       creating={creating}
                       monthlyIncome={monthlyIncome}
                       existingBudgets={existingBudgets}
+                      onBack={initialStep === "income" ? () => setStep("income") : null}
                     />
                   </motion.div>
                 )}
@@ -312,6 +314,29 @@ export default function CreateBudgetOverlay({
 }
 
 /* ── Shared primitives ────────────────────────────────────── */
+
+const STEP_ORDER = ["income", "choose", "amount"];
+
+function StepProgress({ current }) {
+  const idx = STEP_ORDER.indexOf(current);
+  if (idx === -1) return null; // hide on "done"
+  return (
+    <div className="flex items-center gap-1 mb-8">
+      {STEP_ORDER.map((s, i) => (
+        <div
+          key={s}
+          className={`h-[3px] rounded-full transition-all duration-500 ${
+            i === idx
+              ? "flex-[2] bg-[var(--color-fg)]"
+              : i < idx
+                ? "flex-1 bg-[var(--color-fg)] opacity-30"
+                : "flex-1 bg-[var(--color-border)]"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
 
 function SectionLabel({ children, className = "" }) {
   return (
@@ -562,28 +587,24 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25 }}
-          className="text-[11px] text-[var(--color-muted)] mt-6 leading-relaxed"
+          className="text-xs text-[var(--color-muted)] mt-8 leading-relaxed"
         >
           A $0 month usually means an account wasn&apos;t connected yet.
           Connect more institutions for a more accurate average.
         </motion.p>
       )}
 
-      {/* Continue — simple text link */}
+      {/* Continue */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="mt-10"
       >
-        <button
-          type="button"
-          onClick={onContinue}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-muted)] transition-colors cursor-pointer"
-        >
-          Looks right, continue
-          <FiChevronRight className="h-4 w-4" />
-        </button>
+        <Button variant="secondary" onClick={onContinue} size="sm" className="gap-1.5 pl-4 pr-3">
+          Continue
+          <FiChevronRight className="h-3.5 w-3.5" />
+        </Button>
       </motion.div>
     </div>
   );
@@ -599,12 +620,27 @@ function ChooseStep({
   creating,
   monthlyIncome,
   existingBudgets,
+  onBack,
 }) {
   const showOutlook =
     monthlyIncome > 0 && (categories.length > 0 || existingBudgets.length > 0);
 
   return (
     <div>
+      {onBack && (
+        <motion.button
+          type="button"
+          onClick={onBack}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.05 }}
+          className="inline-flex items-center gap-1 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer mb-6"
+        >
+          <FiChevronLeft className="h-4 w-4" />
+          Back
+        </motion.button>
+      )}
+
       <motion.h1
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}

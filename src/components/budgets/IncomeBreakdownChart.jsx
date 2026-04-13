@@ -72,10 +72,10 @@ export default function IncomeBreakdownChart({
         </div>
       )}
 
-      {/* "tap to exclude" hint — sits right above the bars, right-aligned */}
+      {/* "TAP TO EXCLUDE" hint — sits right above the bars */}
       {interactive && compact && (
-        <div className="text-[9px] text-[var(--color-muted)] text-right mb-1.5 tracking-wide">
-          tap to exclude
+        <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--color-muted)] text-right mb-2">
+          Tap to exclude
         </div>
       )}
 
