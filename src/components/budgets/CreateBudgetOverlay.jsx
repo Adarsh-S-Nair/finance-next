@@ -9,7 +9,13 @@ import Button from "../ui/Button";
 import DynamicIcon from "../DynamicIcon";
 import { LuSparkles } from "react-icons/lu";
 
-export default function CreateBudgetOverlay({ isOpen, onClose, onCreated }) {
+export default function CreateBudgetOverlay({
+  isOpen,
+  onClose,
+  onCreated,
+  monthlyIncome = 0,
+  existingBudgets = [],
+}) {
   const [step, setStep] = useState("choose"); // choose | amount | creating | done
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -228,6 +234,8 @@ export default function CreateBudgetOverlay({ isOpen, onClose, onCreated }) {
                       onSelect={handleSelectCategory}
                       onCreateAll={handleCreateAll}
                       creating={creating}
+                      monthlyIncome={monthlyIncome}
+                      existingBudgets={existingBudgets}
                     />
                   </motion.div>
                 )}
@@ -248,6 +256,8 @@ export default function CreateBudgetOverlay({ isOpen, onClose, onCreated }) {
                       onBack={handleBack}
                       onCreate={handleCreateSingle}
                       creating={creating}
+                      monthlyIncome={monthlyIncome}
+                      existingBudgets={existingBudgets}
                     />
                   </motion.div>
                 )}
@@ -306,9 +316,138 @@ function CategoryDot({ hexColor, iconName, iconLib, size = 36 }) {
   );
 }
 
+/* ── Monthly outlook (income breakdown preview) ───────────── */
+
+function MonthlyOutlook({
+  income,
+  existingBudgets = [],
+  newCategories = [],
+  newAllocationOverride = null,
+}) {
+  const existingTotal = existingBudgets.reduce(
+    (sum, b) => sum + Number(b.amount || 0),
+    0
+  );
+  const newTotal =
+    newAllocationOverride != null
+      ? newAllocationOverride
+      : newCategories.reduce(
+          (sum, c) => sum + Number(c.monthlyAvg || 0),
+          0
+        );
+  const totalAllocated = existingTotal + newTotal;
+  const remaining = Math.max(0, income - totalAllocated);
+  const overAllocated = Math.max(0, totalAllocated - income);
+  const barTotal = Math.max(income, totalAllocated);
+
+  // Build segments: existing first (muted), then new (colored), then unallocated track.
+  const existingSegments = existingBudgets
+    .map((b) => {
+      const amt = Number(b.amount || 0);
+      if (amt <= 0) return null;
+      const isGroup = !!b.category_groups;
+      const color =
+        (isGroup ? b.category_groups?.hex_color : b.system_categories?.hex_color) ||
+        "var(--color-muted)";
+      const label = isGroup
+        ? b.category_groups?.name
+        : b.system_categories?.label || "Existing budget";
+      return { id: `existing-${b.id}`, amount: amt, color, label, dim: true };
+    })
+    .filter(Boolean);
+
+  const newSegments = newCategories
+    .map((c) => {
+      const amt = Number(c.monthlyAvg || 0);
+      if (amt <= 0) return null;
+      return {
+        id: `new-${c.id}`,
+        amount: amt,
+        color: c.hexColor || "var(--color-muted)",
+        label: c.label,
+        dim: false,
+      };
+    })
+    .filter(Boolean);
+
+  const segments = [...existingSegments, ...newSegments];
+
+  return (
+    <div>
+      <SectionLabel className="mb-3">Monthly outlook</SectionLabel>
+
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <div className="text-[22px] font-medium text-[var(--color-fg)] tabular-nums leading-tight">
+            ${Math.round(income).toLocaleString()}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            average income
+          </div>
+        </div>
+        <div className="text-right">
+          <div
+            className="text-[22px] font-medium tabular-nums leading-tight"
+            style={{
+              color: overAllocated > 0 ? "var(--color-danger)" : "var(--color-fg)",
+            }}
+          >
+            ${Math.round(overAllocated > 0 ? overAllocated : remaining).toLocaleString()}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            {overAllocated > 0 ? "over income" : "free to save"}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-2 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
+        {segments.map((seg) => {
+          const pct = barTotal > 0 ? (seg.amount / barTotal) * 100 : 0;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={seg.id}
+              className="h-full"
+              style={{
+                width: `${pct}%`,
+                backgroundColor: seg.color,
+                opacity: seg.dim ? 0.45 : 1,
+              }}
+              title={`${seg.label} · $${Math.round(seg.amount).toLocaleString()}`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between mt-3 text-[11px] text-[var(--color-muted)]">
+        <span className="tabular-nums">
+          ${Math.round(totalAllocated).toLocaleString()} budgeted
+          {existingTotal > 0 && newTotal > 0
+            ? ` (${Math.round(existingTotal).toLocaleString()} existing)`
+            : ""}
+        </span>
+        <span className="tabular-nums">
+          {income > 0 ? Math.round((totalAllocated / income) * 100) : 0}% of income
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ── Step: Choose category ───────────────────────────────── */
 
-function ChooseStep({ categories, loading, onSelect, onCreateAll, creating }) {
+function ChooseStep({
+  categories,
+  loading,
+  onSelect,
+  onCreateAll,
+  creating,
+  monthlyIncome,
+  existingBudgets,
+}) {
+  const showOutlook =
+    monthlyIncome > 0 && (categories.length > 0 || existingBudgets.length > 0);
+
   return (
     <div>
       <motion.h1
@@ -319,6 +458,21 @@ function ChooseStep({ categories, loading, onSelect, onCreateAll, creating }) {
       >
         Create a budget
       </motion.h1>
+
+      {showOutlook && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="mt-10"
+        >
+          <MonthlyOutlook
+            income={monthlyIncome}
+            existingBudgets={existingBudgets}
+            newCategories={categories}
+          />
+        </motion.div>
+      )}
 
       <div className="mt-10 space-y-10">
         {/* Category list */}
@@ -421,11 +575,28 @@ function AmountStep({
   onBack,
   onCreate,
   creating,
+  monthlyIncome,
+  existingBudgets,
 }) {
   const maxSpend =
     spendingHistory.length > 0
       ? Math.max(...spendingHistory.map((m) => m.spending))
       : 0;
+
+  const showOutlook = monthlyIncome > 0;
+  const newAllocation = parseFloat(amount) || 0;
+  // For the bar in this step, treat the in-progress amount as a single "new"
+  // segment colored by the current category.
+  const previewCategories = category
+    ? [
+        {
+          id: category.id,
+          label: category.label,
+          monthlyAvg: newAllocation,
+          hexColor: category.hexColor,
+        },
+      ]
+    : [];
 
   return (
     <div>
@@ -464,6 +635,22 @@ function AmountStep({
           </p>
         </div>
       </motion.div>
+
+      {/* Monthly outlook */}
+      {showOutlook && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.11 }}
+          className="mb-10"
+        >
+          <MonthlyOutlook
+            income={monthlyIncome}
+            existingBudgets={existingBudgets}
+            newCategories={previewCategories}
+          />
+        </motion.div>
+      )}
 
       {/* Amount input */}
       <motion.div
