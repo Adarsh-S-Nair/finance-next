@@ -38,12 +38,17 @@ export default function BudgetsPage() {
     if (!user?.id) return;
     setIncomeLoading(true);
     try {
-      const res = await fetch(`/api/transactions/spending-earning?months=6`);
+      const res = await fetch(`/api/transactions/spending-earning?months=12`);
       const json = await res.json();
-      // Average monthly income over the completed months returned.
       const months = Array.isArray(json?.data) ? json.data : [];
+      // Only average months that (a) are complete (not the current month, not
+      // before the user's first synced month) AND (b) actually have income.
+      // A $0-earning "complete" month almost always means a sync gap or a
+      // month before the user started earning, not a true zero — counting it
+      // would drag the average down for budgeting purposes.
       const completed = months.filter((m) => m.isComplete);
-      const sample = completed.length > 0 ? completed : months;
+      const earningMonths = completed.filter((m) => Number(m.earning || 0) > 0);
+      const sample = earningMonths.length > 0 ? earningMonths : completed;
       const totalEarning = sample.reduce(
         (sum, m) => sum + Number(m.earning || 0),
         0
