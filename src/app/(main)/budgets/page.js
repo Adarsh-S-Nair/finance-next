@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
-import BudgetCard from '../../../components/budgets/BudgetCard';
+import BudgetAllocationBar from '../../../components/budgets/BudgetAllocationBar';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
@@ -15,6 +15,8 @@ export default function BudgetsPage() {
   const { user, isPro } = useUser();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [incomeLoading, setIncomeLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -32,8 +34,33 @@ export default function BudgetsPage() {
     }
   };
 
+  const fetchIncome = async () => {
+    if (!user?.id) return;
+    setIncomeLoading(true);
+    try {
+      const res = await fetch(`/api/transactions/spending-earning?months=6`);
+      const json = await res.json();
+      // Average monthly income over the completed months returned.
+      const months = Array.isArray(json?.data) ? json.data : [];
+      const completed = months.filter((m) => m.isComplete);
+      const sample = completed.length > 0 ? completed : months;
+      const totalEarning = sample.reduce(
+        (sum, m) => sum + Number(m.earning || 0),
+        0
+      );
+      const avg = sample.length > 0 ? totalEarning / sample.length : 0;
+      setMonthlyIncome(avg);
+    } catch (e) {
+      console.error(e);
+      setMonthlyIncome(0);
+    } finally {
+      setIncomeLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchBudgets();
+    fetchIncome();
   }, [user?.id]);
 
   const handleDelete = async (id) => {
@@ -86,11 +113,7 @@ export default function BudgetsPage() {
     >
       <div className="space-y-8">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="h-40 animate-pulse bg-[var(--color-surface)] opacity-50" />
-            ))}
-          </div>
+          <Card className="h-80 animate-pulse bg-[var(--color-surface)] opacity-50" />
         ) : budgets.length === 0 ? (
           <EmptyState>
             <div className="py-16 lg:py-24 max-w-xl">
@@ -129,11 +152,12 @@ export default function BudgetsPage() {
             </div>
           </EmptyState>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {budgets.map(b => (
-              <BudgetCard key={b.id} budget={b} onDelete={handleDelete} />
-            ))}
-          </div>
+          <BudgetAllocationBar
+            budgets={budgets}
+            monthlyIncome={monthlyIncome}
+            incomeLoading={incomeLoading}
+            onDelete={handleDelete}
+          />
         )}
       </div>
 

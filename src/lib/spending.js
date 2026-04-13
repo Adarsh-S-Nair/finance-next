@@ -21,8 +21,8 @@ export async function getBudgetProgress(supabase, userId, monthDate = new Date()
     .from('budgets')
     .select(`
       *,
-      category_groups (id, name, icon_name, icon_lib),
-      system_categories (id, label, group_id)
+      category_groups (id, name, icon_name, icon_lib, hex_color),
+      system_categories (id, label, group_id, hex_color)
     `)
     .eq('user_id', userId);
 
