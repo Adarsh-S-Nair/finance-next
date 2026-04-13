@@ -121,7 +121,7 @@ export default function IncomeBreakdownChart({
                 whileTap={interactive ? { scaleY: 0.85, scaleX: 0.9 } : undefined}
                 animate={{
                   height: heightPx,
-                  opacity: isExcluded ? 0.15 : 1,
+                  opacity: isExcluded ? 0.2 : isZero ? 0.4 : 0.7,
                 }}
                 transition={
                   interactive
@@ -129,7 +129,9 @@ export default function IncomeBreakdownChart({
                     : { duration: 0.2 }
                 }
                 style={{
-                  backgroundColor: "var(--color-muted)",
+                  backgroundColor: isZero
+                    ? "var(--color-border)"
+                    : "var(--color-neon-green)",
                   originY: 1,
                 }}
               />

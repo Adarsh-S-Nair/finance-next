@@ -18,13 +18,10 @@ export default function CreateBudgetOverlay({
   incomeMonths = [],
   existingBudgets = [],
 }) {
-  // For first-time setup we lead with an income confirmation step so users
-  // can sanity-check the number their budgets will be sized against. Returning
-  // users adding additional budgets jump straight to category selection.
-  const initialStep =
-    existingBudgets.length === 0 && incomeMonths.length > 0
-      ? "income"
-      : "choose";
+  // First-time users always start at the income step. Returning users
+  // who already have budgets skip straight to category selection.
+  const showIncome = existingBudgets.length === 0;
+  const initialStep = showIncome ? "income" : "choose";
   const [step, setStep] = useState(initialStep); // income | choose | amount | done
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -227,8 +224,10 @@ export default function CreateBudgetOverlay({
 
           {/* Content */}
           <div className="min-h-screen flex items-center justify-center px-6 py-20">
+            {/* Side nav chevrons */}
+            <StepSideNav step={step} showIncome={showIncome} onNav={setStep} selectedCategory={selectedCategory} />
+
             <div className="w-full max-w-md">
-              <StepProgress current={step} />
               <AnimatePresence mode="wait">
                 {step === "income" && (
                   <motion.div
@@ -241,7 +240,6 @@ export default function CreateBudgetOverlay({
                     <IncomeStep
                       monthlyIncome={monthlyIncome}
                       incomeMonths={incomeMonths}
-                      onContinue={() => setStep("choose")}
                     />
                   </motion.div>
                 )}
@@ -262,7 +260,6 @@ export default function CreateBudgetOverlay({
                       creating={creating}
                       monthlyIncome={monthlyIncome}
                       existingBudgets={existingBudgets}
-                      onBack={initialStep === "income" ? () => setStep("income") : null}
                     />
                   </motion.div>
                 )}
@@ -304,6 +301,9 @@ export default function CreateBudgetOverlay({
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Bottom progress bars */}
+              <StepProgress current={step} />
             </div>
           </div>
         </motion.div>
@@ -319,9 +319,9 @@ const STEP_ORDER = ["income", "choose", "amount"];
 
 function StepProgress({ current }) {
   const idx = STEP_ORDER.indexOf(current);
-  if (idx === -1) return null; // hide on "done"
+  if (idx === -1) return null;
   return (
-    <div className="flex items-center gap-1 mb-8">
+    <div className="flex items-center gap-1 mt-12">
       {STEP_ORDER.map((s, i) => (
         <div
           key={s}
@@ -335,6 +335,52 @@ function StepProgress({ current }) {
         />
       ))}
     </div>
+  );
+}
+
+function StepSideNav({ step, showIncome, onNav, selectedCategory }) {
+  const idx = STEP_ORDER.indexOf(step);
+  if (idx === -1) return null;
+
+  const canGoBack = idx > 0 && (showIncome || idx > 0);
+  // Can only go forward from income → choose (choose → amount requires
+  // selecting a category, so that's handled by the step itself).
+  const canGoForward = step === "income" || (step === "choose" && selectedCategory);
+
+  const goPrev = () => {
+    if (!canGoBack) return;
+    onNav(STEP_ORDER[idx - 1]);
+  };
+
+  const goNext = () => {
+    if (!canGoForward) return;
+    onNav(STEP_ORDER[idx + 1]);
+  };
+
+  return (
+    <>
+      {/* Left chevron */}
+      <button
+        type="button"
+        onClick={goPrev}
+        disabled={!canGoBack}
+        className="fixed left-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer disabled:opacity-0 disabled:pointer-events-none"
+        aria-label="Previous step"
+      >
+        <FiChevronLeft className="h-5 w-5" />
+      </button>
+
+      {/* Right chevron */}
+      <button
+        type="button"
+        onClick={goNext}
+        disabled={!canGoForward}
+        className="fixed right-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer disabled:opacity-0 disabled:pointer-events-none"
+        aria-label="Next step"
+      >
+        <FiChevronRight className="h-5 w-5" />
+      </button>
+    </>
   );
 }
 
@@ -524,14 +570,21 @@ function AnimatedCurrency({ value, duration = 200 }) {
   return <>{formatted}</>;
 }
 
-function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
+function IncomeStep({ monthlyIncome, incomeMonths }) {
   const [adjustedIncome, setAdjustedIncome] = useState(
     Math.round(monthlyIncome || 0)
   );
 
+  // Sync when parent data arrives after initial render.
+  useEffect(() => {
+    setAdjustedIncome(Math.round(monthlyIncome || 0));
+  }, [monthlyIncome]);
+
   const hasZeroMonth = incomeMonths.some(
     (m) => Number(m.earning || 0) === 0
   );
+
+  const isLoading = incomeMonths.length === 0;
 
   return (
     <div>
@@ -560,25 +613,44 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         transition={{ delay: 0.15 }}
         className="mt-10"
       >
-        <div className="flex items-center justify-between gap-6">
-          <div>
-            <SectionLabel className="mb-1">Estimated average</SectionLabel>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-                <AnimatedCurrency value={adjustedIncome} />
-              </span>
-              <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
+        {isLoading ? (
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <div className="h-3 w-28 bg-[var(--color-border)] rounded animate-pulse" />
+              <div className="h-8 w-36 bg-[var(--color-border)] rounded animate-pulse mt-2" />
+            </div>
+            <div className="flex items-end gap-2.5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex flex-col items-center gap-1.5">
+                  <div className="h-3 w-8 bg-[var(--color-border)] rounded animate-pulse" />
+                  <div
+                    className="w-6 bg-[var(--color-border)] rounded-sm animate-pulse"
+                    style={{ height: `${12 + i * 12}px` }}
+                  />
+                  <div className="h-3 w-5 bg-[var(--color-border)] rounded animate-pulse" />
+                </div>
+              ))}
             </div>
           </div>
+        ) : (
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <SectionLabel className="mb-1">Estimated average</SectionLabel>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+                  <AnimatedCurrency value={adjustedIncome} />
+                </span>
+                <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
+              </div>
+            </div>
 
-          {incomeMonths.length > 0 && (
             <IncomeBreakdownChart
               months={incomeMonths}
               onAverageChange={setAdjustedIncome}
               compact
             />
-          )}
-        </div>
+          </div>
+        )}
       </motion.div>
 
       {/* $0 month disclaimer */}
@@ -593,19 +665,6 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
           Connect more institutions for a more accurate average.
         </motion.p>
       )}
-
-      {/* Continue */}
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="mt-10"
-      >
-        <Button variant="secondary" onClick={onContinue} size="sm" className="gap-1.5 pl-4 pr-3">
-          Continue
-          <FiChevronRight className="h-3.5 w-3.5" />
-        </Button>
-      </motion.div>
     </div>
   );
 }
@@ -620,27 +679,12 @@ function ChooseStep({
   creating,
   monthlyIncome,
   existingBudgets,
-  onBack,
 }) {
   const showOutlook =
     monthlyIncome > 0 && (categories.length > 0 || existingBudgets.length > 0);
 
   return (
     <div>
-      {onBack && (
-        <motion.button
-          type="button"
-          onClick={onBack}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.05 }}
-          className="inline-flex items-center gap-1 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer mb-6"
-        >
-          <FiChevronLeft className="h-4 w-4" />
-          Back
-        </motion.button>
-      )}
-
       <motion.h1
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
