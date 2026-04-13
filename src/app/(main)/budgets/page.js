@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
 import BudgetCard from '../../../components/budgets/BudgetCard';
-import CreateBudgetModal from '../../../components/budgets/CreateBudgetModal';
+import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
@@ -137,7 +137,7 @@ export default function BudgetsPage() {
         )}
       </div>
 
-      <CreateBudgetModal
+      <CreateBudgetOverlay
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreated={fetchBudgets}
