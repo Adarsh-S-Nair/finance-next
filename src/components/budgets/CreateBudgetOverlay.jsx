@@ -530,28 +530,24 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         transition={{ delay: 0.15 }}
         className="mt-10"
       >
-        <SectionLabel className="mb-2">Estimated average</SectionLabel>
-        <div className="flex items-baseline gap-1">
-          <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-            <AnimatedCurrency value={adjustedIncome} />
-          </span>
-          <span className="text-sm text-[var(--color-muted)] ml-1">/ month</span>
+        <SectionLabel className="mb-3">Estimated average</SectionLabel>
+        <div className="flex items-end justify-between gap-6">
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+              <AnimatedCurrency value={adjustedIncome} />
+            </span>
+            <span className="text-sm text-[var(--color-muted)] ml-1">/ mo</span>
+          </div>
+
+          {incomeMonths.length > 0 && (
+            <IncomeBreakdownChart
+              months={incomeMonths}
+              onAverageChange={setAdjustedIncome}
+              compact
+            />
+          )}
         </div>
       </motion.div>
-
-      {incomeMonths.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.22 }}
-          className="mt-10"
-        >
-          <IncomeBreakdownChart
-            months={incomeMonths}
-            onAverageChange={setAdjustedIncome}
-          />
-        </motion.div>
-      )}
 
       <motion.div
         initial={{ opacity: 0, y: 6 }}
