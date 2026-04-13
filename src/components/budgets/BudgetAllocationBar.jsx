@@ -72,7 +72,8 @@ export default function BudgetAllocationBar({
             Monthly allocation
           </h2>
           <p className="text-xs text-[var(--color-muted)] mt-1">
-            How your average monthly income is split across budgets.
+            Average of your last 6 months of income. Connect more accounts
+            for a more accurate picture.
           </p>
         </div>
 
