@@ -16,6 +16,7 @@ export default function BudgetsPage() {
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [incomeMonths, setIncomeMonths] = useState([]);
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -54,9 +55,11 @@ export default function BudgetsPage() {
       );
       const avg = sample.length > 0 ? totalEarning / sample.length : 0;
       setMonthlyIncome(avg);
+      setIncomeMonths(sample);
     } catch (e) {
       console.error(e);
       setMonthlyIncome(0);
+      setIncomeMonths([]);
     } finally {
       setIncomeLoading(false);
     }
@@ -159,6 +162,7 @@ export default function BudgetsPage() {
           <BudgetAllocationBar
             budgets={budgets}
             monthlyIncome={monthlyIncome}
+            incomeMonths={incomeMonths}
             incomeLoading={incomeLoading}
             onDelete={handleDelete}
           />
