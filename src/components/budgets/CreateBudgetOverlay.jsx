@@ -483,50 +483,45 @@ function IncomeStep({ monthlyIncome, incomeMonths, onContinue }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="text-sm text-[var(--color-muted)] mt-3 leading-relaxed"
+        className="text-sm text-[var(--color-muted)] mt-2 leading-relaxed"
       >
-        We&apos;ll size your budgets against this number, so let&apos;s make
-        sure it looks right before we go further.
+        We&apos;ll size your budgets against this number.
       </motion.p>
 
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="mt-10"
+        className="mt-12"
       >
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
-          Estimated average
-        </div>
-        <div className="text-5xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
-          {formatted}
-        </div>
-        <div className="text-xs text-[var(--color-muted)] mt-2">
-          per month
+        <SectionLabel className="mb-2">Estimated average</SectionLabel>
+        <div className="flex items-baseline gap-1">
+          <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+            {formatted}
+          </span>
+          <span className="text-sm text-[var(--color-muted)] ml-1">/ month</span>
         </div>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.22 }}
-        className="mt-10"
-      >
-        <IncomeBreakdownChart
-          months={incomeMonths}
-          avg={monthlyIncome}
-          labelBg="var(--color-content-bg)"
-        />
-      </motion.div>
+      {incomeMonths.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="mt-12"
+        >
+          <IncomeBreakdownChart months={incomeMonths} />
+        </motion.div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="mt-10"
+        className="mt-12"
       >
-        <Button onClick={onContinue} className="w-full h-11">
-          Looks right — continue
+        <Button onClick={onContinue} className="h-10 px-6">
+          Looks right &mdash; continue
         </Button>
       </motion.div>
     </div>
