@@ -6,14 +6,35 @@ export async function GET(request) {
         const userId = requireVerifiedUserId(request);
         const { searchParams } = new URL(request.url);
         const categoryId = searchParams.get('categoryId');
+        const categoryGroupId = searchParams.get('categoryGroupId');
         const monthsParam = parseInt(searchParams.get('months') || '4', 10);
         const MAX_MONTHS = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 12) : 4;
 
-        if (!categoryId) {
+        if (!categoryId && !categoryGroupId) {
             return Response.json(
-                { error: 'Category ID is required' },
+                { error: 'Either categoryId or categoryGroupId is required' },
                 { status: 400 }
             );
+        }
+
+        // When scoped to a group, resolve all system_category ids inside it.
+        let scopedCategoryIds = null;
+        if (categoryGroupId) {
+            const { data: groupCats, error: groupErr } = await supabaseAdmin
+                .from('system_categories')
+                .select('id')
+                .eq('group_id', categoryGroupId);
+            if (groupErr) {
+                console.error('Error fetching group categories:', groupErr);
+                return Response.json(
+                    { error: 'Failed to fetch category group' },
+                    { status: 500 }
+                );
+            }
+            scopedCategoryIds = (groupCats || []).map(c => c.id);
+            if (scopedCategoryIds.length === 0) {
+                return Response.json({ data: [], categoryGroupId, totalMonths: 0 });
+            }
         }
 
         // Get transactions for this category, going back MAX_MONTHS
@@ -34,7 +55,7 @@ export async function GET(request) {
             ? new Date(earliestTxResult[0].date)
             : null;
 
-        const { data: transactions, error } = await supabaseAdmin
+        let txQuery = supabaseAdmin
             .from('transactions')
             .select(`
         id,
@@ -50,10 +71,17 @@ export async function GET(request) {
         )
       `)
             .eq('accounts.user_id', userId)
-            .eq('category_id', categoryId)
             .gte('date', sinceDate.toISOString().split('T')[0])
             .lt('amount', 0) // Only spending (negative amounts)
             .order('date', { ascending: true });
+
+        if (scopedCategoryIds) {
+            txQuery = txQuery.in('category_id', scopedCategoryIds);
+        } else {
+            txQuery = txQuery.eq('category_id', categoryId);
+        }
+
+        const { data: transactions, error } = await txQuery;
 
         if (error) {
             console.error('Error fetching category history:', error);
@@ -167,11 +195,13 @@ export async function GET(request) {
             spending: Math.round(m.spending)
         }));
 
-        console.log(`[category-history] Category ${categoryId}: ${result.length} months of data`);
+        const scopeLabel = categoryGroupId ? `group ${categoryGroupId}` : `category ${categoryId}`;
+        console.log(`[category-history] ${scopeLabel}: ${result.length} months of data`);
 
         return Response.json({
             data: result,
-            categoryId,
+            categoryId: categoryId || null,
+            categoryGroupId: categoryGroupId || null,
             totalMonths: result.length
         });
 

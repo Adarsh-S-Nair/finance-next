@@ -82,25 +82,43 @@ export default function CreateBudgetOverlay({
     fetchCategories();
   }, [isOpen]);
 
+  // Buckets already covered by an existing budget. We filter these out of
+  // the chip grid so users can't accidentally create a duplicate budget for
+  // the same group or category.
+  const existingBucketKeys = new Set(
+    existingBudgets
+      .flatMap((b) => [
+        b.category_group_id ? `group:${b.category_group_id}` : null,
+        b.category_id ? `category:${b.category_id}` : null,
+      ])
+      .filter(Boolean)
+  );
+
   async function fetchCategories() {
     setLoading(true);
     try {
+      // Default to category groups — budgets are about planning, and users
+      // think in groups ("food", "transportation") more than granular
+      // system categories ("coffee", "fast food"). The API still returns
+      // individual system categories if the user later needs them.
       const res = await fetch(
-        "/api/transactions/spending-by-category?days=120&forBudget=true"
+        "/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group"
       );
       const data = await res.json();
-      const months = data.completeMonths || 1;
 
       const cats = (data.categories || [])
         .filter((c) => c.total_spent > 0 && c.label !== "Account Transfer")
+        .filter((c) => !existingBucketKeys.has(`group:${c.id}`))
         .sort((a, b) => b.total_spent - a.total_spent)
         .map((c) => ({
           id: c.id,
+          type: "group",
           label: c.label,
-          monthlyAvg: Math.round(c.total_spent / months),
+          monthlyAvg: c.monthly_avg || 0,
           hexColor: c.hex_color || "#6B7280",
           iconName: c.icon_name,
           iconLib: c.icon_lib,
+          monthsWithSpending: c.months_with_spending || 0,
         }));
 
       setCategories(cats);
@@ -111,10 +129,14 @@ export default function CreateBudgetOverlay({
     }
   }
 
-  async function fetchHistory(categoryId) {
+  async function fetchHistory(bucket) {
     try {
+      const param =
+        bucket.type === "group"
+          ? `categoryGroupId=${bucket.id}`
+          : `categoryId=${bucket.id}`;
       const res = await fetch(
-        `/api/transactions/category-history?categoryId=${categoryId}&months=4`
+        `/api/transactions/category-history?${param}&months=4`
       );
       const data = await res.json();
       if (data.data && data.data.length > 0) {
@@ -137,7 +159,7 @@ export default function CreateBudgetOverlay({
     setAmount(cat.monthlyAvg.toString());
     setSpendingHistory([]);
     setStep("amount");
-    fetchHistory(cat.id);
+    fetchHistory(cat);
   };
 
   const handleBack = () => {
@@ -147,15 +169,20 @@ export default function CreateBudgetOverlay({
     setStep("choose");
   };
 
-  const createBudget = async (categoryId, budgetAmount) => {
+  const createBudget = async (bucket, budgetAmount) => {
+    const payload = {
+      amount: parseFloat(budgetAmount),
+      period: "monthly",
+    };
+    if (bucket.type === "group") {
+      payload.category_group_id = bucket.id;
+    } else {
+      payload.category_id = bucket.id;
+    }
     const res = await fetch("/api/budgets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: parseFloat(budgetAmount),
-        period: "monthly",
-        category_id: categoryId,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Failed to create budget");
     return res.json();
@@ -165,7 +192,7 @@ export default function CreateBudgetOverlay({
     if (!selectedCategory || !amount) return;
     setCreating(true);
     try {
-      await createBudget(selectedCategory.id, amount);
+      await createBudget(selectedCategory, amount);
       setCreatedBudgets([
         {
           label: selectedCategory.label,
@@ -188,7 +215,7 @@ export default function CreateBudgetOverlay({
     setCreating(true);
     try {
       await Promise.all(
-        categories.map((cat) => createBudget(cat.id, cat.monthlyAvg))
+        categories.map((cat) => createBudget(cat, cat.monthlyAvg))
       );
       setCreatedBudgets(
         categories.map((cat) => ({
@@ -713,7 +740,7 @@ function ChooseStep({
       <div className="mt-10 space-y-10">
         {/* Category list */}
         <div>
-          <SectionLabel className="mb-2">Your spending categories</SectionLabel>
+          <SectionLabel className="mb-2">Where you spend consistently</SectionLabel>
 
           {loading ? (
             <div className="flex flex-wrap gap-2">
@@ -727,7 +754,9 @@ function ChooseStep({
             </div>
           ) : categories.length === 0 ? (
             <div className="py-8 text-sm text-[var(--color-muted)] text-center">
-              No spending categories found. Transactions need to sync first.
+              {existingBudgets.length > 0
+                ? "You've already got a budget for every category you spend on consistently."
+                : "No recurring spending categories yet. Give your transactions a few weeks to sync."}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">

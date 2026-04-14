@@ -174,6 +174,12 @@ export async function GET(request) {
     const categoryData = {};
     const groupBy = searchParams.get('groupBy'); // 'group' or default (category)
 
+    // When forBudget=true, filter out buckets that don't appear consistently
+    // across months. Budgets are about recurring spend, not one-time purchases.
+    // Can be disabled with ?consistent=false for an "all categories" view.
+    const consistentFilter =
+      forBudget && searchParams.get('consistent') !== 'false';
+
     transactions.forEach(transaction => {
       // Exclude matched transfers (pairs like credit card payment out + payment in)
       if (matchedIds.has(transaction.id)) return;
@@ -223,6 +229,11 @@ export async function GET(request) {
 
       if (adjustedAmount === 0) return; // Skip if fully reimbursed or zero
 
+      // Track which month this transaction belongs to so we can compute
+      // "months-with-spending" per bucket. Parse YYYY-MM directly from the
+      // date string to avoid timezone drift.
+      const monthKey = (transaction.date || '').slice(0, 7);
+
       if (!categoryData[key]) {
         categoryData[key] = {
           id: key,
@@ -231,37 +242,68 @@ export async function GET(request) {
           icon_name: icon_name,
           icon_lib: icon_lib,
           total_spent: 0,
-          transaction_count: 0
+          transaction_count: 0,
+          months_seen: new Set()
         };
       }
 
       categoryData[key].total_spent += adjustedAmount;
       categoryData[key].transaction_count += 1;
+      if (monthKey) categoryData[key].months_seen.add(monthKey);
     });
 
-    // Convert to array and sort by amount (descending)
+    // Convert to array. Compute "typical monthly" based on months the bucket
+    // actually had spending, not total months — otherwise recurring categories
+    // look artificially low because one month was missed.
+    const effectiveMonths = completeMonths > 0 ? completeMonths : 1;
+    const consistencyThreshold = Math.max(1, Math.ceil(effectiveMonths * (2 / 3)));
+
     const categoriesArray = Object.values(categoryData)
+      .map(c => {
+        const monthsWith = c.months_seen.size;
+        const monthlyAvg = monthsWith > 0
+          ? Math.round(c.total_spent / monthsWith)
+          : 0;
+        return {
+          id: c.id,
+          label: c.label,
+          hex_color: c.hex_color,
+          icon_name: c.icon_name,
+          icon_lib: c.icon_lib,
+          total_spent: c.total_spent,
+          transaction_count: c.transaction_count,
+          months_with_spending: monthsWith,
+          monthly_avg: monthlyAvg,
+        };
+      })
       .sort((a, b) => b.total_spent - a.total_spent);
 
     // Calculate total spending for percentage calculations
     const totalSpending = categoriesArray.reduce((sum, category) => sum + category.total_spent, 0);
 
-    // Add percentage to each category and filter out categories < 1%
+    // Add percentage. Apply >=1% floor always; apply consistency filter when
+    // forBudget=true and not explicitly disabled.
     const filteredCategories = categoriesArray
       .map(category => ({
         ...category,
-        percentage: totalSpending > 0 ? (category.total_spent / totalSpending) * 100 : 0
+        percentage: totalSpending > 0 ? (category.total_spent / totalSpending) * 100 : 0,
+        is_consistent: category.months_with_spending >= consistencyThreshold,
       }))
-      .filter(category => category.percentage >= 1.0); // Only include categories >= 1%
+      .filter(category => {
+        if (category.percentage < 1.0) return false;
+        if (consistentFilter && !category.is_consistent) return false;
+        return true;
+      });
 
-    if (DEBUG) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} completeMonths=${completeMonths}`, filteredCategories.slice(0, 3));
+    if (DEBUG) console.log(`📊 ${type} by Category: categories=${filteredCategories.length} completeMonths=${completeMonths} threshold=${consistencyThreshold}`, filteredCategories.slice(0, 3));
 
     return Response.json({
       categories: filteredCategories,
       totalSpending,
       totalCategories: categoriesArray.length,
       filteredCount: filteredCategories.length,
-      completeMonths: completeMonths || 1 // Default to 1 to avoid division by 0
+      completeMonths: completeMonths || 1, // Default to 1 to avoid division by 0
+      consistencyThreshold,
     });
 
   } catch (error) {
