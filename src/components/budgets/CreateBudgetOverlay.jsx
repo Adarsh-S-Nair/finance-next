@@ -776,22 +776,33 @@ function ChooseStep({
           />
         )}
 
-        {/* Quick setup — subtle text link at the bottom */}
+        {/* Quick setup — alternate primary CTA */}
         {!loading && categories.length > 0 && (
-          <motion.button
-            type="button"
-            onClick={onCreateAll}
-            disabled={creating}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + categories.length * 0.03 + 0.1 }}
-            className="group mt-8 inline-flex items-center gap-1.5 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer disabled:opacity-50"
+            className="mt-10"
           >
-            {creating
-              ? "Creating budgets\u2026"
-              : "Or set up all of them using suggested amounts"}
-            <FiChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </motion.button>
+            <Button
+              onClick={onCreateAll}
+              disabled={creating}
+              variant="outline"
+              className="w-full h-11 gap-2"
+            >
+              {creating ? (
+                "Creating budgets\u2026"
+              ) : (
+                <>
+                  Set up all with suggested amounts
+                  <FiChevronRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+            <p className="mt-2 text-[11px] text-[var(--color-muted)] text-center">
+              Or pick one above to tune it yourself
+            </p>
+          </motion.div>
         )}
       </div>
     </div>
@@ -1055,62 +1066,76 @@ function DoneStep({ budgets, onClose }) {
       ? "Budget created"
       : `${budgets.length} budgets created`;
 
+  const maxAmount = Math.max(...budgets.map((b) => Number(b.amount || 0)), 1);
+
   return (
     <div>
-      {/* Checkmark */}
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-        className="mb-8 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500"
-      >
-        <FiCheck className="h-5 w-5 text-white" strokeWidth={3} />
-      </motion.div>
+      {/* Inline checkmark + headline */}
+      <div className="flex items-center gap-3">
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 flex-shrink-0"
+        >
+          <FiCheck className="h-4 w-4 text-white" strokeWidth={3} />
+        </motion.div>
 
-      <motion.h1
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
-      >
-        {headline}
-      </motion.h1>
+        <motion.h1
+          initial={{ opacity: 0, x: -4 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
+        >
+          {headline}
+        </motion.h1>
+      </div>
 
-      {/* Budget list */}
+      {/* Budget list with proportional baseline bars */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45 }}
-        className="mt-10"
+        transition={{ delay: 0.35 }}
+        className="mt-10 space-y-1"
       >
-        <SectionLabel className="mb-2">
-          {budgets.length === 1 ? "Budget" : "Budgets"}
-        </SectionLabel>
-        <div className="divide-y divide-[var(--color-border)]">
-          {budgets.map((b, i) => (
+        {budgets.map((b, i) => {
+          const ratio = Math.max(0.04, Number(b.amount || 0) / maxAmount);
+          return (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55 + i * 0.04 }}
-              className="flex items-center gap-4 py-4"
+              transition={{ delay: 0.45 + i * 0.04 }}
+              className="flex flex-col gap-2 py-2.5"
             >
-              <CategoryDot
-                hexColor={b.hexColor}
-                iconName={b.iconName}
-                iconLib={b.iconLib}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
+              <div className="flex items-baseline gap-4">
+                <span className="text-[15px] font-medium text-[var(--color-fg)]">
                   {b.label}
-                </div>
+                </span>
+                <span className="flex-1" />
+                <span className="text-[13px] text-[var(--color-muted)] tabular-nums">
+                  ${b.amount.toLocaleString()}
+                  <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
+                </span>
               </div>
-              <div className="text-sm tabular-nums text-[var(--color-muted)] flex-shrink-0">
-                ${b.amount.toLocaleString()}/mo
-              </div>
+              <motion.span
+                className="h-[3px] rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${ratio * 100}%` }}
+                transition={{
+                  type: "spring",
+                  stiffness: 320,
+                  damping: 26,
+                  delay: 0.55 + i * 0.04,
+                }}
+                style={{
+                  backgroundColor: b.hexColor,
+                  originX: 0,
+                }}
+              />
             </motion.div>
-          ))}
-        </div>
+          );
+        })}
       </motion.div>
 
       {/* Done button */}
