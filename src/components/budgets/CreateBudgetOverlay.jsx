@@ -7,7 +7,6 @@ import { FiX, FiCheck, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { FiTag } from "react-icons/fi";
 import Button from "../ui/Button";
 import DynamicIcon from "../DynamicIcon";
-import { LuSparkles } from "react-icons/lu";
 import IncomeBreakdownChart from "./IncomeBreakdownChart";
 
 export default function CreateBudgetOverlay({
@@ -745,89 +744,107 @@ function ChooseStep({
         </motion.div>
       )}
 
-      <div className="mt-10 space-y-10">
-        {/* Category list */}
-        <div>
-          <SectionLabel className="mb-2">Where you spend consistently</SectionLabel>
+      <div className="mt-10">
+        <SectionLabel className="mb-4">Where you spend consistently</SectionLabel>
 
-          {loading ? (
-            <div className="space-y-1">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-3 py-3">
-                  <div className="h-2 w-2 rounded-full bg-[var(--color-border)] animate-pulse" />
-                  <div className="h-4 w-32 bg-[var(--color-border)] rounded animate-pulse" />
-                  <div className="flex-1" />
-                  <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
-                </div>
-              ))}
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="py-8 text-sm text-[var(--color-muted)] text-center">
-              {existingBudgets.length > 0
-                ? "You've already got a budget for every category you spend on consistently."
-                : "No recurring spending categories yet. Give your transactions a few weeks to sync."}
-            </div>
-          ) : (
-            <div>
-              {categories.map((cat, i) => (
-                <motion.button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => onSelect(cat)}
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 + i * 0.03 }}
-                  whileHover={{ x: 2 }}
-                  className="group flex w-full items-center gap-4 py-3 text-left cursor-pointer"
-                >
-                  <span
-                    className="h-2 w-2 rounded-full flex-shrink-0 transition-transform group-hover:scale-125"
-                    style={{ backgroundColor: cat.hexColor }}
-                  />
-                  <span className="text-[15px] font-medium text-[var(--color-fg)] group-hover:text-[var(--color-fg)] transition-colors">
-                    {cat.label}
-                  </span>
-                  <span className="flex-1" />
-                  <span className="text-[13px] text-[var(--color-muted)] tabular-nums group-hover:text-[var(--color-fg)] transition-colors">
-                    ${cat.monthlyAvg.toLocaleString()}
-                    <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
-                  </span>
-                  <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                </motion.button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Set up all action */}
-        {!loading && categories.length > 0 && (
+        {loading ? (
           <div>
-            <SectionLabel className="mb-2">Quick setup</SectionLabel>
-            <div>
-              <motion.button
-                type="button"
-                onClick={onCreateAll}
-                disabled={creating}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 + categories.length * 0.04 }}
-                whileHover={{ x: 2 }}
-                className="group flex w-full items-center gap-4 py-3 text-left cursor-pointer disabled:opacity-50"
-              >
-                <LuSparkles className="h-3.5 w-3.5 text-[var(--color-muted)] flex-shrink-0" />
-                <span className="text-[15px] font-medium text-[var(--color-fg)]">
-                  {creating ? "Creating budgets..." : "Set up all at once"}
-                </span>
-                <span className="flex-1" />
-                <span className="text-[13px] text-[var(--color-muted)]">
-                  Use suggested amounts
-                </span>
-                <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-              </motion.button>
-            </div>
+            {[0.8, 0.5, 0.35, 0.25, 0.2].map((w, i) => (
+              <div key={i} className="flex items-center gap-5 py-3.5">
+                <div
+                  className="h-[3px] rounded-full bg-[var(--color-border)] animate-pulse"
+                  style={{ width: `${w * 64}px` }}
+                />
+                <div className="h-4 w-32 bg-[var(--color-border)] rounded animate-pulse" />
+                <div className="flex-1" />
+                <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
+              </div>
+            ))}
           </div>
+        ) : categories.length === 0 ? (
+          <div className="py-8 text-sm text-[var(--color-muted)] text-center">
+            {existingBudgets.length > 0
+              ? "You've already got a budget for every category you spend on consistently."
+              : "No recurring spending categories yet. Give your transactions a few weeks to sync."}
+          </div>
+        ) : (
+          <CategoryProportionList
+            categories={categories}
+            onSelect={onSelect}
+          />
+        )}
+
+        {/* Quick setup — subtle text link at the bottom */}
+        {!loading && categories.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={onCreateAll}
+            disabled={creating}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 + categories.length * 0.03 + 0.1 }}
+            className="group mt-8 inline-flex items-center gap-1.5 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {creating
+              ? "Creating budgets\u2026"
+              : "Or set up all of them using suggested amounts"}
+            <FiChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </motion.button>
         )}
       </div>
+    </div>
+  );
+}
+
+function CategoryProportionList({ categories, onSelect }) {
+  // Width of the colored accent bar scales with each category's share of the
+  // largest spend. Biggest category ≈ BAR_MAX_PX, smallest ≈ BAR_MIN_PX.
+  const BAR_MIN_PX = 12;
+  const BAR_MAX_PX = 64;
+  const maxAmount = Math.max(
+    ...categories.map((c) => Number(c.monthlyAvg || 0)),
+    1
+  );
+
+  return (
+    <div>
+      {categories.map((cat, i) => {
+        const ratio = Math.max(0, Number(cat.monthlyAvg || 0) / maxAmount);
+        const widthPx = BAR_MIN_PX + (BAR_MAX_PX - BAR_MIN_PX) * ratio;
+        return (
+          <motion.button
+            key={cat.id}
+            type="button"
+            onClick={() => onSelect(cat)}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.05 + i * 0.03 }}
+            whileHover={{ x: 3 }}
+            className="group flex w-full items-center gap-5 py-3.5 text-left cursor-pointer"
+          >
+            <motion.span
+              className="h-[3px] rounded-full flex-shrink-0"
+              initial={false}
+              animate={{ width: widthPx }}
+              whileHover={{ scaleX: 1.12 }}
+              transition={{ type: "spring", stiffness: 400, damping: 24 }}
+              style={{
+                backgroundColor: cat.hexColor,
+                originX: 0,
+              }}
+            />
+            <span className="text-[15px] font-medium text-[var(--color-fg)]">
+              {cat.label}
+            </span>
+            <span className="flex-1" />
+            <span className="text-[13px] text-[var(--color-muted)] tabular-nums group-hover:text-[var(--color-fg)] transition-colors">
+              ${cat.monthlyAvg.toLocaleString()}
+              <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
+            </span>
+            <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
