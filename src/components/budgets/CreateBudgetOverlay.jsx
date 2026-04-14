@@ -162,13 +162,6 @@ export default function CreateBudgetOverlay({
     fetchHistory(cat);
   };
 
-  const handleBack = () => {
-    setSelectedCategory(null);
-    setAmount("");
-    setSpendingHistory([]);
-    setStep("choose");
-  };
-
   const createBudget = async (bucket, budgetAmount) => {
     const payload = {
       amount: parseFloat(budgetAmount),
@@ -261,7 +254,21 @@ export default function CreateBudgetOverlay({
           {/* Content */}
           <div className="min-h-screen flex items-center justify-center px-6 py-20">
             {/* Side nav chevrons */}
-            <StepSideNav step={step} showIncome={showIncome} onNav={setStep} selectedCategory={selectedCategory} />
+            <StepSideNav
+              step={step}
+              showIncome={showIncome}
+              onNav={(next) => {
+                // Leaving amount → clear the in-progress selection so the
+                // user can pick a different category cleanly.
+                if (step === "amount" && next !== "amount") {
+                  setSelectedCategory(null);
+                  setAmount("");
+                  setSpendingHistory([]);
+                }
+                setStep(next);
+              }}
+              selectedCategory={selectedCategory}
+            />
 
             <div className="w-full max-w-md">
               <AnimatePresence mode="wait">
@@ -314,7 +321,6 @@ export default function CreateBudgetOverlay({
                       amount={amount}
                       onAmountChange={setAmount}
                       spendingHistory={spendingHistory}
-                      onBack={handleBack}
                       onCreate={handleCreateSingle}
                       creating={creating}
                       monthlyIncome={adjustedIncome}
@@ -743,12 +749,11 @@ function ChooseStep({
           <SectionLabel className="mb-2">Where you spend consistently</SectionLabel>
 
           {loading ? (
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div className="grid grid-cols-2 gap-2">
+              {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="h-9 bg-[var(--color-border)] rounded-full animate-pulse"
-                  style={{ width: `${60 + i * 14}px` }}
+                  className="h-[72px] bg-[var(--color-border)] rounded-lg animate-pulse opacity-60"
                 />
               ))}
             </div>
@@ -759,31 +764,36 @@ function ChooseStep({
                 : "No recurring spending categories yet. Give your transactions a few weeks to sync."}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {categories.map((cat, i) => (
                 <motion.button
                   key={cat.id}
                   type="button"
                   onClick={() => onSelect(cat)}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.06 + i * 0.03 }}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-3 py-1.5 text-left cursor-pointer hover:border-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] transition-colors"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 + i * 0.03 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="group flex flex-col justify-between gap-3 rounded-lg border border-[var(--color-border)] p-3 text-left cursor-pointer hover:border-[var(--color-muted)] hover:bg-[var(--color-surface-alt)]/40 transition-colors min-h-[72px]"
                 >
-                  <CategoryDot
-                    hexColor={cat.hexColor}
-                    iconName={cat.iconName}
-                    iconLib={cat.iconLib}
-                    size={22}
-                  />
-                  <span className="text-[13px] font-medium text-[var(--color-fg)] whitespace-nowrap">
-                    {cat.label}
-                  </span>
-                  <span className="text-[11px] text-[var(--color-muted)] tabular-nums whitespace-nowrap">
-                    ${cat.monthlyAvg.toLocaleString()}
-                  </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <CategoryDot
+                      hexColor={cat.hexColor}
+                      iconName={cat.iconName}
+                      iconLib={cat.iconLib}
+                      size={28}
+                    />
+                    <FiChevronRight className="h-3.5 w-3.5 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-tight">
+                      {cat.label}
+                    </div>
+                    <div className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
+                      ${cat.monthlyAvg.toLocaleString()}/mo
+                    </div>
+                  </div>
                 </motion.button>
               ))}
             </div>
@@ -833,17 +843,11 @@ function AmountStep({
   amount,
   onAmountChange,
   spendingHistory,
-  onBack,
   onCreate,
   creating,
   monthlyIncome,
   existingBudgets,
 }) {
-  const maxSpend =
-    spendingHistory.length > 0
-      ? Math.max(...spendingHistory.map((m) => m.spending))
-      : 0;
-
   const showOutlook = monthlyIncome > 0;
   const newAllocation = parseFloat(amount) || 0;
   // For the bar in this step, treat the in-progress amount as a single "new"
@@ -861,24 +865,11 @@ function AmountStep({
 
   return (
     <div>
-      {/* Back link */}
-      <motion.button
-        type="button"
-        onClick={onBack}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.05 }}
-        className="inline-flex items-center gap-1 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer mb-8"
-      >
-        <FiChevronLeft className="h-4 w-4" />
-        Back
-      </motion.button>
-
       {/* Category header */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
+        transition={{ delay: 0.05 }}
         className="flex items-center gap-4 mb-10"
       >
         <CategoryDot
@@ -902,7 +893,7 @@ function AmountStep({
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.11 }}
+          transition={{ delay: 0.08 }}
           className="mb-10"
         >
           <MonthlyOutlook
@@ -913,100 +904,50 @@ function AmountStep({
         </motion.div>
       )}
 
-      {/* Amount input */}
+      {/* Amount input + recent spending inline */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.14 }}
         className="mb-10"
       >
-        <SectionLabel className="mb-3">Monthly budget</SectionLabel>
-        <div
-          className="flex items-baseline gap-1 cursor-text"
-          onClick={() => document.getElementById("budget-amount-input")?.focus()}
-        >
-          <span className="text-4xl font-medium text-[var(--color-fg)]">$</span>
-          <input
-            id="budget-amount-input"
-            type="number"
-            value={amount}
-            onChange={(e) => onAmountChange(e.target.value)}
-            autoFocus
-            className="text-4xl font-medium text-[var(--color-fg)] bg-transparent border-none outline-none p-0 m-0 focus:ring-0 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            style={{
-              width: `${Math.max((amount?.toString().length || 1) * 0.65 + 0.3, 2)}em`,
-            }}
+        <div className="flex items-end justify-between gap-6">
+          <div>
+            <SectionLabel className="mb-1">Monthly budget</SectionLabel>
+            <div
+              className="flex items-baseline gap-1 cursor-text"
+              onClick={() => document.getElementById("budget-amount-input")?.focus()}
+            >
+              <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)]">
+                $
+              </span>
+              <input
+                id="budget-amount-input"
+                type="number"
+                value={amount}
+                onChange={(e) => onAmountChange(e.target.value)}
+                autoFocus
+                className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums bg-transparent border-none outline-none p-0 m-0 focus:ring-0 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                style={{
+                  width: `${Math.max((amount?.toString().length || 1) * 0.65 + 0.3, 2)}em`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Recent spending — inline mini bars */}
+          <InlineHistoryBars
+            history={spendingHistory}
+            hexColor={category.hexColor}
           />
         </div>
       </motion.div>
-
-      {/* Spending history chart */}
-      {spendingHistory.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-10"
-        >
-          <SectionLabel className="mb-3">Recent spending</SectionLabel>
-          <div className="flex items-end gap-4">
-            {spendingHistory.map((item, idx) => {
-              const heightPx =
-                maxSpend > 0
-                  ? Math.max((item.spending / maxSpend) * 64, 8)
-                  : 8;
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                  <span className="text-[11px] text-[var(--color-muted)] tabular-nums">
-                    ${item.spending.toLocaleString()}
-                  </span>
-                  <div
-                    className="w-full max-w-[48px] rounded-sm"
-                    style={{
-                      height: `${heightPx}px`,
-                      backgroundColor: category.hexColor,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <span className="text-[11px] text-[var(--color-muted)]">
-                    {item.month}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Skeleton while history loads */}
-      {spendingHistory.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="mb-10"
-        >
-          <SectionLabel className="mb-3">Recent spending</SectionLabel>
-          <div className="flex items-end gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <div className="h-3 w-8 bg-[var(--color-border)] rounded animate-pulse" />
-                <div
-                  className="w-full max-w-[48px] bg-[var(--color-border)] rounded-sm animate-pulse"
-                  style={{ height: `${16 + i * 12}px` }}
-                />
-                <div className="h-3 w-6 bg-[var(--color-border)] rounded animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
       {/* Create button */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.26 }}
+        transition={{ delay: 0.2 }}
       >
         <Button
           onClick={onCreate}
@@ -1018,6 +959,78 @@ function AmountStep({
       </motion.div>
     </div>
   );
+}
+
+function InlineHistoryBars({ history, hexColor }) {
+  const BAR_MAX_HEIGHT = 48;
+  const isLoading = !history || history.length === 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-end gap-2.5">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex flex-col items-center gap-1.5">
+            <div className="h-3 w-8 bg-[var(--color-border)] rounded animate-pulse" />
+            <div
+              className="w-6 bg-[var(--color-border)] rounded-sm animate-pulse"
+              style={{ height: `${12 + i * 8}px` }}
+            />
+            <div className="h-3 w-5 bg-[var(--color-border)] rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const maxSpend = Math.max(...history.map((m) => m.spending));
+
+  return (
+    <div className="flex items-end gap-2.5">
+      {history.map((item, idx) => {
+        const isZero = item.spending === 0;
+        const heightPx =
+          maxSpend > 0
+            ? Math.max((item.spending / maxSpend) * BAR_MAX_HEIGHT, isZero ? 4 : 6)
+            : 4;
+        return (
+          <div key={idx} className="flex flex-col items-center gap-1.5">
+            <span
+              className="text-[11px] tabular-nums"
+              style={{
+                fontWeight: isZero ? 400 : 600,
+                color: isZero
+                  ? "var(--color-muted)"
+                  : "var(--color-fg)",
+              }}
+            >
+              {isZero ? "$0" : formatCurrencyCompact(item.spending)}
+            </span>
+            <div
+              className="w-6 rounded-sm"
+              style={{
+                height: `${heightPx}px`,
+                backgroundColor: isZero
+                  ? "var(--color-border)"
+                  : hexColor || "var(--color-fg)",
+                opacity: isZero ? 0.4 : 0.7,
+              }}
+            />
+            <span className="text-[10px] text-[var(--color-muted)]">
+              {item.month}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatCurrencyCompact(value) {
+  const abs = Math.abs(value);
+  if (abs >= 10000) {
+    return `$${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return `$${Math.round(value).toLocaleString()}`;
 }
 
 /* ── Step: Done ──────────────────────────────────────────── */
