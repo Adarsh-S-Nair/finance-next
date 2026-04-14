@@ -455,127 +455,9 @@ function CategoryDot({ hexColor, iconName, iconLib, size = 36 }) {
   );
 }
 
-/* ── Monthly outlook (income breakdown preview) ───────────── */
+/* ── Animated counter (easeOutCubic RAF interpolation) ───── */
 
-function MonthlyOutlook({
-  income,
-  existingBudgets = [],
-  newCategories = [],
-  newAllocationOverride = null,
-}) {
-  const existingTotal = existingBudgets.reduce(
-    (sum, b) => sum + Number(b.amount || 0),
-    0
-  );
-  const newTotal =
-    newAllocationOverride != null
-      ? newAllocationOverride
-      : newCategories.reduce(
-          (sum, c) => sum + Number(c.monthlyAvg || 0),
-          0
-        );
-  const totalAllocated = existingTotal + newTotal;
-  const remaining = Math.max(0, income - totalAllocated);
-  const overAllocated = Math.max(0, totalAllocated - income);
-  const barTotal = Math.max(income, totalAllocated);
-
-  // Build segments: existing first (muted), then new (colored), then unallocated track.
-  const existingSegments = existingBudgets
-    .map((b) => {
-      const amt = Number(b.amount || 0);
-      if (amt <= 0) return null;
-      const isGroup = !!b.category_groups;
-      const color =
-        (isGroup ? b.category_groups?.hex_color : b.system_categories?.hex_color) ||
-        "var(--color-muted)";
-      const label = isGroup
-        ? b.category_groups?.name
-        : b.system_categories?.label || "Existing budget";
-      return { id: `existing-${b.id}`, amount: amt, color, label, dim: true };
-    })
-    .filter(Boolean);
-
-  const newSegments = newCategories
-    .map((c) => {
-      const amt = Number(c.monthlyAvg || 0);
-      if (amt <= 0) return null;
-      return {
-        id: `new-${c.id}`,
-        amount: amt,
-        color: c.hexColor || "var(--color-muted)",
-        label: c.label,
-        dim: false,
-      };
-    })
-    .filter(Boolean);
-
-  const segments = [...existingSegments, ...newSegments];
-
-  return (
-    <div>
-      <SectionLabel className="mb-3">Monthly outlook</SectionLabel>
-
-      <div className="flex items-end justify-between mb-3">
-        <div>
-          <div className="text-[22px] font-medium text-[var(--color-fg)] tabular-nums leading-tight">
-            ${Math.round(income).toLocaleString()}
-          </div>
-          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-            average income
-          </div>
-        </div>
-        <div className="text-right">
-          <div
-            className="text-[22px] font-medium tabular-nums leading-tight"
-            style={{
-              color: overAllocated > 0 ? "var(--color-danger)" : "var(--color-fg)",
-            }}
-          >
-            ${Math.round(overAllocated > 0 ? overAllocated : remaining).toLocaleString()}
-          </div>
-          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-            {overAllocated > 0 ? "over income" : "free to save"}
-          </div>
-        </div>
-      </div>
-
-      <div className="h-2 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
-        {segments.map((seg) => {
-          const pct = barTotal > 0 ? (seg.amount / barTotal) * 100 : 0;
-          if (pct <= 0) return null;
-          return (
-            <div
-              key={seg.id}
-              className="h-full"
-              style={{
-                width: `${pct}%`,
-                backgroundColor: seg.color,
-                opacity: seg.dim ? 0.45 : 1,
-              }}
-              title={`${seg.label} · $${Math.round(seg.amount).toLocaleString()}`}
-            />
-          );
-        })}
-      </div>
-
-      <div className="flex items-center justify-between mt-3 text-[11px] text-[var(--color-muted)]">
-        <span className="tabular-nums">
-          ${Math.round(totalAllocated).toLocaleString()} budgeted
-          {existingTotal > 0 && newTotal > 0
-            ? ` (${Math.round(existingTotal).toLocaleString()} existing)`
-            : ""}
-        </span>
-        <span className="tabular-nums">
-          {income > 0 ? Math.round((totalAllocated / income) * 100) : 0}% of income
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ── Step: Confirm monthly income ────────────────────────── */
-
-function AnimatedCurrency({ value, duration = 200 }) {
+function AnimatedCurrency({ value, duration = 300 }) {
   const [display, setDisplay] = useState(value);
   const animRef = useRef(null);
   const prevRef = useRef(value);
@@ -612,6 +494,126 @@ function AnimatedCurrency({ value, duration = 200 }) {
 
   return <>{formatted}</>;
 }
+
+/* ── Monthly outlook (income breakdown preview) ───────────── */
+
+function MonthlyOutlook({
+  income,
+  existingBudgets = [],
+  newCategories = [],
+  newAllocationOverride = null,
+}) {
+  const existingTotal = existingBudgets.reduce(
+    (sum, b) => sum + Number(b.amount || 0),
+    0
+  );
+  const newTotal =
+    newAllocationOverride != null
+      ? newAllocationOverride
+      : newCategories.reduce(
+          (sum, c) => sum + Number(c.monthlyAvg || 0),
+          0
+        );
+  const totalAllocated = existingTotal + newTotal;
+  const remaining = Math.max(0, income - totalAllocated);
+  const overAllocated = Math.max(0, totalAllocated - income);
+  const barTotal = Math.max(income, totalAllocated, 1);
+
+  // Existing budgets show in their own colors at full saturation.
+  const existingSegments = existingBudgets
+    .map((b) => {
+      const amt = Number(b.amount || 0);
+      if (amt <= 0) return null;
+      const isGroup = !!b.category_groups;
+      const color =
+        (isGroup ? b.category_groups?.hex_color : b.system_categories?.hex_color) ||
+        "var(--color-muted)";
+      const label = isGroup
+        ? b.category_groups?.name
+        : b.system_categories?.label || "Existing budget";
+      return { id: `existing-${b.id}`, amount: amt, color, label, isNew: false };
+    })
+    .filter(Boolean);
+
+  // In-progress new segments get a subtle pulse/border so they stand out
+  // from already-saved budgets without being tonally different.
+  const newSegments = newCategories
+    .map((c) => {
+      const amt = Number(c.monthlyAvg || 0);
+      if (amt <= 0) return null;
+      return {
+        id: `new-${c.id}`,
+        amount: amt,
+        color: c.hexColor || "var(--color-muted)",
+        label: c.label,
+        isNew: true,
+      };
+    })
+    .filter(Boolean);
+
+  const segments = [...existingSegments, ...newSegments];
+  const pctOfIncome = income > 0 ? Math.round((totalAllocated / income) * 100) : 0;
+  const rightValue = overAllocated > 0 ? overAllocated : remaining;
+
+  return (
+    <div>
+      <SectionLabel className="mb-3">Monthly outlook</SectionLabel>
+
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <div className="text-[22px] font-medium text-[var(--color-fg)] tabular-nums leading-tight">
+            <AnimatedCurrency value={Math.round(income)} />
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            average income
+          </div>
+        </div>
+        <div className="text-right">
+          <div
+            className="text-[22px] font-medium tabular-nums leading-tight transition-colors duration-200"
+            style={{
+              color: overAllocated > 0 ? "var(--color-danger)" : "var(--color-fg)",
+            }}
+          >
+            <AnimatedCurrency value={Math.round(rightValue)} />
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            {overAllocated > 0 ? "over income" : "free to save"}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-2 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
+        {segments.map((seg) => {
+          const pct = barTotal > 0 ? (seg.amount / barTotal) * 100 : 0;
+          if (pct <= 0) return null;
+          return (
+            <motion.div
+              key={seg.id}
+              className="h-full"
+              initial={false}
+              animate={{ width: `${pct}%` }}
+              transition={{ type: "spring", stiffness: 220, damping: 30 }}
+              style={{
+                backgroundColor: seg.color,
+              }}
+              title={`${seg.label} · $${Math.round(seg.amount).toLocaleString()}`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between mt-3 text-[11px] text-[var(--color-muted)]">
+        <span className="tabular-nums">
+          <AnimatedCurrency value={Math.round(totalAllocated)} /> budgeted
+        </span>
+        <span className="tabular-nums">{pctOfIncome}% of income</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Step: Confirm monthly income ────────────────────────── */
 
 function IncomeStep({ monthlyIncome, incomeMonths, onAdjust }) {
   const hasZeroMonth = incomeMonths.some(
@@ -749,12 +751,14 @@ function ChooseStep({
           <SectionLabel className="mb-2">Where you spend consistently</SectionLabel>
 
           {loading ? (
-            <div className="grid grid-cols-2 gap-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="h-[72px] bg-[var(--color-border)] rounded-lg animate-pulse opacity-60"
-                />
+            <div className="space-y-1">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 py-3">
+                  <div className="h-2 w-2 rounded-full bg-[var(--color-border)] animate-pulse" />
+                  <div className="h-4 w-32 bg-[var(--color-border)] rounded animate-pulse" />
+                  <div className="flex-1" />
+                  <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
+                </div>
               ))}
             </div>
           ) : categories.length === 0 ? (
@@ -764,36 +768,31 @@ function ChooseStep({
                 : "No recurring spending categories yet. Give your transactions a few weeks to sync."}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <div>
               {categories.map((cat, i) => (
                 <motion.button
                   key={cat.id}
                   type="button"
                   onClick={() => onSelect(cat)}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.05 + i * 0.03 }}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="group flex flex-col justify-between gap-3 rounded-lg border border-[var(--color-border)] p-3 text-left cursor-pointer hover:border-[var(--color-muted)] hover:bg-[var(--color-surface-alt)]/40 transition-colors min-h-[72px]"
+                  whileHover={{ x: 2 }}
+                  className="group flex w-full items-center gap-4 py-3 text-left cursor-pointer"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <CategoryDot
-                      hexColor={cat.hexColor}
-                      iconName={cat.iconName}
-                      iconLib={cat.iconLib}
-                      size={28}
-                    />
-                    <FiChevronRight className="h-3.5 w-3.5 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-tight">
-                      {cat.label}
-                    </div>
-                    <div className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
-                      ${cat.monthlyAvg.toLocaleString()}/mo
-                    </div>
-                  </div>
+                  <span
+                    className="h-2 w-2 rounded-full flex-shrink-0 transition-transform group-hover:scale-125"
+                    style={{ backgroundColor: cat.hexColor }}
+                  />
+                  <span className="text-[15px] font-medium text-[var(--color-fg)] group-hover:text-[var(--color-fg)] transition-colors">
+                    {cat.label}
+                  </span>
+                  <span className="flex-1" />
+                  <span className="text-[13px] text-[var(--color-muted)] tabular-nums group-hover:text-[var(--color-fg)] transition-colors">
+                    ${cat.monthlyAvg.toLocaleString()}
+                    <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
+                  </span>
+                  <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                 </motion.button>
               ))}
             </div>
@@ -809,24 +808,21 @@ function ChooseStep({
                 type="button"
                 onClick={onCreateAll}
                 disabled={creating}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 + categories.length * 0.04 }}
                 whileHover={{ x: 2 }}
-                className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer disabled:opacity-50"
+                className="group flex w-full items-center gap-4 py-3 text-left cursor-pointer disabled:opacity-50"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex-shrink-0">
-                  <LuSparkles className="h-4 w-4 text-[var(--color-muted)]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
-                    {creating ? "Creating budgets..." : "Set up all budgets"}
-                  </div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                    Auto-create based on your spending averages
-                  </div>
-                </div>
-                <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
+                <LuSparkles className="h-3.5 w-3.5 text-[var(--color-muted)] flex-shrink-0" />
+                <span className="text-[15px] font-medium text-[var(--color-fg)]">
+                  {creating ? "Creating budgets..." : "Set up all at once"}
+                </span>
+                <span className="flex-1" />
+                <span className="text-[13px] text-[var(--color-muted)]">
+                  Use suggested amounts
+                </span>
+                <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
               </motion.button>
             </div>
           </div>
