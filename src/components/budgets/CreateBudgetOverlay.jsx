@@ -748,16 +748,18 @@ function ChooseStep({
         <SectionLabel className="mb-4">Where you spend consistently</SectionLabel>
 
         {loading ? (
-          <div>
-            {[0.8, 0.5, 0.35, 0.25, 0.2].map((w, i) => (
-              <div key={i} className="flex items-center gap-5 py-3.5">
+          <div className="space-y-1">
+            {[1, 0.62, 0.42, 0.3, 0.22].map((w, i) => (
+              <div key={i} className="flex flex-col gap-2 py-2.5">
+                <div className="flex items-baseline gap-4">
+                  <div className="h-4 w-32 bg-[var(--color-border)] rounded animate-pulse" />
+                  <div className="flex-1" />
+                  <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
+                </div>
                 <div
                   className="h-[3px] rounded-full bg-[var(--color-border)] animate-pulse"
-                  style={{ width: `${w * 64}px` }}
+                  style={{ width: `${w * 100}%` }}
                 />
-                <div className="h-4 w-32 bg-[var(--color-border)] rounded animate-pulse" />
-                <div className="flex-1" />
-                <div className="h-3 w-12 bg-[var(--color-border)] rounded animate-pulse" />
               </div>
             ))}
           </div>
@@ -797,51 +799,50 @@ function ChooseStep({
 }
 
 function CategoryProportionList({ categories, onSelect }) {
-  // Width of the colored accent bar scales with each category's share of the
-  // largest spend. Biggest category ≈ BAR_MAX_PX, smallest ≈ BAR_MIN_PX.
-  const BAR_MIN_PX = 12;
-  const BAR_MAX_PX = 64;
+  // The colored baseline under each row scales from 0–100% of the row width.
+  // Biggest category fills the whole row; smaller ones shrink proportionally.
   const maxAmount = Math.max(
     ...categories.map((c) => Number(c.monthlyAvg || 0)),
     1
   );
 
   return (
-    <div>
+    <div className="space-y-1">
       {categories.map((cat, i) => {
-        const ratio = Math.max(0, Number(cat.monthlyAvg || 0) / maxAmount);
-        const widthPx = BAR_MIN_PX + (BAR_MAX_PX - BAR_MIN_PX) * ratio;
+        const ratio = Math.max(0.04, Number(cat.monthlyAvg || 0) / maxAmount);
         return (
           <motion.button
             key={cat.id}
             type="button"
             onClick={() => onSelect(cat)}
-            initial={{ opacity: 0, x: -4 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 + i * 0.03 }}
-            whileHover={{ x: 3 }}
-            className="group flex w-full items-center gap-5 py-3.5 text-left cursor-pointer"
+            className="group flex w-full flex-col gap-2 py-2.5 text-left cursor-pointer"
           >
+            <div className="flex items-baseline gap-4">
+              <span className="text-[15px] font-medium text-[var(--color-fg)]">
+                {cat.label}
+              </span>
+              <span className="flex-1" />
+              <span className="text-[13px] text-[var(--color-muted)] tabular-nums group-hover:text-[var(--color-fg)] transition-colors">
+                ${cat.monthlyAvg.toLocaleString()}
+                <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
+              </span>
+              <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            </div>
             <motion.span
-              className="h-[3px] rounded-full flex-shrink-0"
+              className="h-[3px] rounded-full"
               initial={false}
-              animate={{ width: widthPx }}
-              whileHover={{ scaleX: 1.12 }}
-              transition={{ type: "spring", stiffness: 400, damping: 24 }}
+              animate={{ width: `${ratio * 100}%` }}
+              whileHover={{ scaleY: 1.8 }}
+              transition={{ type: "spring", stiffness: 320, damping: 26 }}
               style={{
                 backgroundColor: cat.hexColor,
                 originX: 0,
+                originY: 1,
               }}
             />
-            <span className="text-[15px] font-medium text-[var(--color-fg)]">
-              {cat.label}
-            </span>
-            <span className="flex-1" />
-            <span className="text-[13px] text-[var(--color-muted)] tabular-nums group-hover:text-[var(--color-fg)] transition-colors">
-              ${cat.monthlyAvg.toLocaleString()}
-              <span className="text-[11px] ml-0.5 opacity-60">/mo</span>
-            </span>
-            <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </motion.button>
         );
       })}
