@@ -2,15 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import * as Icons from 'lucide-react';
 import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
+import DynamicIcon from '../../../components/DynamicIcon';
 import Button from '../../../components/ui/Button';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import LineChart from '../../../components/ui/LineChart';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { EmptyState } from '@slate-ui/react';
+import { FiTag } from 'react-icons/fi';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
 
@@ -420,128 +421,122 @@ export default function BudgetsPage() {
       {loading ? (
         <BudgetsSkeleton />
       ) : (
-        <div className="space-y-10">
-          {/* ── Hero: chart 2/3 + side panel 1/3 ────────────────────── */}
-          <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-            {/* Burn-down chart — visual hero, NetWorthCard style */}
-            <div className="lg:w-2/3">
-              <BurnDownChart
-                series={burnSeries}
-                totalAllocated={totalAllocated}
-                income={income}
-                hasIncome={hasIncome}
-                allocatedPct={allocatedPct}
-                unallocated={unallocated}
-                overAllocated={overAllocated}
-                pace={pace}
-              />
-            </div>
+        <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
+          {/* Main panel — chart on top, budgets list below */}
+          <div className="lg:w-2/3 flex flex-col gap-10">
+            <BurnDownChart
+              series={burnSeries}
+              totalAllocated={totalAllocated}
+              income={income}
+              hasIncome={hasIncome}
+              allocatedPct={allocatedPct}
+              unallocated={unallocated}
+              overAllocated={overAllocated}
+              pace={pace}
+            />
 
-            {/* Side panel: condensed summary + suggestions */}
-            <div className="lg:w-1/3 flex flex-col gap-8">
-              {/* Compact stats stack */}
-              <div>
-                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
-                  This month
-                </h2>
-                <dl className="space-y-3 text-xs">
+            <div>
+              <div className="mb-4 px-1">
+                <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
+              </div>
+              <div className="flex flex-col">
+                {sortedBudgets.map((b, i) => (
+                  <BudgetRow
+                    key={b.id}
+                    budget={b}
+                    income={income}
+                    hasIncome={hasIncome}
+                    pace={pace}
+                    history={historyByBudget[b.id]}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(b.id)}
+                    onToggleSelect={() => toggleSelect(b.id)}
+                    onDelete={() => requestDelete([b.id])}
+                    isLast={i === sortedBudgets.length - 1}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Side panel — summary stats + suggestions */}
+          <div className="lg:w-1/3 flex flex-col gap-10">
+            <div>
+              <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                This month
+              </h2>
+              <dl className="space-y-3 text-xs">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-[var(--color-muted)]">Budgeted</dt>
+                  <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                    {formatCurrency(totalAllocated)}
+                    {hasIncome && (
+                      <span className="text-[var(--color-muted)] font-normal">
+                        {' '}/ {formatCurrency(income)}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                {hasIncome && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Budgeted</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                      {formatCurrency(totalAllocated)}
-                      {hasIncome && (
-                        <span className="text-[var(--color-muted)] font-normal">
-                          {' '}/ {formatCurrency(income)}
-                        </span>
-                      )}
+                    <dt className="text-[var(--color-muted)]">
+                      {overAllocated > 0 ? 'Over by' : 'Unallocated'}
+                    </dt>
+                    <dd
+                      className="tabular-nums font-medium"
+                      style={{
+                        color:
+                          overAllocated > 0
+                            ? 'var(--color-danger)'
+                            : 'var(--color-fg)',
+                      }}
+                    >
+                      {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
                     </dd>
                   </div>
-                  {hasIncome && (
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-[var(--color-muted)]">
-                        {overAllocated > 0 ? 'Over by' : 'Unallocated'}
-                      </dt>
-                      <dd
-                        className="tabular-nums font-medium"
-                        style={{
-                          color:
-                            overAllocated > 0
-                              ? 'var(--color-danger)'
-                              : 'var(--color-fg)',
-                        }}
-                      >
-                        {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
-                      </dd>
-                    </div>
-                  )}
-                  {coverage && (
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-[var(--color-muted)]">Coverage</dt>
-                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                        {coverage.pct.toFixed(0)}% of spending
-                      </dd>
-                    </div>
-                  )}
-                  {pace && (
-                    <div className="flex items-baseline justify-between gap-3">
-                      <dt className="text-[var(--color-muted)]">Month progress</dt>
-                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                        Day {pace.day} / {pace.daysInMonth}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-              </div>
-
-              {/* Suggestions panel */}
-              {suggestions.length > 0 && !selectMode && (
-                <div id="budget-suggestions">
-                  <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
-                    Suggested
-                  </h2>
-                  <div className="flex flex-col">
-                    {suggestions.map((s, i) => (
-                      <SuggestionRow
-                        key={s.id}
-                        suggestion={s}
-                        income={income}
-                        hasIncome={hasIncome}
-                        adding={addingSuggestionId === s.id}
-                        disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
-                        onAdd={() => handleQuickAddSuggestion(s)}
-                        isLast={i === suggestions.length - 1}
-                      />
-                    ))}
+                )}
+                {coverage && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Coverage</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                      {coverage.pct.toFixed(0)}% of spending
+                    </dd>
                   </div>
-                </div>
-              )}
+                )}
+                {pace && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Month progress</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                      Day {pace.day} / {pace.daysInMonth}
+                    </dd>
+                  </div>
+                )}
+              </dl>
             </div>
-          </section>
 
-          {/* ── Budgets list ───────────────────────────────────────── */}
-          <section className="pt-4">
-            <div className="mb-4 px-1">
-              <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
-            </div>
-            <div className="flex flex-col">
-              {sortedBudgets.map((b, i) => (
-                <BudgetRow
-                  key={b.id}
-                  budget={b}
-                  income={income}
-                  hasIncome={hasIncome}
-                  pace={pace}
-                  history={historyByBudget[b.id]}
-                  selectMode={selectMode}
-                  selected={selectedIds.has(b.id)}
-                  onToggleSelect={() => toggleSelect(b.id)}
-                  onDelete={() => requestDelete([b.id])}
-                  isLast={i === sortedBudgets.length - 1}
-                />
-              ))}
-            </div>
-          </section>
-        </div>
+            {suggestions.length > 0 && !selectMode && (
+              <div id="budget-suggestions">
+                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                  Suggested
+                </h2>
+                <div className="flex flex-col">
+                  {suggestions.map((s, i) => (
+                    <SuggestionRow
+                      key={s.id}
+                      suggestion={s}
+                      income={income}
+                      hasIncome={hasIncome}
+                      adding={addingSuggestionId === s.id}
+                      disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
+                      onAdd={() => handleQuickAddSuggestion(s)}
+                      isLast={i === suggestions.length - 1}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       <CreateBudgetOverlay
@@ -595,12 +590,38 @@ function getLabel(b) {
     : b.system_categories?.label || 'Unknown';
 }
 
-function getIcon(b) {
+function getIconMeta(b) {
+  // Pull icon metadata from whichever side the budget is attached to.
+  // The DB stores icons with a library key (e.g. "Fi") + a name
+  // (e.g. "FiCoffee") so we can resolve them via DynamicIcon.
   const isGroup = !!b.category_groups;
-  const iconName = isGroup
-    ? b.category_groups?.icon_name
-    : b.system_categories?.icon_name;
-  return iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
+  const src = isGroup ? b.category_groups : b.system_categories;
+  return {
+    iconName: src?.icon_name || null,
+    iconLib: src?.icon_lib || null,
+  };
+}
+
+// Reusable circular icon — solid color fill with a white icon on top.
+function CategoryIcon({ iconName, iconLib, color, size = 36 }) {
+  return (
+    <div
+      className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: color || 'var(--color-muted)',
+      }}
+    >
+      <DynamicIcon
+        iconLib={iconLib}
+        iconName={iconName}
+        className="text-white"
+        style={{ width: size * 0.42, height: size * 0.42 }}
+        fallback={FiTag}
+      />
+    </div>
+  );
 }
 
 // ─── Budget row ───────────────────────────────────────────────────────
@@ -617,7 +638,7 @@ function BudgetRow({
   onDelete,
   isLast,
 }) {
-  const Icon = getIcon(budget);
+  const { iconName, iconLib } = getIconMeta(budget);
   const color = getColor(budget);
   const label = getLabel(budget);
   const amount = Number(budget.amount || 0);
@@ -679,16 +700,8 @@ function BudgetRow({
         </div>
       )}
 
-      {/* Icon pill */}
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{
-          backgroundColor: `color-mix(in oklab, ${color}, transparent 85%)`,
-          color,
-        }}
-      >
-        <Icon size={15} />
-      </div>
+      {/* Icon pill — solid category color, white glyph */}
+      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={36} />
 
       {/* Label + sublabel */}
       <div className="flex-1 min-w-0">
@@ -1063,7 +1076,7 @@ function SuggestionRow({
 }) {
   const color = suggestion.hex_color || '#71717a';
   const iconName = suggestion.icon_name;
-  const Icon = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
+  const iconLib = suggestion.icon_lib;
   const avg = Number(suggestion.monthly_avg || 0);
   const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
 
@@ -1075,16 +1088,8 @@ function SuggestionRow({
         ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
       `}
     >
-      {/* Icon pill (muted compared to real budget rows) */}
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 opacity-80"
-        style={{
-          backgroundColor: `color-mix(in oklab, ${color}, transparent 88%)`,
-          color,
-        }}
-      >
-        <Icon size={15} />
-      </div>
+      {/* Icon pill — solid color, white glyph (matches BudgetRow) */}
+      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={32} />
 
       {/* Label + avg */}
       <div className="flex-1 min-w-0">
