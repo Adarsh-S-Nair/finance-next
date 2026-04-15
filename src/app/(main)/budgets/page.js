@@ -647,9 +647,6 @@ function BudgetRow({
         <p className="font-medium text-sm text-[var(--color-fg)] truncate">{label}</p>
         <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
           {hasIncome && `${allocPct.toFixed(0)}% of income`}
-          {hasIncome && hasSpending && ' · '}
-          {hasSpending && `${formatCurrency(spent)} spent`}
-          {!hasIncome && !hasSpending && 'No spending yet'}
           {spendPct >= 100 && (
             <span className="text-[var(--color-danger)]"> · over budget</span>
           )}
@@ -663,39 +660,56 @@ function BudgetRow({
               {' '}· {formatCurrency(Math.abs(paceDelta))} under pace
             </span>
           )}
+          {!hasIncome && !hasSpending && 'No spending yet'}
         </p>
       </div>
 
-      {/* Right side: amount + progress */}
-      <div className="flex items-center gap-4 flex-shrink-0">
-        <div className="w-24 sm:w-32">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 h-1 bg-[var(--color-border)] rounded-full overflow-hidden">
-              {hasSpending && (
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(spendPct, 100)}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: progressColor }}
-                />
-              )}
-              {/* Pace tick — where we should be today */}
-              {expectedPct != null && expectedPct > 0 && expectedPct < 100 && (
-                <div
-                  className="absolute top-[-2px] bottom-[-2px] w-[1.5px] bg-[var(--color-fg)] opacity-60"
-                  style={{ left: `${expectedPct}%` }}
-                  title={`Day ${pace.day} of ${pace.daysInMonth}`}
-                />
-              )}
-            </div>
-            <span className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap w-7 text-right">
-              {hasSpending ? `${spendPct.toFixed(0)}%` : '—'}
-            </span>
+      {/* Right side: spent-of-budget + progress + remaining */}
+      <div className="flex flex-col items-end gap-1 flex-shrink-0 w-32 sm:w-44">
+        <p className="text-sm tabular-nums whitespace-nowrap">
+          <span
+            className="font-semibold"
+            style={{
+              color:
+                spendPct >= 100
+                  ? 'var(--color-danger)'
+                  : 'var(--color-fg)',
+            }}
+          >
+            {formatCurrency(spent)}
+          </span>
+          <span className="text-[var(--color-muted)]"> / {formatCurrency(amount)}</span>
+        </p>
+
+        <div className="flex items-center gap-2 w-full">
+          <div className="relative flex-1 h-1 bg-[var(--color-border)] rounded-full overflow-hidden">
+            {hasSpending && (
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(spendPct, 100)}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: progressColor }}
+              />
+            )}
+            {/* Pace tick — where we should be today */}
+            {expectedPct != null && expectedPct > 0 && expectedPct < 100 && (
+              <div
+                className="absolute top-[-2px] bottom-[-2px] w-[1.5px] bg-[var(--color-fg)] opacity-60"
+                style={{ left: `${expectedPct}%` }}
+                title={`Day ${pace.day} of ${pace.daysInMonth}`}
+              />
+            )}
           </div>
+          <span className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap w-8 text-right">
+            {hasSpending ? `${spendPct.toFixed(0)}%` : '0%'}
+          </span>
         </div>
-        <p className="text-sm font-semibold text-[var(--color-fg)] tabular-nums w-20 text-right">
-          {formatCurrency(amount)}
+
+        <p className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap">
+          {spendPct >= 100
+            ? `${formatCurrency(spent - amount)} over`
+            : `${formatCurrency(Math.max(0, amount - spent))} left`}
         </p>
       </div>
 
