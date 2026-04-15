@@ -8,6 +8,7 @@ import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import Button from '../../../components/ui/Button';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import LineChart from '../../../components/ui/LineChart';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { EmptyState } from '@slate-ui/react';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
@@ -420,126 +421,108 @@ export default function BudgetsPage() {
         <BudgetsSkeleton />
       ) : (
         <div className="space-y-10">
-          {/* ── Hero: chart 2/3 + summary 1/3 ───────────────────────── */}
+          {/* ── Hero: chart 2/3 + side panel 1/3 ────────────────────── */}
           <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-            {/* Burn-down chart — visual hero */}
-            <div className="lg:w-2/3 order-2 lg:order-1">
-              {totalAllocated > 0 ? (
-                <BurnDownChart
-                  series={burnSeries}
-                  totalAllocated={totalAllocated}
-                  pace={pace}
-                />
-              ) : (
-                <div className="h-[180px] flex items-center justify-center text-sm text-[var(--color-muted)]">
-                  No budgets yet
-                </div>
-              )}
+            {/* Burn-down chart — visual hero, NetWorthCard style */}
+            <div className="lg:w-2/3">
+              <BurnDownChart
+                series={burnSeries}
+                totalAllocated={totalAllocated}
+                income={income}
+                hasIncome={hasIncome}
+                allocatedPct={allocatedPct}
+                unallocated={unallocated}
+                overAllocated={overAllocated}
+                pace={pace}
+              />
             </div>
 
-            {/* Summary stack */}
-            <div className="lg:w-1/3 order-1 lg:order-2 flex flex-col">
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                  Budgeted this month
+            {/* Side panel: condensed summary + suggestions */}
+            <div className="lg:w-1/3 flex flex-col gap-8">
+              {/* Compact stats stack */}
+              <div>
+                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                  This month
                 </h2>
-                {overAllocated > 0 && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-danger)]">
-                    · Over
-                  </span>
-                )}
+                <dl className="space-y-3 text-xs">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Budgeted</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                      {formatCurrency(totalAllocated)}
+                      {hasIncome && (
+                        <span className="text-[var(--color-muted)] font-normal">
+                          {' '}/ {formatCurrency(income)}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  {hasIncome && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">
+                        {overAllocated > 0 ? 'Over by' : 'Unallocated'}
+                      </dt>
+                      <dd
+                        className="tabular-nums font-medium"
+                        style={{
+                          color:
+                            overAllocated > 0
+                              ? 'var(--color-danger)'
+                              : 'var(--color-fg)',
+                        }}
+                      >
+                        {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
+                      </dd>
+                    </div>
+                  )}
+                  {coverage && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">Coverage</dt>
+                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                        {coverage.pct.toFixed(0)}% of spending
+                      </dd>
+                    </div>
+                  )}
+                  {pace && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">Month progress</dt>
+                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                        Day {pace.day} / {pace.daysInMonth}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
               </div>
 
-              <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-                <span className="text-4xl sm:text-5xl font-semibold tabular-nums text-[var(--color-fg)] leading-none">
-                  {formatCurrency(totalAllocated)}
-                </span>
-                {hasIncome && (
-                  <span className="text-sm text-[var(--color-muted)] tabular-nums">
-                    of {formatCurrency(income)}
-                  </span>
-                )}
-              </div>
-
-              {/* Compact category-allocation bar — narrow column means
-                  it visually summarizes split without dominating */}
-              {sortedBudgets.length > 0 && (
-                <div className="mt-5 h-1 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
-                  {sortedBudgets.map((b) => {
-                    const denom = Math.max(income, totalAllocated);
-                    const pct = denom > 0 ? (Number(b.amount) / denom) * 100 : 0;
-                    if (pct <= 0) return null;
-                    return (
-                      <motion.div
-                        key={b.id}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.7, ease: 'easeOut' }}
-                        className="h-full"
-                        style={{ backgroundColor: getColor(b) }}
-                        title={`${getLabel(b)} · ${formatCurrency(Number(b.amount))}`}
+              {/* Suggestions panel */}
+              {suggestions.length > 0 && !selectMode && (
+                <div id="budget-suggestions">
+                  <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                    Suggested
+                  </h2>
+                  <div className="flex flex-col">
+                    {suggestions.map((s, i) => (
+                      <SuggestionRow
+                        key={s.id}
+                        suggestion={s}
+                        income={income}
+                        hasIncome={hasIncome}
+                        adding={addingSuggestionId === s.id}
+                        disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
+                        onAdd={() => handleQuickAddSuggestion(s)}
+                        isLast={i === suggestions.length - 1}
                       />
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              )}
-
-              {/* Stat lines — stacked, scannable */}
-              <dl className="mt-5 space-y-2.5 text-xs">
-                {hasIncome && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Allocation</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums">
-                      {allocatedPct.toFixed(0)}% of income
-                    </dd>
-                  </div>
-                )}
-                {hasIncome && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">
-                      {overAllocated > 0 ? 'Over by' : 'Unallocated'}
-                    </dt>
-                    <dd
-                      className="tabular-nums"
-                      style={{
-                        color:
-                          overAllocated > 0
-                            ? 'var(--color-danger)'
-                            : 'var(--color-fg)',
-                      }}
-                    >
-                      {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
-                    </dd>
-                  </div>
-                )}
-                {coverage && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Coverage</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums">
-                      {coverage.pct.toFixed(0)}% of spending
-                    </dd>
-                  </div>
-                )}
-                {pace && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Month progress</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums">
-                      Day {pace.day}/{pace.daysInMonth}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-
-              {coverage && coverage.pct < 95 && coverage.uncoveredAmount > 0 && (
-                <p className="mt-4 text-[11px] text-[var(--color-muted)] tabular-nums leading-relaxed">
-                  {formatCurrency(coverage.uncoveredAmount)}/mo of typical spending isn&apos;t tracked yet.
-                </p>
               )}
             </div>
           </section>
 
           {/* ── Budgets list ───────────────────────────────────────── */}
-          <section>
+          <section className="pt-4">
+            <div className="mb-4 px-1">
+              <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
+            </div>
             <div className="flex flex-col">
               {sortedBudgets.map((b, i) => (
                 <BudgetRow
@@ -558,31 +541,6 @@ export default function BudgetsPage() {
               ))}
             </div>
           </section>
-
-          {/* ── Suggested budgets (flat list) ──────────────────────── */}
-          {suggestions.length > 0 && !selectMode && (
-            <section id="budget-suggestions">
-              <div className="mb-2 px-2">
-                <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                  Suggested from your spending
-                </h2>
-              </div>
-              <div className="flex flex-col">
-                {suggestions.map((s, i) => (
-                  <SuggestionRow
-                    key={s.id}
-                    suggestion={s}
-                    income={income}
-                    hasIncome={hasIncome}
-                    adding={addingSuggestionId === s.id}
-                    disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
-                    onAdd={() => handleQuickAddSuggestion(s)}
-                    isLast={i === suggestions.length - 1}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
         </div>
       )}
 
@@ -912,200 +870,185 @@ function HistoryStrip({ history, amount }) {
 }
 
 // ─── Burn-down chart ──────────────────────────────────────────────────
-// Cumulative spend across all budgeted categories this month, vs an
-// even-burn pace line and the total-allocated ceiling. Minimal SVG —
-// no recharts — so it stays visually consistent with the rest of the
-// flat page.
+// Cumulative spend across all budgeted categories this month, plotted
+// against an even-burn pace line. Uses the shared LineChart component
+// so it matches the look and feel of NetWorthCard / dashboard charts.
+// The header shows live numbers that update on hover, NetWorth-style.
 
-function BurnDownChart({ series, totalAllocated, pace }) {
-  // viewBox aspect is 800x220 — preserveAspectRatio keeps text legible
-  // when the chart is dropped into a narrower column, and the container
-  // CSS aspect-ratio guarantees consistent vertical space.
-  const width = 800;
-  const height = 220;
-  const padding = { top: 18, right: 16, bottom: 26, left: 52 };
-  const innerW = width - padding.left - padding.right;
-  const innerH = height - padding.top - padding.bottom;
+function BurnDownChart({
+  series,
+  totalAllocated,
+  income,
+  hasIncome,
+  allocatedPct,
+  unallocated,
+  overAllocated,
+  pace,
+}) {
+  const [activeIndex, setActiveIndex] = useState(null);
 
   const daysInMonth = pace?.daysInMonth || 30;
   const today = pace?.day || daysInMonth;
 
-  // yMax: whichever is larger — total allocated or what you've actually
-  // spent. If you're over budget we still want the line visible.
-  const maxSpent = series.length > 0 ? series[series.length - 1].cumulative : 0;
-  const yMax = Math.max(totalAllocated, maxSpent) * 1.05 || 1;
+  // Build dense daily series from day 1 to today: cumulative spend +
+  // pace baseline at each day. Padding flat between spending events
+  // gives the line a clean step-like shape under the monotone curve.
+  const chartData = useMemo(() => {
+    if (!totalAllocated || totalAllocated <= 0 || daysInMonth <= 0) return [];
+    const burnByDay = new Map();
+    series.forEach((p) => burnByDay.set(p.day, p.cumulative));
+    const out = [];
+    let running = 0;
+    for (let day = 1; day <= today; day++) {
+      if (burnByDay.has(day)) running = burnByDay.get(day);
+      out.push({
+        day,
+        dayLabel: `Day ${day}`,
+        value: Number(running.toFixed(2)),
+        pace: Number(((day / daysInMonth) * totalAllocated).toFixed(2)),
+      });
+    }
+    return out;
+  }, [series, totalAllocated, daysInMonth, today]);
 
-  const xForDay = (d) => padding.left + ((d - 1) / (daysInMonth - 1)) * innerW;
-  const yForVal = (v) => padding.top + innerH - (v / yMax) * innerH;
+  const lastPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  const hovered =
+    activeIndex !== null && chartData[activeIndex] ? chartData[activeIndex] : null;
+  const display = hovered || lastPoint;
+  const displaySpent = display?.value || 0;
+  const displayPace = display?.pace || 0;
+  const displayDay = display?.day || today;
+  const displayDelta = displaySpent - displayPace;
+  const isOverPace = displayDelta > 0;
+  const isOverBudget = displaySpent > totalAllocated;
 
-  // Build the actual-spend step path. Start at (day 1, 0) so the line
-  // always anchors to the bottom-left corner of the chart.
-  const stepPoints = [{ day: 1, cumulative: 0 }, ...series];
-  const pathD = stepPoints
-    .map((pt, i) => {
-      const x = xForDay(pt.day);
-      const y = yForVal(pt.cumulative);
-      if (i === 0) return `M ${x} ${y}`;
-      // step-after: horizontal to new x, then vertical to new y.
-      const prev = stepPoints[i - 1];
-      const prevY = yForVal(prev.cumulative);
-      return `L ${x} ${prevY} L ${x} ${y}`;
-    })
-    .join(' ');
-  // Extend the last segment out to "today" so the line shows the
-  // plateau through any days without spending.
-  const lastPt = stepPoints[stepPoints.length - 1];
-  const tailX = xForDay(Math.min(today, daysInMonth));
-  const tailY = yForVal(lastPt.cumulative);
-  const fullPath = `${pathD} L ${tailX} ${tailY}`;
+  const lineColor = isOverBudget
+    ? 'var(--color-danger)'
+    : isOverPace
+      ? '#f59e0b'
+      : 'var(--color-success)';
 
-  // Fill under the line, closed back to the bottom.
-  const areaPath = `${fullPath} L ${tailX} ${yForVal(0)} L ${xForDay(1)} ${yForVal(0)} Z`;
+  // Build a date label for the displayed day (e.g. "April 11, 2026").
+  const monthLabel = useMemo(() => {
+    const d = new Date();
+    d.setDate(displayDay);
+    return d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }, [displayDay]);
 
-  // Pace line — straight diagonal from 0 to totalAllocated over the month.
-  const paceStart = { x: xForDay(1), y: yForVal(0) };
-  const paceEnd = { x: xForDay(daysInMonth), y: yForVal(totalAllocated) };
-
-  // Y-axis ticks: 0, half, full.
-  const yTicks = [0, totalAllocated / 2, totalAllocated];
-
-  // Compact currency for axis labels.
-  const fmtCompact = (v) => {
+  const formatYAxis = (v) => {
     if (v >= 1000) return `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k`;
     return `$${Math.round(v)}`;
   };
 
-  return (
-    <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-          This month&apos;s burn-down
-        </h2>
-        <p className="text-[11px] text-[var(--color-muted)] tabular-nums">
-          {series.length > 0
-            ? `${formatCurrency(maxSpent)} of ${formatCurrency(totalAllocated)}`
-            : 'No spending yet'}
-        </p>
+  const handleMouseMove = (_data, index) => setActiveIndex(index);
+  const handleMouseLeave = () => setActiveIndex(null);
+
+  // Empty state — no budgets yet
+  if (!totalAllocated || totalAllocated <= 0) {
+    return (
+      <div onMouseLeave={handleMouseLeave}>
+        <div className="mb-4">
+          <div className="card-header mb-1">Spent this month</div>
+          <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
+            $0
+          </div>
+          <div className="text-xs text-[var(--color-muted)] mt-0.5">
+            No budgets yet
+          </div>
+        </div>
+        <div className="pt-4 pb-2 h-[200px] flex items-center justify-center text-sm text-[var(--color-muted)]">
+          Create a budget to start tracking
+        </div>
       </div>
-      <div className="w-full" style={{ aspectRatio: `${width} / ${height}` }}>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          preserveAspectRatio="xMidYMid meet"
-          className="w-full h-full"
+    );
+  }
+
+  return (
+    <div onMouseLeave={handleMouseLeave}>
+      {/* Header — NetWorthCard pattern: title, big number, change line, date */}
+      <div className="mb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="card-header mb-1">Spent this month</div>
+            <div className="flex flex-col">
+              <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
+                {formatCurrency(displaySpent)}
+              </div>
+              <div
+                className={`text-xs font-medium mt-0.5 tabular-nums ${
+                  isOverBudget
+                    ? 'text-[var(--color-danger)]'
+                    : isOverPace
+                      ? 'text-amber-500'
+                      : 'text-emerald-500'
+                }`}
+              >
+                {isOverBudget
+                  ? `${formatCurrency(displaySpent - totalAllocated)} over budget`
+                  : isOverPace
+                    ? `${formatCurrency(displayDelta)} ahead of pace`
+                    : `${formatCurrency(Math.abs(displayDelta))} under pace`}
+                <span className="text-[var(--color-muted)] font-normal">
+                  {' '}· of {formatCurrency(totalAllocated)} budgeted
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-xs text-[var(--color-muted)] font-medium">
+              {monthLabel}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart — uses shared LineChart for consistency with NetWorthCard */}
+      <div className="pt-4 pb-2">
+        <div
+          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
+          tabIndex={-1}
+          style={{ outline: 'none', height: '200px' }}
         >
-          <defs>
-            <linearGradient id="burn-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-fg)" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="var(--color-fg)" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-
-          {/* Y gridlines */}
-          {yTicks.map((t, i) => {
-            const y = yForVal(t);
-            return (
-              <g key={i}>
-                <line
-                  x1={padding.left}
-                  x2={padding.left + innerW}
-                  y1={y}
-                  y2={y}
-                  stroke="var(--color-border)"
-                  strokeWidth="1"
-                  strokeDasharray={i === yTicks.length - 1 ? '4 3' : undefined}
-                />
-                <text
-                  x={padding.left - 6}
-                  y={y}
-                  textAnchor="end"
-                  dominantBaseline="middle"
-                  fontSize="12"
-                  fill="var(--color-muted)"
-                  className="tabular-nums"
-                >
-                  {fmtCompact(t)}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Pace line */}
-          <line
-            x1={paceStart.x}
-            y1={paceStart.y}
-            x2={paceEnd.x}
-            y2={paceEnd.y}
-            stroke="var(--color-muted)"
-            strokeWidth="1.25"
-            strokeDasharray="3 3"
-            opacity="0.55"
+          <LineChart
+            data={chartData}
+            width="100%"
+            height={200}
+            margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
+            curveType="monotone"
+            xAxisDataKey="dayLabel"
+            yAxisDomain={[0, totalAllocated * 1.1]}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            lines={[
+              {
+                dataKey: 'value',
+                strokeColor: lineColor,
+                strokeWidth: 2,
+                showArea: true,
+                areaOpacity: 0.18,
+                gradientId: 'burnActualGradient',
+              },
+              {
+                dataKey: 'pace',
+                strokeColor: 'var(--color-muted)',
+                strokeWidth: 1.25,
+                strokeOpacity: 0.55,
+                strokeDasharray: '4 4',
+                showArea: false,
+                gradientId: 'burnPaceGradient',
+              },
+            ]}
           />
-
-          {/* Today marker */}
-          {today < daysInMonth && (
-            <line
-              x1={xForDay(today)}
-              x2={xForDay(today)}
-              y1={padding.top}
-              y2={padding.top + innerH}
-              stroke="var(--color-fg)"
-              strokeWidth="1"
-              opacity="0.2"
-            />
-          )}
-
-          {/* Actual spend: area + line */}
-          {series.length > 0 && (
-            <>
-              <path d={areaPath} fill="url(#burn-fill)" />
-              <path
-                d={fullPath}
-                fill="none"
-                stroke="var(--color-fg)"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </>
-          )}
-
-          {/* X-axis: day 1 / today / last day labels */}
-          <text
-            x={xForDay(1)}
-            y={padding.top + innerH + 14}
-            textAnchor="start"
-            fontSize="12"
-            fill="var(--color-muted)"
-          >
-            1
-          </text>
-          <text
-            x={xForDay(daysInMonth)}
-            y={padding.top + innerH + 14}
-            textAnchor="end"
-            fontSize="12"
-            fill="var(--color-muted)"
-          >
-            {daysInMonth}
-          </text>
-          {today > 1 && today < daysInMonth && (
-            <text
-              x={xForDay(today)}
-              y={padding.top + innerH + 14}
-              textAnchor="middle"
-              fontSize="12"
-              fill="var(--color-fg)"
-              className="tabular-nums"
-              opacity="0.7"
-            >
-              Today
-            </text>
-          )}
-        </svg>
+        </div>
       </div>
     </div>
   );
 }
+
 
 // ─── Suggestion row (flat, matches BudgetRow styling) ─────────────────
 
