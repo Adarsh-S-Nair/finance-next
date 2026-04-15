@@ -420,88 +420,123 @@ export default function BudgetsPage() {
         <BudgetsSkeleton />
       ) : (
         <div className="space-y-10">
-          {/* ── Hero summary ───────────────────────────────────────── */}
-          <section>
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                Budgeted this month
-              </h2>
-              {overAllocated > 0 && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-danger)]">
-                  · Over budget
-                </span>
+          {/* ── Hero: chart 2/3 + summary 1/3 ───────────────────────── */}
+          <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
+            {/* Burn-down chart — visual hero */}
+            <div className="lg:w-2/3 order-2 lg:order-1">
+              {totalAllocated > 0 ? (
+                <BurnDownChart
+                  series={burnSeries}
+                  totalAllocated={totalAllocated}
+                  pace={pace}
+                />
+              ) : (
+                <div className="h-[180px] flex items-center justify-center text-sm text-[var(--color-muted)]">
+                  No budgets yet
+                </div>
               )}
             </div>
 
-            <div className="mt-3 flex items-baseline gap-3 flex-wrap">
-              <span className="text-4xl sm:text-5xl font-semibold tabular-nums text-[var(--color-fg)] leading-none">
-                {formatCurrency(totalAllocated)}
-              </span>
-              {hasIncome && (
-                <span className="text-base text-[var(--color-muted)] tabular-nums">
-                  of {formatCurrency(income)}
+            {/* Summary stack */}
+            <div className="lg:w-1/3 order-1 lg:order-2 flex flex-col">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                  Budgeted this month
+                </h2>
+                {overAllocated > 0 && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-danger)]">
+                    · Over
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl sm:text-5xl font-semibold tabular-nums text-[var(--color-fg)] leading-none">
+                  {formatCurrency(totalAllocated)}
                 </span>
+                {hasIncome && (
+                  <span className="text-sm text-[var(--color-muted)] tabular-nums">
+                    of {formatCurrency(income)}
+                  </span>
+                )}
+              </div>
+
+              {/* Compact category-allocation bar — narrow column means
+                  it visually summarizes split without dominating */}
+              {sortedBudgets.length > 0 && (
+                <div className="mt-5 h-1 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
+                  {sortedBudgets.map((b) => {
+                    const denom = Math.max(income, totalAllocated);
+                    const pct = denom > 0 ? (Number(b.amount) / denom) * 100 : 0;
+                    if (pct <= 0) return null;
+                    return (
+                      <motion.div
+                        key={b.id}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.7, ease: 'easeOut' }}
+                        className="h-full"
+                        style={{ backgroundColor: getColor(b) }}
+                        title={`${getLabel(b)} · ${formatCurrency(Number(b.amount))}`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Stat lines — stacked, scannable */}
+              <dl className="mt-5 space-y-2.5 text-xs">
+                {hasIncome && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Allocation</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums">
+                      {allocatedPct.toFixed(0)}% of income
+                    </dd>
+                  </div>
+                )}
+                {hasIncome && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">
+                      {overAllocated > 0 ? 'Over by' : 'Unallocated'}
+                    </dt>
+                    <dd
+                      className="tabular-nums"
+                      style={{
+                        color:
+                          overAllocated > 0
+                            ? 'var(--color-danger)'
+                            : 'var(--color-fg)',
+                      }}
+                    >
+                      {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
+                    </dd>
+                  </div>
+                )}
+                {coverage && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Coverage</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums">
+                      {coverage.pct.toFixed(0)}% of spending
+                    </dd>
+                  </div>
+                )}
+                {pace && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-muted)]">Month progress</dt>
+                    <dd className="text-[var(--color-fg)] tabular-nums">
+                      Day {pace.day}/{pace.daysInMonth}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              {coverage && coverage.pct < 95 && coverage.uncoveredAmount > 0 && (
+                <p className="mt-4 text-[11px] text-[var(--color-muted)] tabular-nums leading-relaxed">
+                  {formatCurrency(coverage.uncoveredAmount)}/mo of typical spending isn&apos;t tracked yet.
+                </p>
               )}
             </div>
-
-            {/* Segmented allocation bar */}
-            <div className="mt-6">
-              <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-[var(--color-border)] flex">
-                {sortedBudgets.map((b) => {
-                  const denom = Math.max(income, totalAllocated);
-                  const pct = denom > 0 ? (Number(b.amount) / denom) * 100 : 0;
-                  if (pct <= 0) return null;
-                  return (
-                    <motion.div
-                      key={b.id}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.7, ease: 'easeOut' }}
-                      className="h-full"
-                      style={{ backgroundColor: getColor(b) }}
-                      title={`${getLabel(b)} · ${formatCurrency(Number(b.amount))}`}
-                    />
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between text-xs text-[var(--color-muted)] tabular-nums">
-                <span>
-                  {hasIncome
-                    ? `${allocatedPct.toFixed(0)}% of income`
-                    : `${sortedBudgets.length} ${sortedBudgets.length === 1 ? 'budget' : 'budgets'}`}
-                </span>
-                <span>
-                  {overAllocated > 0 ? (
-                    <span className="text-[var(--color-danger)]">
-                      {formatCurrency(overAllocated)} over
-                    </span>
-                  ) : hasIncome ? (
-                    `${formatCurrency(unallocated)} unallocated`
-                  ) : null}
-                </span>
-              </div>
-            </div>
-
-            {/* Coverage line — inline, no card */}
-            {coverage && coverage.pct < 95 && (
-              <p className="mt-4 text-[11px] text-[var(--color-muted)] tabular-nums">
-                Covers {coverage.pct.toFixed(0)}% of your typical spending ·{' '}
-                {formatCurrency(coverage.uncoveredAmount)}/mo untracked
-              </p>
-            )}
           </section>
-
-          {/* ── Month burn-down chart ──────────────────────────────── */}
-          {totalAllocated > 0 && (
-            <section>
-              <BurnDownChart
-                series={burnSeries}
-                totalAllocated={totalAllocated}
-                pace={pace}
-              />
-            </section>
-          )}
 
           {/* ── Budgets list ───────────────────────────────────────── */}
           <section>
@@ -883,9 +918,12 @@ function HistoryStrip({ history, amount }) {
 // flat page.
 
 function BurnDownChart({ series, totalAllocated, pace }) {
+  // viewBox aspect is 800x220 — preserveAspectRatio keeps text legible
+  // when the chart is dropped into a narrower column, and the container
+  // CSS aspect-ratio guarantees consistent vertical space.
   const width = 800;
-  const height = 140;
-  const padding = { top: 14, right: 12, bottom: 20, left: 44 };
+  const height = 220;
+  const padding = { top: 18, right: 16, bottom: 26, left: 52 };
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
@@ -949,12 +987,11 @@ function BurnDownChart({ series, totalAllocated, pace }) {
             : 'No spending yet'}
         </p>
       </div>
-      <div className="w-full">
+      <div className="w-full" style={{ aspectRatio: `${width} / ${height}` }}>
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          preserveAspectRatio="none"
-          className="w-full"
-          style={{ height: `${height}px` }}
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full"
         >
           <defs>
             <linearGradient id="burn-fill" x1="0" y1="0" x2="0" y2="1">
@@ -982,7 +1019,7 @@ function BurnDownChart({ series, totalAllocated, pace }) {
                   y={y}
                   textAnchor="end"
                   dominantBaseline="middle"
-                  fontSize="10"
+                  fontSize="12"
                   fill="var(--color-muted)"
                   className="tabular-nums"
                 >
@@ -1037,7 +1074,7 @@ function BurnDownChart({ series, totalAllocated, pace }) {
             x={xForDay(1)}
             y={padding.top + innerH + 14}
             textAnchor="start"
-            fontSize="10"
+            fontSize="12"
             fill="var(--color-muted)"
           >
             1
@@ -1046,7 +1083,7 @@ function BurnDownChart({ series, totalAllocated, pace }) {
             x={xForDay(daysInMonth)}
             y={padding.top + innerH + 14}
             textAnchor="end"
-            fontSize="10"
+            fontSize="12"
             fill="var(--color-muted)"
           >
             {daysInMonth}
@@ -1056,7 +1093,7 @@ function BurnDownChart({ series, totalAllocated, pace }) {
               x={xForDay(today)}
               y={padding.top + innerH + 14}
               textAnchor="middle"
-              fontSize="10"
+              fontSize="12"
               fill="var(--color-fg)"
               className="tabular-nums"
               opacity="0.7"
