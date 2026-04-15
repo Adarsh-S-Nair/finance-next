@@ -8,12 +8,13 @@ import { startOfMonth, endOfMonth, isValid } from 'date-fns';
  * @param {string|Date} monthDate - Date object or string for the month to calculate (default: now)
  * @returns {Promise<Array>} Array of budget objects with calculated stats { spent, remaining, percentage }
  */
-export async function getBudgetProgress(supabase, userId, monthDate) {
+export async function getBudgetProgress(supabase, userId, monthDate = null) {
   if (!userId) throw new Error('UserId is required');
-  // monthDate may be null (API passes searchParams.get() which returns null
-  // when the param is missing). JS default params only kick in for
-  // `undefined`, so null would coerce to new Date(0) = 1970. Normalize
-  // explicitly so the current month is used when no date is provided.
+  // Callers may pass null (API passes searchParams.get() which returns
+  // null when the param is missing) or omit the arg entirely. JS default
+  // params only kick in for `undefined`, so a raw null would coerce to
+  // new Date(0) = 1970 and the function would silently filter for
+  // transactions in January 1970. Normalize both cases here.
   const date = monthDate ? new Date(monthDate) : new Date();
   if (!isValid(date)) throw new Error('Invalid date provided');
 
