@@ -165,6 +165,9 @@ export default function CreateBudgetOverlay({
     const payload = {
       amount: parseFloat(budgetAmount),
       period: "monthly",
+      // Persist the user's confirmed monthly income so the budgets
+      // page doesn't have to recompute it from raw transaction data.
+      monthly_income: Math.round(adjustedIncome || 0),
     };
     if (bucket.type === "group") {
       payload.category_group_id = bucket.id;

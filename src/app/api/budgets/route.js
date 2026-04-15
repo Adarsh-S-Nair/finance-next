@@ -39,7 +39,18 @@ export async function POST(request) {
     const tierError = await requireTierAccess(userId, 'budgets');
     if (tierError) return tierError;
     const body = await request.json();
-    const { userId: _ignoredUserId, ...budgetData } = body;
+    const { userId: _ignoredUserId, monthly_income, ...budgetData } = body;
+
+    // If the client is sending the confirmed monthly income from the
+    // creation flow's IncomeStep, persist it on user_profiles so the
+    // budgets page can use it as the source of truth instead of
+    // recomputing on every visit.
+    if (monthly_income != null && !Number.isNaN(Number(monthly_income))) {
+      await supabaseAdmin
+        .from('user_profiles')
+        .update({ monthly_income: Number(monthly_income) })
+        .eq('id', userId);
+    }
 
     // Ensure user_id is set in the data passed to upsert
     const budget = await upsertBudget(supabaseAdmin, { ...budgetData, user_id: userId });

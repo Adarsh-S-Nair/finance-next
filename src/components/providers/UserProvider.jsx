@@ -54,7 +54,7 @@ export default function UserProvider({ children }) {
     try {
       const { data } = await supabase
         .from("user_profiles")
-        .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier, subscription_status")
+        .select("id, theme, accent_color, avatar_url, first_name, last_name, onboarding_step, subscription_tier, subscription_status, monthly_income")
         .eq("id", userId)
         .maybeSingle();
       setProfile(data || {});
