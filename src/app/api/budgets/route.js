@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../../lib/supabase/admin';
-import { getBudgetProgress, upsertBudget, deleteBudget } from '../../../lib/spending';
+import { getBudgetProgress, getMonthlyBurn, upsertBudget, deleteBudget } from '../../../lib/spending';
 import { requireVerifiedUserId } from '../../../lib/api/auth';
 import { canAccess } from '../../../lib/tierConfig';
 
@@ -24,8 +24,11 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month'); // Optional YYYY-MM-DD
 
-    const data = await getBudgetProgress(supabaseAdmin, userId, month);
-    return Response.json({ data });
+    const [data, burn] = await Promise.all([
+      getBudgetProgress(supabaseAdmin, userId, month),
+      getMonthlyBurn(supabaseAdmin, userId, month),
+    ]);
+    return Response.json({ data, burn });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Error fetching budgets:', error);

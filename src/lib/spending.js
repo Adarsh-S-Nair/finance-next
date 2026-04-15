@@ -114,6 +114,90 @@ export async function getBudgetProgress(supabase, userId, monthDate = null) {
 }
 
 /**
+ * Aggregates spending in budgeted categories by day for the current (or
+ * specified) month. Returns a daily cumulative series the UI can plot as
+ * a burn-down chart.
+ *
+ * Returned shape:
+ *   [{ day: 1, spent: 8.95,  cumulative: 8.95 },
+ *    { day: 2, spent: 13.02, cumulative: 21.97 }, ...]
+ *
+ * Only days with spending are included — the client can fill gaps or
+ * step-interpolate. The function does its own queries rather than reusing
+ * getBudgetProgress so callers can invoke it independently.
+ */
+export async function getMonthlyBurn(supabase, userId, monthDate = null) {
+  if (!userId) throw new Error('UserId is required');
+  const date = monthDate ? new Date(monthDate) : new Date();
+  if (!isValid(date)) throw new Error('Invalid date provided');
+
+  const start = startOfMonth(date).toISOString();
+  const end = endOfMonth(date).toISOString();
+
+  // Budgets with their direct category / group membership.
+  const { data: budgets, error: budgetError } = await supabase
+    .from('budgets')
+    .select('category_id, category_group_id')
+    .eq('user_id', userId);
+  if (budgetError) throw budgetError;
+  if (!budgets || budgets.length === 0) return [];
+
+  const budgetedCategoryIds = new Set(
+    budgets.map((b) => b.category_id).filter(Boolean)
+  );
+  const budgetedGroupIds = new Set(
+    budgets.map((b) => b.category_group_id).filter(Boolean)
+  );
+
+  // If the user only budgets at the group level, we need a category→group
+  // map to decide which transactions count.
+  let categoryGroupMap = new Map();
+  if (budgetedGroupIds.size > 0) {
+    const { data: allCategories, error: catError } = await supabase
+      .from('system_categories')
+      .select('id, group_id');
+    if (catError) throw catError;
+    allCategories?.forEach((c) => categoryGroupMap.set(c.id, c.group_id));
+  }
+
+  const { data: transactions, error: txError } = await supabase
+    .from('transactions')
+    .select('amount, category_id, date, accounts!inner(user_id)')
+    .eq('accounts.user_id', userId)
+    .gte('datetime', start)
+    .lte('datetime', end);
+  if (txError) throw txError;
+
+  // Aggregate negative-amount transactions by day-of-month, but only when
+  // they hit a budgeted category (directly or via its group).
+  const perDay = new Map();
+  transactions?.forEach((tx) => {
+    const amt = Number(tx.amount) || 0;
+    if (amt >= 0) return;
+
+    const matchesBudget =
+      budgetedCategoryIds.has(tx.category_id) ||
+      budgetedGroupIds.has(categoryGroupMap.get(tx.category_id));
+    if (!matchesBudget) return;
+
+    // Use the date column (YYYY-MM-DD) directly so we don't drift across
+    // time zones.
+    const day = Number((tx.date || '').slice(8, 10));
+    if (!day) return;
+    perDay.set(day, (perDay.get(day) || 0) + Math.abs(amt));
+  });
+
+  // Build a cumulative series sorted by day.
+  const sortedDays = Array.from(perDay.keys()).sort((a, b) => a - b);
+  let running = 0;
+  return sortedDays.map((day) => {
+    const spent = perDay.get(day);
+    running += spent;
+    return { day, spent, cumulative: Number(running.toFixed(2)) };
+  });
+}
+
+/**
  * Creates or updates a budget.
  * @param {Object} supabase - Supabase client
  * @param {Object} budgetData - Budget object including user_id

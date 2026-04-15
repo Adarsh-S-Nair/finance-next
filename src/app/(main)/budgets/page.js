@@ -24,6 +24,10 @@ export default function BudgetsPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [categoryStats, setCategoryStats] = useState([]);
   const [addingSuggestionId, setAddingSuggestionId] = useState(null);
+  const [burnSeries, setBurnSeries] = useState([]);
+  // { [budgetKey]: [{ spending, monthName, year, monthNumber }, ...] }
+  // budgetKey = `group:{id}` or `category:{id}` to match the history API.
+  const [historyByBudget, setHistoryByBudget] = useState({});
 
   // Selection + delete state
   const [selectMode, setSelectMode] = useState(false);
@@ -39,10 +43,42 @@ export default function BudgetsPage() {
       const res = await fetch(`/api/budgets`);
       const json = await res.json();
       setBudgets(json.data || []);
+      setBurnSeries(Array.isArray(json.burn) ? json.burn : []);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fire one category-history request per budget in parallel so each row
+  // can show a 6-month utilization strip. Keyed by budget id so it
+  // survives budget add/remove without mismatching.
+  const fetchHistoryForBudgets = async (rows) => {
+    if (!rows || rows.length === 0) {
+      setHistoryByBudget({});
+      return;
+    }
+    try {
+      const results = await Promise.all(
+        rows.map(async (b) => {
+          const param = b.category_group_id
+            ? `categoryGroupId=${b.category_group_id}`
+            : `categoryId=${b.category_id}`;
+          try {
+            const res = await fetch(
+              `/api/transactions/category-history?${param}&months=6`
+            );
+            const json = await res.json();
+            return [b.id, Array.isArray(json?.data) ? json.data : []];
+          } catch {
+            return [b.id, []];
+          }
+        })
+      );
+      setHistoryByBudget(Object.fromEntries(results));
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -110,6 +146,12 @@ export default function BudgetsPage() {
       setSelectedIds(new Set());
     }
   }, [budgets.length, selectMode]);
+
+  // Refetch per-budget history whenever the set of budgets changes.
+  useEffect(() => {
+    fetchHistoryForBudgets(budgets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgets.map((b) => b.id).join(',')]);
 
   // Profile-saved income is the source of truth. Fall back to computed
   // average only while loading or for legacy users.
@@ -450,6 +492,17 @@ export default function BudgetsPage() {
             )}
           </section>
 
+          {/* ── Month burn-down chart ──────────────────────────────── */}
+          {totalAllocated > 0 && (
+            <section>
+              <BurnDownChart
+                series={burnSeries}
+                totalAllocated={totalAllocated}
+                pace={pace}
+              />
+            </section>
+          )}
+
           {/* ── Budgets list ───────────────────────────────────────── */}
           <section>
             <div className="flex flex-col">
@@ -460,6 +513,7 @@ export default function BudgetsPage() {
                   income={income}
                   hasIncome={hasIncome}
                   pace={pace}
+                  history={historyByBudget[b.id]}
                   selectMode={selectMode}
                   selected={selectedIds.has(b.id)}
                   onToggleSelect={() => toggleSelect(b.id)}
@@ -563,6 +617,7 @@ function BudgetRow({
   income,
   hasIncome,
   pace,
+  history,
   selectMode,
   selected,
   onToggleSelect,
@@ -664,6 +719,12 @@ function BudgetRow({
         </p>
       </div>
 
+      {/* History strip — last 6 months of utilization against the
+          current budget amount. Hidden on narrow screens. */}
+      <div className="hidden md:block flex-shrink-0">
+        <HistoryStrip history={history} amount={amount} color={color} />
+      </div>
+
       {/* Right side: spent-of-budget + progress + remaining */}
       <div className="flex flex-col items-end gap-1 flex-shrink-0 w-32 sm:w-44">
         <p className="text-sm tabular-nums whitespace-nowrap">
@@ -727,6 +788,284 @@ function BudgetRow({
           <LuTrash2 size={14} />
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── History strip ────────────────────────────────────────────────────
+// Last 6 months of this category's spending, measured against the
+// current budget amount. Each bar: height = utilization%, color = status
+// (green < 85%, amber 85–100%, red > 100%). Current month is omitted so
+// it doesn't compete with the live progress bar on the right.
+
+function HistoryStrip({ history, amount }) {
+  // Always render the container (fixed width) so row layout doesn't
+  // shift while the fetch is in flight.
+  const width = 84; // px — 6 bars * 14px pitch
+  const height = 28;
+
+  if (!Array.isArray(history) || history.length === 0 || !amount) {
+    return (
+      <div
+        className="flex items-end gap-[3px]"
+        style={{ width, height }}
+        aria-hidden
+      >
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-[1.5px] bg-[var(--color-border)] opacity-40"
+            style={{ height: 4 }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // category-history returns newest-first. Drop the current month, keep
+  // the most recent 6 complete months, then reverse so bars read L→R
+  // oldest→newest.
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+  const completed = history.filter(
+    (m) => `${m.year}-${m.monthNumber}` !== currentKey
+  );
+  const recent = completed.slice(0, 6).reverse();
+
+  // Pad out to 6 slots so the strip has a consistent width even if the
+  // user only has a few months of data.
+  const slots = [...Array(6)].map((_, i) => {
+    const offset = 6 - recent.length;
+    return i < offset ? null : recent[i - offset];
+  });
+
+  return (
+    <div
+      className="flex items-end gap-[3px]"
+      style={{ width, height }}
+      title="Last 6 months vs current budget"
+    >
+      {slots.map((m, i) => {
+        if (!m) {
+          return (
+            <div
+              key={i}
+              className="flex-1 rounded-[1.5px] bg-[var(--color-border)] opacity-30"
+              style={{ height: 2 }}
+            />
+          );
+        }
+        const spent = Number(m.spending || 0);
+        const util = amount > 0 ? spent / amount : 0;
+        const h = Math.max(2, Math.min(1, util) * height);
+        let bg = 'var(--color-success)';
+        if (util >= 1) bg = 'var(--color-danger)';
+        else if (util >= 0.85) bg = '#f59e0b';
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-[1.5px]"
+            style={{ height: h, backgroundColor: bg, opacity: 0.85 }}
+            title={`${m.monthName} ${m.year}: ${formatCurrency(spent)} (${Math.round(
+              util * 100
+            )}%)`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Burn-down chart ──────────────────────────────────────────────────
+// Cumulative spend across all budgeted categories this month, vs an
+// even-burn pace line and the total-allocated ceiling. Minimal SVG —
+// no recharts — so it stays visually consistent with the rest of the
+// flat page.
+
+function BurnDownChart({ series, totalAllocated, pace }) {
+  const width = 800;
+  const height = 140;
+  const padding = { top: 14, right: 12, bottom: 20, left: 44 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+
+  const daysInMonth = pace?.daysInMonth || 30;
+  const today = pace?.day || daysInMonth;
+
+  // yMax: whichever is larger — total allocated or what you've actually
+  // spent. If you're over budget we still want the line visible.
+  const maxSpent = series.length > 0 ? series[series.length - 1].cumulative : 0;
+  const yMax = Math.max(totalAllocated, maxSpent) * 1.05 || 1;
+
+  const xForDay = (d) => padding.left + ((d - 1) / (daysInMonth - 1)) * innerW;
+  const yForVal = (v) => padding.top + innerH - (v / yMax) * innerH;
+
+  // Build the actual-spend step path. Start at (day 1, 0) so the line
+  // always anchors to the bottom-left corner of the chart.
+  const stepPoints = [{ day: 1, cumulative: 0 }, ...series];
+  const pathD = stepPoints
+    .map((pt, i) => {
+      const x = xForDay(pt.day);
+      const y = yForVal(pt.cumulative);
+      if (i === 0) return `M ${x} ${y}`;
+      // step-after: horizontal to new x, then vertical to new y.
+      const prev = stepPoints[i - 1];
+      const prevY = yForVal(prev.cumulative);
+      return `L ${x} ${prevY} L ${x} ${y}`;
+    })
+    .join(' ');
+  // Extend the last segment out to "today" so the line shows the
+  // plateau through any days without spending.
+  const lastPt = stepPoints[stepPoints.length - 1];
+  const tailX = xForDay(Math.min(today, daysInMonth));
+  const tailY = yForVal(lastPt.cumulative);
+  const fullPath = `${pathD} L ${tailX} ${tailY}`;
+
+  // Fill under the line, closed back to the bottom.
+  const areaPath = `${fullPath} L ${tailX} ${yForVal(0)} L ${xForDay(1)} ${yForVal(0)} Z`;
+
+  // Pace line — straight diagonal from 0 to totalAllocated over the month.
+  const paceStart = { x: xForDay(1), y: yForVal(0) };
+  const paceEnd = { x: xForDay(daysInMonth), y: yForVal(totalAllocated) };
+
+  // Y-axis ticks: 0, half, full.
+  const yTicks = [0, totalAllocated / 2, totalAllocated];
+
+  // Compact currency for axis labels.
+  const fmtCompact = (v) => {
+    if (v >= 1000) return `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k`;
+    return `$${Math.round(v)}`;
+  };
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          This month&apos;s burn-down
+        </h2>
+        <p className="text-[11px] text-[var(--color-muted)] tabular-nums">
+          {series.length > 0
+            ? `${formatCurrency(maxSpent)} of ${formatCurrency(totalAllocated)}`
+            : 'No spending yet'}
+        </p>
+      </div>
+      <div className="w-full">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="w-full"
+          style={{ height: `${height}px` }}
+        >
+          <defs>
+            <linearGradient id="burn-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-fg)" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="var(--color-fg)" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {/* Y gridlines */}
+          {yTicks.map((t, i) => {
+            const y = yForVal(t);
+            return (
+              <g key={i}>
+                <line
+                  x1={padding.left}
+                  x2={padding.left + innerW}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--color-border)"
+                  strokeWidth="1"
+                  strokeDasharray={i === yTicks.length - 1 ? '4 3' : undefined}
+                />
+                <text
+                  x={padding.left - 6}
+                  y={y}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fontSize="10"
+                  fill="var(--color-muted)"
+                  className="tabular-nums"
+                >
+                  {fmtCompact(t)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Pace line */}
+          <line
+            x1={paceStart.x}
+            y1={paceStart.y}
+            x2={paceEnd.x}
+            y2={paceEnd.y}
+            stroke="var(--color-muted)"
+            strokeWidth="1.25"
+            strokeDasharray="3 3"
+            opacity="0.55"
+          />
+
+          {/* Today marker */}
+          {today < daysInMonth && (
+            <line
+              x1={xForDay(today)}
+              x2={xForDay(today)}
+              y1={padding.top}
+              y2={padding.top + innerH}
+              stroke="var(--color-fg)"
+              strokeWidth="1"
+              opacity="0.2"
+            />
+          )}
+
+          {/* Actual spend: area + line */}
+          {series.length > 0 && (
+            <>
+              <path d={areaPath} fill="url(#burn-fill)" />
+              <path
+                d={fullPath}
+                fill="none"
+                stroke="var(--color-fg)"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </>
+          )}
+
+          {/* X-axis: day 1 / today / last day labels */}
+          <text
+            x={xForDay(1)}
+            y={padding.top + innerH + 14}
+            textAnchor="start"
+            fontSize="10"
+            fill="var(--color-muted)"
+          >
+            1
+          </text>
+          <text
+            x={xForDay(daysInMonth)}
+            y={padding.top + innerH + 14}
+            textAnchor="end"
+            fontSize="10"
+            fill="var(--color-muted)"
+          >
+            {daysInMonth}
+          </text>
+          {today > 1 && today < daysInMonth && (
+            <text
+              x={xForDay(today)}
+              y={padding.top + innerH + 14}
+              textAnchor="middle"
+              fontSize="10"
+              fill="var(--color-fg)"
+              className="tabular-nums"
+              opacity="0.7"
+            >
+              Today
+            </text>
+          )}
+        </svg>
+      </div>
     </div>
   );
 }
