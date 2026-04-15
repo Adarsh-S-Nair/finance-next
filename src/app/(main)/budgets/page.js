@@ -22,6 +22,8 @@ export default function BudgetsPage() {
   const [incomeLoading, setIncomeLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [categoryStats, setCategoryStats] = useState([]);
+  const [addingSuggestionId, setAddingSuggestionId] = useState(null);
 
   // Selection + delete state
   const [selectMode, setSelectMode] = useState(false);
@@ -77,9 +79,28 @@ export default function BudgetsPage() {
     }
   };
 
+  // Used for suggestion cards + coverage % in the hero. Same endpoint
+  // CreateBudgetOverlay uses — gives us typical monthly spend per group.
+  const fetchCategoryStats = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(
+        '/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group'
+      );
+      const json = await res.json();
+      const cats = (json.categories || [])
+        .filter((c) => c.total_spent > 0 && c.label !== 'Account Transfer');
+      setCategoryStats(cats);
+    } catch (e) {
+      console.error(e);
+      setCategoryStats([]);
+    }
+  };
+
   useEffect(() => {
     fetchBudgets();
     fetchIncome();
+    fetchCategoryStats();
   }, [user?.id]);
 
   // Exit select mode automatically when no budgets remain.
@@ -112,6 +133,59 @@ export default function BudgetsPage() {
   const unallocated = Math.max(0, income - totalAllocated);
   const overAllocated = Math.max(0, totalAllocated - income);
   const allocatedPct = hasIncome ? (totalAllocated / income) * 100 : 0;
+
+  // ─── Pacing: where we should be in the month ───────────────────────
+  const pace = useMemo(() => {
+    const now = new Date();
+    const day = now.getDate();
+    const daysInMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0
+    ).getDate();
+    return {
+      day,
+      daysInMonth,
+      // Fraction of the month that's elapsed (0..1). Proportional pacing
+      // is fine for budgets — weekend spikes average out over the month.
+      fraction: Math.min(1, day / daysInMonth),
+    };
+  }, []);
+
+  // ─── Coverage: % of typical monthly spend covered by budgets ───────
+  const coverage = useMemo(() => {
+    if (!categoryStats.length) return null;
+    const budgetedGroupIds = new Set(
+      budgets.map((b) => b.category_group_id).filter(Boolean)
+    );
+    const totalSpend = categoryStats.reduce(
+      (sum, c) => sum + Number(c.monthly_avg || 0),
+      0
+    );
+    if (totalSpend <= 0) return null;
+    const coveredSpend = categoryStats
+      .filter((c) => budgetedGroupIds.has(c.id))
+      .reduce((sum, c) => sum + Number(c.monthly_avg || 0), 0);
+    const uncovered = Math.max(0, totalSpend - coveredSpend);
+    return {
+      pct: (coveredSpend / totalSpend) * 100,
+      uncoveredAmount: uncovered,
+      totalSpend,
+    };
+  }, [categoryStats, budgets]);
+
+  // ─── Suggestions: top unbudgeted categories worth a budget ─────────
+  const suggestions = useMemo(() => {
+    if (!categoryStats.length) return [];
+    const budgetedGroupIds = new Set(
+      budgets.map((b) => b.category_group_id).filter(Boolean)
+    );
+    return categoryStats
+      .filter((c) => !budgetedGroupIds.has(c.id))
+      .filter((c) => Number(c.monthly_avg || 0) > 0)
+      .sort((a, b) => Number(b.monthly_avg || 0) - Number(a.monthly_avg || 0))
+      .slice(0, 4);
+  }, [categoryStats, budgets]);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
@@ -159,7 +233,33 @@ export default function BudgetsPage() {
   };
 
   const handleBudgetCreated = async () => {
-    await Promise.all([fetchBudgets(), refreshProfile?.()]);
+    await Promise.all([
+      fetchBudgets(),
+      fetchCategoryStats(),
+      refreshProfile?.(),
+    ]);
+  };
+
+  const handleQuickAddSuggestion = async (suggestion) => {
+    if (addingSuggestionId) return;
+    setAddingSuggestionId(suggestion.id);
+    try {
+      const res = await fetch('/api/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Math.round(Number(suggestion.monthly_avg || 0)),
+          period: 'monthly',
+          category_group_id: suggestion.id,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to add budget');
+      await Promise.all([fetchBudgets(), fetchCategoryStats()]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAddingSuggestionId(null);
+    }
   };
 
   if (!isPro) {
@@ -340,6 +440,36 @@ export default function BudgetsPage() {
                 </span>
               </div>
             </div>
+
+            {/* Coverage callout */}
+            {coverage && coverage.pct < 95 && (
+              <div className="mt-5 flex items-center justify-between gap-4 rounded-lg border border-[var(--color-border)] px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-[var(--color-fg)]">
+                    Your budgets cover{' '}
+                    <span className="font-semibold tabular-nums">
+                      {coverage.pct.toFixed(0)}%
+                    </span>{' '}
+                    of your typical spending.
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted)] mt-0.5 tabular-nums">
+                    {formatCurrency(coverage.uncoveredAmount)}/mo is untracked.
+                  </p>
+                </div>
+                {suggestions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('budget-suggestions');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity whitespace-nowrap flex-shrink-0"
+                  >
+                    See suggestions ›
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           {/* ── Budgets list ───────────────────────────────────────── */}
@@ -351,6 +481,7 @@ export default function BudgetsPage() {
                   budget={b}
                   income={income}
                   hasIncome={hasIncome}
+                  pace={pace}
                   selectMode={selectMode}
                   selected={selectedIds.has(b.id)}
                   onToggleSelect={() => toggleSelect(b.id)}
@@ -360,6 +491,35 @@ export default function BudgetsPage() {
               ))}
             </div>
           </section>
+
+          {/* ── Suggested budgets ──────────────────────────────────── */}
+          {suggestions.length > 0 && (
+            <section id="budget-suggestions">
+              <div className="mb-4 flex items-baseline justify-between">
+                <div>
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                    Suggested
+                  </h2>
+                  <p className="text-[11px] text-[var(--color-muted)] mt-1">
+                    Top categories you&apos;re spending in without a budget.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {suggestions.map((s) => (
+                  <SuggestionCard
+                    key={s.id}
+                    suggestion={s}
+                    income={income}
+                    hasIncome={hasIncome}
+                    adding={addingSuggestionId === s.id}
+                    disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
+                    onAdd={() => handleQuickAddSuggestion(s)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -428,6 +588,7 @@ function BudgetRow({
   budget,
   income,
   hasIncome,
+  pace,
   selectMode,
   selected,
   onToggleSelect,
@@ -443,9 +604,19 @@ function BudgetRow({
   const hasSpending = spent > 0 || spendPct > 0;
   const allocPct = hasIncome && amount > 0 ? (amount / income) * 100 : 0;
 
+  // Pacing. Expected spend by today = amount * (day / daysInMonth).
+  // Over-pace means spendPct > expectedPct.
+  const expectedPct = pace ? pace.fraction * 100 : null;
+  const expectedAmount = pace ? amount * pace.fraction : null;
+  const paceDelta = expectedAmount != null ? spent - expectedAmount : null;
+  const overPace =
+    expectedPct != null && spendPct > expectedPct + 2 && spendPct < 100;
+  const underPace =
+    expectedPct != null && hasSpending && spendPct < expectedPct - 2;
+
   let progressColor = color;
   if (spendPct >= 100) progressColor = 'var(--color-danger)';
-  else if (spendPct >= 85) progressColor = '#f59e0b';
+  else if (spendPct >= 85 || overPace) progressColor = '#f59e0b';
 
   const handleRowClick = () => {
     if (selectMode) onToggleSelect();
@@ -505,15 +676,28 @@ function BudgetRow({
           {hasIncome && hasSpending && ' · '}
           {hasSpending && `${formatCurrency(spent)} spent`}
           {!hasIncome && !hasSpending && 'No spending yet'}
+          {spendPct >= 100 && (
+            <span className="text-[var(--color-danger)]"> · over budget</span>
+          )}
+          {overPace && paceDelta != null && (
+            <span className="text-[#b45309]">
+              {' '}· {formatCurrency(paceDelta)} ahead of pace
+            </span>
+          )}
+          {underPace && paceDelta != null && Math.abs(paceDelta) >= 1 && (
+            <span className="text-[var(--color-muted)]">
+              {' '}· {formatCurrency(Math.abs(paceDelta))} under pace
+            </span>
+          )}
         </p>
       </div>
 
       {/* Right side: amount + progress */}
       <div className="flex items-center gap-4 flex-shrink-0">
         <div className="w-24 sm:w-32">
-          {hasSpending ? (
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-1 bg-[var(--color-border)] rounded-full overflow-hidden">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 h-1 bg-[var(--color-border)] rounded-full overflow-hidden">
+              {hasSpending && (
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(spendPct, 100)}%` }}
@@ -521,14 +705,20 @@ function BudgetRow({
                   className="h-full rounded-full"
                   style={{ backgroundColor: progressColor }}
                 />
-              </div>
-              <span className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap w-7 text-right">
-                {spendPct.toFixed(0)}%
-              </span>
+              )}
+              {/* Pace tick — where we should be today */}
+              {expectedPct != null && expectedPct > 0 && expectedPct < 100 && (
+                <div
+                  className="absolute top-[-2px] bottom-[-2px] w-[1.5px] bg-[var(--color-fg)] opacity-60"
+                  style={{ left: `${expectedPct}%` }}
+                  title={`Day ${pace.day} of ${pace.daysInMonth}`}
+                />
+              )}
             </div>
-          ) : (
-            <div className="h-1 w-full bg-[var(--color-border)] rounded-full opacity-40" />
-          )}
+            <span className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap w-7 text-right">
+              {hasSpending ? `${spendPct.toFixed(0)}%` : '—'}
+            </span>
+          </div>
         </div>
         <p className="text-sm font-semibold text-[var(--color-fg)] tabular-nums w-20 text-right">
           {formatCurrency(amount)}
@@ -549,6 +739,54 @@ function BudgetRow({
           <LuTrash2 size={14} />
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── Suggestion card ──────────────────────────────────────────────────
+
+function SuggestionCard({ suggestion, income, hasIncome, adding, disabled, onAdd }) {
+  const color = suggestion.hex_color || '#71717a';
+  const iconName = suggestion.icon_name;
+  const Icon = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
+  const avg = Number(suggestion.monthly_avg || 0);
+  const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--color-border)] hover:border-[color-mix(in_oklab,var(--color-fg),transparent_75%)] transition-colors">
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{
+          backgroundColor: `color-mix(in oklab, ${color}, transparent 85%)`,
+          color,
+        }}
+      >
+        <Icon size={15} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm text-[var(--color-fg)] truncate">
+          {suggestion.label}
+        </p>
+        <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
+          {formatCurrency(avg)}/mo avg
+          {hasIncome && pctOfIncome > 0 && ` · ${pctOfIncome.toFixed(0)}% of income`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={adding || disabled}
+        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-[var(--color-fg)] border border-[var(--color-border)] hover:bg-[var(--color-card-highlight)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+      >
+        {adding ? (
+          'Adding…'
+        ) : (
+          <>
+            <LuPlus className="w-3 h-3" />
+            Add
+          </>
+        )}
+      </button>
     </div>
   );
 }
