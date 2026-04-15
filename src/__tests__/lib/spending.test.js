@@ -15,10 +15,14 @@
  *   - propagation of Supabase errors
  *   - delete scoping (id AND user_id)
  *
+ * Sign convention: transactions are stored with negative amounts for
+ * spending and positive amounts for income/refunds. `getBudgetProgress`
+ * skips positive amounts entirely and sums the absolute values of
+ * negatives, so `spent` is always a positive dollar figure.
+ *
  * Behavioral gaps that are pinned but NOT fixed here (see NOTE comments):
  *   - Transfers are not excluded; a budget on a transfer category would count transfers as "spent"
  *   - Split transactions are not decomposed; a transaction's full amount is attributed to its primary category_id
- *   - Refunds (negative amounts) reduce `spent` and can produce negative percentages
  *
  * Per the "preserve behavior when refactoring" rule in docs/architectural_patterns.md,
  * these gaps are documented here so any future cleanup has a regression baseline.
@@ -150,9 +154,9 @@ describe('getBudgetProgress', () => {
         },
         transactions: {
           data: [
-            { amount: 30, category_id: 'cat-food' },
-            { amount: 25, category_id: 'cat-food' },
-            { amount: 100, category_id: 'cat-rent' }, // ignored — different category
+            { amount: -30, category_id: 'cat-food' },
+            { amount: -25, category_id: 'cat-food' },
+            { amount: -100, category_id: 'cat-rent' }, // ignored — different category
           ],
           error: null,
         },
@@ -171,7 +175,7 @@ describe('getBudgetProgress', () => {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 200 }],
           error: null,
         },
-        transactions: { data: [{ amount: 99, category_id: 'cat-other' }], error: null },
+        transactions: { data: [{ amount: -99, category_id: 'cat-other' }], error: null },
         system_categories: { data: [], error: null },
       });
 
@@ -191,9 +195,9 @@ describe('getBudgetProgress', () => {
         },
         transactions: {
           data: [
-            { amount: 40, category_id: 'cat-restaurants' }, // → grp-food
-            { amount: 15, category_id: 'cat-groceries' },   // → grp-food
-            { amount: 80, category_id: 'cat-rent' },         // → grp-housing, ignored
+            { amount: -40, category_id: 'cat-restaurants' }, // → grp-food
+            { amount: -15, category_id: 'cat-groceries' },   // → grp-food
+            { amount: -80, category_id: 'cat-rent' },         // → grp-housing, ignored
           ],
           error: null,
         },
@@ -221,8 +225,8 @@ describe('getBudgetProgress', () => {
         },
         transactions: {
           data: [
-            { amount: 50, category_id: 'cat-unknown' }, // not in map → undefined group → ignored
-            { amount: 30, category_id: 'cat-restaurants' },
+            { amount: -50, category_id: 'cat-unknown' }, // not in map → undefined group → ignored
+            { amount: -30, category_id: 'cat-restaurants' },
           ],
           error: null,
         },
@@ -244,7 +248,7 @@ describe('getBudgetProgress', () => {
           data: [{ id: 'b1', category_id: null, category_group_id: null, amount: 100 }],
           error: null,
         },
-        transactions: { data: [{ amount: 50, category_id: 'cat-food' }], error: null },
+        transactions: { data: [{ amount: -50, category_id: 'cat-food' }], error: null },
         system_categories: { data: [], error: null },
       });
 
@@ -262,8 +266,8 @@ describe('getBudgetProgress', () => {
         },
         transactions: {
           data: [
-            { amount: '12.50', category_id: 'cat-food' },
-            { amount: '7.25',  category_id: 'cat-food' },
+            { amount: '-12.50', category_id: 'cat-food' },
+            { amount: '-7.25',  category_id: 'cat-food' },
           ],
           error: null,
         },
@@ -283,7 +287,7 @@ describe('getBudgetProgress', () => {
         transactions: {
           data: [
             { amount: null, category_id: 'cat-food' },
-            { amount: 10,   category_id: 'cat-food' },
+            { amount: -10,  category_id: 'cat-food' },
           ],
           error: null,
         },
@@ -301,7 +305,7 @@ describe('getBudgetProgress', () => {
           error: null,
         },
         transactions: {
-          data: [{ category_id: 'cat-food' }, { amount: 5, category_id: 'cat-food' }],
+          data: [{ category_id: 'cat-food' }, { amount: -5, category_id: 'cat-food' }],
           error: null,
         },
         system_categories: { data: [], error: null },
@@ -318,7 +322,7 @@ describe('getBudgetProgress', () => {
           error: null,
         },
         transactions: {
-          data: [{ amount: 'abc', category_id: 'cat-food' }, { amount: 20, category_id: 'cat-food' }],
+          data: [{ amount: 'abc', category_id: 'cat-food' }, { amount: -20, category_id: 'cat-food' }],
           error: null,
         },
         system_categories: { data: [], error: null },
@@ -337,7 +341,7 @@ describe('getBudgetProgress', () => {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 100 }],
           error: null,
         },
-        transactions: { data: [{ amount: 73, category_id: 'cat-food' }], error: null },
+        transactions: { data: [{ amount: -73, category_id: 'cat-food' }], error: null },
         system_categories: { data: [], error: null },
       });
 
@@ -351,7 +355,7 @@ describe('getBudgetProgress', () => {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 100 }],
           error: null,
         },
-        transactions: { data: [{ amount: 250, category_id: 'cat-food' }], error: null },
+        transactions: { data: [{ amount: -250, category_id: 'cat-food' }], error: null },
         system_categories: { data: [], error: null },
       });
 
@@ -366,7 +370,7 @@ describe('getBudgetProgress', () => {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 0 }],
           error: null,
         },
-        transactions: { data: [{ amount: 10, category_id: 'cat-food' }], error: null },
+        transactions: { data: [{ amount: -10, category_id: 'cat-food' }], error: null },
         system_categories: { data: [], error: null },
       });
 
@@ -390,24 +394,30 @@ describe('getBudgetProgress', () => {
       expect(result.remaining).toBe(0);
     });
 
-    test('refunds (negative amounts) reduce spent and produce a negative percentage', async () => {
-      // NOTE: This pins current behavior. A $50 refund on a $100 budget produces
-      // spent=-50, remaining=150, percentage=-50. Whether that's the right UX for
-      // the budget bar is a separate question — see the header comment for the
-      // behavioral-gap list.
+    test('positive-amount transactions (refunds / income) are skipped, not counted', async () => {
+      // Convention: negative = spending, positive = income/refund. On a $100
+      // budget with one $80 spend and one $20 refund, `spent` should be 80
+      // (the refund is ignored) — not 60. A full refund for the month should
+      // leave spent = 0, not negative.
       const supabase = makeMockSupabase({
         budgets: {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 100 }],
           error: null,
         },
-        transactions: { data: [{ amount: -50, category_id: 'cat-food' }], error: null },
+        transactions: {
+          data: [
+            { amount: -80, category_id: 'cat-food' }, // spending
+            { amount: 20,  category_id: 'cat-food' }, // refund — skipped
+          ],
+          error: null,
+        },
         system_categories: { data: [], error: null },
       });
 
       const [result] = await getBudgetProgress(supabase, USER_ID);
-      expect(result.spent).toBe(-50);
-      expect(result.remaining).toBe(150);
-      expect(result.percentage).toBe(-50);
+      expect(result.spent).toBe(80);
+      expect(result.remaining).toBe(20);
+      expect(result.percentage).toBe(80);
     });
   });
 
@@ -515,9 +525,9 @@ describe('getBudgetProgress', () => {
         },
         transactions: {
           data: [
-            { amount: 60, category_id: 'cat-food' },
-            { amount: 40, category_id: 'cat-food' },
-            { amount: 30, category_id: 'cat-gas' },
+            { amount: -60, category_id: 'cat-food' },
+            { amount: -40, category_id: 'cat-food' },
+            { amount: -30, category_id: 'cat-gas' },
           ],
           error: null,
         },
