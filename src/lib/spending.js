@@ -82,8 +82,15 @@ export async function getBudgetProgress(supabase, userId, monthDate = new Date()
       return false;
     });
 
-    // Sum positive amounts (assuming positive = spending)
-    spent = relevantTransactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+    // Transactions are stored with the convention: negative = spending,
+    // positive = income/refunds. Only count spending against the budget,
+    // and flip the sign so `spent` is a positive dollar amount. This
+    // matches how /api/transactions/spending-by-category sums things.
+    spent = relevantTransactions.reduce((sum, tx) => {
+      const amt = Number(tx.amount) || 0;
+      if (amt >= 0) return sum; // skip income/refunds/transfers
+      return sum + Math.abs(amt);
+    }, 0);
 
     const total = Number(budget.amount);
     const remaining = total - spent;

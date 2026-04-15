@@ -441,34 +441,12 @@ export default function BudgetsPage() {
               </div>
             </div>
 
-            {/* Coverage callout */}
+            {/* Coverage line — inline, no card */}
             {coverage && coverage.pct < 95 && (
-              <div className="mt-5 flex items-center justify-between gap-4 rounded-lg border border-[var(--color-border)] px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-xs text-[var(--color-fg)]">
-                    Your budgets cover{' '}
-                    <span className="font-semibold tabular-nums">
-                      {coverage.pct.toFixed(0)}%
-                    </span>{' '}
-                    of your typical spending.
-                  </p>
-                  <p className="text-[11px] text-[var(--color-muted)] mt-0.5 tabular-nums">
-                    {formatCurrency(coverage.uncoveredAmount)}/mo is untracked.
-                  </p>
-                </div>
-                {suggestions.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById('budget-suggestions');
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                    className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity whitespace-nowrap flex-shrink-0"
-                  >
-                    See suggestions ›
-                  </button>
-                )}
-              </div>
+              <p className="mt-4 text-[11px] text-[var(--color-muted)] tabular-nums">
+                Covers {coverage.pct.toFixed(0)}% of your typical spending ·{' '}
+                {formatCurrency(coverage.uncoveredAmount)}/mo untracked
+              </p>
             )}
           </section>
 
@@ -492,22 +470,17 @@ export default function BudgetsPage() {
             </div>
           </section>
 
-          {/* ── Suggested budgets ──────────────────────────────────── */}
-          {suggestions.length > 0 && (
+          {/* ── Suggested budgets (flat list) ──────────────────────── */}
+          {suggestions.length > 0 && !selectMode && (
             <section id="budget-suggestions">
-              <div className="mb-4 flex items-baseline justify-between">
-                <div>
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                    Suggested
-                  </h2>
-                  <p className="text-[11px] text-[var(--color-muted)] mt-1">
-                    Top categories you&apos;re spending in without a budget.
-                  </p>
-                </div>
+              <div className="mb-2 px-2">
+                <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                  Suggested from your spending
+                </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {suggestions.map((s) => (
-                  <SuggestionCard
+              <div className="flex flex-col">
+                {suggestions.map((s, i) => (
+                  <SuggestionRow
                     key={s.id}
                     suggestion={s}
                     income={income}
@@ -515,6 +488,7 @@ export default function BudgetsPage() {
                     adding={addingSuggestionId === s.id}
                     disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
                     onAdd={() => handleQuickAddSuggestion(s)}
+                    isLast={i === suggestions.length - 1}
                   />
                 ))}
               </div>
@@ -743,9 +717,17 @@ function BudgetRow({
   );
 }
 
-// ─── Suggestion card ──────────────────────────────────────────────────
+// ─── Suggestion row (flat, matches BudgetRow styling) ─────────────────
 
-function SuggestionCard({ suggestion, income, hasIncome, adding, disabled, onAdd }) {
+function SuggestionRow({
+  suggestion,
+  income,
+  hasIncome,
+  adding,
+  disabled,
+  onAdd,
+  isLast,
+}) {
   const color = suggestion.hex_color || '#71717a';
   const iconName = suggestion.icon_name;
   const Icon = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
@@ -753,16 +735,25 @@ function SuggestionCard({ suggestion, income, hasIncome, adding, disabled, onAdd
   const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--color-border)] hover:border-[color-mix(in_oklab,var(--color-fg),transparent_75%)] transition-colors">
+    <div
+      className={`
+        group flex items-center gap-4 py-4 px-2 -mx-2 rounded-lg transition-colors
+        hover:bg-[var(--color-card-highlight)]
+        ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
+      `}
+    >
+      {/* Icon pill (muted compared to real budget rows) */}
       <div
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 opacity-80"
         style={{
-          backgroundColor: `color-mix(in oklab, ${color}, transparent 85%)`,
+          backgroundColor: `color-mix(in oklab, ${color}, transparent 88%)`,
           color,
         }}
       >
         <Icon size={15} />
       </div>
+
+      {/* Label + avg */}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm text-[var(--color-fg)] truncate">
           {suggestion.label}
@@ -772,18 +763,20 @@ function SuggestionCard({ suggestion, income, hasIncome, adding, disabled, onAdd
           {hasIncome && pctOfIncome > 0 && ` · ${pctOfIncome.toFixed(0)}% of income`}
         </p>
       </div>
+
+      {/* Add action */}
       <button
         type="button"
         onClick={onAdd}
         disabled={adding || disabled}
-        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-[var(--color-fg)] border border-[var(--color-border)] hover:bg-[var(--color-card-highlight)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-card-highlight)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap flex-shrink-0"
       >
         {adding ? (
           'Adding…'
         ) : (
           <>
             <LuPlus className="w-3 h-3" />
-            Add
+            Add budget
           </>
         )}
       </button>
