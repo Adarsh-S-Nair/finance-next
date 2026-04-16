@@ -459,60 +459,50 @@ export default function BudgetsPage() {
             </div>
           </div>
 
-          {/* Side panel — summary stats + suggestions */}
+          {/* Side panel — allocation breakdown + stats + suggestions */}
           <div className="lg:w-1/3 flex flex-col gap-10">
-            <div>
-              <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
-                This month
-              </h2>
-              <dl className="space-y-3 text-xs">
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-[var(--color-muted)]">Budgeted</dt>
-                  <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                    {formatCurrency(totalAllocated)}
-                    {hasIncome && (
-                      <span className="text-[var(--color-muted)] font-normal">
-                        {' '}/ {formatCurrency(income)}
-                      </span>
-                    )}
-                  </dd>
-                </div>
-                {hasIncome && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">
-                      {overAllocated > 0 ? 'Over by' : 'Unallocated'}
-                    </dt>
-                    <dd
-                      className="tabular-nums font-medium"
-                      style={{
-                        color:
-                          overAllocated > 0
-                            ? 'var(--color-danger)'
-                            : 'var(--color-fg)',
-                      }}
-                    >
-                      {formatCurrency(overAllocated > 0 ? overAllocated : unallocated)}
-                    </dd>
-                  </div>
-                )}
-                {coverage && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Coverage</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                      {coverage.pct.toFixed(0)}% of spending
-                    </dd>
-                  </div>
-                )}
-                {pace && (
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-muted)]">Month progress</dt>
-                    <dd className="text-[var(--color-fg)] tabular-nums font-medium">
-                      Day {pace.day} / {pace.daysInMonth}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
+            <AllocationBreakdown
+              sortedBudgets={sortedBudgets}
+              totalAllocated={totalAllocated}
+              income={income}
+              hasIncome={hasIncome}
+              unallocated={unallocated}
+              overAllocated={overAllocated}
+            />
+
+            {(coverage || pace) && (
+              <div>
+                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                  Month status
+                </h2>
+                <dl className="space-y-3.5 text-xs">
+                  {pace && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">Progress</dt>
+                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                        Day {pace.day} of {pace.daysInMonth}
+                      </dd>
+                    </div>
+                  )}
+                  {pace && totalAllocated > 0 && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">Expected spend</dt>
+                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                        {formatCurrency(totalAllocated * pace.fraction)}
+                      </dd>
+                    </div>
+                  )}
+                  {coverage && (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-[var(--color-muted)]">Coverage</dt>
+                      <dd className="text-[var(--color-fg)] tabular-nums font-medium">
+                        {coverage.pct.toFixed(0)}% of spending
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
 
             {suggestions.length > 0 && !selectMode && (
               <div id="budget-suggestions">
@@ -620,6 +610,144 @@ function CategoryIcon({ iconName, iconLib, color, size = 36 }) {
         style={{ width: size * 0.42, height: size * 0.42 }}
         fallback={FiTag}
       />
+    </div>
+  );
+}
+
+// ─── Allocation breakdown ────────────────────────────────────────────
+// Portfolio-style card: total at top, segmented bar showing each budget
+// against income, then a legend row per budget with $ and %. Matches
+// the visual language of the investments page's AllocationCard.
+
+function AllocationBreakdown({
+  sortedBudgets,
+  totalAllocated,
+  income,
+  hasIncome,
+  unallocated,
+  overAllocated,
+}) {
+  const [hoveredId, setHoveredId] = useState(null);
+
+  // Denominator: income if we know it, otherwise total allocated.
+  const denom = hasIncome ? Math.max(income, totalAllocated) : totalAllocated;
+
+  // Unallocated is treated as a pseudo-segment so it shows in both the
+  // bar and the legend.
+  const unallocatedSeg =
+    hasIncome && unallocated > 0
+      ? { id: '__unallocated', label: 'Unallocated', amount: unallocated, color: 'var(--color-border)', muted: true }
+      : null;
+
+  const segments = [
+    ...sortedBudgets.map((b) => ({
+      id: b.id,
+      label: getLabel(b),
+      amount: Number(b.amount || 0),
+      color: getColor(b),
+      muted: false,
+    })),
+    ...(unallocatedSeg ? [unallocatedSeg] : []),
+  ];
+
+  const overLabel =
+    overAllocated > 0 ? `${formatCurrency(overAllocated)} over income` : null;
+
+  return (
+    <div>
+      <div className="mb-5">
+        <div className="card-header">Allocation</div>
+      </div>
+
+      <div className="mb-4 flex items-baseline justify-between">
+        <span className="text-sm font-medium text-[var(--color-fg)]">
+          Total Budgeted
+        </span>
+        <span className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
+          {formatCurrency(totalAllocated)}
+          {hasIncome && (
+            <span className="text-[var(--color-muted)] font-normal">
+              {' '}/ {formatCurrency(income)}
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Segmented bar */}
+      <div
+        className="mb-5 flex h-3 w-full overflow-hidden rounded-full bg-[var(--color-surface-alt)]"
+        onMouseLeave={() => setHoveredId(null)}
+      >
+        {segments.map((seg) => {
+          const pct = denom > 0 ? (seg.amount / denom) * 100 : 0;
+          if (pct <= 0) return null;
+          const isDimmed = hoveredId && hoveredId !== seg.id;
+          return (
+            <div
+              key={seg.id}
+              className="h-full cursor-pointer transition-all duration-200"
+              style={{
+                width: `${pct}%`,
+                backgroundColor: seg.color,
+                opacity: isDimmed ? 0.3 : seg.muted ? 0.6 : 1,
+              }}
+              onMouseEnter={() => setHoveredId(seg.id)}
+              title={`${seg.label} · ${formatCurrency(seg.amount)}`}
+            />
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="space-y-3">
+        {segments.map((seg) => {
+          const pct = denom > 0 ? (seg.amount / denom) * 100 : 0;
+          const isHovered = hoveredId === seg.id;
+          const isDimmed = hoveredId && !isHovered;
+          return (
+            <div
+              key={seg.id}
+              className={`flex cursor-pointer items-center justify-between text-xs transition-opacity duration-200 ${
+                isDimmed ? 'opacity-40' : 'opacity-100'
+              }`}
+              onMouseEnter={() => setHoveredId(seg.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div
+                  className="h-2 w-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: seg.color }}
+                />
+                <span
+                  className={`font-medium truncate ${
+                    seg.muted ? 'text-[var(--color-muted)]' : 'text-[var(--color-muted)]'
+                  } ${isHovered ? 'text-[var(--color-fg)]' : ''}`}
+                >
+                  {seg.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span
+                  className={`tabular-nums font-semibold ${
+                    seg.muted ? 'text-[var(--color-muted)]' : 'text-[var(--color-fg)]'
+                  }`}
+                >
+                  {formatCurrency(seg.amount)}
+                </span>
+                <span className="font-medium font-mono text-[10px] text-[var(--color-muted)] w-10 text-right">
+                  {pct.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {overLabel && (
+        <p className="mt-4 text-[11px] text-[var(--color-danger)] tabular-nums">
+          {overLabel}
+        </p>
+      )}
     </div>
   );
 }
@@ -903,37 +1031,54 @@ function BurnDownChart({
   const daysInMonth = pace?.daysInMonth || 30;
   const today = pace?.day || daysInMonth;
 
-  // Build dense daily series from day 1 to today: cumulative spend +
-  // pace baseline at each day. Padding flat between spending events
-  // gives the line a clean step-like shape under the monotone curve.
+  // Build a full-month daily series: actual cumulative spend up to today,
+  // plus the even-burn pace line all the way to the end of the month.
+  // Future-day actuals are `null` so the line stops at today — but the
+  // pace line continues to totalAllocated on day `daysInMonth`, pinning
+  // the chart's max value and pushing the higher line to the top edge.
   const chartData = useMemo(() => {
     if (!totalAllocated || totalAllocated <= 0 || daysInMonth <= 0) return [];
     const burnByDay = new Map();
     series.forEach((p) => burnByDay.set(p.day, p.cumulative));
     const out = [];
     let running = 0;
-    for (let day = 1; day <= today; day++) {
+    for (let day = 1; day <= daysInMonth; day++) {
       if (burnByDay.has(day)) running = burnByDay.get(day);
       out.push({
         day,
         dayLabel: `Day ${day}`,
-        value: Number(running.toFixed(2)),
+        value: day <= today ? Number(running.toFixed(2)) : null,
         pace: Number(((day / daysInMonth) * totalAllocated).toFixed(2)),
       });
     }
     return out;
   }, [series, totalAllocated, daysInMonth, today]);
 
-  const lastPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  // "Current" (non-hover) state: spending as of today.
+  const todayPoint = chartData.find((p) => p.day === today);
+  const currentSpent = todayPoint?.value ?? 0;
+
   const hovered =
     activeIndex !== null && chartData[activeIndex] ? chartData[activeIndex] : null;
-  const display = hovered || lastPoint;
-  const displaySpent = display?.value || 0;
-  const displayPace = display?.pace || 0;
-  const displayDay = display?.day || today;
+
+  // When hovering past today, the actual value is null — keep showing the
+  // current total instead of jumping to 0.
+  const displaySpent =
+    hovered && hovered.value != null ? hovered.value : currentSpent;
+  const displayPace = hovered?.pace ?? todayPoint?.pace ?? 0;
+  const displayDay = hovered?.day ?? today;
   const displayDelta = displaySpent - displayPace;
   const isOverPace = displayDelta > 0;
-  const isOverBudget = displaySpent > totalAllocated;
+  const isOverBudget = currentSpent > totalAllocated;
+
+  // y-axis: clamp tight to the highest line so the visible max IS the
+  // top of the chart. Tiny 2% headroom so the line doesn't clip.
+  const maxSpent = useMemo(
+    () =>
+      chartData.reduce((m, p) => (p.value != null && p.value > m ? p.value : m), 0),
+    [chartData]
+  );
+  const yMax = Math.max(totalAllocated, maxSpent) * 1.02;
 
   const lineColor = isOverBudget
     ? 'var(--color-danger)'
@@ -1033,7 +1178,7 @@ function BurnDownChart({
             margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
             curveType="monotone"
             xAxisDataKey="dayLabel"
-            yAxisDomain={[0, totalAllocated * 1.1]}
+            yAxisDomain={[0, yMax]}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             lines={[
