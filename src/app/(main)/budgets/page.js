@@ -28,11 +28,9 @@ export default function BudgetsPage() {
   const [addingSuggestionId, setAddingSuggestionId] = useState(null);
   const [burnSeries, setBurnSeries] = useState([]);
 
-  // Selection + delete state
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  // Delete state (single-row, triggered by hover trash)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteIds, setPendingDeleteIds] = useState([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const fetchBudgets = async () => {
@@ -108,14 +106,6 @@ export default function BudgetsPage() {
     fetchCategoryStats();
   }, [user?.id]);
 
-  // Exit select mode automatically when no budgets remain.
-  useEffect(() => {
-    if (budgets.length === 0 && selectMode) {
-      setSelectMode(false);
-      setSelectedIds(new Set());
-    }
-  }, [budgets.length, selectMode]);
-
   // Profile-saved income is the source of truth. Fall back to computed
   // average only while loading or for legacy users.
   const savedIncome = Number(profile?.monthly_income || 0);
@@ -170,44 +160,19 @@ export default function BudgetsPage() {
       .slice(0, 4);
   }, [categoryStats, budgets]);
 
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => setSelectedIds(new Set(sortedBudgets.map((b) => b.id)));
-  const clearSelection = () => setSelectedIds(new Set());
-  const enterSelectMode = () => {
-    setSelectMode(true);
-    setSelectedIds(new Set());
-  };
-  const exitSelectMode = () => {
-    setSelectMode(false);
-    setSelectedIds(new Set());
-  };
-
-  const requestDelete = (ids) => {
-    setPendingDeleteIds(ids);
+  const requestDelete = (id) => {
+    setPendingDeleteId(id);
     setConfirmOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (pendingDeleteIds.length === 0) return;
+    if (!pendingDeleteId) return;
     setDeleting(true);
     try {
-      await Promise.all(
-        pendingDeleteIds.map((id) =>
-          fetch(`/api/budgets?id=${id}`, { method: 'DELETE' })
-        )
-      );
+      await fetch(`/api/budgets?id=${pendingDeleteId}`, { method: 'DELETE' });
       await fetchBudgets();
       setConfirmOpen(false);
-      setPendingDeleteIds([]);
-      if (selectMode) exitSelectMode();
+      setPendingDeleteId(null);
     } catch (e) {
       console.error(e);
     } finally {
@@ -265,61 +230,7 @@ export default function BudgetsPage() {
     );
   }
 
-  // ─── Header action ─────────────────────────────────────────────────
   const hasBudgets = budgets.length > 0;
-  const selectedCount = selectedIds.size;
-
-  const headerAction = hasBudgets ? (
-    selectMode ? (
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-[var(--color-muted)] tabular-nums hidden sm:inline">
-          {selectedCount} selected
-        </span>
-        <button
-          type="button"
-          onClick={selectedCount === sortedBudgets.length ? clearSelection : selectAll}
-          className="text-xs font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity px-2 py-1"
-        >
-          {selectedCount === sortedBudgets.length ? 'Clear' : 'Select all'}
-        </button>
-        <button
-          type="button"
-          disabled={selectedCount === 0}
-          onClick={() => requestDelete(Array.from(selectedIds))}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <LuTrash2 className="w-3.5 h-3.5" />
-          Delete
-        </button>
-        <button
-          type="button"
-          onClick={exitSelectMode}
-          className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2 py-1"
-        >
-          Done
-        </button>
-      </div>
-    ) : (
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={enterSelectMode}
-          className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2 py-1"
-        >
-          Select
-        </button>
-        <Button
-          size="sm"
-          variant="matte"
-          onClick={() => setIsModalOpen(true)}
-          className="gap-1.5 !rounded-full pl-3 pr-4"
-        >
-          <LuPlus className="w-3.5 h-3.5" />
-          New Budget
-        </Button>
-      </div>
-    )
-  ) : null;
 
   // ─── Empty state ───────────────────────────────────────────────────
   if (!loading && !hasBudgets) {
@@ -356,75 +267,97 @@ export default function BudgetsPage() {
 
   // ─── Main content ──────────────────────────────────────────────────
   return (
-    <PageContainer title="Budgets" action={headerAction}>
+    <PageContainer title="Budgets">
       {loading ? (
         <BudgetsSkeleton />
       ) : (
-        <div className="flex flex-col gap-10">
-          <BurnDownChart
-            series={burnSeries}
-            totalAllocated={totalAllocated}
-            income={income}
-            hasIncome={hasIncome}
-            allocatedPct={allocatedPct}
-            unallocated={unallocated}
-            overAllocated={overAllocated}
-            pace={pace}
-          />
+        <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
+          {/* Main panel — burn-down chart + budgets list */}
+          <div className="lg:w-2/3 flex flex-col gap-10">
+            <BurnDownChart
+              series={burnSeries}
+              totalAllocated={totalAllocated}
+              income={income}
+              hasIncome={hasIncome}
+              allocatedPct={allocatedPct}
+              unallocated={unallocated}
+              overAllocated={overAllocated}
+              pace={pace}
+            />
 
-          <div>
-            <div className="mb-4 flex items-baseline justify-between">
-              <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
-              {hasIncome && (
-                <span className="text-xs text-[var(--color-muted)] tabular-nums">
-                  {formatCurrency(totalAllocated)} of {formatCurrency(income)} budgeted
-                  {overAllocated > 0 && (
-                    <span className="text-[var(--color-danger)]">
-                      {' '}· {formatCurrency(overAllocated)} over
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-baseline gap-3">
+                  <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
+                  {hasIncome && (
+                    <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                      {formatCurrency(totalAllocated)} / {formatCurrency(income)}
+                      {overAllocated > 0 && (
+                        <span className="text-[var(--color-danger)]">
+                          {' '}· {formatCurrency(overAllocated)} over
+                        </span>
+                      )}
                     </span>
                   )}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col">
-              {sortedBudgets.map((b, i) => (
-                <BudgetRow
-                  key={b.id}
-                  budget={b}
-                  income={income}
-                  hasIncome={hasIncome}
-                  pace={pace}
-                  selectMode={selectMode}
-                  selected={selectedIds.has(b.id)}
-                  onToggleSelect={() => toggleSelect(b.id)}
-                  onDelete={() => requestDelete([b.id])}
-                  isLast={i === sortedBudgets.length - 1}
-                />
-              ))}
-            </div>
-          </div>
-
-          {suggestions.length > 0 && !selectMode && (
-            <div id="budget-suggestions">
-              <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
-                Quick add
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {suggestions.map((s) => (
-                  <SuggestionCard
-                    key={s.id}
-                    suggestion={s}
+                </div>
+                <Button
+                  size="sm"
+                  variant="matte"
+                  onClick={() => setIsModalOpen(true)}
+                  className="gap-1.5 !rounded-full pl-3 pr-4"
+                >
+                  <LuPlus className="w-3.5 h-3.5" />
+                  New Budget
+                </Button>
+              </div>
+              <div className="flex flex-col">
+                {sortedBudgets.map((b, i) => (
+                  <BudgetRow
+                    key={b.id}
+                    budget={b}
                     income={income}
                     hasIncome={hasIncome}
-                    adding={addingSuggestionId === s.id}
-                    disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
-                    onAdd={() => handleQuickAddSuggestion(s)}
+                    pace={pace}
+                    onDelete={() => requestDelete(b.id)}
+                    isLast={i === sortedBudgets.length - 1}
                   />
                 ))}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+
+          {/* Side panel — month progress + suggestions */}
+          <div className="lg:w-1/3 flex flex-col gap-10">
+            <MonthProgress
+              pace={pace}
+              totalAllocated={totalAllocated}
+              burnSeries={burnSeries}
+              budgets={sortedBudgets}
+            />
+
+            {suggestions.length > 0 && (
+              <div id="budget-suggestions">
+                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
+                  Quick add
+                </h2>
+                <div className="flex flex-col">
+                  {suggestions.map((s, i) => (
+                    <SuggestionRow
+                      key={s.id}
+                      suggestion={s}
+                      income={income}
+                      hasIncome={hasIncome}
+                      adding={addingSuggestionId === s.id}
+                      disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
+                      onAdd={() => handleQuickAddSuggestion(s)}
+                      isLast={i === suggestions.length - 1}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       <CreateBudgetOverlay
@@ -440,22 +373,14 @@ export default function BudgetsPage() {
       <ConfirmDialog
         isOpen={confirmOpen}
         variant="danger"
-        title={
-          pendingDeleteIds.length > 1
-            ? `Delete ${pendingDeleteIds.length} budgets?`
-            : 'Delete budget?'
-        }
-        description={
-          pendingDeleteIds.length > 1
-            ? 'These budgets will be permanently removed. Your transactions and spending history will not be affected.'
-            : 'This budget will be permanently removed. Your transactions and spending history will not be affected.'
-        }
-        confirmLabel={pendingDeleteIds.length > 1 ? `Delete ${pendingDeleteIds.length}` : 'Delete'}
+        title="Delete budget?"
+        description="This budget will be permanently removed. Your transactions and spending history will not be affected."
+        confirmLabel="Delete"
         busy={deleting}
         onCancel={() => {
           if (deleting) return;
           setConfirmOpen(false);
-          setPendingDeleteIds([]);
+          setPendingDeleteId(null);
         }}
         onConfirm={handleConfirmDelete}
       />
@@ -514,17 +439,7 @@ function CategoryIcon({ iconName, iconLib, color, size = 36 }) {
 
 // ─── Budget row ───────────────────────────────────────────────────────
 
-function BudgetRow({
-  budget,
-  income,
-  hasIncome,
-  pace,
-  selectMode,
-  selected,
-  onToggleSelect,
-  onDelete,
-  isLast,
-}) {
+function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
   const { iconName, iconLib } = getIconMeta(budget);
   const color = getColor(budget);
   const label = getLabel(budget);
@@ -543,29 +458,23 @@ function BudgetRow({
     expectedPct != null && hasSpending && spendPct < expectedPct - 2;
   const overBudget = spendPct >= 100;
 
-  // Inline progress fill: subtle category-colored bar behind the row that
-  // grows with spend. Flips to danger when over budget, amber when over
-  // pace but still under. Makes budget health scannable at a glance.
+  // Inline progress fill: category-colored bar behind the row that grows
+  // with spend. Flips to danger when over budget, amber when over pace.
+  // Opacity is bumped up from the original v1 pass for visibility.
   const fillPct = Math.min(100, Math.max(0, spendPct));
   const fillColor = overBudget
     ? 'var(--color-danger)'
     : overPace
       ? '#f59e0b'
       : color;
-  const fillOpacity = overBudget ? 0.14 : overPace ? 0.12 : 0.08;
-
-  const handleRowClick = () => {
-    if (selectMode) onToggleSelect();
-  };
+  const fillOpacity = overBudget ? 0.22 : overPace ? 0.20 : 0.16;
 
   return (
     <div
-      onClick={handleRowClick}
       className={`
         group relative isolate flex items-center gap-4 py-4 px-3 -mx-3 rounded-lg transition-colors overflow-hidden
         ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
-        ${selectMode ? 'cursor-pointer' : ''}
-        ${selected ? 'bg-[var(--color-card-highlight)]' : 'hover:bg-[var(--color-card-highlight)]'}
+        hover:bg-[var(--color-card-highlight)]
       `}
     >
       {/* Progress fill — sits behind content, grows with spend */}
@@ -581,37 +490,13 @@ function BudgetRow({
         />
       )}
 
-      {selectMode && (
-        <div
-          className={`
-            w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0
-            transition-colors
-            ${selected
-              ? 'bg-[var(--color-fg)] border-[var(--color-fg)]'
-              : 'border-[var(--color-border)] bg-transparent'}
-          `}
-        >
-          {selected && (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M3 8.5L6.5 12L13 5"
-                stroke="var(--color-content-bg)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </div>
-      )}
-
       <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={36} />
 
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm text-[var(--color-fg)] truncate">{label}</p>
         <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
           {hasIncome && `${allocPct.toFixed(0)}% of income`}
-          {spendPct >= 100 && (
+          {overBudget && (
             <span className="text-[var(--color-danger)]"> · over budget</span>
           )}
           {overPace && paceDelta != null && (
@@ -633,10 +518,7 @@ function BudgetRow({
           <span
             className="font-semibold"
             style={{
-              color:
-                spendPct >= 100
-                  ? 'var(--color-danger)'
-                  : 'var(--color-fg)',
+              color: overBudget ? 'var(--color-danger)' : 'var(--color-fg)',
             }}
           >
             {formatCurrency(spent)}
@@ -645,19 +527,17 @@ function BudgetRow({
         </p>
       </div>
 
-      {!selectMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded transition-opacity"
-          title="Delete budget"
-          aria-label={`Delete ${label} budget`}
-        >
-          <LuTrash2 size={14} />
-        </button>
-      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded transition-opacity"
+        title="Delete budget"
+        aria-label={`Delete ${label} budget`}
+      >
+        <LuTrash2 size={14} />
+      </button>
     </div>
   );
 }
@@ -860,15 +740,142 @@ function BurnDownChart({
 }
 
 
-// ─── Suggestion card (horizontal strip — tap to quick-add) ────────────
+// ─── Month Progress (side-panel component) ────────────────────────────
+// Visual pace indicator: horizontal bar showing how much of the month has
+// elapsed vs. how much of the budget has been spent. Plus a compact stat
+// showing whether you're ahead or behind.
 
-function SuggestionCard({
+function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
+  if (!pace) return null;
+
+  // Cumulative spend to date (last point in burnSeries)
+  const currentSpent =
+    Array.isArray(burnSeries) && burnSeries.length > 0
+      ? Number(burnSeries[burnSeries.length - 1]?.cumulative || 0)
+      : 0;
+
+  const pacePct = pace.fraction * 100;
+  const spendPct =
+    totalAllocated > 0 ? Math.min(100, (currentSpent / totalAllocated) * 100) : 0;
+  const expectedSpent = totalAllocated * pace.fraction;
+  const delta = currentSpent - expectedSpent;
+  const isOverPace = delta > 1;
+  const isOverBudget = currentSpent > totalAllocated;
+
+  // Count budgets in trouble — over budget or meaningfully ahead of pace
+  const trouble = budgets.reduce(
+    (acc, b) => {
+      const sp = Number(b.percentage || 0);
+      const ep = pacePct;
+      if (sp >= 100) acc.over += 1;
+      else if (sp > ep + 2) acc.ahead += 1;
+      return acc;
+    },
+    { over: 0, ahead: 0 }
+  );
+
+  const deltaColor = isOverBudget
+    ? 'text-[var(--color-danger)]'
+    : isOverPace
+      ? 'text-amber-500'
+      : 'text-emerald-500';
+
+  const deltaLabel = isOverBudget
+    ? `${formatCurrency(currentSpent - totalAllocated)} over budget`
+    : isOverPace
+      ? `${formatCurrency(delta)} ahead of pace`
+      : currentSpent > 0
+        ? `${formatCurrency(Math.abs(delta))} under pace`
+        : 'Nothing spent yet';
+
+  return (
+    <div>
+      <div className="card-header mb-5">Month pace</div>
+
+      <div className="mb-3 flex items-baseline justify-between">
+        <span className="text-sm font-medium text-[var(--color-fg)]">
+          Day {pace.day} of {pace.daysInMonth}
+        </span>
+        <span className="text-xs text-[var(--color-muted)] tabular-nums">
+          {pacePct.toFixed(0)}% elapsed
+        </span>
+      </div>
+
+      {/* Stacked bars: month pace (reference) + actual spend */}
+      <div className="space-y-2.5 mb-6">
+        <div>
+          <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--color-muted)] opacity-50"
+              style={{ width: `${pacePct}%` }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
+            <span>Month</span>
+            <span>{formatCurrency(expectedSpent)} expected</span>
+          </div>
+        </div>
+        <div>
+          <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${spendPct}%`,
+                backgroundColor: isOverBudget
+                  ? 'var(--color-danger)'
+                  : isOverPace
+                    ? '#f59e0b'
+                    : 'var(--color-success)',
+              }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
+            <span>Spent</span>
+            <span>
+              {formatCurrency(currentSpent)} of {formatCurrency(totalAllocated)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className={`text-sm font-medium tabular-nums ${deltaColor}`}>
+        {deltaLabel}
+      </div>
+
+      {(trouble.over > 0 || trouble.ahead > 0) && (
+        <div className="mt-4 pt-4 border-t border-[color-mix(in_oklab,var(--color-fg),transparent_93%)] space-y-2">
+          {trouble.over > 0 && (
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[var(--color-muted)]">Over budget</span>
+              <span className="text-[var(--color-danger)] font-medium tabular-nums">
+                {trouble.over} {trouble.over === 1 ? 'category' : 'categories'}
+              </span>
+            </div>
+          )}
+          {trouble.ahead > 0 && (
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[var(--color-muted)]">Ahead of pace</span>
+              <span className="text-amber-600 dark:text-amber-500 font-medium tabular-nums">
+                {trouble.ahead} {trouble.ahead === 1 ? 'category' : 'categories'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Suggestion row (flat, no card border) ────────────────────────────
+
+function SuggestionRow({
   suggestion,
   income,
   hasIncome,
   adding,
   disabled,
   onAdd,
+  isLast,
 }) {
   const color = suggestion.hex_color || '#71717a';
   const iconName = suggestion.icon_name;
@@ -877,32 +884,36 @@ function SuggestionCard({
   const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
 
   return (
-    <button
-      type="button"
-      onClick={onAdd}
-      disabled={adding || disabled}
-      className="group relative flex items-center gap-3 p-3 rounded-lg border border-[var(--color-border)] hover:border-[color-mix(in_oklab,var(--color-fg),transparent_80%)] hover:bg-[var(--color-card-highlight)] transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+    <div
+      className={`
+        group flex items-center gap-3 py-3 px-2 -mx-2 rounded-lg transition-colors
+        hover:bg-[var(--color-card-highlight)]
+        ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
+      `}
     >
-      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={32} />
+      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={28} />
 
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm text-[var(--color-fg)] truncate">
           {suggestion.label}
         </p>
         <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
-          {formatCurrency(avg)}/mo
+          {formatCurrency(avg)}/mo avg
           {hasIncome && pctOfIncome > 0 && ` · ${pctOfIncome.toFixed(0)}%`}
         </p>
       </div>
 
-      <span className="flex items-center justify-center w-6 h-6 rounded-full text-[var(--color-muted)] group-hover:text-[var(--color-fg)] group-hover:bg-[var(--color-surface-alt)] transition-colors flex-shrink-0">
-        {adding ? (
-          <span className="text-[10px]">…</span>
-        ) : (
-          <LuPlus className="w-3.5 h-3.5" />
-        )}
-      </span>
-    </button>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={adding || disabled}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+        title={`Add ${suggestion.label} budget`}
+        aria-label={`Add ${suggestion.label} budget`}
+      >
+        {adding ? <span className="text-[10px]">…</span> : <LuPlus className="w-3.5 h-3.5" />}
+      </button>
+    </div>
   );
 }
 
