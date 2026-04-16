@@ -318,15 +318,11 @@ export default function InvestmentsPage() {
     return combinedHoldings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
   }, [combinedHoldings]);
 
-  // Keep the spinner visible until the initial load (including ticker
+  // Keep the skeleton visible until the initial load (including ticker
   // metadata) is done. This prevents a brief flash where holding rows
   // render with "BTC"-style text fallbacks before their logos arrive.
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-fg)]" />
-      </div>
-    );
+    return <InvestmentsSkeleton />;
   }
 
   if (accounts.length === 0) {
@@ -375,7 +371,7 @@ export default function InvestmentsPage() {
                 return (
                   <div
                     key={h.ticker}
-                    className="group flex items-center justify-between gap-4 rounded-xl px-4 py-4 transition-all duration-200 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
+                    className="group flex items-center justify-between gap-4 rounded-xl px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <HoldingLogo
@@ -426,6 +422,85 @@ export default function InvestmentsPage() {
           <div className="hidden lg:block lg:w-1/3" />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────
+// Mirrors the real layout: chart (2/3) + stacked allocation/accounts (1/3),
+// then a 5-row holdings list constrained to the 2/3 column.
+
+function InvestmentsSkeleton() {
+  const bar = "bg-[var(--color-border)] rounded";
+  return (
+    <div className="space-y-10 animate-pulse">
+      {/* Summary row */}
+      <div className="flex flex-col gap-8 lg:flex-row">
+        {/* Chart */}
+        <div className="lg:w-2/3">
+          <div className={`h-3 w-32 ${bar} mb-3`} />
+          <div className={`h-10 w-52 ${bar} mb-2`} />
+          <div className={`h-4 w-40 ${bar} mb-6`} />
+          <div className={`h-[260px] w-full ${bar}`} />
+        </div>
+        {/* Side stack */}
+        <div className="flex flex-col gap-10 lg:w-1/3">
+          <div>
+            <div className={`h-3 w-24 ${bar} mb-5`} />
+            <div className={`h-3 w-full ${bar} mb-5`} />
+            <div className="space-y-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2 w-2 rounded-full ${bar}`} />
+                    <div className={`h-3 w-24 ${bar}`} />
+                  </div>
+                  <div className={`h-3 w-16 ${bar}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className={`h-3 w-20 ${bar} mb-5`} />
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className={`h-8 w-8 rounded-lg ${bar}`} />
+                  <div className="flex-1">
+                    <div className={`h-3 w-28 ${bar} mb-1.5`} />
+                    <div className={`h-3 w-16 ${bar}`} />
+                  </div>
+                  <div className={`h-3 w-16 ${bar}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Holdings */}
+      <div className="flex flex-col gap-8 pt-4 lg:flex-row">
+        <div className="lg:w-2/3">
+          <div className={`h-5 w-24 ${bar} mb-6 ml-1`} />
+          <div className="space-y-2">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-4 md:px-6">
+                <div className={`h-10 w-10 rounded-full ${bar}`} />
+                <div className="flex-1">
+                  <div className={`h-3 w-40 ${bar} mb-2`} />
+                  <div className={`h-3 w-20 ${bar}`} />
+                </div>
+                <div className={`hidden sm:block h-7 w-[88px] ${bar}`} />
+                <div className="text-right">
+                  <div className={`h-3 w-20 ${bar} mb-2 ml-auto`} />
+                  <div className={`h-3 w-12 ${bar} ml-auto`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="hidden lg:block lg:w-1/3" />
+      </div>
     </div>
   );
 }

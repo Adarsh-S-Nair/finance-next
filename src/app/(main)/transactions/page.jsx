@@ -8,7 +8,6 @@ import { FiRefreshCw, FiFilter, FiSearch, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../../../components/providers/UserProvider";
 import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
@@ -160,37 +159,29 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
       )}
 
       {/* Mobile: expanded search overlay — covers the topbar */}
-      <AnimatePresence>
-        {mobileSearchOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-x-0 top-0 z-50 h-16 bg-[var(--color-content-bg)] flex items-center px-4 gap-3 md:hidden"
+      {mobileSearchOpen && (
+        <div className="fixed inset-x-0 top-0 z-50 h-16 bg-[var(--color-content-bg)] flex items-center px-4 gap-3 md:hidden">
+          <button
+            onClick={() => setMobileSearchOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] flex-shrink-0"
+            aria-label="Close search"
           >
-            <button
-              onClick={() => setMobileSearchOpen(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors flex-shrink-0"
-              aria-label="Close search"
-            >
-              <span className="text-lg leading-none">&#8249;</span>
-            </button>
-            <div className="flex-1 h-8 flex items-center gap-2 input-focus-bar">
-              <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
-              <input
-                ref={mobileInputRef}
-                placeholder="Search transactions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onBlur={handleMobileBlur}
-                className="flex-1 bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
-              />
-            </div>
-            {toolButtons}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <span className="text-lg leading-none">&#8249;</span>
+          </button>
+          <div className="flex-1 h-8 flex items-center gap-2 input-focus-bar">
+            <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
+            <input
+              ref={mobileInputRef}
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={handleMobileBlur}
+              className="flex-1 bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
+            />
+          </div>
+          {toolButtons}
+        </div>
+      )}
     </>
   );
 }

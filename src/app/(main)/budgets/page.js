@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
@@ -472,7 +471,7 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
   return (
     <div
       className={`
-        group relative isolate flex items-center gap-4 py-4 px-3 -mx-3 rounded-lg transition-colors overflow-hidden
+        group relative isolate flex items-center gap-4 py-4 px-3 -mx-3 rounded-lg overflow-hidden
         ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
         hover:bg-[var(--color-card-highlight)]
       `}
@@ -481,7 +480,7 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
       {hasSpending && fillPct > 0 && (
         <div
           aria-hidden
-          className="absolute inset-y-0 left-0 -z-10 pointer-events-none transition-all"
+          className="absolute inset-y-0 left-0 -z-10 pointer-events-none"
           style={{
             width: `${fillPct}%`,
             backgroundColor: fillColor,
@@ -532,7 +531,7 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
           e.stopPropagation();
           onDelete();
         }}
-        className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded transition-opacity"
+        className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded"
         title="Delete budget"
         aria-label={`Delete ${label} budget`}
       >
@@ -818,7 +817,7 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
         <div>
           <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
             <div
-              className="h-full rounded-full transition-all"
+              className="h-full rounded-full"
               style={{
                 width: `${spendPct}%`,
                 backgroundColor: isOverBudget
@@ -886,7 +885,7 @@ function SuggestionRow({
   return (
     <div
       className={`
-        group flex items-center gap-3 py-3 px-2 -mx-2 rounded-lg transition-colors
+        group flex items-center gap-3 py-3 px-2 -mx-2 rounded-lg
         hover:bg-[var(--color-card-highlight)]
         ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
       `}
@@ -907,7 +906,7 @@ function SuggestionRow({
         type="button"
         onClick={onAdd}
         disabled={adding || disabled}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
         title={`Add ${suggestion.label} budget`}
         aria-label={`Add ${suggestion.label} budget`}
       >
@@ -918,28 +917,81 @@ function SuggestionRow({
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────
+// Mirrors the real layout: burn-down chart + budgets list (2/3) on the
+// left, month-progress + suggestions (1/3) on the right.
 
 function BudgetsSkeleton() {
+  const bar = "bg-[var(--color-border)] rounded";
   return (
-    <div className="space-y-10 animate-pulse">
-      <div>
-        <div className="h-3 w-32 bg-[var(--color-border)] rounded mb-4" />
-        <div className="h-10 w-48 bg-[var(--color-border)] rounded mb-6" />
-        <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full" />
-      </div>
-      <div className="space-y-2">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="flex items-center gap-4 py-4">
-            <div className="w-9 h-9 rounded-full bg-[var(--color-border)]" />
-            <div className="flex-1">
-              <div className="h-4 w-32 bg-[var(--color-border)] rounded mb-1.5" />
-              <div className="h-3 w-20 bg-[var(--color-border)] rounded" />
-            </div>
-            <div className="h-1 w-24 bg-[var(--color-border)] rounded-full" />
-            <div className="h-4 w-16 bg-[var(--color-border)] rounded" />
+    <section className="flex flex-col lg:flex-row gap-8 lg:gap-10 animate-pulse">
+      {/* Main panel */}
+      <div className="lg:w-2/3 flex flex-col gap-10">
+        {/* Burn-down chart */}
+        <div>
+          <div className={`h-3 w-32 ${bar} mb-2`} />
+          <div className={`h-8 w-44 ${bar} mb-2`} />
+          <div className={`h-3 w-52 ${bar} mb-6`} />
+          <div className={`h-[200px] w-full ${bar}`} />
+        </div>
+
+        {/* Budgets list */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`h-5 w-32 ${bar}`} />
+            <div className={`h-8 w-28 ${bar} rounded-full`} />
           </div>
-        ))}
+          <div>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-4 py-4 px-3 -mx-3 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
+              >
+                <div className={`h-9 w-9 rounded-full ${bar}`} />
+                <div className="flex-1">
+                  <div className={`h-3 w-32 ${bar} mb-2`} />
+                  <div className={`h-3 w-20 ${bar}`} />
+                </div>
+                <div className={`h-4 w-24 ${bar}`} />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Side panel */}
+      <div className="lg:w-1/3 flex flex-col gap-10">
+        {/* Month progress */}
+        <div>
+          <div className={`h-3 w-24 ${bar} mb-5`} />
+          <div className="flex justify-between mb-3">
+            <div className={`h-4 w-28 ${bar}`} />
+            <div className={`h-3 w-20 ${bar}`} />
+          </div>
+          <div className={`h-1.5 w-full ${bar} mb-4`} />
+          <div className={`h-1.5 w-full ${bar} mb-4`} />
+          <div className={`h-4 w-40 ${bar}`} />
+        </div>
+
+        {/* Suggestions */}
+        <div>
+          <div className={`h-3 w-20 ${bar} mb-4`} />
+          <div>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 py-3 px-2 -mx-2 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
+              >
+                <div className={`h-7 w-7 rounded-full ${bar}`} />
+                <div className="flex-1">
+                  <div className={`h-3 w-24 ${bar} mb-1.5`} />
+                  <div className={`h-3 w-16 ${bar}`} />
+                </div>
+                <div className={`h-7 w-7 rounded-full ${bar}`} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -12,7 +12,6 @@ import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown } from "react-ic
 import { TbLogout } from "react-icons/tb";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
-import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip } from "@slate-ui/react";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import UpgradeOverlay from "../UpgradeOverlay";
@@ -89,7 +88,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           className={clsx("flex items-center gap-3 group", isCollapsed && "justify-center")}
         >
           <div
-            className="h-7 w-7 bg-[var(--color-fg)] flex-shrink-0 transition-opacity duration-150 group-hover:opacity-80"
+            className="h-7 w-7 bg-[var(--color-fg)] flex-shrink-0 group-hover:opacity-80"
             style={{
               maskImage: "url(/logo.svg)",
               maskSize: "contain",
@@ -152,102 +151,85 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       {/* User Section */}
       <div className={clsx("flex-shrink-0 border-t border-[var(--color-fg)]/[0.06]", isCollapsed ? "p-2 pb-3" : "p-3 pb-4")}>
         {/* Slide-up menu — expanded */}
-        <AnimatePresence>
-          {showPopover && !isCollapsed && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              style={{ overflow: "hidden" }}
+        {showPopover && !isCollapsed && (
+          <div>
+            {tier === "free" && (
+              <button
+                onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
+              >
+                <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
+                <span>Upgrade to Pro</span>
+              </button>
+            )}
+
+            <Link
+              href="/settings"
+              onClick={() => { setShowPopover(false); onNavigate?.(); }}
+              className={clsx(
+                "flex items-center gap-2.5 px-3 py-2 text-[13px]",
+                pathname.startsWith("/settings")
+                  ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
+                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
+              )}
             >
-              {tier === "free" && (
+              <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
+              <span>Settings</span>
+            </Link>
+
+            <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] opacity-40 cursor-not-allowed">
+              <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
+              <span className="flex-1">Help &amp; Support</span>
+              <FaLock className="h-3 w-3 opacity-60" />
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05] mb-1"
+            >
+              <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
+              <span>Log out</span>
+            </button>
+          </div>
+        )}
+
+        {/* Slide-up menu — collapsed */}
+        {showPopover && isCollapsed && (
+          <div className="flex flex-col mb-1">
+            {tier === "free" && (
+              <Tooltip content="Upgrade to Pro">
                 <button
                   onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150 rounded-lg"
+                  className="w-full flex items-center justify-center px-2 py-2 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
                 >
-                  <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
-                  <span>Upgrade to Pro</span>
+                  <LuSparkles className="h-[18px] w-[18px]" />
                 </button>
-              )}
-
+              </Tooltip>
+            )}
+            <Tooltip content="Settings">
               <Link
                 href="/settings"
                 onClick={() => { setShowPopover(false); onNavigate?.(); }}
                 className={clsx(
-                  "flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-colors duration-150",
+                  "w-full flex items-center justify-center px-2 py-2",
                   pathname.startsWith("/settings")
-                    ? "text-[var(--color-fg)] font-medium bg-[var(--color-sidebar-active)]"
-                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
+                    ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.08]"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
                 )}
               >
-                <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
-                <span>Settings</span>
+                <LuSettings className="h-[18px] w-[18px]" />
               </Link>
-
-              <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] opacity-40 cursor-not-allowed rounded-lg">
-                <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
-                <span className="flex-1">Help &amp; Support</span>
-                <FaLock className="h-3 w-3 opacity-60" />
-              </div>
-
+            </Tooltip>
+            <Tooltip content="Log out">
               <button
                 onClick={onLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150 rounded-lg mb-1"
+                className="w-full flex items-center justify-center px-2 py-2 text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
               >
-                <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
-                <span>Log out</span>
+                <TbLogout className="h-[18px] w-[18px]" />
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Slide-up menu — collapsed */}
-        <AnimatePresence>
-          {showPopover && isCollapsed && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              style={{ overflow: "hidden" }}
-              className="flex flex-col gap-1 mb-1"
-            >
-              {tier === "free" && (
-                <Tooltip content="Upgrade to Pro">
-                  <button
-                    onClick={() => { setShowPopover(false); setShowUpgradeOverlay(true); }}
-                    className="w-full flex items-center justify-center px-2 py-2 rounded-lg text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition-colors duration-150"
-                  >
-                    <LuSparkles className="h-[18px] w-[18px]" />
-                  </button>
-                </Tooltip>
-              )}
-              <Tooltip content="Settings">
-                <Link
-                  href="/settings"
-                  onClick={() => { setShowPopover(false); onNavigate?.(); }}
-                  className={clsx(
-                    "w-full flex items-center justify-center px-2 py-2 rounded-lg transition-colors duration-150",
-                    pathname.startsWith("/settings")
-                      ? "text-[var(--color-fg)] bg-[var(--color-sidebar-active)]"
-                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
-                  )}
-                >
-                  <LuSettings className="h-[18px] w-[18px]" />
-                </Link>
-              </Tooltip>
-              <Tooltip content="Log out">
-                <button
-                  onClick={onLogout}
-                  className="w-full flex items-center justify-center px-2 py-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04] transition-colors duration-150"
-                >
-                  <TbLogout className="h-[18px] w-[18px]" />
-                </button>
-              </Tooltip>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Profile trigger */}
         {isCollapsed ? (
@@ -255,7 +237,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             <button
               ref={triggerRef}
               onClick={() => setShowPopover((v) => !v)}
-              className="w-full flex items-center justify-center rounded-xl p-2 transition-colors duration-150 hover:bg-[var(--color-fg)]/[0.04] cursor-pointer"
+              className="w-full flex items-center justify-center p-2 hover:bg-[var(--color-fg)]/[0.05] cursor-pointer"
             >
               <div className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] flex-shrink-0 overflow-hidden">
                 {avatarUrl ? (
@@ -272,17 +254,14 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             ref={triggerRef}
             onClick={() => setShowPopover((v) => !v)}
             className={clsx(
-              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 text-left cursor-pointer group",
+              "w-full flex items-center gap-3 px-3 py-2.5 text-left cursor-pointer group",
               showPopover
-                ? "bg-[var(--color-sidebar-active)]"
-                : "hover:bg-[var(--color-fg)]/[0.04]"
+                ? "bg-[var(--color-fg)]/[0.08]"
+                : "hover:bg-[var(--color-fg)]/[0.05]"
             )}
           >
-            {/* Avatar with ring on open */}
-            <div className={clsx(
-              "relative h-8 w-8 rounded-full flex-shrink-0 ring-2 transition-all duration-150",
-              showPopover ? "ring-[var(--color-chart-primary)]/40" : "ring-transparent"
-            )}>
+            {/* Avatar */}
+            <div className="relative h-8 w-8 rounded-full flex-shrink-0">
               <div className="h-full w-full rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent)] overflow-hidden">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -299,7 +278,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
               </p>
             </div>
 
-            <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 transition-colors duration-150 group-hover:text-[var(--color-muted)]/70" />
+            <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/40 flex-shrink-0 group-hover:text-[var(--color-muted)]/70" />
           </button>
         )}
 

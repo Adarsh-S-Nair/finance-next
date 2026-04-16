@@ -41,20 +41,17 @@ export default function SidebarItem({
         }}
         aria-disabled={disabled || undefined}
         className={clsx(
-          "group relative flex items-center rounded-lg text-[13px] transition-all duration-150",
+          "group relative flex items-center text-[13px]",
           isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
           active
-            ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.06]"
-            : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.04]"
+            ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
+            : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
         )}
       >
-        {/* Active accent bar with subtle blue glow */}
+        {/* Active accent bar — foreground color (black in light, white in dark) */}
         {active && (
-          <>
-            <span className="absolute left-0 top-0 bottom-0 w-[2px] rounded-full bg-[var(--color-chart-primary)]" />
-            <span className="absolute left-0 top-0 bottom-0 w-6 rounded-l-lg bg-gradient-to-r from-[var(--color-chart-primary)]/[0.06] to-transparent pointer-events-none" />
-          </>
+          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[var(--color-fg)]" />
         )}
 
         {/* Icon */}
@@ -62,12 +59,12 @@ export default function SidebarItem({
           <span className="relative flex-shrink-0 flex items-center justify-center">
             <Icon
               className={clsx(
-                "h-[18px] w-[18px] transition-colors duration-150",
+                "h-[18px] w-[18px]",
                 active && "text-[var(--color-fg)]"
               )}
             />
             {notification && (
-              <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-chart-primary)] ring-2 ring-[var(--color-bg)]" />
+              <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-fg)] ring-2 ring-[var(--color-bg)]" />
             )}
           </span>
         )}
