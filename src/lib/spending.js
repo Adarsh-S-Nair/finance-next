@@ -1,4 +1,4 @@
-import { startOfMonth, endOfMonth, isValid } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isValid } from 'date-fns';
 
 /**
  * Calculates budget progress for the specified user and month.
@@ -195,6 +195,136 @@ export async function getMonthlyBurn(supabase, userId, monthDate = null) {
     running += spent;
     return { day, spent, cumulative: Number(running.toFixed(2)) };
   });
+}
+
+/**
+ * Returns per-budget spending for each of the last N months (including the
+ * current, incomplete month). Used by the Budget Performance chart.
+ *
+ * Returned shape:
+ *   [{ month: 'Jan', year: 2026, monthNumber: 1, isCurrent: false,
+ *      budgets: [{ id, label, color, amount, spent }] }]
+ *
+ * Fetches budgets once and all relevant transactions in a single query,
+ * then groups in JS to avoid N+1 round trips.
+ */
+export async function getBudgetHistory(supabase, userId, months = 6) {
+  if (!userId) throw new Error('UserId is required');
+
+  // 1. Fetch budgets with expanded details
+  const { data: budgets, error: budgetError } = await supabase
+    .from('budgets')
+    .select(`
+      *,
+      category_groups (id, name, icon_name, icon_lib, hex_color),
+      system_categories (id, label, group_id, hex_color)
+    `)
+    .eq('user_id', userId);
+  if (budgetError) throw budgetError;
+  if (!budgets || budgets.length === 0) return [];
+
+  // 2. Build category -> group map
+  const budgetedGroupIds = new Set(
+    budgets.map((b) => b.category_group_id).filter(Boolean)
+  );
+  let categoryGroupMap = new Map();
+  if (budgetedGroupIds.size > 0) {
+    const { data: allCategories, error: catError } = await supabase
+      .from('system_categories')
+      .select('id, group_id');
+    if (catError) throw catError;
+    allCategories?.forEach((c) => categoryGroupMap.set(c.id, c.group_id));
+  }
+
+  // 3. Determine date range: start of (months-1) months ago through end of
+  //    current month. e.g. months=6 gives 5 complete past months + current.
+  const now = new Date();
+  const rangeStart = startOfMonth(subMonths(now, months - 1)).toISOString();
+  const rangeEnd = endOfMonth(now).toISOString();
+
+  // 4. Fetch all transactions in range
+  const { data: transactions, error: txError } = await supabase
+    .from('transactions')
+    .select('amount, category_id, date, accounts!inner(user_id)')
+    .eq('accounts.user_id', userId)
+    .gte('datetime', rangeStart)
+    .lte('datetime', rangeEnd);
+  if (txError) throw txError;
+
+  // 5. Build month buckets
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const monthNames = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  const monthBuckets = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = subMonths(now, i);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    monthBuckets.push({
+      month: monthNames[m],
+      year: y,
+      monthNumber: m,
+      isCurrent: m === currentMonth && y === currentYear,
+      budgets: budgets.map((b) => {
+        const isGroup = !!b.category_groups;
+        return {
+          id: b.id,
+          label: isGroup ? b.category_groups.name : (b.system_categories?.label || 'Unknown'),
+          color: isGroup ? (b.category_groups?.hex_color || '#71717a') : (b.system_categories?.hex_color || '#71717a'),
+          amount: Number(b.amount || 0),
+          spent: 0,
+          category_id: b.category_id,
+          category_group_id: b.category_group_id,
+        };
+      }),
+    });
+  }
+
+  // 6. Distribute transactions into month buckets
+  transactions?.forEach((tx) => {
+    const amt = Number(tx.amount) || 0;
+    if (amt >= 0) return; // skip income/refunds
+
+    // Parse month/year from date column (YYYY-MM-DD)
+    const txDate = tx.date || '';
+    const txYear = Number(txDate.slice(0, 4));
+    const txMonth = Number(txDate.slice(5, 7));
+
+    const bucket = monthBuckets.find(
+      (b) => b.monthNumber === txMonth && b.year === txYear
+    );
+    if (!bucket) return;
+
+    // Find matching budget(s) in this bucket
+    bucket.budgets.forEach((bb) => {
+      if (bb.category_id) {
+        if (tx.category_id === bb.category_id) {
+          bb.spent += Math.abs(amt);
+        }
+      } else if (bb.category_group_id) {
+        const txGroupId = categoryGroupMap.get(tx.category_id);
+        if (txGroupId === bb.category_group_id) {
+          bb.spent += Math.abs(amt);
+        }
+      }
+    });
+  });
+
+  // 7. Round spent values
+  monthBuckets.forEach((bucket) => {
+    bucket.budgets.forEach((bb) => {
+      bb.spent = Number(bb.spent.toFixed(2));
+      // Clean up internal fields
+      delete bb.category_id;
+      delete bb.category_group_id;
+    });
+  });
+
+  return monthBuckets;
 }
 
 /**

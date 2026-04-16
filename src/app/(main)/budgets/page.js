@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
@@ -10,10 +10,20 @@ import Button from '../../../components/ui/Button';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import LineChart from '../../../components/ui/LineChart';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
-import { EmptyState } from '@slate-ui/react';
+import { Dropdown, EmptyState } from '@slate-ui/react';
 import { FiTag } from 'react-icons/fi';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 
 export default function BudgetsPage() {
   const { user, profile, isPro, refreshProfile } = useUser();
@@ -27,9 +37,8 @@ export default function BudgetsPage() {
   const [categoryStats, setCategoryStats] = useState([]);
   const [addingSuggestionId, setAddingSuggestionId] = useState(null);
   const [burnSeries, setBurnSeries] = useState([]);
-  // { [budgetKey]: [{ spending, monthName, year, monthNumber }, ...] }
-  // budgetKey = `group:{id}` or `category:{id}` to match the history API.
-  const [historyByBudget, setHistoryByBudget] = useState({});
+  const [budgetHistory, setBudgetHistory] = useState([]);
+  const [selectedHistoryCategory, setSelectedHistoryCategory] = useState('all');
 
   // Selection + delete state
   const [selectMode, setSelectMode] = useState(false);
@@ -46,41 +55,11 @@ export default function BudgetsPage() {
       const json = await res.json();
       setBudgets(json.data || []);
       setBurnSeries(Array.isArray(json.burn) ? json.burn : []);
+      setBudgetHistory(Array.isArray(json.history) ? json.history : []);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Fire one category-history request per budget in parallel so each row
-  // can show a 6-month utilization strip. Keyed by budget id so it
-  // survives budget add/remove without mismatching.
-  const fetchHistoryForBudgets = async (rows) => {
-    if (!rows || rows.length === 0) {
-      setHistoryByBudget({});
-      return;
-    }
-    try {
-      const results = await Promise.all(
-        rows.map(async (b) => {
-          const param = b.category_group_id
-            ? `categoryGroupId=${b.category_group_id}`
-            : `categoryId=${b.category_id}`;
-          try {
-            const res = await fetch(
-              `/api/transactions/category-history?${param}&months=6`
-            );
-            const json = await res.json();
-            return [b.id, Array.isArray(json?.data) ? json.data : []];
-          } catch {
-            return [b.id, []];
-          }
-        })
-      );
-      setHistoryByBudget(Object.fromEntries(results));
-    } catch (e) {
-      console.error(e);
     }
   };
 
@@ -148,12 +127,6 @@ export default function BudgetsPage() {
       setSelectedIds(new Set());
     }
   }, [budgets.length, selectMode]);
-
-  // Refetch per-budget history whenever the set of budgets changes.
-  useEffect(() => {
-    fetchHistoryForBudgets(budgets);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgets.map((b) => b.id).join(',')]);
 
   // Profile-saved income is the source of truth. Fall back to computed
   // average only while loading or for legacy users.
@@ -435,26 +408,34 @@ export default function BudgetsPage() {
               pace={pace}
             />
 
-            <div>
-              <div className="mb-4 px-1">
-                <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
-              </div>
-              <div className="flex flex-col">
-                {sortedBudgets.map((b, i) => (
-                  <BudgetRow
-                    key={b.id}
-                    budget={b}
-                    income={income}
-                    hasIncome={hasIncome}
-                    pace={pace}
-                    history={historyByBudget[b.id]}
-                    selectMode={selectMode}
-                    selected={selectedIds.has(b.id)}
-                    onToggleSelect={() => toggleSelect(b.id)}
-                    onDelete={() => requestDelete([b.id])}
-                    isLast={i === sortedBudgets.length - 1}
-                  />
-                ))}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <BudgetPerformanceChart
+                history={budgetHistory}
+                budgets={sortedBudgets}
+                selectedCategory={selectedHistoryCategory}
+                onCategoryChange={setSelectedHistoryCategory}
+              />
+
+              <div>
+                <div className="mb-4 px-1">
+                  <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
+                </div>
+                <div className="flex flex-col">
+                  {sortedBudgets.map((b, i) => (
+                    <BudgetRow
+                      key={b.id}
+                      budget={b}
+                      income={income}
+                      hasIncome={hasIncome}
+                      pace={pace}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(b.id)}
+                      onToggleSelect={() => toggleSelect(b.id)}
+                      onDelete={() => requestDelete([b.id])}
+                      isLast={i === sortedBudgets.length - 1}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -759,7 +740,6 @@ function BudgetRow({
   income,
   hasIncome,
   pace,
-  history,
   selectMode,
   selected,
   onToggleSelect,
@@ -775,8 +755,6 @@ function BudgetRow({
   const hasSpending = spent > 0 || spendPct > 0;
   const allocPct = hasIncome && amount > 0 ? (amount / income) * 100 : 0;
 
-  // Pacing. Expected spend by today = amount * (day / daysInMonth).
-  // Over-pace means spendPct > expectedPct.
   const expectedPct = pace ? pace.fraction * 100 : null;
   const expectedAmount = pace ? amount * pace.fraction : null;
   const paceDelta = expectedAmount != null ? spent - expectedAmount : null;
@@ -784,10 +762,6 @@ function BudgetRow({
     expectedPct != null && spendPct > expectedPct + 2 && spendPct < 100;
   const underPace =
     expectedPct != null && hasSpending && spendPct < expectedPct - 2;
-
-  let progressColor = color;
-  if (spendPct >= 100) progressColor = 'var(--color-danger)';
-  else if (spendPct >= 85 || overPace) progressColor = '#f59e0b';
 
   const handleRowClick = () => {
     if (selectMode) onToggleSelect();
@@ -803,7 +777,6 @@ function BudgetRow({
         ${selected ? 'bg-[var(--color-card-highlight)]' : 'hover:bg-[var(--color-card-highlight)]'}
       `}
     >
-      {/* Checkbox in select mode */}
       {selectMode && (
         <div
           className={`
@@ -828,10 +801,8 @@ function BudgetRow({
         </div>
       )}
 
-      {/* Icon pill — solid category color, white glyph */}
       <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={36} />
 
-      {/* Label + sublabel */}
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm text-[var(--color-fg)] truncate">{label}</p>
         <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
@@ -853,15 +824,8 @@ function BudgetRow({
         </p>
       </div>
 
-      {/* History strip — last 6 months of utilization against the
-          current budget amount. Hidden on narrow screens. */}
-      <div className="hidden md:block flex-shrink-0">
-        <HistoryStrip history={history} amount={amount} color={color} />
-      </div>
-
-      {/* Right side: spent-of-budget + progress + remaining */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0 w-32 sm:w-44">
-        <p className="text-sm tabular-nums whitespace-nowrap">
+      <div className="flex-shrink-0">
+        <p className="text-sm tabular-nums whitespace-nowrap text-right">
           <span
             className="font-semibold"
             style={{
@@ -875,40 +839,8 @@ function BudgetRow({
           </span>
           <span className="text-[var(--color-muted)]"> / {formatCurrency(amount)}</span>
         </p>
-
-        <div className="flex items-center gap-2 w-full">
-          <div className="relative flex-1 h-1 bg-[var(--color-border)] rounded-full overflow-hidden">
-            {hasSpending && (
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(spendPct, 100)}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-                className="h-full rounded-full"
-                style={{ backgroundColor: progressColor }}
-              />
-            )}
-            {/* Pace tick — where we should be today */}
-            {expectedPct != null && expectedPct > 0 && expectedPct < 100 && (
-              <div
-                className="absolute top-[-2px] bottom-[-2px] w-[1.5px] bg-[var(--color-fg)] opacity-60"
-                style={{ left: `${expectedPct}%` }}
-                title={`Day ${pace.day} of ${pace.daysInMonth}`}
-              />
-            )}
-          </div>
-          <span className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap w-8 text-right">
-            {hasSpending ? `${spendPct.toFixed(0)}%` : '0%'}
-          </span>
-        </div>
-
-        <p className="text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap">
-          {spendPct >= 100
-            ? `${formatCurrency(spent - amount)} over`
-            : `${formatCurrency(Math.max(0, amount - spent))} left`}
-        </p>
       </div>
 
-      {/* Delete button (hidden in select mode) */}
       {!selectMode && (
         <button
           onClick={(e) => {
@@ -926,86 +858,153 @@ function BudgetRow({
   );
 }
 
-// ─── History strip ────────────────────────────────────────────────────
-// Last 6 months of this category's spending, measured against the
-// current budget amount. Each bar: height = utilization%, color = status
-// (green < 85%, amber 85–100%, red > 100%). Current month is omitted so
-// it doesn't compete with the live progress bar on the right.
+// ─── Budget Performance chart ────────────────────────────────────────
+// Vertical bar chart: bars go UP (green) when under budget, DOWN (red)
+// when over. The zero line is the budget amount. A category dropdown
+// lets the user drill into individual budgets.
 
-function HistoryStrip({ history, amount }) {
-  // Always render the container (fixed width) so row layout doesn't
-  // shift while the fetch is in flight.
-  const width = 84; // px — 6 bars * 14px pitch
-  const height = 28;
+function BudgetPerformanceChart({ history, budgets, selectedCategory, onCategoryChange }) {
+  const chartData = useMemo(() => {
+    if (!Array.isArray(history) || history.length === 0) return [];
+    return history.map((bucket) => {
+      let totalBudget = 0;
+      let totalSpent = 0;
 
-  if (!Array.isArray(history) || history.length === 0 || !amount) {
+      if (selectedCategory === 'all') {
+        bucket.budgets.forEach((bb) => {
+          totalBudget += bb.amount;
+          totalSpent += bb.spent;
+        });
+      } else {
+        const match = bucket.budgets.find((bb) => bb.id === selectedCategory);
+        if (match) {
+          totalBudget = match.amount;
+          totalSpent = match.spent;
+        }
+      }
+
+      const delta = totalBudget - totalSpent; // positive = under budget
+      return {
+        month: bucket.month,
+        year: bucket.year,
+        isCurrent: bucket.isCurrent,
+        delta,
+        spent: totalSpent,
+        budget: totalBudget,
+      };
+    });
+  }, [history, selectedCategory]);
+
+  const dropdownItems = useMemo(() => {
+    const items = [
+      {
+        label: 'All budgets',
+        onClick: () => onCategoryChange('all'),
+        selected: selectedCategory === 'all',
+      },
+    ];
+    budgets.forEach((b) => {
+      items.push({
+        label: getLabel(b),
+        onClick: () => onCategoryChange(b.id),
+        selected: selectedCategory === b.id,
+      });
+    });
+    return items;
+  }, [budgets, selectedCategory, onCategoryChange]);
+
+  const selectedLabel = selectedCategory === 'all'
+    ? 'All budgets'
+    : getLabel(budgets.find((b) => b.id === selectedCategory) || {});
+
+  const formatYAxis = (v) => {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return `$${(v / 1000).toFixed(abs >= 10000 ? 0 : 1)}k`;
+    return `$${Math.round(v)}`;
+  };
+
+  if (!chartData.length) {
     return (
-      <div
-        className="flex items-end gap-[3px]"
-        style={{ width, height }}
-        aria-hidden
-      >
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="flex-1 rounded-[1.5px] bg-[var(--color-border)] opacity-40"
-            style={{ height: 4 }}
-          />
-        ))}
+      <div>
+        <div className="card-header mb-4">Budget Performance</div>
+        <div className="h-[240px] flex items-center justify-center text-sm text-[var(--color-muted)]">
+          No history data yet
+        </div>
       </div>
     );
   }
 
-  // category-history returns newest-first. Drop the current month, keep
-  // the most recent 6 complete months, then reverse so bars read L→R
-  // oldest→newest.
-  const now = new Date();
-  const currentKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
-  const completed = history.filter(
-    (m) => `${m.year}-${m.monthNumber}` !== currentKey
-  );
-  const recent = completed.slice(0, 6).reverse();
-
-  // Pad out to 6 slots so the strip has a consistent width even if the
-  // user only has a few months of data.
-  const slots = [...Array(6)].map((_, i) => {
-    const offset = 6 - recent.length;
-    return i < offset ? null : recent[i - offset];
-  });
-
   return (
-    <div
-      className="flex items-end gap-[3px]"
-      style={{ width, height }}
-      title="Last 6 months vs current budget"
-    >
-      {slots.map((m, i) => {
-        if (!m) {
-          return (
-            <div
-              key={i}
-              className="flex-1 rounded-[1.5px] bg-[var(--color-border)] opacity-30"
-              style={{ height: 2 }}
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="card-header">Budget Performance</div>
+        <Dropdown
+          label={selectedLabel}
+          items={dropdownItems}
+          size="sm"
+          align="right"
+        />
+      </div>
+
+      <div style={{ width: '100%', height: 240 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+            <XAxis
+              dataKey="month"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
             />
-          );
-        }
-        const spent = Number(m.spending || 0);
-        const util = amount > 0 ? spent / amount : 0;
-        const h = Math.max(2, Math.min(1, util) * height);
-        let bg = 'var(--color-success)';
-        if (util >= 1) bg = 'var(--color-danger)';
-        else if (util >= 0.85) bg = '#f59e0b';
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-[1.5px]"
-            style={{ height: h, backgroundColor: bg, opacity: 0.85 }}
-            title={`${m.monthName} ${m.year}: ${formatCurrency(spent)} (${Math.round(
-              util * 100
-            )}%)`}
-          />
-        );
-      })}
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: 'var(--color-muted)' }}
+              tickFormatter={formatYAxis}
+              width={48}
+            />
+            <ReferenceLine y={0} stroke="var(--color-border)" strokeWidth={1} />
+            <Tooltip
+              content={<PerformanceTooltip />}
+              cursor={{ fill: 'var(--color-card-highlight)', opacity: 0.5 }}
+            />
+            <Bar dataKey="delta" radius={[4, 4, 4, 4]} maxBarSize={36}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={index}
+                  fill={entry.delta >= 0 ? 'var(--color-success)' : 'var(--color-danger)'}
+                  opacity={entry.isCurrent ? 0.5 : 0.85}
+                  {...(entry.isCurrent ? { strokeDasharray: '4 2', stroke: entry.delta >= 0 ? 'var(--color-success)' : 'var(--color-danger)', strokeWidth: 1.5 } : {})}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function PerformanceTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const data = payload[0]?.payload;
+  if (!data) return null;
+  const { month, year, spent, budget, delta, isCurrent } = data;
+  return (
+    <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-xs shadow-lg">
+      <p className="font-medium text-[var(--color-fg)] mb-1.5">
+        {month} {year}{isCurrent ? ' (so far)' : ''}
+      </p>
+      <div className="space-y-1 tabular-nums">
+        <p className="text-[var(--color-muted)]">
+          Spent: <span className="text-[var(--color-fg)] font-medium">{formatCurrency(spent)}</span>
+        </p>
+        <p className="text-[var(--color-muted)]">
+          Budget: <span className="text-[var(--color-fg)] font-medium">{formatCurrency(budget)}</span>
+        </p>
+        <p className={delta >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}>
+          {delta >= 0 ? `${formatCurrency(delta)} under` : `${formatCurrency(Math.abs(delta))} over`}
+        </p>
+      </div>
     </div>
   );
 }
