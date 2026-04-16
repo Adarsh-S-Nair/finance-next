@@ -143,7 +143,7 @@ export async function POST(request) {
     if (error instanceof Response) return error;
     logger.error('Error in sync-all', error);
     return Response.json(
-      { error: 'Failed to sync items', details: error.message },
+      { error: 'Failed to sync items' },
       { status: 500 }
     );
   }

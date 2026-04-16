@@ -42,10 +42,7 @@ export async function POST(request) {
       } else {
         console.error('Plaid item/remove API failed:', plaidError);
         return Response.json(
-          { 
-            error: 'Failed to disconnect from Plaid', 
-            details: plaidError.message || 'Unknown Plaid error' 
-          },
+          { error: 'Failed to disconnect from Plaid' },
           { status: 500 }
         );
       }
@@ -66,7 +63,7 @@ export async function POST(request) {
     if (deleteError) {
       console.error('Error deleting plaid item from database:', deleteError);
       return Response.json(
-        { error: 'Failed to remove from database', details: deleteError.message },
+        { error: 'Failed to remove from database' },
         { status: 500 }
       );
     }
@@ -79,7 +76,7 @@ export async function POST(request) {
     if (error instanceof Response) return error;
     console.error('Error in disconnect process:', error);
     return Response.json(
-      { error: 'Failed to disconnect institution', details: error.message },
+      { error: 'Failed to disconnect institution' },
       { status: 500 }
     );
   }

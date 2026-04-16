@@ -37,8 +37,9 @@ export async function POST(request) {
         { status: error.httpStatus }
       );
     }
+    console.error('Unexpected error in disconnect-account:', error);
     return Response.json(
-      { error: 'Failed to disconnect account', details: error?.message },
+      { error: 'Failed to disconnect account' },
       { status: 500 }
     );
   }

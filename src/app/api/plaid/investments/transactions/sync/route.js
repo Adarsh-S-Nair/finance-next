@@ -50,8 +50,9 @@ export async function POST(request) {
     if (error?.httpStatus === 404) {
       return Response.json({ error: error.message || 'Plaid item not found' }, { status: 404 });
     }
+    console.error('Failed to sync investment transactions:', error);
     return Response.json(
-      { error: 'Failed to sync investment transactions', details: error?.message },
+      { error: 'Failed to sync investment transactions' },
       { status: 500 }
     );
   }

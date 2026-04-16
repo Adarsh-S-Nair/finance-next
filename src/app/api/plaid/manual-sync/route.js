@@ -130,7 +130,7 @@ export async function POST(request) {
     await logger.flush();
 
     return Response.json(
-      { error: 'Failed to trigger sync', details: error.message },
+      { error: 'Failed to trigger sync' },
       { status: 500 }
     );
   }

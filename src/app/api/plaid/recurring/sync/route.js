@@ -39,8 +39,9 @@ export async function POST(request) {
     return Response.json(result);
   } catch (error) {
     if (error instanceof Response) return error;
+    console.error('Failed to sync recurring transactions:', error);
     return Response.json(
-      { error: 'Failed to sync recurring transactions', details: error?.message },
+      { error: 'Failed to sync recurring transactions' },
       { status: 500 }
     );
   }

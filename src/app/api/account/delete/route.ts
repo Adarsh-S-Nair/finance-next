@@ -107,19 +107,22 @@ export async function POST(req: NextRequest) {
     const { error: profileErr } = await supabaseAdmin.from("user_profiles").delete().eq("id", userId);
     if (profileErr && profileErr.code !== "PGRST116") {
       // ignore not-found; otherwise propagate
-      return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      console.error("Failed to delete user profile:", profileErr);
+      return NextResponse.json({ error: "Failed to delete profile" }, { status: 400 });
     }
 
     // Step 5: Delete auth user (only after all Plaid items are successfully removed)
     const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteErr) {
-      return NextResponse.json({ error: deleteErr.message }, { status: 400 });
+      console.error("Failed to delete auth user:", deleteErr);
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
     if (e instanceof Response) return e;
-    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+    console.error("Unexpected error in account delete:", e);
+    return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
   }
 }
 

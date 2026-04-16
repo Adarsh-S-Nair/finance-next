@@ -134,7 +134,7 @@ export async function POST(request) {
   } catch (error) {
     if (error instanceof Response) return error;
     logger.error('Error in detect-similar', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: 'Failed to detect similar transactions' }, { status: 500 });
   }
 }
 

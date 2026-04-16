@@ -223,7 +223,7 @@ export async function POST(request) {
         existingPlaidItemId,
       });
       return Response.json(
-        { error: 'Failed to save plaid item', details: plaidItemError.message },
+        { error: 'Failed to save plaid item' },
         { status: 500 }
       );
     }
@@ -348,7 +348,7 @@ export async function POST(request) {
           count: accountsToInsert.length,
         });
         return Response.json(
-          { error: 'Failed to save accounts', details: insertError.message },
+          { error: 'Failed to save accounts' },
           { status: 500 }
         );
       }

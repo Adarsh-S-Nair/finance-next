@@ -99,7 +99,7 @@ export async function POST(request) {
     if (error instanceof Response) return error;
     console.error('Error in sync all transactions:', error);
     return Response.json(
-      { error: 'Failed to sync all transactions', details: error.message },
+      { error: 'Failed to sync all transactions' },
       { status: 500 }
     );
   }

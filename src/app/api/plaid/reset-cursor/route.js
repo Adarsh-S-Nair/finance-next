@@ -12,7 +12,8 @@ export async function POST(request) {
       .eq('user_id', userId);
 
     if (updateError) {
-      throw new Error(`Failed to reset cursors: ${updateError.message}`);
+      console.error('Failed to reset cursors:', updateError);
+      return Response.json({ error: 'Failed to reset cursors' }, { status: 500 });
     }
 
     // 2. Get all items to trigger sync
@@ -22,7 +23,8 @@ export async function POST(request) {
       .eq('user_id', userId);
 
     if (itemsError) {
-      throw new Error(`Failed to fetch items: ${itemsError.message}`);
+      console.error('Failed to fetch items:', itemsError);
+      return Response.json({ error: 'Failed to fetch items' }, { status: 500 });
     }
 
     // 3. Trigger sync for each item
@@ -57,7 +59,7 @@ export async function POST(request) {
         syncResults.push({ itemId: item.id, success: syncRes.ok, data: syncData });
       } catch (syncError) {
         console.error(`Failed to trigger sync for item ${item.id}:`, syncError);
-        syncResults.push({ itemId: item.id, success: false, error: syncError.message });
+        syncResults.push({ itemId: item.id, success: false });
       }
     }
 
@@ -70,6 +72,6 @@ export async function POST(request) {
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Error in reset-cursor:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: 'Failed to reset cursors' }, { status: 500 });
   }
 }

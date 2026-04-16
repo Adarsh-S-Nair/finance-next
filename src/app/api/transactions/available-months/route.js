@@ -16,7 +16,7 @@ export async function GET(request) {
 
     if (error) {
       console.error('Error fetching transactions for available months:', error);
-      return Response.json({ error: 'Failed to fetch transactions', details: error.message }, { status: 500 });
+      return Response.json({ error: 'Failed to fetch transactions' }, { status: 500 });
     }
 
     if (!transactions || transactions.length === 0) {

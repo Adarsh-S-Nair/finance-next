@@ -174,6 +174,6 @@ export async function GET(request) {
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Error fetching recurring streams:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: 'Failed to fetch recurring streams' }, { status: 500 });
   }
 }

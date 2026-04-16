@@ -54,8 +54,9 @@ export async function POST(request) {
         { status: 404 }
       );
     }
+    console.error('Failed to sync holdings:', error);
     return Response.json(
-      { error: 'Failed to sync holdings', details: error?.message },
+      { error: 'Failed to sync holdings' },
       { status: 500 }
     );
   }
