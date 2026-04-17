@@ -8,8 +8,12 @@
 export const BRAND = {
   /** Product name as it appears in sentences: "Welcome to Zervo." */
   name: 'Zervo',
-  /** Legal entity for copyright notices and ToS: "© Zervo Finance" */
-  legalName: 'Zervo Finance',
+  /**
+   * Legal contracting party for ToS + copyright. Until an LLC is formed,
+   * this is the owner as a sole proprietor using a DBA. Update to the
+   * entity name (e.g. "Zervo Finance LLC") after incorporation.
+   */
+  legalName: 'Adarsh Nair d/b/a Zervo',
   /** Apex domain, no protocol. Used in URLs and copy. */
   domain: 'zervo.app',
   /** Support inbox for contact links. */
@@ -30,15 +34,17 @@ export type Brand = typeof BRAND;
  */
 export const LEGAL = {
   /** US state whose laws govern the Terms and Privacy Policy. */
-  governingState: '[TODO: governing state, e.g. "Delaware"]',
+  governingState: 'New York',
   /** City + state where arbitration is conducted and venue lies. */
-  venue: '[TODO: venue, e.g. "New Castle County, Delaware"]',
+  venue: 'Nassau County, New York',
   /**
    * Physical mailing address for legal notices and privacy complaints.
-   * Several state privacy laws require this to be publicly posted. Can be
-   * a business address or registered agent address.
+   *
+   * Pre-LLC we deliberately do not publish a home address — disclose on
+   * request only. Replace with the registered-agent or business address
+   * once the LLC is formed (before onboarding paying users).
    */
-  mailingAddress: '[TODO: street address, city, state ZIP]',
+  mailingAddress: 'Available upon request via support@zervo.app',
 } as const;
 
 export type Legal = typeof LEGAL;
