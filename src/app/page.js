@@ -339,7 +339,7 @@ export default function Home() {
         </section>
 
         {/* Security */}
-        <section id="security" className="scroll-mt-20 border-t border-white/5 py-20 sm:py-24">
+        <section id="security" className="scroll-mt-20 border-t border-white/5 py-20 sm:py-24 pb-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
               <div>
@@ -366,6 +366,27 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Footer */}
+        <footer className="border-t border-white/5 py-8">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8 flex flex-col-reverse items-center justify-between gap-4 text-xs text-zinc-500 sm:flex-row">
+            <p>© {new Date().getFullYear()} {BRAND.legalName}</p>
+            <nav className="flex items-center gap-6">
+              <Link href="/docs/terms" className="hover:text-zinc-300 transition-colors">
+                Terms
+              </Link>
+              <Link href="/docs/privacy" className="hover:text-zinc-300 transition-colors">
+                Privacy
+              </Link>
+              <a
+                href={`mailto:${BRAND.supportEmail}`}
+                className="hover:text-zinc-300 transition-colors"
+              >
+                Contact
+              </a>
+            </nav>
+          </div>
+        </footer>
       </main>
     </PublicRoute>
   );

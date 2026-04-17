@@ -386,6 +386,22 @@ export default function SettingsPage() {
           )}
         </SettingsSection>
 
+        {/* Legal Section */}
+        <SettingsSection label="Legal">
+          <SettingsActionRow
+            label="Terms of Use"
+            description="The rules for using the service."
+            onClick={() => router.push("/docs/terms")}
+            trailing={<span className="text-base leading-none">&#8250;</span>}
+          />
+          <SettingsActionRow
+            label="Privacy Policy"
+            description="How we handle your data."
+            onClick={() => router.push("/docs/privacy")}
+            trailing={<span className="text-base leading-none">&#8250;</span>}
+          />
+        </SettingsSection>
+
         {/* Session Section */}
         <SettingsSection label="Session">
           <SettingsRow
