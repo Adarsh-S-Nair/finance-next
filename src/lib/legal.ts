@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import { marked } from 'marked';
-import { BRAND } from '../config/brand';
+import { BRAND, LEGAL } from '../config/brand';
 
 export interface LegalDocument {
   slug: 'terms' | 'privacy';
@@ -32,7 +32,10 @@ function applyBrandTokens(raw: string): string {
     .replaceAll('{{brandName}}', BRAND.name)
     .replaceAll('{{supportEmail}}', BRAND.supportEmail)
     .replaceAll('{{legalName}}', BRAND.legalName)
-    .replaceAll('{{domain}}', BRAND.domain);
+    .replaceAll('{{domain}}', BRAND.domain)
+    .replaceAll('{{governingState}}', LEGAL.governingState)
+    .replaceAll('{{venue}}', LEGAL.venue)
+    .replaceAll('{{mailingAddress}}', LEGAL.mailingAddress);
 }
 
 export function loadLegalDocument(

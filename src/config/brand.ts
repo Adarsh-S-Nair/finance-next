@@ -19,3 +19,26 @@ export const BRAND = {
 } as const;
 
 export type Brand = typeof BRAND;
+
+/**
+ * Legal-specific constants referenced by the markdown in content/legal/.
+ * Separate from BRAND because these are jurisdictional facts, not identity.
+ *
+ * IMPORTANT: The placeholder values below MUST be replaced before launching
+ * to paying users. A fintech lawyer should confirm the chosen jurisdiction,
+ * arbitration venue, and mailing address match your corporate structure.
+ */
+export const LEGAL = {
+  /** US state whose laws govern the Terms and Privacy Policy. */
+  governingState: '[TODO: governing state, e.g. "Delaware"]',
+  /** City + state where arbitration is conducted and venue lies. */
+  venue: '[TODO: venue, e.g. "New Castle County, Delaware"]',
+  /**
+   * Physical mailing address for legal notices and privacy complaints.
+   * Several state privacy laws require this to be publicly posted. Can be
+   * a business address or registered agent address.
+   */
+  mailingAddress: '[TODO: street address, city, state ZIP]',
+} as const;
+
+export type Legal = typeof LEGAL;
