@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiLink, FiMenu, FiShield, FiTarget, FiTrendingUp, FiX } from "react-icons/fi";
 import dynamic from "next/dynamic";
 import PublicRoute from "../components/PublicRoute";
+import { BRAND } from "../config/brand";
 
 const HeroBlob = dynamic(() => import("../components/HeroBlob"), { ssr: false });
 

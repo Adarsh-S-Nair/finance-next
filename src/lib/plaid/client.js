@@ -1,5 +1,6 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
 import * as mockClient from './mock-client.js';
+import { BRAND } from '../../config/brand';
 
 // Environment configuration
 export const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';

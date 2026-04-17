@@ -1,3 +1,5 @@
+import { BRAND } from './brand';
+
 export const SITE_PAGES = {
   '/dashboard': {
     title: 'Dashboard', // Used for document title (tab)
@@ -25,7 +27,5 @@ export const SITE_PAGES = {
   },
   // Add other routes as needed
 };
-
-import { BRAND } from './brand';
 
 export const DEFAULT_TITLE = BRAND.name;
