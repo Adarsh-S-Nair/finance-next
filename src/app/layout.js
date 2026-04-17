@@ -10,6 +10,7 @@ import { AccountsProvider } from "../components/providers/AccountsProvider";
 import { NetWorthProvider } from "../components/providers/NetWorthProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
 import DynamicFavicon from "../components/DynamicFavicon";
+import { BRAND } from "../config/brand";
 
 
 const outfit = Outfit({
@@ -27,8 +28,8 @@ const poppins = Poppins({
 
 export const metadata = {
   title: {
-    template: "Zervo | %s",
-    default: "Zervo",
+    template: `${BRAND.name} | %s`,
+    default: BRAND.name,
   },
 };
 

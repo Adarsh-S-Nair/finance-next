@@ -26,4 +26,6 @@ export const SITE_PAGES = {
   // Add other routes as needed
 };
 
-export const DEFAULT_TITLE = 'Zervo';
+import { BRAND } from './brand';
+
+export const DEFAULT_TITLE = BRAND.name;

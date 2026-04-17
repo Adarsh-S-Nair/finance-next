@@ -247,3 +247,58 @@ body {
 .custom-scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted);
 }
+/* Legal document rendering — used by /docs/terms, /docs/privacy.
+   Matches the zinc-palette styling the old motion/JSX versions had. */
+.legal-prose h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #18181b; /* zinc-900 */
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+}
+.legal-prose h2:first-child {
+  margin-top: 0;
+}
+.legal-prose p {
+  margin-bottom: 1rem;
+}
+.legal-prose ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.legal-prose ul li {
+  position: relative;
+  padding-left: 1rem;
+  margin-bottom: 0.5rem;
+}
+.legal-prose ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #d4d4d8; /* zinc-300 */
+}
+.legal-prose blockquote {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: #fffbeb; /* amber-50 */
+  border: 1px solid #fde68a33; /* amber-100-ish */
+  color: #92400e; /* amber-800 */
+  font-size: 0.875rem;
+  margin: 1rem 0;
+}
+.legal-prose blockquote p {
+  margin: 0;
+}
+.legal-prose a {
+  color: #18181b; /* zinc-900 */
+  text-decoration: underline;
+  text-decoration-color: #e4e4e7; /* zinc-200 */
+}
+.legal-prose a:hover {
+  text-decoration-color: currentColor;
+}

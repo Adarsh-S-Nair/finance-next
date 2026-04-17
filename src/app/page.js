@@ -256,7 +256,7 @@ export default function Home() {
               </h2>
             </div>
             <div className="space-y-6 text-sm leading-7 text-zinc-400 sm:text-base">
-              <p>Zervo should feel more like a clean workspace than a noisy finance app. You should be able to open it, understand what matters, and move on.</p>
+              <p>{BRAND.name} should feel more like a clean workspace than a noisy finance app. You should be able to open it, understand what matters, and move on.</p>
               <p>That means fewer gimmicks, simpler navigation, and a stronger focus on the handful of views you actually care about every week.</p>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { FiMenu, FiX } from "react-icons/fi";
 import { useState } from "react";
+import { BRAND } from "../../config/brand";
 
 const docs = [
   {
@@ -89,7 +90,7 @@ export default function DocsLayout({ children }) {
 
               {/* Contact */}
               <div className="text-[13px] text-zinc-400">
-                Questions? <a href="mailto:support@zentari.app" className="text-zinc-600 hover:text-zinc-900 transition-colors">Contact us</a>
+                Questions? <a href={`mailto:${BRAND.supportEmail}`} className="text-zinc-600 hover:text-zinc-900 transition-colors">Contact us</a>
               </div>
             </nav>
           </aside>
@@ -159,7 +160,7 @@ export default function DocsLayout({ children }) {
       <footer className="border-t border-zinc-100 py-8 mt-12">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-zinc-400">
-            © {new Date().getFullYear()} Zentari Finance
+            © {new Date().getFullYear()} {BRAND.legalName}
           </p>
           <div className="flex gap-6">
             {docs.map((doc) => (
