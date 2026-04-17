@@ -59,8 +59,6 @@ export default withSentryConfig(withAxiom(nextConfig), {
   // env vars in Vercel.
   silent: !process.env.CI,
   widenClientFileUpload: true,
-  disableLogger: true,
-  automaticVercelMonitors: false,
   telemetry: false,
 });
 
