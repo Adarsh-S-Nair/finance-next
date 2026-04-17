@@ -61,9 +61,9 @@ const endTime = new Date();
 const startTime = new Date(endTime.getTime() - HOURS * 3600 * 1000);
 
 const filters = [];
-if (LEVEL) filters.push(`fields.level == "${LEVEL}" or level == "${LEVEL}"`);
-if (CONTEXT) filters.push(`fields.context =~ "${CONTEXT}"`);
-if (SEARCH) filters.push(`message =~ "${SEARCH}"`);
+if (LEVEL) filters.push(`level == "${LEVEL}"`);
+if (CONTEXT) filters.push(`tostring(context) contains "${CONTEXT}" or tostring(source) contains "${CONTEXT}"`);
+if (SEARCH) filters.push(`tostring(message) contains "${SEARCH}"`);
 
 const apl = [
   `['${dataset}']`,
