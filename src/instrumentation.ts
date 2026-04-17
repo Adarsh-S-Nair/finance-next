@@ -1,9 +1,11 @@
 /**
  * Server-side console → Axiom forwarder.
  *
- * Wraps console.log/info/warn/error so every server log (from any route,
- * lib, or dependency) also lands in Axiom. This is the backstop for routes
- * that don't use the createLogger/withLogging helpers yet.
+ * Only forwards `console.warn` and `console.error` — info/log/debug stay
+ * in Vercel runtime logs to avoid flooding Axiom with routine output
+ * (price fetches, calculation traces, etc.). Important info-level events
+ * (Plaid sync lifecycle, etc.) reach Axiom via createLogger/withLogging
+ * on the routes that use them.
  *
  * Fires only in the Node.js runtime (skips edge + browser). Uses direct
  * fetch with `keepalive: true` so the request survives even if a
@@ -36,7 +38,7 @@ export async function register() {
     return String(a);
   };
 
-  const ingest = (level: 'info' | 'warn' | 'error', args: unknown[]) => {
+  const ingest = (level: 'warn' | 'error', args: unknown[]) => {
     if (inIngest) return;
     inIngest = true;
     try {
@@ -82,18 +84,9 @@ export async function register() {
   };
 
   const origLog = console.log.bind(console);
-  const origInfo = console.info.bind(console);
   const origWarn = console.warn.bind(console);
   const origError = console.error.bind(console);
 
-  console.log = (...args: unknown[]) => {
-    origLog(...args);
-    ingest('info', args);
-  };
-  console.info = (...args: unknown[]) => {
-    origInfo(...args);
-    ingest('info', args);
-  };
   console.warn = (...args: unknown[]) => {
     origWarn(...args);
     ingest('warn', args);
@@ -104,6 +97,6 @@ export async function register() {
   };
 
   origLog(
-    `[instrumentation] console → Axiom forwarder active (dataset=${dataset})`,
+    `[instrumentation] console.warn/error → Axiom forwarder active (dataset=${dataset})`,
   );
 }
