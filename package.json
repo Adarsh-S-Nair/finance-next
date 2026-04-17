@@ -16,6 +16,7 @@
     "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.49.0",
     "@slate-ui/react": "github:Adarsh-S-Nair/slate-ui",
     "@supabase/supabase-js": "^2.57.2",
     "clsx": "^2.1.1",

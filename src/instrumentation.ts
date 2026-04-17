@@ -13,6 +13,14 @@
  */
 
 export async function register() {
+  // Sentry — server + edge runtimes. Gated internally by NEXT_PUBLIC_SENTRY_DSN.
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('../sentry.server.config');
+  }
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('../sentry.edge.config');
+  }
+
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
   const token = process.env.AXIOM_TOKEN;
@@ -100,3 +108,11 @@ export async function register() {
     `[instrumentation] console.warn/error → Axiom forwarder active (dataset=${dataset})`,
   );
 }
+
+/**
+ * Next.js 15+ hook — fires for errors during request handling (server
+ * components, route handlers, etc.). Forwards to Sentry via the wrapper
+ * from @sentry/nextjs, which is a no-op when Sentry.init hasn't run
+ * (i.e. DSN unset).
+ */
+export { captureRequestError as onRequestError } from '@sentry/nextjs';

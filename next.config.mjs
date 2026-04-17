@@ -1,4 +1,5 @@
 import { withAxiom } from 'next-axiom';
+import { withSentryConfig } from '@sentry/nextjs';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -50,6 +51,17 @@ const nextConfig = {
   },
 };
 
-export default withAxiom(nextConfig);
+export default withSentryConfig(withAxiom(nextConfig), {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Don't fail the build when auth token is missing — just skip source
+  // map upload. Required so deploys succeed before user adds the Sentry
+  // env vars in Vercel.
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  disableLogger: true,
+  automaticVercelMonitors: false,
+  telemetry: false,
+});
 
 
