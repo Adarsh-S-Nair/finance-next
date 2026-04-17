@@ -60,7 +60,9 @@ export default function LoginForm({ dark = false }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback/exchange?next=/setup`,
+        // Exchange page decides /dashboard vs /setup based on whether the
+        // user has accounts — no need to hardcode a `next` here.
+        redirectTo: `${window.location.origin}/auth/callback/exchange`,
       },
     });
     if (error) {
