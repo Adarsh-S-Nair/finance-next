@@ -21,7 +21,7 @@ export default function AuthPage() {
       <RouteTransition>
         <div className="relative min-h-screen bg-[var(--color-content-bg)] text-[var(--color-fg)] overflow-hidden">
           {/* Topbar with logo */}
-          <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--color-content-bg)]/85 backdrop-blur border-b border-[var(--color-border)]">
+          <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--color-content-bg)]/85 backdrop-blur">
             <div className="mx-auto flex w-full max-w-6xl items-center px-5 py-4 sm:px-6 lg:px-8">
               <Link href="/" className="flex items-center gap-3">
                 <span
@@ -39,7 +39,7 @@ export default function AuthPage() {
                   }}
                 />
                 <span
-                  className="text-lg font-semibold uppercase tracking-[0.22em] text-[var(--color-fg)]"
+                  className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-fg)]"
                   style={{ fontFamily: "var(--font-poppins)" }}
                 >
                   {BRAND.name}

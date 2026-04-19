@@ -36,7 +36,7 @@ function GoogleSignInButton({ loading, onClick, label = "Sign in with Google", d
       className={`flex h-11 w-full items-center justify-center gap-3 rounded-lg px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         dark
           ? "bg-white/10 text-white hover:bg-white/15"
-          : "bg-zinc-100 text-zinc-800 hover:bg-zinc-200/70"
+          : "bg-zinc-200 text-zinc-900 hover:bg-zinc-300"
       }`}
     >
       <GoogleIcon />

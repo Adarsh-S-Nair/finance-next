@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { FiMenu, FiX, FiPlus, FiBell } from "react-icons/fi";
+import { motion } from "framer-motion";
+import { FiPlus, FiBell } from "react-icons/fi";
 import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuChevronsUpDown } from "react-icons/lu";
 import PublicRoute from "../components/PublicRoute";
 import { BRAND } from "../config/brand";
@@ -19,7 +19,6 @@ import CalendarCard from "../components/dashboard/CalendarCard";
 import TopHoldingsCard from "../components/dashboard/TopHoldingsCard";
 import InsightsCarousel from "../components/dashboard/InsightsCarousel";
 
-const NAV_ITEMS = ["Features", "Pricing"];
 
 /* ============================================================
    Demo data — generic, non-personal, realistic
@@ -370,7 +369,7 @@ const HOLDINGS_MOCK = {
    Landing Nav
    ============================================================ */
 
-export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
+export function LandingNav({ showLinks = true }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -403,7 +402,7 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
             }}
           />
           <span
-            className="text-lg font-semibold uppercase tracking-[0.22em] text-[var(--color-fg)]"
+            className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-fg)]"
             style={{ fontFamily: "var(--font-poppins)" }}
           >
             {BRAND.name}
@@ -414,74 +413,14 @@ export function LandingNav({ menuOpen, setMenuOpen, showLinks = true }) {
         </Link>
 
         {showLinks && (
-          <nav className="hidden items-center gap-8 md:flex">
-            {NAV_ITEMS.map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase()}`}
-                className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-              >
-                {item}
-              </a>
-            ))}
-          </nav>
-        )}
-
-        {showLinks && (
-          <div className="hidden md:flex items-center">
-            <Link
-              href="/auth?mode=signin"
-              className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-            >
-              Sign in
-            </Link>
-          </div>
-        )}
-
-        {showLinks && (
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-fg)] md:hidden"
-            aria-label="Toggle navigation"
+          <Link
+            href="/auth?mode=signin"
+            className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
           >
-            {menuOpen ? <FiX size={18} /> : <FiMenu size={18} />}
-          </button>
+            Sign in
+          </Link>
         )}
       </div>
-
-      <AnimatePresence>
-        {showLinks && menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="border-t border-[var(--color-border)] bg-[var(--color-content-bg)] md:hidden"
-          >
-            <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4">
-              {NAV_ITEMS.map((item) => (
-                <a
-                  key={item}
-                  href={`#${item.toLowerCase()}`}
-                  className="text-sm text-[var(--color-muted)]"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {item}
-                </a>
-              ))}
-              <div className="flex flex-col gap-2 pt-2">
-                <Link
-                  href="/auth?mode=signin"
-                  className="text-sm text-[var(--color-muted)]"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Sign in
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </header>
   );
 }
@@ -831,7 +770,6 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
    ============================================================ */
 
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -844,7 +782,7 @@ export default function Home() {
   return (
     <PublicRoute>
       <main className="min-h-screen bg-[var(--color-content-bg)] text-[var(--color-fg)]">
-        <LandingNav menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+        <LandingNav />
 
         {/* Hero — single full-viewport scene. On lg+ it's fixed to the
             viewport so subsequent sections slide up OVER it as the user
@@ -944,6 +882,28 @@ export default function Home() {
               </div>
             </motion.div>
           </div>
+
+          {/* Creative pricing anchor — a subtle "pricing" scroll hint
+              anchored to the bottom of the viewport, only on desktop.
+              Disappears naturally when pricing slides up over the hero. */}
+          <motion.a
+            href="#pricing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.2 }}
+            className="group absolute bottom-8 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] lg:flex"
+            style={{ fontFamily: "var(--font-poppins)" }}
+          >
+            <span>Pricing</span>
+            <motion.span
+              aria-hidden
+              animate={{ y: [0, 4, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+              className="text-sm"
+            >
+              ↓
+            </motion.span>
+          </motion.a>
         </section>
 
         {/* Spacer — reserves 100vh of flow on lg+ so the fixed hero
