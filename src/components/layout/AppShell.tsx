@@ -263,7 +263,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <PaymentFailureBanner />
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
-          <div className="mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10">
+          <div
+            className={
+              pathname === "/dashboard"
+                ? "w-full px-4 md:px-6 lg:px-10"
+                : "mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10"
+            }
+          >
             <motion.div
               key={pathname}
               initial={{ opacity: 0, y: direction * 16 }}
