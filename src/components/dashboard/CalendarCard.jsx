@@ -66,18 +66,24 @@ const formatRelativeDate = (date) => {
   return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function CalendarCard({ className = '' }) {
-  const { user, isPro, loading: authLoading } = useUser();
-  const [recurring, setRecurring] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function CalendarCard({ className = '', mockData }) {
+  const { user, isPro: liveIsPro, loading: authLoading } = useUser();
+  const isPro = mockData ? true : liveIsPro;
+  const [recurring, setRecurring] = useState(mockData?.recurring || []);
+  const [loading, setLoading] = useState(!mockData);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
   useEffect(() => {
+    if (mockData) {
+      setRecurring(mockData.recurring || []);
+      setLoading(false);
+      return;
+    }
     if (authLoading) return;
     if (!user?.id) { setLoading(false); return; }
     const fetchRecurring = async () => {
-      if (!isPro) {
+      if (!liveIsPro) {
         setRecurring([]);
         setLoading(false);
         return;
@@ -95,7 +101,7 @@ export default function CalendarCard({ className = '' }) {
       }
     };
     fetchRecurring();
-  }, [authLoading, user?.id, isPro]);
+  }, [authLoading, user?.id, liveIsPro, mockData]);
 
   // Upcoming items: next 6 occurrences sorted by date
   const upcoming = useMemo(() => {

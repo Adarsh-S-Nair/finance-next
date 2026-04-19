@@ -20,15 +20,28 @@ const toneConfig = {
   },
 };
 
-export default function InsightsCarousel() {
+export interface InsightsMock {
+  insights: Insight[];
+}
+
+interface InsightsCarouselProps {
+  mockData?: InsightsMock;
+}
+
+export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {}) {
   const { user } = useUser();
-  const [insights, setInsights] = useState<Insight[]>([]);
+  const [insights, setInsights] = useState<Insight[]>(mockData?.insights ?? []);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!mockData);
   const [direction, setDirection] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (mockData) {
+      setInsights(mockData.insights);
+      setLoading(false);
+      return;
+    }
     if (!user?.id) return;
     let cancelled = false;
 
@@ -48,7 +61,7 @@ export default function InsightsCarousel() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, mockData]);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

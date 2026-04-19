@@ -7,22 +7,25 @@ import { CurrencyAmount } from "../../lib/formatCurrency";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 
-export default function MonthlyOverviewCard({ initialMonth, onBack }) {
+export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) {
   const [activeIndex, setActiveIndex] = useState(null);
-  const [chartData, setChartData] = useState([]);
-  const [availableMonths, setAvailableMonths] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth || null);
-  const [previousMonthName, setPreviousMonthName] = useState("");
+  const [chartData, setChartData] = useState(mockData?.chartData || []);
+  const [availableMonths, setAvailableMonths] = useState(mockData?.availableMonths || []);
+  const [selectedMonth, setSelectedMonth] = useState(
+    mockData?.selectedMonth || initialMonth || null
+  );
+  const [previousMonthName, setPreviousMonthName] = useState(mockData?.previousMonthName || "");
 
   const { user, loading: authLoading } = useUser();
 
   useEffect(() => {
+    if (mockData) return;
     if (initialMonth) {
       setSelectedMonth(initialMonth);
     }
-  }, [initialMonth]);
+  }, [initialMonth, mockData]);
 
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(!mockData);
 
   const generatePlaceholderChartData = () => {
     const now = new Date();
@@ -37,6 +40,12 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
   };
 
   useEffect(() => {
+    if (mockData) {
+      setAvailableMonths(mockData.availableMonths || []);
+      setSelectedMonth(mockData.selectedMonth || null);
+      setIsFetching(false);
+      return;
+    }
     if (authLoading) return;
     if (!user?.id) { setIsFetching(false); return; }
     let cancelled = false;
@@ -70,9 +79,15 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
 
     fetchAvailableMonths();
     return () => { cancelled = true; };
-  }, [authLoading, user?.id, initialMonth]);
+  }, [authLoading, user?.id, initialMonth, mockData]);
 
   useEffect(() => {
+    if (mockData) {
+      setChartData(mockData.chartData || []);
+      setPreviousMonthName(mockData.previousMonthName || "");
+      setIsFetching(false);
+      return;
+    }
     if (authLoading) return;
     if (!user?.id) { setIsFetching(false); return; }
     const fetchMonthlyData = async () => {
@@ -99,7 +114,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack }) {
     };
 
     fetchMonthlyData();
-  }, [authLoading, user?.id, selectedMonth]);
+  }, [authLoading, user?.id, selectedMonth, mockData]);
 
   const chartContainerRef = useRef(null);
 

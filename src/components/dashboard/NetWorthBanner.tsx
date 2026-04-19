@@ -28,6 +28,21 @@ interface MiniBarProps {
   segments: { label: string; amount: number; color: string }[];
 }
 
+export type NetWorthMock = {
+  netWorth: number;
+  percentChange: number | null;
+  breakdown: {
+    totalAssets: number;
+    totalLiabilities: number;
+    assetSegments: { label: string; amount: number; color: string }[];
+    liabilitySegments: { label: string; amount: number; color: string }[];
+  };
+};
+
+interface NetWorthBannerProps {
+  mockData?: NetWorthMock;
+}
+
 function MiniBar({ label, total, segments }: MiniBarProps) {
   return (
     <div className="flex-1 min-w-0">
@@ -70,12 +85,12 @@ function MiniBar({ label, total, segments }: MiniBarProps) {
   );
 }
 
-export default function NetWorthBanner() {
+export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
   const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
   const { allAccounts, loading: accountsLoading } = useAccounts();
   const [mobileTab, setMobileTab] = useState<'assets' | 'liabilities'>('assets');
 
-  const percentChange = useMemo(() => {
+  const livePercentChange = useMemo(() => {
     if (!netWorthHistory || netWorthHistory.length < 2) return null;
     const oldest = netWorthHistory[0];
     const newest = netWorthHistory[netWorthHistory.length - 1];
@@ -83,7 +98,7 @@ export default function NetWorthBanner() {
     return ((newest.netWorth - oldest.netWorth) / Math.abs(oldest.netWorth)) * 100;
   }, [netWorthHistory]);
 
-  const breakdown = useMemo(() => {
+  const liveBreakdown = useMemo(() => {
     if (accountsLoading || !allAccounts) return null;
     const totals = { cash: 0, investments: 0, credit: 0, loans: 0 };
     for (const acc of allAccounts) {
@@ -104,7 +119,10 @@ export default function NetWorthBanner() {
     };
   }, [allAccounts, accountsLoading]);
 
-  if (loading) {
+  const percentChange = mockData ? mockData.percentChange : livePercentChange;
+  const breakdown = mockData ? mockData.breakdown : liveBreakdown;
+
+  if (!mockData && loading) {
     return (
       <div className="animate-pulse">
         <div className="h-3 w-16 bg-[var(--color-border)] rounded mb-2" />
@@ -126,37 +144,48 @@ export default function NetWorthBanner() {
     );
   }
 
-  const netWorth = currentNetWorth?.netWorth ?? 0;
+  const netWorth = mockData ? mockData.netWorth : (currentNetWorth?.netWorth ?? 0);
 
-  return (
-    <div>
-      {/* Clickable header + total — navigates to /accounts */}
-      <Link
-        href="/accounts"
-        className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
-      >
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="card-header">Net Worth</div>
+  const headerBlock = (
+    <>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="card-header">Net Worth</div>
+        {!mockData && (
           <span className="text-[var(--color-muted)] text-lg leading-none">
             &#8250;
           </span>
-        </div>
+        )}
+      </div>
 
-        {/* Number + % change */}
-        <div className="flex items-baseline gap-3 mb-6">
-          <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight">
-            <CurrencyAmount amount={netWorth} />
-          </div>
-          {percentChange !== null && (
-            <span className={`text-xs font-semibold ${
-              percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
-            }`}>
-              {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
-            </span>
-          )}
+      {/* Number + % change */}
+      <div className="flex items-baseline gap-3 mb-6">
+        <div className="text-4xl font-medium text-[var(--color-fg)] tracking-tight">
+          <CurrencyAmount amount={netWorth} />
         </div>
-      </Link>
+        {percentChange !== null && (
+          <span className={`text-xs font-semibold ${
+            percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
+          }`}>
+            {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+          </span>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <div>
+      {mockData ? (
+        <div>{headerBlock}</div>
+      ) : (
+        <Link
+          href="/accounts"
+          className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
+        >
+          {headerBlock}
+        </Link>
+      )}
 
       {/* Assets & Liabilities breakdown — side-by-side on desktop, tabbed on mobile */}
       {breakdown && (

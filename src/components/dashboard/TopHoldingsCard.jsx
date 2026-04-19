@@ -83,15 +83,23 @@ function HoldingLogo({ ticker, logo, assetType, size = 32 }) {
 
 const MAX_DISPLAY = 5;
 
-export default function TopHoldingsCard() {
+export default function TopHoldingsCard({ mockData } = {}) {
   const { user, isPro } = useUser();
-  const [holdings, setHoldings] = useState([]);
-  const [tickerMeta, setTickerMeta] = useState({});
-  const [quotes, setQuotes] = useState({});
-  const [sparklines, setSparklines] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [holdings, setHoldings] = useState(mockData?.holdings || []);
+  const [tickerMeta, setTickerMeta] = useState(mockData?.tickerMeta || {});
+  const [quotes, setQuotes] = useState(mockData?.quotes || {});
+  const [sparklines, setSparklines] = useState(mockData?.sparklines || {});
+  const [loading, setLoading] = useState(!mockData);
 
   useEffect(() => {
+    if (mockData) {
+      setHoldings(mockData.holdings || []);
+      setTickerMeta(mockData.tickerMeta || {});
+      setQuotes(mockData.quotes || {});
+      setSparklines(mockData.sparklines || {});
+      setLoading(false);
+      return;
+    }
     if (!user?.id) return;
     let cancelled = false;
 
@@ -236,7 +244,7 @@ export default function TopHoldingsCard() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, mockData]);
 
   // Don't show the card for users without investments
   if (!loading && holdings.length === 0) return null;

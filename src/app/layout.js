@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Outfit, Poppins } from 'next/font/google';
+import { Outfit, Poppins, Instrument_Sans } from 'next/font/google';
 import { GeistSans } from 'geist/font/sans';
 import Topbar from "../components/layout/Topbar";
 import ToastProvider from "../components/providers/ToastProvider";
@@ -25,6 +25,13 @@ const poppins = Poppins({
   variable: '--font-poppins',
 });
 
+// Modern, slightly-condensed display sans — used for the landing hero.
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-instrument',
+});
+
 
 export const metadata = {
   title: {
@@ -35,7 +42,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${poppins.variable} ${GeistSans.variable}`}>
+    <html lang="en" className={`${outfit.variable} ${poppins.variable} ${instrumentSans.variable} ${GeistSans.variable}`}>
       <body className="font-normal selection:bg-zinc-900 selection:text-white">
         <DynamicFavicon />
         <ToastProvider>
