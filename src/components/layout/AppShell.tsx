@@ -266,7 +266,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div
             className={
               pathname === "/dashboard"
-                ? "w-full px-4 md:px-6 lg:px-10"
+                ? "mx-auto max-w-[1600px] px-4 md:px-6 lg:px-10"
                 : "mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10"
             }
           >
