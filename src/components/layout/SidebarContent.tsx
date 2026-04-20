@@ -8,7 +8,7 @@ import { NAV_GROUPS } from "../nav";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import SidebarSection from "./SidebarSection";
 import SidebarItem from "./SidebarItem";
-import { TabletHouseholdRailTrigger } from "../households/TabletHouseholdRail";
+import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
 
 /** Subset of personal nav items that are meaningful in household scope. */
 const HOUSEHOLD_ALLOWED_HREFS = new Set(["/accounts", "/investments"]);
@@ -60,7 +60,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
       {/* Tablet-only trigger — desktop has the full rail, mobile has the
           topbar picker. */}
       <div className="xl:hidden flex justify-center pt-4 pb-2">
-        <TabletHouseholdRailTrigger />
+        <HouseholdRailBubbleTrigger />
       </div>
       <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin pt-3", isCollapsed ? "px-2" : "px-3")}>
         {groups.map((g, i) => (

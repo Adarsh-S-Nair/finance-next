@@ -5,10 +5,9 @@ import HouseholdRail from "./HouseholdRail";
 import ProfileBar from "./ProfileBar";
 import AppTopbar from "./AppTopbar";
 import {
-  TABLET_HOUSEHOLD_RAIL_PORTAL_ID,
-  TabletHouseholdRailPanel,
-  TabletHouseholdRailProvider,
-} from "../households/TabletHouseholdRail";
+  HouseholdRailPanel,
+  HouseholdRailProvider,
+} from "../households/HouseholdRailExpander";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
@@ -257,7 +256,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <TabletHouseholdRailProvider>
+    <HouseholdRailProvider>
+    <HouseholdRailPanel />
     <div className="min-h-screen bg-[var(--color-content-bg)] relative">
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
@@ -272,13 +272,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-80 relative">
         <PaymentFailureBanner />
         <AppTopbar />
-        <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
-          {/* Tablet household rail expands here (portal target) so content
-              below physically shifts down when the user opens the switcher
-              from the sidebar bubble. Hidden on xl+ where the full rail
-              handles switching, and on mobile where the topbar picker does. */}
-          <div id={TABLET_HOUSEHOLD_RAIL_PORTAL_ID} className="hidden md:block xl:hidden" />
-          <TabletHouseholdRailPanel />
+        <main
+          className="flex-1 pb-24 md:pb-0 bg-[var(--color-content-bg)]"
+          style={{
+            paddingTop: "calc(var(--rail-offset, 0px) + 4rem)",
+            transition: "padding-top 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
+          }}
+        >
           <div
             className={
               pathname === "/dashboard"
@@ -314,6 +314,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNavBar />
       <PlaidOAuthHandler />
     </div>
-    </TabletHouseholdRailProvider>
+    </HouseholdRailProvider>
   );
 }

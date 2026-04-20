@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +9,12 @@ import { LuChevronDown, LuPlus } from "react-icons/lu";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import HouseholdSwitcherModal from "./HouseholdSwitcherModal";
 
-const PORTAL_ID = "tablet-household-rail-portal";
+/**
+ * Height of the open rail, in pixels. The same value is used for the panel's
+ * height animation and as the offset applied to every top-anchored fixed
+ * element (topbar, sidebar, rail) so they all slide down in sync.
+ */
+export const HOUSEHOLD_RAIL_HEIGHT = 112;
 
 type Ctx = {
   expanded: boolean;
@@ -18,7 +22,7 @@ type Ctx = {
   close: () => void;
 };
 
-const TabletHouseholdRailContext = createContext<Ctx>({
+const HouseholdRailContext = createContext<Ctx>({
   expanded: false,
   toggle: () => { },
   close: () => { },
@@ -31,15 +35,17 @@ function initialsFor(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function ZervoMark({ inverted }: { inverted?: boolean }) {
+function ZervoMark({ inverted, size = 5 }: { inverted?: boolean; size?: number }) {
   return (
     <span
       aria-hidden
       className={clsx(
-        "block h-5 w-5",
+        `block`,
         inverted ? "bg-[var(--color-on-accent,white)]" : "bg-[var(--color-fg)]",
       )}
       style={{
+        width: `${size * 4}px`,
+        height: `${size * 4}px`,
         maskImage: "url(/logo.svg)",
         maskSize: "contain",
         maskRepeat: "no-repeat",
@@ -54,16 +60,26 @@ function ZervoMark({ inverted }: { inverted?: boolean }) {
 }
 
 /**
- * Shell-level provider. AppShell wraps its subtree so the sidebar trigger
- * and the expandable panel (rendered via portal) share the same open state.
+ * Shell-level provider. Exposes expand state to the trigger(s) and the panel
+ * so multiple triggers (sidebar bubble on tablet, topbar pill on mobile) and
+ * a single panel stay in sync. Also writes --rail-offset on document.body
+ * so every top-anchored fixed element in the shell slides down with the
+ * same animation.
  */
-export function TabletHouseholdRailProvider({ children }: { children: React.ReactNode }) {
+export function HouseholdRailProvider({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
     setExpanded(false);
   }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.setProperty("--rail-offset", expanded ? `${HOUSEHOLD_RAIL_HEIGHT}px` : "0px");
+    return () => {
+      document.body.style.setProperty("--rail-offset", "0px");
+    };
+  }, [expanded]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -84,21 +100,23 @@ export function TabletHouseholdRailProvider({ children }: { children: React.Reac
   );
 
   return (
-    <TabletHouseholdRailContext.Provider value={value}>
+    <HouseholdRailContext.Provider value={value}>
       {children}
-    </TabletHouseholdRailContext.Provider>
+    </HouseholdRailContext.Provider>
   );
 }
 
+export function useHouseholdRail() {
+  return useContext(HouseholdRailContext);
+}
+
 /**
- * Compact trigger that lives at the top of the collapsed sidebar. Mirrors
- * the current scope: Zervo mark when personal, household color + initial
- * when on a household.
+ * Bubble trigger for the tablet sidebar. Mirrors the current scope.
  */
-export function TabletHouseholdRailTrigger() {
+export function HouseholdRailBubbleTrigger() {
   const pathname = usePathname();
   const { households } = useHouseholds();
-  const { expanded, toggle } = useContext(TabletHouseholdRailContext);
+  const { expanded, toggle } = useHouseholdRail();
 
   const householdId = pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null;
   const activeHousehold = households.find((h) => h.id === householdId) ?? null;
@@ -111,7 +129,7 @@ export function TabletHouseholdRailTrigger() {
       onClick={toggle}
       aria-label={`Switch household. Current: ${label}`}
       aria-expanded={expanded}
-      className="group relative flex h-11 w-11 items-center justify-center transition-transform"
+      className="group relative flex h-11 w-11 items-center justify-center transition-transform cursor-pointer"
     >
       <span
         className={clsx(
@@ -127,7 +145,7 @@ export function TabletHouseholdRailTrigger() {
         {activeHousehold ? (
           <span>{initialsFor(activeHousehold.name)}</span>
         ) : (
-          <ZervoMark inverted={expanded} />
+          <ZervoMark inverted={expanded} size={5} />
         )}
       </span>
       <LuChevronDown
@@ -141,52 +159,80 @@ export function TabletHouseholdRailTrigger() {
 }
 
 /**
- * The expandable horizontal rail. Rendered via portal into the
- * #tablet-household-rail-portal target (placed in AppShell between the
- * topbar and the page content), so when the height animates from 0 to
- * auto, the content below naturally pushes down.
+ * Compact pill trigger for the mobile topbar. Same scope indicator, but
+ * laid out as a horizontal pill to fit a narrow header.
  */
-export function TabletHouseholdRailPanel() {
+export function HouseholdRailPillTrigger() {
   const pathname = usePathname();
   const { households } = useHouseholds();
-  const { expanded, close } = useContext(TabletHouseholdRailContext);
-  const [showSwitcher, setShowSwitcher] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const { expanded, toggle } = useHouseholdRail();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const householdId = pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null;
+  const activeHousehold = households.find((h) => h.id === householdId) ?? null;
+  const label = activeHousehold ? activeHousehold.name : "Personal";
+
+  const dot = activeHousehold ? (
+    <span
+      className="block h-2.5 w-2.5 rounded-full flex-shrink-0"
+      style={{ backgroundColor: activeHousehold.color }}
+      aria-hidden
+    />
+  ) : (
+    <ZervoMark size={3} />
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-expanded={expanded}
+      className={clsx(
+        "flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer",
+        "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.05] hover:bg-[var(--color-fg)]/[0.08]",
+        expanded && "bg-[var(--color-fg)]/[0.08]",
+      )}
+    >
+      {dot}
+      <span className="truncate max-w-[140px]">{label}</span>
+      <LuChevronDown
+        className={clsx("h-3.5 w-3.5 text-[var(--color-muted)] transition-transform", expanded && "rotate-180")}
+      />
+    </button>
+  );
+}
+
+/**
+ * The expandable horizontal rail. Pinned to top:0 above every other shell
+ * element so when its height animates from 0 to HOUSEHOLD_RAIL_HEIGHT the
+ * app (topbar, sidebar, desktop rail) slides down via --rail-offset.
+ */
+export function HouseholdRailPanel() {
+  const pathname = usePathname();
+  const { households } = useHouseholds();
+  const { expanded, close } = useHouseholdRail();
+  const [showSwitcher, setShowSwitcher] = useState(false);
 
   const householdId = pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null;
   const onPersonal = !householdId;
-
-  const portalTarget = mounted ? document.getElementById(PORTAL_ID) : null;
 
   const handleSwitcherOpen = useCallback(() => {
     close();
     setShowSwitcher(true);
   }, [close]);
 
-  if (!portalTarget) {
-    return (
-      <HouseholdSwitcherModal isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
-    );
-  }
-
-  const content = (
-    <AnimatePresence initial={false}>
-      {expanded && (
-        <motion.div
-          key="tablet-rail-panel"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: "auto", opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-          className="overflow-hidden border-b border-[var(--color-fg)]/[0.06] bg-[var(--color-surface-alt)]"
-        >
-          <div className="mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10 py-4">
-            <div className="flex items-center gap-3 overflow-x-auto scrollbar-thin">
-              {/* Personal */}
+  return (
+    <>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="household-rail-panel"
+            initial={{ height: 0 }}
+            animate={{ height: HOUSEHOLD_RAIL_HEIGHT }}
+            exit={{ height: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="fixed top-0 left-0 right-0 z-[55] overflow-hidden bg-[var(--color-surface-alt)] border-b border-[var(--color-fg)]/[0.06]"
+          >
+            <div className="h-full flex items-center overflow-x-auto scrollbar-thin px-4 md:px-6 lg:px-10 gap-3">
               <Link
                 href="/dashboard"
                 onClick={close}
@@ -201,11 +247,11 @@ export function TabletHouseholdRailPanel() {
                       : "rounded-full bg-[var(--color-fg)]/[0.06] text-[var(--color-fg)] group-hover:rounded-xl",
                   )}
                 >
-                  <ZervoMark inverted={onPersonal} />
+                  <ZervoMark inverted={onPersonal} size={5} />
                 </span>
                 <span
                   className={clsx(
-                    "text-[11px] truncate max-w-[64px]",
+                    "text-[11px] truncate max-w-[72px]",
                     onPersonal ? "text-[var(--color-fg)] font-medium" : "text-[var(--color-muted)]",
                   )}
                 >
@@ -214,10 +260,7 @@ export function TabletHouseholdRailPanel() {
               </Link>
 
               {households.length > 0 && (
-                <span
-                  aria-hidden
-                  className="h-8 w-px bg-[var(--color-fg)]/[0.08] flex-shrink-0 mx-1"
-                />
+                <span aria-hidden className="h-8 w-px bg-[var(--color-fg)]/[0.08] flex-shrink-0 mx-1" />
               )}
 
               {households.map((h) => {
@@ -241,7 +284,7 @@ export function TabletHouseholdRailPanel() {
                     </span>
                     <span
                       className={clsx(
-                        "text-[11px] truncate max-w-[64px]",
+                        "text-[11px] truncate max-w-[72px]",
                         active ? "text-[var(--color-fg)] font-medium" : "text-[var(--color-muted)]",
                       )}
                     >
@@ -251,7 +294,6 @@ export function TabletHouseholdRailPanel() {
                 );
               })}
 
-              {/* Create or join */}
               <button
                 type="button"
                 onClick={handleSwitcherOpen}
@@ -264,18 +306,11 @@ export function TabletHouseholdRailPanel() {
                 <span className="text-[11px] text-[var(--color-muted)]">Add</span>
               </button>
             </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-  return (
-    <>
-      {createPortal(content, portalTarget)}
       <HouseholdSwitcherModal isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
     </>
   );
 }
-
-export const TABLET_HOUSEHOLD_RAIL_PORTAL_ID = PORTAL_ID;

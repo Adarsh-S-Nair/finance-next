@@ -248,8 +248,9 @@ export default function HouseholdRail() {
   return (
     <>
       <aside
+        style={{ top: "var(--rail-offset, 0px)", transition: "top 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)" }}
         className={clsx(
-          "hidden xl:flex flex-col fixed top-0 left-0 bottom-16 w-20 z-50",
+          "hidden xl:flex flex-col fixed left-0 bottom-16 w-20 z-50",
           "border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]",
         )}
       >

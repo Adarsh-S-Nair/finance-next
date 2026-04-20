@@ -6,7 +6,7 @@ import { FiPlus } from "react-icons/fi";
 import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
-import HouseholdPicker from "../households/HouseholdPicker";
+import { HouseholdRailPillTrigger } from "../households/HouseholdRailExpander";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -14,7 +14,11 @@ export default function AppTopbar() {
   const showAddButton = pathname !== "/setup";
 
   return (
-    <header id="app-topbar" className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col transition-all duration-300 ease-in-out left-0 md:left-20 xl:left-80">
+    <header
+      id="app-topbar"
+      style={{ top: "var(--rail-offset, 0px)", transition: "top 0.22s cubic-bezier(0.25, 0.1, 0.25, 1), left 0.3s ease" }}
+      className="fixed right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col left-0 md:left-20 xl:left-80"
+    >
       <div
         className={`mx-auto ${
           pathname === "/dashboard" ? "max-w-[1600px]" : "max-w-[1440px]"
@@ -27,7 +31,7 @@ export default function AppTopbar() {
         {/* Mobile only — tablet uses the sidebar bubble + horizontal rail,
             desktop uses the full rail on the left. */}
         <div className="md:hidden flex items-center z-10">
-          <HouseholdPicker />
+          <HouseholdRailPillTrigger />
         </div>
 
         {/* Desktop: page title portal */}
