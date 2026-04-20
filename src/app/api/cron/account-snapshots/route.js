@@ -252,6 +252,14 @@ export async function GET(request) {
     let skippedCount = 0;
 
     for (const account of accounts) {
+      // Investment accounts are handled in Phase 0 (holdings sync writes its
+      // own snapshot with holdings-derived values). Don't write a second
+      // snapshot here from the stale accounts.balances row.
+      if (account.type === 'investment') {
+        skippedCount++;
+        continue;
+      }
+
       const balances = account.balances || {};
       const currentBalance = balances.current ?? null;
       const mostRecent = mostRecentByAccount.get(account.id);

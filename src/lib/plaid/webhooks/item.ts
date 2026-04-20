@@ -174,37 +174,54 @@ async function handleNewAccountsAvailable(
       }
     }
 
-    // Upsert fresh accounts.
-    const accountsToInsert = accounts.map((account) => ({
-      user_id: plaidItem.user_id,
-      item_id: plaidItem.item_id,
-      account_id: account.account_id,
-      name: account.name,
-      mask: account.mask,
-      type: account.type,
-      subtype: account.subtype,
-      balances: account.balances,
-      access_token: plaidItem.access_token,
-      account_key: `${plaidItem.item_id}_${account.account_id}`,
-      institution_id: institutionData?.id || null,
-      plaid_item_id: plaidItem.id,
-    }));
-
-    const { data: accountsData, error: accountsError } = await supabaseAdmin
-      .from('accounts')
-      .upsert(accountsToInsert, {
-        onConflict: 'plaid_item_id,account_id',
-      })
-      .select();
-
-    if (accountsError) {
-      itemLogger.error('Error upserting new accounts', null, { error: accountsError });
-    } else {
-      itemLogger.info('Synced accounts', {
+    // Upsert fresh accounts. For investment accounts the holdings sync owns
+    // `balances` (derived from live-priced holdings) — don't overwrite it
+    // with Plaid's /accounts/get totals. We upsert investment and
+    // non-investment accounts in two separate calls so each has a uniform
+    // column shape.
+    const buildRow = (account: PlaidAccountLite, includeBalances: boolean) => {
+      const row: Record<string, unknown> = {
+        user_id: plaidItem.user_id,
         item_id: plaidItem.item_id,
-        count: (accountsData ?? []).length,
-      });
+        account_id: account.account_id,
+        name: account.name,
+        mask: account.mask,
+        type: account.type,
+        subtype: account.subtype,
+        access_token: plaidItem.access_token,
+        account_key: `${plaidItem.item_id}_${account.account_id}`,
+        institution_id: institutionData?.id || null,
+        plaid_item_id: plaidItem.id,
+      };
+      if (includeBalances) row.balances = account.balances;
+      return row;
+    };
+
+    const investmentRows = accounts
+      .filter((a) => a.type === 'investment')
+      .map((a) => buildRow(a, false));
+    const nonInvestmentRows = accounts
+      .filter((a) => a.type !== 'investment')
+      .map((a) => buildRow(a, true));
+
+    let syncedCount = 0;
+    for (const batch of [nonInvestmentRows, investmentRows]) {
+      if (batch.length === 0) continue;
+      const { data: accountsData, error: accountsError } = await supabaseAdmin
+        .from('accounts')
+        .upsert(batch, { onConflict: 'plaid_item_id,account_id' })
+        .select();
+      if (accountsError) {
+        itemLogger.error('Error upserting new accounts', null, { error: accountsError });
+      } else {
+        syncedCount += (accountsData ?? []).length;
+      }
     }
+
+    itemLogger.info('Synced accounts', {
+      item_id: plaidItem.item_id,
+      count: syncedCount,
+    });
   } catch (accountSyncError) {
     itemLogger.error('Error syncing new accounts', accountSyncError as Error, {
       item_id: plaidItem.item_id,

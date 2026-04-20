@@ -262,6 +262,10 @@ export async function POST(request) {
           existingAccount = matchedAccount;
         }
 
+        // Investment account balances are owned by the holdings sync (which
+        // derives the total from live-priced holdings). Don't seed them from
+        // Plaid's /accounts/get response — the holdings sync that runs right
+        // after this will populate balances.current / .available.
         if (existingAccount) {
           accountsToUpdate.push({
             id: existingAccount.id,
@@ -269,7 +273,6 @@ export async function POST(request) {
             mask: account.mask,
             type: account.type,
             subtype: account.subtype,
-            balances: account.balances,
             product_type: 'investments',
             access_token: access_token,
             institution_id: institutionData?.id || existingAccount.institution_id,
@@ -287,7 +290,6 @@ export async function POST(request) {
             mask: account.mask,
             type: account.type,
             subtype: account.subtype,
-            balances: account.balances,
             product_type: 'investments',
             access_token: access_token,
             account_key: accountKey,
@@ -363,13 +365,26 @@ export async function POST(request) {
       inserted: insertedAccounts.length,
     });
 
-    // Create account snapshots for the newly created accounts
+    // Create account snapshots for the newly created accounts.
+    // Skip investment accounts — the holdings sync that runs below writes
+    // its own snapshot using holdings-derived values, not Plaid's reported
+    // /accounts/get balances.
     try {
-      const snapshotResult = await createAccountSnapshots(accounts, accountsData.map(acc => acc.id));
-      if (snapshotResult.success) {
-        logger.info('Created account snapshots', { count: snapshotResult.data.length });
-      } else {
-        logger.warn('Failed to create account snapshots', { error: snapshotResult.error });
+      const plaidByAccountId = new Map(accounts.map((a) => [a.account_id, a]));
+      const snapshotPairs = accountsData
+        .filter((acc) => acc.type !== 'investment')
+        .map((acc) => ({ plaid: plaidByAccountId.get(acc.account_id), id: acc.id }))
+        .filter((p) => p.plaid);
+      if (snapshotPairs.length > 0) {
+        const snapshotResult = await createAccountSnapshots(
+          snapshotPairs.map((p) => p.plaid),
+          snapshotPairs.map((p) => p.id)
+        );
+        if (snapshotResult.success) {
+          logger.info('Created account snapshots', { count: snapshotResult.data.length });
+        } else {
+          logger.warn('Failed to create account snapshots', { error: snapshotResult.error });
+        }
       }
     } catch (snapshotError) {
       logger.error('Exception while creating account snapshots', snapshotError);

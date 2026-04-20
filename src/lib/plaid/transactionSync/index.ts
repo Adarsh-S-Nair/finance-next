@@ -445,12 +445,34 @@ async function updateAccountBalances(
     return { updatedAccountsCount: 0, snapshotsCreatedCount: 0 };
   }
 
+  // Investment accounts have their balances owned by the holdings sync (which
+  // derives the total from live-priced holdings). Don't let transaction sync
+  // overwrite those with Plaid's /accounts/get values.
+  const dbAccountIds = Array.from(new Set(Object.values(accountMap)));
+  const investmentAccountIds = new Set<string>();
+  if (dbAccountIds.length > 0) {
+    const { data: typeRows, error: typeError } = await supabaseAdmin
+      .from('accounts')
+      .select('id, type')
+      .in('id', dbAccountIds);
+    if (typeError) {
+      logger.warn('Failed to fetch account types for balance update, proceeding without filter', {
+        error: typeError.message,
+      });
+    } else {
+      for (const row of (typeRows ?? []) as Array<{ id: string; type: string | null }>) {
+        if (row.type === 'investment') investmentAccountIds.add(row.id);
+      }
+    }
+  }
+
   let updatedAccountsCount = 0;
   let snapshotsCreatedCount = 0;
 
   for (const plaidAccount of plaidAccounts) {
     const dbAccountId = accountMap[plaidAccount.account_id];
     if (!dbAccountId || !plaidAccount.balances) continue;
+    if (investmentAccountIds.has(dbAccountId)) continue;
 
     const { error: updateError } = await supabaseAdmin
       .from('accounts')
