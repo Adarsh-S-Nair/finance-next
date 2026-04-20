@@ -66,7 +66,7 @@ export default function Modal({
       {isOpen && (
         <motion.div
           className={clsx(
-            "fixed inset-0 z-50 flex justify-center overflow-hidden overscroll-contain",
+            "fixed inset-0 z-[80] flex justify-center overflow-hidden overscroll-contain",
             // Bottom sheet on mobile
             "items-end p-0",
             // Centered modal from small screens and up

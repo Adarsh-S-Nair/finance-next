@@ -89,118 +89,111 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
   };
 
   const optionRowClass =
-    "w-full flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-md transition-colors";
+    "w-full flex items-center gap-2.5 px-5 py-2 text-[13px] transition-colors";
 
   return (
     <>
       <div
         ref={containerRef}
-        className="hidden md:flex fixed bottom-0 left-0 md:w-40 xl:w-80 z-[60] p-3"
+        className="hidden md:flex flex-col fixed bottom-0 left-0 md:w-40 xl:w-80 z-[60] border-t border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-surface-alt)]"
       >
-        <div className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-alt)] shadow-[0_6px_24px_-8px_rgba(0,0,0,0.18)] overflow-hidden">
-          <AnimatePresence initial={false}>
-            {expanded && (
-              <motion.div
-                key="profile-options"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                className="overflow-hidden"
-              >
-                <div className="p-1.5 border-b border-[var(--color-border)]/60">
-                  {tier === "free" && (
-                    <button
-                      onClick={() => {
-                        setExpanded(false);
-                        setShowUpgradeOverlay(true);
-                      }}
-                      className={clsx(
-                        optionRowClass,
-                        "text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10",
-                      )}
-                    >
-                      <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
-                      <span className="hidden xl:inline">Upgrade to Pro</span>
-                    </button>
-                  )}
-
-                  <Link
-                    href="/settings"
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              key="profile-options"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="overflow-hidden border-b border-[var(--color-fg)]/[0.06]"
+            >
+              <div className="py-2">
+                {tier === "free" && (
+                  <button
                     onClick={() => {
                       setExpanded(false);
-                      onNavigate?.();
+                      setShowUpgradeOverlay(true);
                     }}
                     className={clsx(
                       optionRowClass,
-                      pathname.startsWith("/settings")
-                        ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
-                        : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06]",
+                      "text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10",
                     )}
                   >
-                    <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
-                    <span className="hidden xl:inline">Settings</span>
-                  </Link>
-
-                  <div
-                    className={clsx(
-                      optionRowClass,
-                      "text-[var(--color-muted)] opacity-40 cursor-not-allowed",
-                    )}
-                  >
-                    <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
-                    <span className="hidden xl:inline flex-1">Help &amp; Support</span>
-                    <FaLock className="h-3 w-3 opacity-60 hidden xl:block" />
-                  </div>
-
-                  <button
-                    onClick={onLogout}
-                    className={clsx(
-                      optionRowClass,
-                      "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06]",
-                    )}
-                  >
-                    <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
-                    <span className="hidden xl:inline">Log out</span>
+                    <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
+                    <span className="hidden xl:inline">Upgrade to Pro</span>
                   </button>
+                )}
+
+                <Link
+                  href="/settings"
+                  onClick={() => {
+                    setExpanded(false);
+                    onNavigate?.();
+                  }}
+                  className={clsx(
+                    optionRowClass,
+                    pathname.startsWith("/settings")
+                      ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+                  )}
+                >
+                  <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
+                  <span className="hidden xl:inline">Settings</span>
+                </Link>
+
+                <div
+                  className={clsx(
+                    optionRowClass,
+                    "text-[var(--color-muted)] opacity-40 cursor-not-allowed",
+                  )}
+                >
+                  <LuHeadphones className="h-[18px] w-[18px] flex-shrink-0" />
+                  <span className="hidden xl:inline flex-1">Help &amp; Support</span>
+                  <FaLock className="h-3 w-3 opacity-60 hidden xl:block" />
                 </div>
-              </motion.div>
+
+                <button
+                  onClick={onLogout}
+                  className={clsx(
+                    optionRowClass,
+                    "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+                  )}
+                >
+                  <TbLogout className="h-[18px] w-[18px] flex-shrink-0" />
+                  <span className="hidden xl:inline">Log out</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className={clsx(
+            "h-16 w-full flex items-center gap-3 px-5 text-left cursor-pointer group transition-colors",
+            expanded ? "bg-[var(--color-fg)]/[0.04]" : "hover:bg-[var(--color-fg)]/[0.03]",
+          )}
+        >
+          <div className="relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+            ) : (
+              <span>{initials}</span>
             )}
-          </AnimatePresence>
+          </div>
 
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className={clsx(
-              "w-full flex items-center gap-3 px-3 py-2.5 text-left cursor-pointer group transition-colors",
-              expanded ? "bg-[var(--color-fg)]/[0.04]" : "hover:bg-[var(--color-fg)]/[0.04]",
-            )}
-          >
-            <div
-              className={clsx(
-                "relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent,white)] overflow-hidden",
-                tier === "pro" && "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-surface-alt)]",
-              )}
-            >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
-              ) : (
-                <span>{initials}</span>
-              )}
-            </div>
+          <div className="flex-1 min-w-0 hidden xl:block">
+            <p className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-tight">
+              {fullName || "User"}
+            </p>
+            <p className="text-[11px] text-[var(--color-muted)] truncate leading-tight mt-0.5">
+              {tier === "pro" ? "Pro" : "Free"}
+            </p>
+          </div>
 
-            <div className="flex-1 min-w-0 hidden xl:block">
-              <p className="text-[13px] font-medium text-[var(--color-fg)] truncate leading-tight">
-                {fullName || "User"}
-              </p>
-              <p className="text-[11px] text-[var(--color-muted)] truncate leading-tight mt-0.5">
-                {tier === "pro" ? "Pro" : "Free"}
-              </p>
-            </div>
-
-            <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/60 flex-shrink-0 hidden xl:block group-hover:text-[var(--color-muted)]" />
-          </button>
-        </div>
+          <LuChevronsUpDown className="h-3.5 w-3.5 text-[var(--color-muted)]/60 flex-shrink-0 hidden xl:block group-hover:text-[var(--color-muted)]" />
+        </button>
       </div>
 
       <ConfirmDialog

@@ -119,7 +119,7 @@ export default function Drawer({
       {isOpen && (
         <motion.div
           className={clsx(
-            "fixed inset-0 z-50 flex overflow-hidden overscroll-contain",
+            "fixed inset-0 z-[80] flex overflow-hidden overscroll-contain",
             // Bottom sheet on mobile
             "items-end p-0",
             // Right-side drawer flush to edge on desktop

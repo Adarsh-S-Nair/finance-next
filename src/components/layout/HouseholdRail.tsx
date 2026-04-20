@@ -249,7 +249,7 @@ export default function HouseholdRail() {
     <>
       <aside
         className={clsx(
-          "hidden md:flex flex-col fixed top-0 left-0 bottom-20 w-20 z-50",
+          "hidden md:flex flex-col fixed top-0 left-0 bottom-16 w-20 z-50",
           "border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]",
         )}
       >
