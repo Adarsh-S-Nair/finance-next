@@ -13,6 +13,7 @@ import { supabaseAdmin } from '../../supabase/admin';
 import { getPlaidProducts } from '../../tierConfig';
 import { getAccounts, getInstitution } from '../client';
 import { loadPlaidItemByItemId } from './loadItem';
+import { formatDisplayName } from '../../utils/formatName';
 import type {
   ItemWebhookPayload,
   PlaidItemContext,
@@ -184,7 +185,7 @@ async function handleNewAccountsAvailable(
         user_id: plaidItem.user_id,
         item_id: plaidItem.item_id,
         account_id: account.account_id,
-        name: account.name,
+        name: formatDisplayName(account.name ?? ''),
         mask: account.mask,
         type: account.type,
         subtype: account.subtype,

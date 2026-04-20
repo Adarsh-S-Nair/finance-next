@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import clsx from "clsx";
 import { PiBankFill } from "react-icons/pi";
 import PageContainer from "../../../../../components/layout/PageContainer";
 import NetWorthCard from "../../../../../components/dashboard/NetWorthCard";
@@ -10,6 +11,7 @@ import {
 } from "../../../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../../../components/dashboard/NetWorthHoverContext";
 import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
+import Tooltip from "../../../../../components/ui/Tooltip";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 
@@ -33,49 +35,80 @@ function ownerInitials(owner) {
   return "?";
 }
 
+/**
+ * Small avatar badge — used both as a corner overlay on the institution
+ * logo in each account row, and as a clickable chip in the member filter
+ * at the top of the page.
+ */
+function MemberAvatar({ owner, size = "sm", muted = false }) {
+  const dim = size === "lg" ? "h-9 w-9 text-xs" : size === "md" ? "h-6 w-6 text-[10px]" : "h-[18px] w-[18px] text-[9px]";
+  return (
+    <span
+      className={clsx(
+        "flex items-center justify-center overflow-hidden rounded-full font-semibold flex-shrink-0 transition-opacity",
+        dim,
+        muted ? "opacity-35" : "opacity-100",
+        "bg-[var(--color-accent)] text-[var(--color-on-accent,white)]",
+      )}
+    >
+      {owner?.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={owner.avatar_url} alt={ownerName(owner)} className="h-full w-full object-cover" />
+      ) : (
+        <span>{ownerInitials(owner)}</span>
+      )}
+    </span>
+  );
+}
+
+function InstitutionLogo({ institution }) {
+  return (
+    <div className="relative w-10 h-10 flex-shrink-0">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
+        {institution?.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={institution.logo}
+            alt={institution.name || ""}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = "none";
+              if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
+            }}
+          />
+        ) : null}
+        <div className={`w-full h-full flex items-center justify-center ${institution?.logo ? "hidden" : "flex"}`}>
+          <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AccountRow({ account, institutionMap, owner }) {
   const institution = institutionMap[account.institutionId] || { name: "Unknown", logo: null };
   return (
     <div className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg">
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
-          {institution.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={institution.logo}
-              alt={institution.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = "none";
-                if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
-              }}
-            />
-          ) : null}
-          <div className={`w-full h-full flex items-center justify-center ${institution.logo ? "hidden" : "flex"}`}>
-            <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
-          </div>
+        <div className="relative">
+          <InstitutionLogo institution={institution} />
+          {owner && (
+            <Tooltip content={ownerName(owner)} side="top">
+              <span className="absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-[var(--color-content-bg)]">
+                <MemberAvatar owner={owner} size="sm" />
+              </span>
+            </Tooltip>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">
             {account.name}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            {owner && (
-              <>
-                <span className="flex h-4 w-4 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-[8px] font-semibold text-[var(--color-on-accent,white)]">
-                  {owner.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={owner.avatar_url} alt={ownerName(owner)} className="h-full w-full object-cover" />
-                  ) : (
-                    <span>{ownerInitials(owner)}</span>
-                  )}
-                </span>
-                <span className="truncate max-w-[160px]">{ownerName(owner)}</span>
-              </>
-            )}
+            <span className="truncate max-w-[180px]">{institution.name}</span>
             {account.mask && (
               <>
-                {owner && <span className="text-[var(--color-border)]">•</span>}
+                <span className="text-[var(--color-border)]">•</span>
                 <span className="font-mono">•••• {account.mask}</span>
               </>
             )}
@@ -117,10 +150,52 @@ function categorizeAccount(account) {
   return "cash";
 }
 
+/**
+ * Horizontal avatar toggle — one chip per household member. Clicking
+ * mutes/unmutes that member's accounts across the whole page.
+ */
+function MemberFilter({ members, excludedIds, onToggle }) {
+  if (!members || members.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+        Viewing
+      </span>
+      <div className="flex items-center gap-2">
+        {members.map((member) => {
+          const muted = excludedIds.has(member.user_id);
+          return (
+            <Tooltip
+              key={member.user_id}
+              content={
+                muted
+                  ? `Show ${ownerName(member)}'s accounts`
+                  : `Hide ${ownerName(member)}'s accounts`
+              }
+              side="top"
+            >
+              <button
+                type="button"
+                onClick={() => onToggle(member.user_id)}
+                aria-pressed={!muted}
+                className="cursor-pointer"
+              >
+                <MemberAvatar owner={member} size="lg" muted={muted} />
+              </button>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function HouseholdAccountsPage() {
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
-  const { memberByUserId } = useHouseholdMeta();
+  const { members, memberByUserId, excludedMemberIds, toggleMember } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
+
+  const titleNode = "Accounts";
 
   const institutionMap = {};
   (accounts || []).forEach((inst) => {
@@ -129,8 +204,6 @@ export default function HouseholdAccountsPage() {
 
   const categorized = { cash: [], investments: [], credit: [], loans: [] };
   for (const a of allAccounts || []) categorized[categorizeAccount(a)].push(a);
-
-  const titleNode = "Accounts";
 
   if (loading || !initialized) {
     return (
@@ -151,20 +224,34 @@ export default function HouseholdAccountsPage() {
   }
 
   const hasAccounts = (allAccounts?.length ?? 0) > 0;
+  const memberFilterUI = (
+    <MemberFilter
+      members={members}
+      excludedIds={excludedMemberIds}
+      onToggle={toggleMember}
+    />
+  );
 
   if (!hasAccounts) {
     return (
       <PageContainer title={titleNode}>
-        <div className="text-center py-24">
-          <div className="mx-auto w-20 h-20 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[var(--color-border)]">
-            <PiBankFill className="h-10 w-10 text-[var(--color-muted)]" />
+        <div className="space-y-10">
+          {memberFilterUI}
+          <div className="text-center py-24">
+            <div className="mx-auto w-20 h-20 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[var(--color-border)]">
+              <PiBankFill className="h-10 w-10 text-[var(--color-muted)]" />
+            </div>
+            <h3 className="text-xl font-medium text-[var(--color-fg)] mb-2">
+              {excludedMemberIds.size > 0
+                ? "No accounts for the selected members"
+                : "No accounts in this household yet"}
+            </h3>
+            <p className="text-[var(--color-muted)] max-w-md mx-auto">
+              {excludedMemberIds.size > 0
+                ? "Adjust the filter above to see accounts from other members."
+                : "Once members connect accounts, they'll show up here combined across everyone."}
+            </p>
           </div>
-          <h3 className="text-xl font-medium text-[var(--color-fg)] mb-2">
-            No accounts in this household yet
-          </h3>
-          <p className="text-[var(--color-muted)] max-w-md mx-auto">
-            Once members connect accounts, they&apos;ll show up here combined across everyone.
-          </p>
         </div>
       </PageContainer>
     );
@@ -174,6 +261,8 @@ export default function HouseholdAccountsPage() {
     <NetWorthHoverProvider>
       <PageContainer title={titleNode}>
         <div className="space-y-10">
+          {memberFilterUI}
+
           <div className="w-full">
             <div className="flex flex-col lg:flex-row gap-8">
               <div className="lg:w-2/3">

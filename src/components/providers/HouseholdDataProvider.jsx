@@ -3,46 +3,42 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { transformAccountsData, computeAccountTotals } from "../../lib/accountsTransform";
+import { isLiabilityAccount } from "../../lib/accountUtils";
 import { useUser } from "./UserProvider";
 import { AccountsContext } from "./AccountsProvider";
 import { NetWorthContext } from "./NetWorthProvider";
 
 /**
- * Metadata about the household itself (name, color, members). Pages under
- * /households/[id] consume this via useHouseholdMeta() to render things
- * like an account row's owner chip.
+ * Metadata about the household itself (name, color, members) plus the
+ * scope filter: which member ids the user currently has EXCLUDED from
+ * the aggregate view. The filter feeds back into AccountsContext and
+ * NetWorthContext so every card in the subtree respects it.
  */
 const HouseholdMetaContext = createContext({
   household: null,
   members: [],
   memberByUserId: new Map(),
+  excludedMemberIds: new Set(),
+  toggleMember: () => { },
 });
 
 export function useHouseholdMeta() {
   return useContext(HouseholdMetaContext);
 }
 
-/**
- * HouseholdDataProvider overrides AccountsContext + NetWorthContext with
- * household-scoped data so any page rendered inside it (the entire
- * /households/[id]/* subtree) transparently sees the aggregated household
- * view without needing its own hooks.
- *
- * It proxies the same three endpoints AccountsProvider and NetWorthProvider
- * hit, but with ?householdId=<id> appended.
- */
 export default function HouseholdDataProvider({ householdId, children }) {
   const { user } = useUser();
-  const [accounts, setAccounts] = useState([]);
+  const [rawInstitutions, setRawInstitutions] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsInitialized, setAccountsInitialized] = useState(false);
   const [accountsError, setAccountsError] = useState(null);
-  const [currentNetWorth, setCurrentNetWorth] = useState(null);
-  const [netWorthHistory, setNetWorthHistory] = useState([]);
+  const [rawCurrentNetWorth, setRawCurrentNetWorth] = useState(null);
+  const [rawNetWorthHistory, setRawNetWorthHistory] = useState([]);
   const [netWorthLoading, setNetWorthLoading] = useState(false);
   const [netWorthError, setNetWorthError] = useState(null);
   const [household, setHousehold] = useState(null);
   const [members, setMembers] = useState([]);
+  const [excludedMemberIds, setExcludedMemberIds] = useState(() => new Set());
   const abortRef = useRef(null);
 
   const loadMeta = useCallback(async () => {
@@ -74,7 +70,7 @@ export default function HouseholdDataProvider({ householdId, children }) {
         return;
       }
       const data = await response.json();
-      setAccounts(transformAccountsData(data.accounts || []));
+      setRawInstitutions(transformAccountsData(data.accounts || []));
       setAccountsInitialized(true);
     } catch (err) {
       console.error("[household data] accounts fetch error", err);
@@ -97,20 +93,20 @@ export default function HouseholdDataProvider({ householdId, children }) {
       const qs = `householdId=${encodeURIComponent(householdId)}`;
       const currentRes = await authFetch(`/api/net-worth/current?${qs}`, { signal: controller.signal });
       if (!currentRes.ok) {
-        setCurrentNetWorth(null);
-        setNetWorthHistory([]);
+        setRawCurrentNetWorth(null);
+        setRawNetWorthHistory([]);
         return;
       }
       const currentData = await currentRes.json();
-      setCurrentNetWorth(currentData);
+      setRawCurrentNetWorth(currentData);
 
       const historyRes = await authFetch(`/api/net-worth/by-date?maxDays=365&${qs}`, { signal: controller.signal });
       if (!historyRes.ok) {
-        setNetWorthHistory([]);
+        setRawNetWorthHistory([]);
         return;
       }
       const historyData = await historyRes.json();
-      setNetWorthHistory(historyData.data || []);
+      setRawNetWorthHistory(historyData.data || []);
     } catch (err) {
       if (err?.name !== "AbortError") {
         console.error("[household data] net worth fetch error", err);
@@ -123,10 +119,10 @@ export default function HouseholdDataProvider({ householdId, children }) {
 
   useEffect(() => {
     if (!user?.id || !householdId) {
-      setAccounts([]);
+      setRawInstitutions([]);
       setAccountsInitialized(false);
-      setCurrentNetWorth(null);
-      setNetWorthHistory([]);
+      setRawCurrentNetWorth(null);
+      setRawNetWorthHistory([]);
       return;
     }
     loadAccounts();
@@ -137,12 +133,114 @@ export default function HouseholdDataProvider({ householdId, children }) {
     };
   }, [user?.id, householdId, loadAccounts, loadNetWorth, loadMeta]);
 
-  const allAccounts = accounts.flatMap((i) => i.accounts);
-  const { totalAssets, totalLiabilities, totalBalance } = computeAccountTotals(allAccounts);
+  // Filter institutions + their accounts down to only the included members.
+  const filteredInstitutions = useMemo(() => {
+    if (excludedMemberIds.size === 0) return rawInstitutions;
+    return rawInstitutions
+      .map((institution) => ({
+        ...institution,
+        accounts: institution.accounts.filter(
+          (a) => !excludedMemberIds.has(a.userId),
+        ),
+      }))
+      .filter((institution) => institution.accounts.length > 0);
+  }, [rawInstitutions, excludedMemberIds]);
+
+  const allAccounts = useMemo(
+    () => filteredInstitutions.flatMap((i) => i.accounts),
+    [filteredInstitutions],
+  );
+
+  const { totalAssets, totalLiabilities, totalBalance } = useMemo(
+    () => computeAccountTotals(allAccounts),
+    [allAccounts],
+  );
+
+  // Rebuild currentNetWorth from the filtered account list so the
+  // net-worth card and any consumer of useNetWorth().currentNetWorth
+  // matches the filter.
+  const currentNetWorth = useMemo(() => {
+    if (!rawCurrentNetWorth) return rawCurrentNetWorth;
+    if (excludedMemberIds.size === 0) return rawCurrentNetWorth;
+
+    let assets = 0;
+    let liabilities = 0;
+    const breakdown = [];
+    for (const account of allAccounts) {
+      const isLiability = isLiabilityAccount(account);
+      const balance = account.balance || 0;
+      if (isLiability) {
+        liabilities += Math.abs(balance);
+        breakdown.push({
+          accountId: account.id,
+          accountName: account.name,
+          accountType: account.type,
+          balance,
+          isLiability: true,
+          contribution: -Math.abs(balance),
+          lastUpdated: rawCurrentNetWorth.calculatedAt,
+        });
+      } else {
+        assets += balance;
+        breakdown.push({
+          accountId: account.id,
+          accountName: account.name,
+          accountType: account.type,
+          balance,
+          isLiability: false,
+          contribution: balance,
+          lastUpdated: rawCurrentNetWorth.calculatedAt,
+        });
+      }
+    }
+
+    return {
+      ...rawCurrentNetWorth,
+      netWorth: Math.round((assets - liabilities) * 100) / 100,
+      assets: Math.round(assets * 100) / 100,
+      liabilities: Math.round(liabilities * 100) / 100,
+      totalAccounts: allAccounts.length,
+      accountBreakdown: breakdown,
+    };
+  }, [rawCurrentNetWorth, allAccounts, excludedMemberIds]);
+
+  // Rebuild netWorthHistory by summing only the included accounts at
+  // each date using the per-account balances the server already returns.
+  const netWorthHistory = useMemo(() => {
+    if (excludedMemberIds.size === 0) return rawNetWorthHistory;
+    // Which account ids survive the filter?
+    const includedIds = new Set(allAccounts.map((a) => a.id));
+    const accountIsLiability = new Map(
+      allAccounts.map((a) => [a.id, isLiabilityAccount(a)]),
+    );
+    return rawNetWorthHistory.map((point) => {
+      let assets = 0;
+      let liabilities = 0;
+      const filteredBalances = {};
+      const balances = point.accountBalances || {};
+      for (const [accountId, rawBalance] of Object.entries(balances)) {
+        if (!includedIds.has(accountId)) continue;
+        const balance = Number(rawBalance) || 0;
+        filteredBalances[accountId] = balance;
+        if (accountIsLiability.get(accountId)) {
+          liabilities += Math.abs(balance);
+        } else {
+          assets += balance;
+        }
+      }
+      return {
+        ...point,
+        assets: Math.round(assets * 100) / 100,
+        liabilities: Math.round(liabilities * 100) / 100,
+        netWorth: Math.round((assets - liabilities) * 100) / 100,
+        accountBalances: filteredBalances,
+      };
+    });
+  }, [rawNetWorthHistory, allAccounts, excludedMemberIds]);
 
   const accountsValue = useMemo(
     () => ({
-      accounts,
+      accounts: filteredInstitutions,
       allAccounts,
       loading: accountsLoading,
       initialized: accountsInitialized,
@@ -155,7 +253,7 @@ export default function HouseholdDataProvider({ householdId, children }) {
       removeAccount: () => { },
       lastFetched: null,
     }),
-    [accounts, allAccounts, accountsLoading, accountsInitialized, accountsError, totalBalance, totalAssets, totalLiabilities, loadAccounts],
+    [filteredInstitutions, allAccounts, accountsLoading, accountsInitialized, accountsError, totalBalance, totalAssets, totalLiabilities, loadAccounts],
   );
 
   const netWorthValue = useMemo(
@@ -178,9 +276,24 @@ export default function HouseholdDataProvider({ householdId, children }) {
     return map;
   }, [members]);
 
+  const toggleMember = useCallback((userId) => {
+    setExcludedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }, []);
+
   const metaValue = useMemo(
-    () => ({ household, members, memberByUserId }),
-    [household, members, memberByUserId],
+    () => ({
+      household,
+      members,
+      memberByUserId,
+      excludedMemberIds,
+      toggleMember,
+    }),
+    [household, members, memberByUserId, excludedMemberIds, toggleMember],
   );
 
   return (

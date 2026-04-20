@@ -6,6 +6,7 @@ import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { getPlaidProducts } from '../../../../lib/tierConfig';
 import { createLogger } from '../../../../lib/logger';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
+import { formatDisplayName } from '../../../../lib/utils/formatName';
 
 const logger = createLogger('plaid-exchange-token');
 
@@ -269,7 +270,7 @@ export async function POST(request) {
         if (existingAccount) {
           accountsToUpdate.push({
             id: existingAccount.id,
-            name: account.name,
+            name: formatDisplayName(account.name),
             mask: account.mask,
             type: account.type,
             subtype: account.subtype,
@@ -286,7 +287,7 @@ export async function POST(request) {
             user_id: userId,
             item_id: effectiveItemId,
             account_id: account.account_id,
-            name: account.name,
+            name: formatDisplayName(account.name),
             mask: account.mask,
             type: account.type,
             subtype: account.subtype,
@@ -303,7 +304,7 @@ export async function POST(request) {
           user_id: userId,
           item_id: effectiveItemId,
           account_id: account.account_id,
-          name: account.name,
+          name: formatDisplayName(account.name),
           mask: account.mask,
           type: account.type,
           subtype: account.subtype,
