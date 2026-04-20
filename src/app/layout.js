@@ -7,6 +7,7 @@ import { ThemeProvider } from "../components/providers/ThemeProvider";
 import { AuthProvider } from "../components/providers/AuthProvider";
 import UserProvider from "../components/providers/UserProvider";
 import { AccountsProvider } from "../components/providers/AccountsProvider";
+import HouseholdsProvider from "../components/providers/HouseholdsProvider";
 import { NetWorthProvider } from "../components/providers/NetWorthProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
 import DynamicFavicon from "../components/DynamicFavicon";
@@ -51,9 +52,11 @@ export default function RootLayout({ children }) {
               <UserProvider>
                 <AccountsProvider>
               <NetWorthProvider>
+                <HouseholdsProvider>
                 <Topbar />
                 {children}
                 {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' ? <DebugFetchMonitor /> : null}
+                </HouseholdsProvider>
               </NetWorthProvider>
                 </AccountsProvider>
               </UserProvider>
