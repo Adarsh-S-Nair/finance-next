@@ -337,11 +337,11 @@ export default function AccountsPage() {
 
                 {/* Unified Accounts List */}
                 <div className="overflow-hidden">
-                  {/* Cash & Checking Section */}
+                  {/* Cash Section */}
                   {categorizedAccounts.cash.length > 0 && (
                     <>
                       <CategoryHeader
-                        title="Cash & Checking"
+                        title="Cash"
                         count={categorizedAccounts.cash.length}
                         total={categorizedAccounts.cash.reduce((sum, acc) => sum + acc.balance, 0)}
                         isFirst={true}

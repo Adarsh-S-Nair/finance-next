@@ -253,7 +253,7 @@ export default function HouseholdAccountsPage() {
               {categorized.cash.length > 0 && (
                 <>
                   <CategoryHeader
-                    title="Cash & Checking"
+                    title="Cash"
                     total={categorized.cash.reduce((s, a) => s + a.balance, 0)}
                   />
                   {categorized.cash.map((a) => (
