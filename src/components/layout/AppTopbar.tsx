@@ -13,7 +13,7 @@ export default function AppTopbar() {
   const showAddButton = pathname !== "/setup";
 
   return (
-    <header id="app-topbar" className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col transition-all duration-300 ease-in-out left-0 md:left-20 xl:left-72">
+    <header id="app-topbar" className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col transition-all duration-300 ease-in-out left-0 md:left-40 xl:left-[23rem]">
       <div
         className={`mx-auto ${
           pathname === "/dashboard" ? "max-w-[1600px]" : "max-w-[1440px]"
