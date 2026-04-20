@@ -4,6 +4,7 @@ type MembershipRow = { household_id: string; role: string; joined_at: string; us
 type HouseholdRow = {
   id: string;
   name: string;
+  color: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -20,6 +21,7 @@ export type HouseholdRole = "owner" | "member";
 export type HouseholdSummary = {
   id: string;
   name: string;
+  color: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -36,6 +38,31 @@ export type HouseholdMember = {
   avatar_url: string | null;
   email: string | null;
 };
+
+/**
+ * Curated palette used to assign each new household a distinct accent color.
+ * Kept intentionally small and saturated so neighboring households are easy
+ * to tell apart in the rail.
+ */
+export const HOUSEHOLD_COLOR_PALETTE = [
+  "#e11d48",
+  "#f97316",
+  "#f59e0b",
+  "#65a30d",
+  "#16a34a",
+  "#0d9488",
+  "#0284c7",
+  "#6366f1",
+  "#8b5cf6",
+  "#d946ef",
+  "#db2777",
+] as const;
+
+export function pickRandomHouseholdColor(): string {
+  return HOUSEHOLD_COLOR_PALETTE[
+    Math.floor(Math.random() * HOUSEHOLD_COLOR_PALETTE.length)
+  ];
+}
 
 /**
  * Generate a human-friendly 8-character invite code. Avoids ambiguous
@@ -89,7 +116,7 @@ export async function listHouseholdsForUser(userId: string): Promise<HouseholdSu
   const householdIds = membershipRows.map((m) => m.household_id);
   const { data: households, error: householdErr } = await supabaseAdmin
     .from("households")
-    .select("id, name, created_by, created_at, updated_at")
+    .select("id, name, color, created_by, created_at, updated_at")
     .in("id", householdIds);
   if (householdErr) throw householdErr;
 
@@ -113,6 +140,7 @@ export async function listHouseholdsForUser(userId: string): Promise<HouseholdSu
       return {
         id: h.id,
         name: h.name,
+        color: h.color,
         created_by: h.created_by,
         created_at: h.created_at,
         updated_at: h.updated_at,

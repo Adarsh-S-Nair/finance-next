@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { data: household, error: householdErr } = await supabaseAdmin
       .from("households")
-      .select("id, name, created_by, created_at, updated_at")
+      .select("id, name, color, created_by, created_at, updated_at")
       .eq("id", householdId)
       .maybeSingle();
     if (householdErr || !household) {
@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .from("households")
       .update({ name })
       .eq("id", householdId)
-      .select("id, name, created_by, created_at, updated_at")
+      .select("id, name, color, created_by, created_at, updated_at")
       .single();
     if (updateErr || !household) {
       console.error("[households] rename error", updateErr);

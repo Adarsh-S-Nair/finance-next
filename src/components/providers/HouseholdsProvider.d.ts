@@ -3,6 +3,7 @@ export type HouseholdRole = "owner" | "member";
 export type HouseholdSummary = {
   id: string;
   name: string;
+  color: string;
   created_by: string;
   created_at: string;
   updated_at: string;

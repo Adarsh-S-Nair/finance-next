@@ -56,10 +56,37 @@ function ZervoMark({ active }: { active: boolean }) {
 
 type BubbleProps = {
   active?: boolean;
+  /** Custom accent color for households. Falls back to the user's accent. */
+  color?: string;
   children: React.ReactNode;
 };
 
-function Bubble({ active = false, children }: BubbleProps) {
+function Bubble({ active = false, color, children }: BubbleProps) {
+  // Use the household color (when provided) for both the active fill and the
+  // hover preview, so each household reads as its own brand. The inactive
+  // resting state stays neutral so the rail isn't a rainbow soup.
+  const inlineStyle = color
+    ? ({
+        ["--bubble-color" as string]: color,
+      } as React.CSSProperties)
+    : undefined;
+
+  if (color) {
+    return (
+      <span
+        style={inlineStyle}
+        className={clsx(
+          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold transition-all duration-200 text-white",
+          active
+            ? "rounded-xl bg-[var(--bubble-color)]"
+            : "rounded-full bg-[var(--color-surface-alt)] !text-[var(--color-fg)] group-hover:rounded-xl group-hover:bg-[var(--bubble-color)] group-hover:!text-white",
+        )}
+      >
+        {children}
+      </span>
+    );
+  }
+
   return (
     <span
       className={clsx(
@@ -121,7 +148,7 @@ export default function HouseholdRail() {
                   aria-label={h.name}
                 >
                   <ActiveIndicator active={active} />
-                  <Bubble active={active}>
+                  <Bubble active={active} color={h.color}>
                     <span>{initialsFor(h.name)}</span>
                   </Bubble>
                 </Link>

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const [{ data: household }, { data: inviter }, { count }] = await Promise.all([
       supabaseAdmin
         .from("households")
-        .select("id, name")
+        .select("id, name, color")
         .eq("id", invite.household_id)
         .maybeSingle(),
       supabaseAdmin

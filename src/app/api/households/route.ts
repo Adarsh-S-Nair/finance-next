@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabase/admin";
 import { requireVerifiedUserId } from "../../../lib/api/auth";
-import { listHouseholdsForUser } from "../../../lib/households/server";
+import { listHouseholdsForUser, pickRandomHouseholdColor } from "../../../lib/households/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const color = pickRandomHouseholdColor();
     const { data: household, error: createErr } = await supabaseAdmin
       .from("households")
-      .insert({ name, created_by: userId })
-      .select("id, name, created_by, created_at, updated_at")
+      .insert({ name, color, created_by: userId })
+      .select("id, name, color, created_by, created_at, updated_at")
       .single();
     if (createErr || !household) {
       console.error("[households] create error", createErr);

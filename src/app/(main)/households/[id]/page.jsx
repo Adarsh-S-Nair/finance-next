@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { LuCopy, LuPlus, LuUsers } from "react-icons/lu";
+import { LuCopy, LuPlus, LuSettings } from "react-icons/lu";
 import PageContainer from "../../../../components/layout/PageContainer";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
 import ConfirmDialog from "../../../../components/ui/ConfirmDialog";
+import NetWorthBanner from "../../../../components/dashboard/NetWorthBanner";
 import { authFetch } from "../../../../lib/api/fetch";
 import { useUser } from "../../../../components/providers/UserProvider";
 import { useHouseholds } from "../../../../components/providers/HouseholdsProvider";
@@ -20,11 +21,20 @@ function formatName(member) {
 
 function initialsFor(member) {
   const parts = [member.first_name, member.last_name].filter(Boolean);
-  if (parts.length > 0) {
-    return parts.map((p) => p[0]).join("").toUpperCase();
-  }
+  if (parts.length > 0) return parts.map((p) => p[0]).join("").toUpperCase();
   return (member.email?.[0] ?? "?").toUpperCase();
 }
+
+const PLACEHOLDER_NET_WORTH = {
+  netWorth: 0,
+  percentChange: null,
+  breakdown: {
+    totalAssets: 0,
+    totalLiabilities: 0,
+    assetSegments: [],
+    liabilitySegments: [],
+  },
+};
 
 export default function HouseholdPage() {
   const params = useParams();
@@ -135,7 +145,10 @@ export default function HouseholdPage() {
         return;
       }
       await refreshHouseholds();
-      setToast({ title: "Left household", variant: "success" });
+      setToast({
+        title: data?.deleted ? "Household deleted" : "Left household",
+        variant: "success",
+      });
       setLeaveOpen(false);
       router.push("/dashboard");
     } catch (err) {
@@ -158,9 +171,7 @@ export default function HouseholdPage() {
   if (loading) {
     return (
       <PageContainer title="Household">
-        <Card>
-          <p className="text-sm text-[var(--color-muted)]">Loading household…</p>
-        </Card>
+        <p className="text-sm text-[var(--color-muted)]">Loading household…</p>
       </PageContainer>
     );
   }
@@ -168,38 +179,44 @@ export default function HouseholdPage() {
   if (error || !household) {
     return (
       <PageContainer title="Household">
-        <Card>
-          <p className="text-sm text-[var(--color-muted)]">{error || "Household not found."}</p>
-          <div className="mt-4">
-            <Button variant="ghost" onClick={() => router.push("/dashboard")}>
-              Back to dashboard
-            </Button>
-          </div>
-        </Card>
+        <p className="text-sm text-[var(--color-muted)]">{error || "Household not found."}</p>
+        <div className="mt-4">
+          <Button variant="ghost" onClick={() => router.push("/dashboard")}>
+            Back to dashboard
+          </Button>
+        </div>
       </PageContainer>
     );
   }
 
+  const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
+
   return (
-    <PageContainer title={household.name}>
-      <div className="flex flex-col gap-4">
-        {/* Placeholder: net worth aggregation lands in Milestone 2. */}
-        <Card>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
-              <LuUsers className="h-5 w-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-[var(--color-fg)]">
-                Shared accounts coming soon
-              </h3>
-              <p className="mt-1 text-xs text-[var(--color-muted)]">
-                You&apos;ll soon be able to share specific accounts with this household and see a combined
-                net worth here. For now, this page is just for managing members.
-              </p>
-            </div>
+    <PageContainer
+      title={
+        <div className="flex items-center gap-3 min-w-0">
+          <span
+            className="block h-3 w-3 rounded-full flex-shrink-0"
+            style={{ backgroundColor: household.color }}
+            aria-hidden
+          />
+          <span className="truncate">{household.name}</span>
+          <span className="text-xs font-normal text-[var(--color-muted)] hidden sm:inline">
+            {memberCountLabel}
+          </span>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-6">
+        {/* Net worth banner with placeholder data — wires up to real
+            aggregated household data in a follow-up milestone. */}
+        <div className="relative">
+          <NetWorthBanner mockData={PLACEHOLDER_NET_WORTH} />
+          <div className="mt-3 text-xs text-[var(--color-muted)]">
+            Shared accounts aren&apos;t hooked up yet. Once members opt accounts into this
+            household, you&apos;ll see a combined net worth here.
           </div>
-        </Card>
+        </div>
 
         {/* Members */}
         <Card title="Members">
@@ -221,9 +238,7 @@ export default function HouseholdPage() {
                     <p className="text-sm font-medium text-[var(--color-fg)] truncate">
                       {name}
                       {isYou && (
-                        <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">
-                          (you)
-                        </span>
+                        <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">(you)</span>
                       )}
                     </p>
                     {member.email && (
@@ -253,22 +268,13 @@ export default function HouseholdPage() {
                       Expires {new Date(activeInvite.expires_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCopy(activeInvite.code)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => handleCopy(activeInvite.code)}>
                     <LuCopy className="h-4 w-4" />
                     <span className="ml-1">Copy</span>
                   </Button>
                 </div>
                 <div className="flex items-center justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCreateInvite}
-                    loading={creatingInvite}
-                  >
+                  <Button variant="ghost" size="sm" onClick={handleCreateInvite} loading={creatingInvite}>
                     <LuPlus className="h-4 w-4" />
                     <span className="ml-1">New code</span>
                   </Button>
@@ -288,17 +294,22 @@ export default function HouseholdPage() {
           </Card>
         )}
 
-        {/* Danger zone */}
+        {/* Danger zone — leave / auto-delete when last member */}
         <Card>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-[var(--color-fg)]">Leave household</p>
+              <p className="text-sm font-medium text-[var(--color-fg)] flex items-center gap-2">
+                <LuSettings className="h-4 w-4 text-[var(--color-muted)]" />
+                Leave household
+              </p>
               <p className="mt-1 text-xs text-[var(--color-muted)]">
-                You&apos;ll lose access to this household&apos;s combined view.
+                {members.length <= 1
+                  ? "You're the only member, so leaving will delete the household."
+                  : "You'll lose access to this household's combined view."}
               </p>
             </div>
             <Button variant="dangerSubtle" onClick={() => setLeaveOpen(true)}>
-              Leave
+              {members.length <= 1 ? "Delete" : "Leave"}
             </Button>
           </div>
         </Card>
@@ -308,9 +319,13 @@ export default function HouseholdPage() {
         isOpen={leaveOpen}
         onCancel={() => setLeaveOpen(false)}
         onConfirm={handleLeave}
-        title={`Leave ${household.name}?`}
-        description="You'll stop seeing this household in your sidebar. You can rejoin with a new invite code."
-        confirmLabel="Leave"
+        title={members.length <= 1 ? `Delete ${household.name}?` : `Leave ${household.name}?`}
+        description={
+          members.length <= 1
+            ? "This will permanently delete the household. This can't be undone."
+            : "You'll stop seeing this household in your sidebar. You can rejoin with a new invite code."
+        }
+        confirmLabel={members.length <= 1 ? "Delete" : "Leave"}
         variant="danger"
       />
     </PageContainer>
