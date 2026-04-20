@@ -37,7 +37,7 @@ function ZervoMark({ active }: { active: boolean }) {
     <span
       aria-hidden
       className={clsx(
-        "block h-5 w-5 transition-colors",
+        "block h-7 w-7 transition-colors",
         active ? "bg-[var(--color-on-accent,white)]" : "bg-[var(--color-fg)]",
       )}
       style={{
@@ -92,7 +92,7 @@ export default function HouseholdRail() {
           "border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]",
         )}
       >
-        <nav className="flex flex-1 flex-col items-center gap-2 overflow-y-auto scrollbar-thin py-3">
+        <nav className="flex flex-1 flex-col items-center gap-2 overflow-y-auto scrollbar-thin pt-5 pb-3">
           {/* Personal — Zervo logo */}
           <Tooltip content="Personal">
             <Link
