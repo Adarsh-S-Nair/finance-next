@@ -1,13 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import clsx from "clsx";
+import { motion, AnimatePresence } from "framer-motion";
 import { LuPlus } from "react-icons/lu";
+import { FiUserPlus, FiLogOut } from "react-icons/fi";
 import { Tooltip } from "@slate-ui/react";
+import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
+import { useToast } from "../providers/ToastProvider";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
+import HouseholdInviteModal from "../households/HouseholdInviteModal";
+
+type HouseholdContextMenu = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+};
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -56,15 +70,11 @@ function ZervoMark({ active }: { active: boolean }) {
 
 type BubbleProps = {
   active?: boolean;
-  /** Custom accent color for households. Falls back to the user's accent. */
   color?: string;
   children: React.ReactNode;
 };
 
 function Bubble({ active = false, color, children }: BubbleProps) {
-  // Household color shows at rest too, so each household reads as its own
-  // brand even when not selected. Active state swaps the shape to a squircle
-  // (matching the active pill indicator on the left edge).
   const inlineStyle = color
     ? ({ ["--bubble-color" as string]: color } as React.CSSProperties)
     : undefined;
@@ -97,15 +107,143 @@ function Bubble({ active = false, color, children }: BubbleProps) {
   );
 }
 
+const MENU_WIDTH = 200;
+const MENU_MARGIN = 6;
+
+function HouseholdContextMenuView({
+  menu,
+  onInvite,
+  onLeave,
+  onClose,
+}: {
+  menu: HouseholdContextMenu;
+  onInvite: () => void;
+  onLeave: () => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("contextmenu", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("contextmenu", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  // Clamp the menu inside the viewport so it never overflows the right edge
+  // when the cursor is near the rail.
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const clampedX = Math.min(menu.x + MENU_MARGIN, viewportWidth - MENU_WIDTH - MENU_MARGIN);
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      style={{ top: menu.y + MENU_MARGIN, left: clampedX, width: MENU_WIDTH }}
+      className="fixed z-[70] overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]"
+    >
+      <div className="px-3 py-2 border-b border-[var(--color-border)]/60">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] truncate block">
+          {menu.name}
+        </span>
+      </div>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onInvite}
+        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05] cursor-pointer"
+      >
+        <FiUserPlus className="h-4 w-4 flex-shrink-0" />
+        <span>Invite to Household</span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onLeave}
+        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] cursor-pointer"
+      >
+        <FiLogOut className="h-4 w-4 flex-shrink-0" />
+        <span>Leave Household</span>
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 export default function HouseholdRail() {
   const pathname = usePathname();
-  const { households } = useHouseholds();
+  const router = useRouter();
+  const { households, refresh } = useHouseholds();
+  const { setToast } = useToast();
+
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [menu, setMenu] = useState<HouseholdContextMenu | null>(null);
+  const [inviteId, setInviteId] = useState<string | null>(null);
+  const [leaveTarget, setLeaveTarget] = useState<{ id: string; name: string } | null>(null);
 
   const isOnHousehold = pathname.startsWith("/households/");
   const activeHouseholdId = isOnHousehold
     ? pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null
     : null;
+
+  const handleContextMenu = (e: React.MouseEvent, h: { id: string; name: string }) => {
+    e.preventDefault();
+    setMenu({ id: h.id, name: h.name, x: e.clientX, y: e.clientY });
+  };
+
+  const openInvite = () => {
+    if (!menu) return;
+    setInviteId(menu.id);
+    setMenu(null);
+  };
+
+  const openLeave = () => {
+    if (!menu) return;
+    setLeaveTarget({ id: menu.id, name: menu.name });
+    setMenu(null);
+  };
+
+  const handleLeave = async () => {
+    if (!leaveTarget) return;
+    try {
+      const res = await authFetch(`/api/households/${leaveTarget.id}/members/me`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setToast({
+          title: "Couldn't leave",
+          description: data?.message || data?.error,
+          variant: "error",
+        });
+        setLeaveTarget(null);
+        return;
+      }
+      await refresh();
+      setToast({
+        title: data?.deleted ? "Household deleted" : "Left household",
+        variant: "success",
+      });
+      if (pathname.startsWith(`/households/${leaveTarget.id}`)) {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      console.error("[households] leave error", err);
+      setToast({ title: "Couldn't leave", variant: "error" });
+    } finally {
+      setLeaveTarget(null);
+    }
+  };
 
   return (
     <>
@@ -130,27 +268,37 @@ export default function HouseholdRail() {
             </Link>
           </Tooltip>
 
-          {/* Divider between personal and households */}
           <div className="mx-auto my-1 h-px w-8 bg-[var(--color-fg)]/[0.08]" />
 
           {/* Households */}
-          {households.map((h) => {
-            const active = h.id === activeHouseholdId;
-            return (
-              <Tooltip key={h.id} content={h.name}>
-                <Link
-                  href={`/households/${h.id}`}
-                  className="group relative flex h-11 w-full items-center justify-center"
-                  aria-label={h.name}
+          <AnimatePresence initial={false}>
+            {households.map((h) => {
+              const active = h.id === activeHouseholdId;
+              return (
+                <motion.div
+                  key={h.id}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
                 >
-                  <ActiveIndicator active={active} />
-                  <Bubble active={active} color={h.color}>
-                    <span>{initialsFor(h.name)}</span>
-                  </Bubble>
-                </Link>
-              </Tooltip>
-            );
-          })}
+                  <Tooltip content={h.name}>
+                    <Link
+                      href={`/households/${h.id}/accounts`}
+                      onContextMenu={(e) => handleContextMenu(e, h)}
+                      className="group relative flex h-11 w-full items-center justify-center"
+                      aria-label={h.name}
+                    >
+                      <ActiveIndicator active={active} />
+                      <Bubble active={active} color={h.color}>
+                        <span>{initialsFor(h.name)}</span>
+                      </Bubble>
+                    </Link>
+                  </Tooltip>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
 
           {/* Add-household circle */}
           <Tooltip content="Create or join a household">
@@ -172,9 +320,31 @@ export default function HouseholdRail() {
         </nav>
       </aside>
 
-      <HouseholdSwitcherModal
-        isOpen={showSwitcher}
-        onClose={() => setShowSwitcher(false)}
+      {menu && (
+        <HouseholdContextMenuView
+          menu={menu}
+          onInvite={openInvite}
+          onLeave={openLeave}
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      <HouseholdSwitcherModal isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
+
+      <HouseholdInviteModal
+        isOpen={!!inviteId}
+        householdId={inviteId}
+        onClose={() => setInviteId(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!leaveTarget}
+        onCancel={() => setLeaveTarget(null)}
+        onConfirm={handleLeave}
+        title={leaveTarget ? `Leave ${leaveTarget.name}?` : "Leave household"}
+        description="If you're the last member, the household will be deleted. Otherwise you can rejoin later with a new invite code."
+        confirmLabel="Leave"
+        variant="danger"
       />
     </>
   );
