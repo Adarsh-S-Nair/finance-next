@@ -263,7 +263,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         showToggle={isTablet}
       />
       <ProfileBar />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-40 xl:ml-80 relative">
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-80 relative">
         <PaymentFailureBanner />
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">

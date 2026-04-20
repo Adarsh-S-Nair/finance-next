@@ -95,7 +95,7 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
     <>
       <div
         ref={containerRef}
-        className="hidden md:flex flex-col fixed bottom-0 left-0 md:w-40 xl:w-80 z-[60] border-t border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-surface-alt)]"
+        className="hidden md:flex flex-col fixed bottom-0 left-0 md:w-20 xl:w-80 z-[60] border-t border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-surface-alt)]"
       >
         <AnimatePresence initial={false}>
           {expanded && (
