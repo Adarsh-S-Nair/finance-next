@@ -1,4 +1,5 @@
 import React from 'react';
+import { TOOLTIP_SURFACE_CLASSES } from './Tooltip';
 
 export default function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
   if (active && payload && payload.length) {
@@ -6,7 +7,6 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
     // Handle different data structures (NetWorth vs Spending)
     const value = data.value !== undefined ? data.value : data.total_spent;
     const title = data.label || data.monthFull || label;
-    const subTitle = data.year ? `${data.month} ${data.year}` : (data.percentage ? `${data.percentage.toFixed(1)}%` : null);
 
     const formatCurrency = (val: number) => {
       return new Intl.NumberFormat('en-US', {
@@ -19,8 +19,8 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
     const color = data.color || data.fill || data.hex_color || 'var(--color-accent)';
 
     return (
-      <div className="bg-[var(--color-surface)]/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-[var(--color-border)] text-xs min-w-[140px]">
-        <div className="font-medium mb-2 text-[var(--color-fg)] border-b border-[var(--color-border)] pb-1">
+      <div className={`${TOOLTIP_SURFACE_CLASSES} p-3 text-xs min-w-[140px]`}>
+        <div className="font-medium mb-2 text-[var(--color-fg)]">
           {title}
         </div>
         <div className="flex flex-col gap-1.5">

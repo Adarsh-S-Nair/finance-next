@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { LuPlus } from "react-icons/lu";
 import { FiUserPlus, FiLogOut } from "react-icons/fi";
-import { Tooltip } from "@slate-ui/react";
+import Tooltip from "../ui/Tooltip";
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
@@ -256,7 +256,7 @@ export default function HouseholdRail() {
       >
         <nav className="flex flex-1 flex-col gap-2 overflow-y-auto scrollbar-thin pt-5 pb-3">
           {/* Personal — Zervo logo */}
-          <Tooltip content="Personal">
+          <Tooltip content="Personal" side="right">
             <Link
               href="/dashboard"
               className="group relative flex h-11 w-full items-center justify-center"
@@ -283,7 +283,7 @@ export default function HouseholdRail() {
                   exit={{ opacity: 0, scale: 0.8 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <Tooltip content={h.name}>
+                  <Tooltip content={h.name} side="right">
                     <Link
                       href={`/households/${h.id}/accounts`}
                       onContextMenu={(e) => handleContextMenu(e, h)}
@@ -302,7 +302,7 @@ export default function HouseholdRail() {
           </AnimatePresence>
 
           {/* Add-household circle */}
-          <Tooltip content="Create or join a household">
+          <Tooltip content="Create or join a household" side="right">
             <button
               onClick={() => setShowSwitcher(true)}
               className="group relative flex h-11 w-full items-center justify-center"

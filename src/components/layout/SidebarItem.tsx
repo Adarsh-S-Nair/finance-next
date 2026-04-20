@@ -5,7 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { IconType } from "react-icons";
 import { FaLock } from "react-icons/fa";
-import { Tooltip } from "@slate-ui/react";
+import Tooltip from "../ui/Tooltip";
 
 interface SidebarItemProps {
   href: string;
@@ -83,7 +83,7 @@ export default function SidebarItem({
   );
 
   if (isCollapsed) {
-    return <Tooltip content={label}>{item}</Tooltip>;
+    return <Tooltip content={label} side="right">{item}</Tooltip>;
   }
 
   return item;

@@ -398,8 +398,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
                   transition: 'opacity 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.8, 0.64, 1), translate 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
                 }}
               >
-                <div className="bg-zinc-900 dark:bg-zinc-800 rounded-md px-3 py-2.5 min-w-[180px] max-w-[260px]">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 mb-2">
+                <div className="rounded-lg bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-2">
                     {tooltipData.date}
                   </p>
                   <ul className="space-y-2">
@@ -421,15 +421,15 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
                             />
                           )}
                         </div>
-                        <span className="text-[12px] text-zinc-200 truncate flex-1">{tx.merchant}</span>
-                        <span className="text-[12px] text-zinc-400 tabular-nums flex-shrink-0">
+                        <span className="text-[12px] text-[var(--color-fg)] truncate flex-1">{tx.merchant}</span>
+                        <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
                           {formatCurrency(tx.amount)}
                         </span>
                       </li>
                     ))}
                   </ul>
                   {tooltipData.moreCount > 0 && (
-                    <p className="text-[10px] text-zinc-500 mt-2">
+                    <p className="text-[10px] text-[var(--color-muted)] mt-2">
                       +{tooltipData.moreCount} more
                     </p>
                   )}

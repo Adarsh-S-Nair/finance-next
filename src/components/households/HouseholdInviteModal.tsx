@@ -250,20 +250,12 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="flex items-center gap-3 mb-2">
-                  {household && (
-                    <span
-                      className="block h-3 w-3 rounded-full"
-                      style={{ backgroundColor: household.color }}
-                      aria-hidden
-                    />
-                  )}
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                    {household?.name ?? "Household"}
-                  </span>
-                </div>
                 <h1 className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]">
-                  Invite to household
+                  Invite to{" "}
+                  <span className="text-[var(--color-fg)]">
+                    {household?.name ?? "your"}
+                  </span>{" "}
+                  household
                 </h1>
 
                 {/* Segmented tabs — flat, minimal */}
@@ -348,24 +340,20 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
                       </div>
                     </div>
 
-                    <div className="mt-6">
-                      <button
-                        type="button"
-                        onClick={handleSendEmail}
-                        disabled={
-                          adding ||
-                          lookup.status !== "match" ||
-                          (lookup.status === "match" && lookup.alreadyMember)
-                        }
-                        className="group inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-fg)] transition-colors hover:text-[var(--color-accent)] disabled:text-[var(--color-muted)] disabled:pointer-events-none cursor-pointer"
-                      >
-                        {adding
-                          ? "Adding…"
-                          : lookup.status === "match"
-                            ? `Add ${lookup.user.first_name ?? "member"}`
-                            : "Add to household"}
-                        <FiChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                      </button>
+                    <div className="mt-6 h-9">
+                      {lookup.status === "match" && !lookup.alreadyMember && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.15 }}
+                          type="button"
+                          onClick={handleSendEmail}
+                          disabled={adding}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-fg)] px-5 py-2 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                        >
+                          {adding ? "Adding…" : `Add ${lookup.user.first_name ?? "member"}`}
+                        </motion.button>
+                      )}
                     </div>
                   </>
                 ) : (
