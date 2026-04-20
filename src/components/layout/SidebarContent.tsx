@@ -4,7 +4,8 @@ import React from "react";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import clsx from "clsx";
-import { NAV_GROUPS } from "../nav";
+import { LuSettings } from "react-icons/lu";
+import { NAV_GROUPS, type NavItem } from "../nav";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import SidebarSection from "./SidebarSection";
 import SidebarItem from "./SidebarItem";
@@ -35,7 +36,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
   }, [pathname]);
 
   const groups = useMemo(() => {
-    return NAV_GROUPS.map((g) => ({
+    const base = NAV_GROUPS.map((g) => ({
       ...g,
       items: g.items
         .filter((item) => {
@@ -51,6 +52,20 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           href: scopedHref(item.href, householdId),
         })),
     })).filter((g) => g.items.length > 0);
+
+    // Household-only group with the household settings entry (members,
+    // invites, leave). Personal nav keeps Settings in the ProfileBar menu.
+    if (householdId) {
+      const settingsItem: NavItem & { personalHref: string } = {
+        href: `/households/${householdId}/settings`,
+        personalHref: "/settings",
+        label: "Settings",
+        icon: LuSettings,
+      };
+      base.push({ title: "Manage", items: [settingsItem] });
+    }
+
+    return base;
   }, [householdId]);
 
   const isItemActive = (itemHref: string) => pathname.startsWith(itemHref);

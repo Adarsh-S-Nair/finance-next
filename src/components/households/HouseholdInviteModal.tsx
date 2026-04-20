@@ -195,7 +195,7 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
     if (lookup.status !== "match" || lookup.alreadyMember) return;
     try {
       setAdding(true);
-      const res = await authFetch(`/api/households/${householdId}/members`, {
+      const res = await authFetch(`/api/households/${householdId}/invitations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
@@ -203,14 +203,14 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setToast({
-          title: "Couldn't add member",
+          title: "Couldn't send invite",
           description: data?.error,
           variant: "error",
         });
         return;
       }
       setToast({
-        title: `${formatName(lookup.user)} added`,
+        title: `Invite sent to ${formatName(lookup.user)}`,
         variant: "success",
       });
       setEmail("");
@@ -351,7 +351,7 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
                           disabled={adding}
                           className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-fg)] px-5 py-2 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                         >
-                          {adding ? "Adding…" : `Add ${lookup.user.first_name ?? "member"}`}
+                          {adding ? "Sending…" : `Invite ${lookup.user.first_name ?? "member"}`}
                         </motion.button>
                       )}
                     </div>

@@ -1,93 +1,149 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { FiBell } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
+import { useHouseholds } from "./providers/HouseholdsProvider";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { authFetch } from "../lib/api/fetch";
+import { useToast } from "./providers/ToastProvider";
+import { TOOLTIP_SURFACE_CLASSES } from "./ui/Tooltip";
 
-type NotificationRowProps = {
-  title: string;
-  description: string;
-  href: string;
-  onClick?: () => void;
+type HouseholdSummary = { id: string; name: string; color: string };
+
+type InviterProfile = {
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url?: string | null;
 };
 
-const NotificationRow = ({ title, description, href, onClick }: NotificationRowProps) => (
-  <Link href={href} onClick={onClick}>
-    <div className="flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors">
-      <div className="flex-1 min-w-0 mr-3">
-        <p className="text-sm font-medium text-[var(--color-fg)] truncate">{title}</p>
-        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">{description}</p>
-      </div>
-      <span className="text-[var(--color-muted)] text-base leading-none flex-shrink-0">&#8250;</span>
-    </div>
-  </Link>
-);
+type PendingInvitation = {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  household: HouseholdSummary | null;
+  invited_by: InviterProfile | null;
+};
+
+type Counts = {
+  count: number;
+  unknownAccountCount: number;
+  unmatchedTransferCount: number;
+};
+
+function inviterName(profile: InviterProfile | null) {
+  if (!profile) return "Someone";
+  const parts = [profile.first_name, profile.last_name].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : "Someone";
+}
+
+function Dot({ color }: { color?: string }) {
+  return (
+    <span
+      aria-hidden
+      className="block h-2 w-2 rounded-full flex-shrink-0"
+      style={{ backgroundColor: color ?? "var(--color-accent)" }}
+    />
+  );
+}
 
 export default function AlertsIcon() {
   const { profile } = useUser();
-  const [counts, setCounts] = useState({ count: 0, unknownAccountCount: 0, unmatchedTransferCount: 0 });
+  const { refresh: refreshHouseholds } = useHouseholds();
+  const { setToast } = useToast();
+  const router = useRouter();
+  const [counts, setCounts] = useState<Counts>({ count: 0, unknownAccountCount: 0, unmatchedTransferCount: 0 });
+  const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchCount = async () => {
-      if (!profile?.id) return;
+  const totalCount = counts.count + invitations.length;
 
+  const loadInvitations = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/invitations/pending");
+      if (!res.ok) return;
+      const data = await res.json();
+      setInvitations((data.invitations ?? []) as PendingInvitation[]);
+    } catch (err) {
+      console.error("[alerts] pending invitations error", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    (async () => {
       try {
-        const response = await fetch(`/api/plaid/transactions/unknown-count`);
-        if (response.ok) {
-          const data = await response.json();
+        const [countRes] = await Promise.all([
+          fetch("/api/plaid/transactions/unknown-count"),
+          loadInvitations(),
+        ]);
+        if (countRes.ok) {
+          const data = await countRes.json();
           setCounts(data);
         }
       } catch (error) {
-        console.error("Failed to fetch unknown transaction count:", error);
+        console.error("[alerts] fetch error", error);
       } finally {
         setLoading(false);
       }
-    };
+    })();
+  }, [profile?.id, loadInvitations]);
 
-    fetchCount();
-  }, [profile?.id]);
-
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   if (loading) return null;
 
-  // Jiggle animation variants
   const jiggleVariants: Variants = {
-    hover: {
-      rotate: [0, -10, 10, -10, 10, 0],
-      transition: {
-        duration: 0.5,
-        ease: "easeInOut",
-      },
-    },
-    click: {
-      rotate: [0, -20, 20, -20, 20, 0],
-      scale: [1, 1.2, 1],
-      transition: {
-        duration: 0.4,
-        ease: "easeInOut",
-      },
-    },
-    idle: {
-      rotate: 0,
-      scale: 1,
+    hover: { rotate: [0, -10, 10, -10, 10, 0], transition: { duration: 0.5, ease: "easeInOut" } },
+    click: { rotate: [0, -20, 20, -20, 20, 0], scale: [1, 1.2, 1], transition: { duration: 0.4, ease: "easeInOut" } },
+    idle: { rotate: 0, scale: 1 },
+  };
+
+  const acceptInvite = async (invite: PendingInvitation) => {
+    if (!invite.household) return;
+    try {
+      setActingId(invite.id);
+      const res = await authFetch(`/api/invitations/${invite.id}/accept`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setToast({ title: "Couldn't accept", description: data?.error, variant: "error" });
+        return;
+      }
+      setInvitations((prev) => prev.filter((i) => i.id !== invite.id));
+      await refreshHouseholds();
+      setToast({ title: `Joined ${invite.household.name}`, variant: "success" });
+      setIsOpen(false);
+      router.push(`/households/${invite.household.id}/accounts`);
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const declineInvite = async (invite: PendingInvitation) => {
+    try {
+      setActingId(invite.id);
+      const res = await authFetch(`/api/invitations/${invite.id}/decline`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setToast({ title: "Couldn't decline", description: data?.error, variant: "error" });
+        return;
+      }
+      setInvitations((prev) => prev.filter((i) => i.id !== invite.id));
+    } finally {
+      setActingId(null);
     }
   };
 
@@ -105,7 +161,7 @@ export default function AlertsIcon() {
         <FiBell className="w-5 h-5" />
 
         <AnimatePresence>
-          {counts.count > 0 && (
+          {totalCount > 0 && (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -116,43 +172,95 @@ export default function AlertsIcon() {
         </AnimatePresence>
       </motion.button>
 
-      {/* Popover */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full right-0 mt-2 w-80 bg-[var(--color-content-bg)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 overflow-hidden"
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.14, ease: [0.25, 0.1, 0.25, 1] }}
+            className={`absolute top-full right-0 mt-2 w-80 z-50 overflow-hidden ${TOOLTIP_SURFACE_CLASSES}`}
           >
-            {/* Header */}
-            <div className="px-5 py-3 border-b border-[var(--color-border)]">
+            <div className="px-5 py-3">
               <h3 className="text-sm font-medium text-[var(--color-fg)]">Notifications</h3>
             </div>
 
-            {/* Body */}
-            <div className="max-h-[360px] overflow-y-auto">
-              {counts.count > 0 ? (
-                <div>
+            <div className="max-h-[420px] overflow-y-auto">
+              {invitations.length > 0 && (
+                <div className="py-1">
+                  {invitations.map((invite) => (
+                    <div key={invite.id} className="px-5 py-3">
+                      <div className="flex items-start gap-2.5">
+                        <Dot color={invite.household?.color} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[var(--color-fg)]">
+                            <span className="font-medium">{inviterName(invite.invited_by)}</span>{" "}
+                            invited you to{" "}
+                            <span className="font-medium">
+                              {invite.household?.name ?? "a household"}
+                            </span>
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={actingId === invite.id}
+                              onClick={() => acceptInvite(invite)}
+                              className="inline-flex items-center rounded-full bg-[var(--color-fg)] px-3 py-1 text-xs font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              disabled={actingId === invite.id}
+                              onClick={() => declineInvite(invite)}
+                              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(counts.unmatchedTransferCount > 0 || counts.unknownAccountCount > 0) && (
+                <div className="py-1 border-t border-[var(--color-fg)]/[0.06]">
                   {counts.unmatchedTransferCount > 0 && (
-                    <NotificationRow
+                    <Link
                       href="/transactions?status=attention"
                       onClick={() => setIsOpen(false)}
-                      title="Unmatched transfers"
-                      description={`${counts.unmatchedTransferCount} transfer${counts.unmatchedTransferCount !== 1 ? 's' : ''} need review`}
-                    />
+                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-fg)]/[0.04] transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 mr-3">
+                        <p className="text-sm font-medium text-[var(--color-fg)] truncate">Unmatched transfers</p>
+                        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                          {counts.unmatchedTransferCount} transfer{counts.unmatchedTransferCount !== 1 ? "s" : ""} need review
+                        </p>
+                      </div>
+                      <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+                    </Link>
                   )}
                   {counts.unknownAccountCount > 0 && (
-                    <NotificationRow
+                    <Link
                       href="/transactions?status=attention"
                       onClick={() => setIsOpen(false)}
-                      title="Unknown accounts"
-                      description={`${counts.unknownAccountCount} transaction${counts.unknownAccountCount !== 1 ? 's' : ''} from unknown accounts`}
-                    />
+                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-fg)]/[0.04] transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 mr-3">
+                        <p className="text-sm font-medium text-[var(--color-fg)] truncate">Unknown accounts</p>
+                        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                          {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
+                        </p>
+                      </div>
+                      <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+                    </Link>
                   )}
                 </div>
-              ) : (
+              )}
+
+              {totalCount === 0 && (
                 <div className="px-5 py-10 text-center">
                   <p className="text-sm text-[var(--color-muted)]">You&apos;re all caught up</p>
                 </div>
