@@ -119,7 +119,7 @@ function categorizeAccount(account) {
 
 export default function HouseholdAccountsPage() {
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
-  const { household, memberByUserId } = useHouseholdMeta();
+  const { memberByUserId } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
 
   const institutionMap = {};
@@ -130,23 +130,7 @@ export default function HouseholdAccountsPage() {
   const categorized = { cash: [], investments: [], credit: [], loans: [] };
   for (const a of allAccounts || []) categorized[categorizeAccount(a)].push(a);
 
-  const titleNode = (
-    <div className="flex items-center gap-3 min-w-0">
-      {household && (
-        <span
-          className="block h-3 w-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: household.color }}
-          aria-hidden
-        />
-      )}
-      <span className="truncate">Accounts</span>
-      {household && (
-        <span className="text-xs font-normal text-[var(--color-muted)] hidden sm:inline truncate">
-          · {household.name}
-        </span>
-      )}
-    </div>
-  );
+  const titleNode = "Accounts";
 
   if (loading || !initialized) {
     return (

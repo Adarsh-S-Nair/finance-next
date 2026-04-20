@@ -23,6 +23,31 @@ function SectionLabel({ children, action }) {
   );
 }
 
+function SkeletonMemberRow() {
+  return (
+    <li className="flex items-center gap-3 py-3 first:pt-0 animate-pulse">
+      <div className="h-9 w-9 rounded-full bg-[var(--color-fg)]/[0.08] flex-shrink-0" />
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="h-3.5 w-32 rounded bg-[var(--color-fg)]/[0.08]" />
+        <div className="h-3 w-40 rounded bg-[var(--color-fg)]/[0.05]" />
+      </div>
+      <div className="h-3 w-12 rounded bg-[var(--color-fg)]/[0.05]" />
+    </li>
+  );
+}
+
+function SkeletonDangerZone() {
+  return (
+    <div className="py-3 flex items-center justify-between gap-3 animate-pulse">
+      <div className="space-y-1.5">
+        <div className="h-3.5 w-28 rounded bg-[var(--color-fg)]/[0.08]" />
+        <div className="h-3 w-48 rounded bg-[var(--color-fg)]/[0.05]" />
+      </div>
+      <div className="h-7 w-16 rounded-full bg-[var(--color-fg)]/[0.05]" />
+    </div>
+  );
+}
+
 function formatMemberName(member) {
   const parts = [member?.first_name, member?.last_name].filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
@@ -146,21 +171,12 @@ export default function HouseholdSettingsPage() {
     });
   }, [members, user?.id]);
 
-  const titleNode = household ? (
-    <div className="flex items-center gap-3 min-w-0">
-      <span
-        className="block h-3 w-3 rounded-full flex-shrink-0"
-        style={{ backgroundColor: household.color }}
-        aria-hidden
-      />
-      <span className="truncate">Settings</span>
-      <span className="text-xs font-normal text-[var(--color-muted)] hidden sm:inline truncate">
-        · {household.name}
-      </span>
-    </div>
-  ) : (
-    "Settings"
-  );
+  const titleNode = "Settings";
+
+  // Household meta (members) is fetched by HouseholdDataProvider. While we
+  // wait for the first response `household` is null — use it as the loading
+  // gate so the sections render skeleton rows instead of popping in.
+  const metaLoading = !household;
 
   return (
     <PageContainer title={titleNode}>
@@ -169,36 +185,38 @@ export default function HouseholdSettingsPage() {
         <section>
           <SectionLabel>Members</SectionLabel>
           <ul className="divide-y divide-[var(--color-fg)]/[0.06]">
-            {orderedMembers.map((member) => {
-              const name = formatMemberName(member);
-              const isYou = member.user_id === user?.id;
-              return (
-                <li key={member.user_id} className="flex items-center gap-3 py-3 first:pt-0">
-                  <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-xs font-semibold text-[var(--color-on-accent,white)]">
-                    {member.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={member.avatar_url} alt={name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span>{initialsFor(name)}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-fg)] truncate">
-                      {name}
-                      {isYou && (
-                        <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">(you)</span>
-                      )}
-                    </p>
-                    {member.email && (
-                      <p className="text-xs text-[var(--color-muted)] truncate">{member.email}</p>
-                    )}
-                  </div>
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                    {member.role}
-                  </span>
-                </li>
-              );
-            })}
+            {metaLoading
+              ? Array.from({ length: 3 }).map((_, i) => <SkeletonMemberRow key={i} />)
+              : orderedMembers.map((member) => {
+                  const name = formatMemberName(member);
+                  const isYou = member.user_id === user?.id;
+                  return (
+                    <li key={member.user_id} className="flex items-center gap-3 py-3 first:pt-0">
+                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-xs font-semibold text-[var(--color-on-accent,white)]">
+                        {member.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={member.avatar_url} alt={name} className="h-full w-full object-cover" />
+                        ) : (
+                          <span>{initialsFor(name)}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--color-fg)] truncate">
+                          {name}
+                          {isYou && (
+                            <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">(you)</span>
+                          )}
+                        </p>
+                        {member.email && (
+                          <p className="text-xs text-[var(--color-muted)] truncate">{member.email}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                        {member.role}
+                      </span>
+                    </li>
+                  );
+                })}
           </ul>
         </section>
 
@@ -220,7 +238,11 @@ export default function HouseholdSettingsPage() {
               Pending invites
             </SectionLabel>
             {loadingInvites ? (
-              <p className="py-3 text-sm text-[var(--color-muted)]">Loading…</p>
+              <ul className="divide-y divide-[var(--color-fg)]/[0.06]">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <SkeletonMemberRow key={i} />
+                ))}
+              </ul>
             ) : invitations.length === 0 ? (
               <p className="py-3 text-sm text-[var(--color-muted)]">
                 No outgoing invites right now.
@@ -287,25 +309,29 @@ export default function HouseholdSettingsPage() {
         {/* Danger / leave zone */}
         <section>
           <SectionLabel>Danger zone</SectionLabel>
-          <div className="py-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-[var(--color-fg)]">
-                {members.length <= 1 ? "Delete household" : "Leave household"}
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                {members.length <= 1
-                  ? "You're the only member. Leaving will permanently delete this household."
-                  : "You'll stop seeing this household in your sidebar. You can rejoin with a new invite."}
-              </p>
+          {metaLoading ? (
+            <SkeletonDangerZone />
+          ) : (
+            <div className="py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-fg)]">
+                  {members.length <= 1 ? "Delete household" : "Leave household"}
+                </p>
+                <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                  {members.length <= 1
+                    ? "You're the only member. Leaving will permanently delete this household."
+                    : "You'll stop seeing this household in your sidebar. You can rejoin with a new invite."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLeaveOpen(true)}
+                className="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] transition-colors cursor-pointer"
+              >
+                {members.length <= 1 ? "Delete" : "Leave"}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setLeaveOpen(true)}
-              className="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] transition-colors cursor-pointer"
-            >
-              {members.length <= 1 ? "Delete" : "Leave"}
-            </button>
-          </div>
+          )}
         </section>
       </div>
 
