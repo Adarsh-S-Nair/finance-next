@@ -6,7 +6,7 @@ import { FiPlus } from "react-icons/fi";
 import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
-import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
+import { HouseholdRailInlineTrigger } from "../households/HouseholdRailExpander";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -28,10 +28,11 @@ export default function AppTopbar() {
         {/* Mobile: page-specific start portal (e.g. search button) */}
         <div id="page-mobile-start-portal" className="md:hidden flex items-center z-10" />
 
-        {/* Mobile only — tablet uses the sidebar bubble + horizontal rail,
-            desktop uses the full rail on the left. */}
-        <div className="md:hidden flex items-center z-10">
-          <HouseholdRailBubbleTrigger />
+        {/* Mobile only — centered inline trigger (Zervo on personal, household
+            name on a household). Tablet uses the sidebar bubble + horizontal
+            rail; desktop uses the full rail on the left. */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
+          <HouseholdRailInlineTrigger />
         </div>
 
         {/* Desktop: page title portal */}
