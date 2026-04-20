@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import React, { useState } from "react";
 import { PiBankFill } from "react-icons/pi";
 import PageContainer from "../../../../../components/layout/PageContainer";
 import NetWorthCard from "../../../../../components/dashboard/NetWorthCard";
@@ -12,12 +11,29 @@ import {
 import { NetWorthHoverProvider } from "../../../../../components/dashboard/NetWorthHoverContext";
 import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
-import { authFetch } from "../../../../../lib/api/fetch";
+import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount || 0);
 
-function AccountRow({ account, institutionMap }) {
+function ownerName(owner) {
+  if (!owner) return "Member";
+  const parts = [owner.first_name, owner.last_name].filter(Boolean);
+  if (parts.length) return parts.join(" ");
+  return owner.email || "Member";
+}
+
+function ownerInitials(owner) {
+  if (!owner) return "?";
+  const f = owner.first_name?.[0];
+  const l = owner.last_name?.[0];
+  if (f && l) return `${f}${l}`.toUpperCase();
+  if (f) return f.toUpperCase();
+  if (owner.email) return owner.email[0].toUpperCase();
+  return "?";
+}
+
+function AccountRow({ account, institutionMap, owner }) {
   const institution = institutionMap[account.institutionId] || { name: "Unknown", logo: null };
   return (
     <div className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg">
@@ -44,10 +60,22 @@ function AccountRow({ account, institutionMap }) {
             {account.name}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            <span className="truncate max-w-[180px]">{institution.name}</span>
+            {owner && (
+              <>
+                <span className="flex h-4 w-4 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-[8px] font-semibold text-[var(--color-on-accent,white)]">
+                  {owner.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={owner.avatar_url} alt={ownerName(owner)} className="h-full w-full object-cover" />
+                  ) : (
+                    <span>{ownerInitials(owner)}</span>
+                  )}
+                </span>
+                <span className="truncate max-w-[160px]">{ownerName(owner)}</span>
+              </>
+            )}
             {account.mask && (
               <>
-                <span className="text-[var(--color-border)]">•</span>
+                {owner && <span className="text-[var(--color-border)]">•</span>}
                 <span className="font-mono">•••• {account.mask}</span>
               </>
             )}
@@ -90,29 +118,8 @@ function categorizeAccount(account) {
 }
 
 export default function HouseholdAccountsPage() {
-  const params = useParams();
-  const householdId = typeof params?.id === "string" ? params.id : null;
-
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
-
-  const [household, setHousehold] = useState(null);
-
-  const loadHousehold = useCallback(async () => {
-    if (!householdId) return;
-    try {
-      const res = await authFetch(`/api/households/${householdId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setHousehold(data.household);
-    } catch (err) {
-      console.error("[household] load error", err);
-    }
-  }, [householdId]);
-
-  useEffect(() => {
-    loadHousehold();
-  }, [loadHousehold]);
-
+  const { household, memberByUserId } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
 
   const institutionMap = {};
@@ -223,7 +230,12 @@ export default function HouseholdAccountsPage() {
                     total={categorized.cash.reduce((s, a) => s + a.balance, 0)}
                   />
                   {categorized.cash.map((a) => (
-                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                    <AccountRow
+                      key={a.id}
+                      account={a}
+                      institutionMap={institutionMap}
+                      owner={memberByUserId.get(a.userId)}
+                    />
                   ))}
                 </>
               )}
@@ -234,7 +246,12 @@ export default function HouseholdAccountsPage() {
                     total={categorized.investments.reduce((s, a) => s + a.balance, 0)}
                   />
                   {categorized.investments.map((a) => (
-                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                    <AccountRow
+                      key={a.id}
+                      account={a}
+                      institutionMap={institutionMap}
+                      owner={memberByUserId.get(a.userId)}
+                    />
                   ))}
                 </>
               )}
@@ -245,7 +262,12 @@ export default function HouseholdAccountsPage() {
                     total={categorized.credit.reduce((s, a) => s + a.balance, 0)}
                   />
                   {categorized.credit.map((a) => (
-                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                    <AccountRow
+                      key={a.id}
+                      account={a}
+                      institutionMap={institutionMap}
+                      owner={memberByUserId.get(a.userId)}
+                    />
                   ))}
                 </>
               )}
@@ -256,7 +278,12 @@ export default function HouseholdAccountsPage() {
                     total={categorized.loans.reduce((s, a) => s + a.balance, 0)}
                   />
                   {categorized.loans.map((a) => (
-                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                    <AccountRow
+                      key={a.id}
+                      account={a}
+                      institutionMap={institutionMap}
+                      owner={memberByUserId.get(a.userId)}
+                    />
                   ))}
                 </>
               )}

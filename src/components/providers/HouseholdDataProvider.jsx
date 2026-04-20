@@ -1,11 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { transformAccountsData, computeAccountTotals } from "../../lib/accountsTransform";
 import { useUser } from "./UserProvider";
 import { AccountsContext } from "./AccountsProvider";
 import { NetWorthContext } from "./NetWorthProvider";
+
+/**
+ * Metadata about the household itself (name, color, members). Pages under
+ * /households/[id] consume this via useHouseholdMeta() to render things
+ * like an account row's owner chip.
+ */
+const HouseholdMetaContext = createContext({
+  household: null,
+  members: [],
+  memberByUserId: new Map(),
+});
+
+export function useHouseholdMeta() {
+  return useContext(HouseholdMetaContext);
+}
 
 /**
  * HouseholdDataProvider overrides AccountsContext + NetWorthContext with
@@ -26,7 +41,22 @@ export default function HouseholdDataProvider({ householdId, children }) {
   const [netWorthHistory, setNetWorthHistory] = useState([]);
   const [netWorthLoading, setNetWorthLoading] = useState(false);
   const [netWorthError, setNetWorthError] = useState(null);
+  const [household, setHousehold] = useState(null);
+  const [members, setMembers] = useState([]);
   const abortRef = useRef(null);
+
+  const loadMeta = useCallback(async () => {
+    if (!householdId) return;
+    try {
+      const res = await authFetch(`/api/households/${householdId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setHousehold(data.household || null);
+      setMembers(data.members || []);
+    } catch (err) {
+      console.error("[household data] meta fetch error", err);
+    }
+  }, [householdId]);
 
   const loadAccounts = useCallback(async () => {
     if (!householdId) return;
@@ -101,10 +131,11 @@ export default function HouseholdDataProvider({ householdId, children }) {
     }
     loadAccounts();
     loadNetWorth();
+    loadMeta();
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
-  }, [user?.id, householdId, loadAccounts, loadNetWorth]);
+  }, [user?.id, householdId, loadAccounts, loadNetWorth, loadMeta]);
 
   const allAccounts = accounts.flatMap((i) => i.accounts);
   const { totalAssets, totalLiabilities, totalBalance } = computeAccountTotals(allAccounts);
@@ -141,11 +172,24 @@ export default function HouseholdDataProvider({ householdId, children }) {
     [netWorthHistory, currentNetWorth, netWorthLoading, netWorthError, loadNetWorth],
   );
 
+  const memberByUserId = useMemo(() => {
+    const map = new Map();
+    for (const m of members) map.set(m.user_id, m);
+    return map;
+  }, [members]);
+
+  const metaValue = useMemo(
+    () => ({ household, members, memberByUserId }),
+    [household, members, memberByUserId],
+  );
+
   return (
-    <AccountsContext.Provider value={accountsValue}>
-      <NetWorthContext.Provider value={netWorthValue}>
-        {children}
-      </NetWorthContext.Provider>
-    </AccountsContext.Provider>
+    <HouseholdMetaContext.Provider value={metaValue}>
+      <AccountsContext.Provider value={accountsValue}>
+        <NetWorthContext.Provider value={netWorthValue}>
+          {children}
+        </NetWorthContext.Provider>
+      </AccountsContext.Provider>
+    </HouseholdMetaContext.Provider>
   );
 }
