@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import clsx from "clsx";
 import { LuChevronDown, LuPlus } from "react-icons/lu";
 import { useHouseholds } from "../providers/HouseholdsProvider";
@@ -171,28 +171,17 @@ export function HouseholdRailPillTrigger() {
   const activeHousehold = households.find((h) => h.id === householdId) ?? null;
   const label = activeHousehold ? activeHousehold.name : "Personal";
 
-  const dot = activeHousehold ? (
-    <span
-      className="block h-2.5 w-2.5 rounded-full flex-shrink-0"
-      style={{ backgroundColor: activeHousehold.color }}
-      aria-hidden
-    />
-  ) : (
-    <ZervoMark size={3} />
-  );
-
   return (
     <button
       type="button"
       onClick={toggle}
       aria-expanded={expanded}
       className={clsx(
-        "flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer",
+        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer",
         "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.05] hover:bg-[var(--color-fg)]/[0.08]",
         expanded && "bg-[var(--color-fg)]/[0.08]",
       )}
     >
-      {dot}
       <span className="truncate max-w-[140px]">{label}</span>
       <LuChevronDown
         className={clsx("h-3.5 w-3.5 text-[var(--color-muted)] transition-transform", expanded && "rotate-180")}
@@ -222,17 +211,17 @@ export function HouseholdRailPanel() {
 
   return (
     <>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="household-rail-panel"
-            initial={{ height: 0 }}
-            animate={{ height: HOUSEHOLD_RAIL_HEIGHT }}
-            exit={{ height: 0 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            className="fixed top-0 left-0 right-0 z-[55] overflow-hidden bg-[var(--color-surface-alt)] border-b border-[var(--color-fg)]/[0.06]"
-          >
-            <div className="h-full flex items-center overflow-x-auto scrollbar-thin px-4 md:px-6 lg:px-10 gap-3">
+      {/* Panel has a fixed height and translates into/out of view — cheaper
+          than animating height, which would trigger layout. */}
+      <motion.div
+        aria-hidden={!expanded}
+        initial={false}
+        animate={{ y: expanded ? 0 : -HOUSEHOLD_RAIL_HEIGHT }}
+        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+        style={{ height: HOUSEHOLD_RAIL_HEIGHT, willChange: "transform" }}
+        className="fixed top-0 left-0 right-0 z-[55] bg-[var(--color-surface-alt)] border-b border-[var(--color-fg)]/[0.06]"
+      >
+        <div className="h-full flex items-center overflow-x-auto scrollbar-thin px-4 md:px-6 lg:px-10 gap-3">
               <Link
                 href="/dashboard"
                 onClick={close}
@@ -305,10 +294,8 @@ export function HouseholdRailPanel() {
                 </span>
                 <span className="text-[11px] text-[var(--color-muted)]">Add</span>
               </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </motion.div>
 
       <HouseholdSwitcherModal isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
     </>

@@ -272,14 +272,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-80 relative">
         <PaymentFailureBanner />
         <AppTopbar />
-        <main
-          className="flex-1 pb-24 md:pb-0 bg-[var(--color-content-bg)]"
-          style={{
-            paddingTop: "calc(var(--rail-offset, 0px) + 4rem)",
-            transition: "padding-top 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
-          }}
-        >
+        <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
           <div
+            style={{
+              transform: "translateY(var(--rail-offset, 0px))",
+              transition: "transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
+              willChange: "transform",
+            }}
             className={
               pathname === "/dashboard"
                 ? "mx-auto max-w-[1600px] px-4 md:px-6 lg:px-10"
