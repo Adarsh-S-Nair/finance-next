@@ -92,12 +92,12 @@ export default function HouseholdRail() {
           "border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]",
         )}
       >
-        <nav className="flex flex-1 flex-col items-center gap-2 overflow-y-auto scrollbar-thin pt-5 pb-3">
+        <nav className="flex flex-1 flex-col gap-2 overflow-y-auto scrollbar-thin pt-5 pb-3">
           {/* Personal — Zervo logo */}
           <Tooltip content="Personal">
             <Link
               href="/dashboard"
-              className="group relative flex h-11 w-11 items-center justify-center"
+              className="group relative flex h-11 w-full items-center justify-center"
               aria-label="Personal"
             >
               <ActiveIndicator active={!isOnHousehold} />
@@ -108,7 +108,7 @@ export default function HouseholdRail() {
           </Tooltip>
 
           {/* Divider between personal and households */}
-          <div className="my-1 h-px w-8 bg-[var(--color-fg)]/[0.08]" />
+          <div className="mx-auto my-1 h-px w-8 bg-[var(--color-fg)]/[0.08]" />
 
           {/* Households */}
           {households.map((h) => {
@@ -117,7 +117,7 @@ export default function HouseholdRail() {
               <Tooltip key={h.id} content={h.name}>
                 <Link
                   href={`/households/${h.id}`}
-                  className="group relative flex h-11 w-11 items-center justify-center"
+                  className="group relative flex h-11 w-full items-center justify-center"
                   aria-label={h.name}
                 >
                   <ActiveIndicator active={active} />
@@ -133,7 +133,7 @@ export default function HouseholdRail() {
           <Tooltip content="Create or join a household">
             <button
               onClick={() => setShowSwitcher(true)}
-              className="group relative flex h-11 w-11 items-center justify-center"
+              className="group relative flex h-11 w-full items-center justify-center"
               aria-label="Create or join a household"
             >
               <span
