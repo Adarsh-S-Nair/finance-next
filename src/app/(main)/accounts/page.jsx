@@ -82,7 +82,7 @@ const AccountRow = ({ account, institutionMap, showDivider }) => {
 
       {/* Balance */}
       <div className="text-right ml-4">
-        <div className="font-semibold text-[var(--color-fg)] tabular-nums text-sm">
+        <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
           {formatCurrency(account.balance)}
         </div>
       </div>
@@ -99,7 +99,7 @@ const CategoryHeader = ({ title, count, total, isFirst }) => {
           {title}
         </h3>
       </div>
-      <div className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
+      <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
         {formatCurrency(total)}
       </div>
     </div>

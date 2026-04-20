@@ -118,7 +118,7 @@ function AccountRow({ account, institutionMap, owner }) {
         </div>
       </div>
       <div className="text-right ml-4">
-        <div className="font-semibold text-[var(--color-fg)] tabular-nums text-sm">
+        <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
           {formatCurrency(account.balance)}
         </div>
       </div>
@@ -132,7 +132,7 @@ function CategoryHeader({ title, total }) {
       <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
         {title}
       </h3>
-      <div className="text-xs font-semibold text-[var(--color-muted)] tabular-nums">
+      <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
         {formatCurrency(total)}
       </div>
     </div>
