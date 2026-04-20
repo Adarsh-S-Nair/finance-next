@@ -242,12 +242,12 @@ export function HouseholdRailPanel() {
         style={{ height: HOUSEHOLD_RAIL_HEIGHT, willChange: "transform" }}
         className="fixed top-0 left-0 right-0 z-[55] xl:hidden bg-[var(--color-surface-alt)]"
       >
-        {/* Mobile-only: stronger gradient at the bottom of the rail so it
-            reads like the main app above is casting a shadow onto the rail
-            we just slid down. */}
+        {/* Mobile-only: soft gradient at the bottom of the rail that hints
+            the main app above is casting a shadow onto the rail. Kept very
+            light so it doesn't look like a dark band in light mode. */}
         <div
           aria-hidden
-          className="md:hidden pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/45 to-transparent"
+          className="md:hidden pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-black/15 to-transparent"
         />
         <div className="h-full flex items-center overflow-x-auto scrollbar-thin px-4 md:px-6 lg:px-10 gap-3">
               <Link
