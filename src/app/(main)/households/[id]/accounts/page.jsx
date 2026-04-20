@@ -14,6 +14,8 @@ import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
 import Tooltip from "../../../../../components/ui/Tooltip";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
+import HouseholdMemberFilter from "../../../../../components/households/HouseholdMemberFilter";
+import { formatAccountSubtype } from "../../../../../lib/accountSubtype";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount || 0);
@@ -105,13 +107,13 @@ function AccountRow({ account, institutionMap, owner }) {
             {account.name}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            <span className="truncate max-w-[180px]">{institution.name}</span>
-            {account.mask && (
-              <>
-                <span className="text-[var(--color-border)]">•</span>
-                <span className="font-mono">•••• {account.mask}</span>
-              </>
+            {account.type && (
+              <span className="truncate max-w-[180px]">{formatAccountSubtype(account.type)}</span>
             )}
+            {account.type && account.mask && (
+              <span className="text-[var(--color-border)]">•</span>
+            )}
+            {account.mask && <span className="font-mono">•••• {account.mask}</span>}
           </div>
         </div>
       </div>
@@ -150,49 +152,9 @@ function categorizeAccount(account) {
   return "cash";
 }
 
-/**
- * Horizontal avatar toggle — one chip per household member. Clicking
- * mutes/unmutes that member's accounts across the whole page.
- */
-function MemberFilter({ members, excludedIds, onToggle }) {
-  if (!members || members.length <= 1) return null;
-  return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-        Viewing
-      </span>
-      <div className="flex items-center gap-2">
-        {members.map((member) => {
-          const muted = excludedIds.has(member.user_id);
-          return (
-            <Tooltip
-              key={member.user_id}
-              content={
-                muted
-                  ? `Show ${ownerName(member)}'s accounts`
-                  : `Hide ${ownerName(member)}'s accounts`
-              }
-              side="top"
-            >
-              <button
-                type="button"
-                onClick={() => onToggle(member.user_id)}
-                aria-pressed={!muted}
-                className="cursor-pointer"
-              >
-                <MemberAvatar owner={member} size="lg" muted={muted} />
-              </button>
-            </Tooltip>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export default function HouseholdAccountsPage() {
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
-  const { members, memberByUserId, excludedMemberIds, toggleMember } = useHouseholdMeta();
+  const { memberByUserId, excludedMemberIds } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
 
   const titleNode = "Accounts";
@@ -224,19 +186,12 @@ export default function HouseholdAccountsPage() {
   }
 
   const hasAccounts = (allAccounts?.length ?? 0) > 0;
-  const memberFilterUI = (
-    <MemberFilter
-      members={members}
-      excludedIds={excludedMemberIds}
-      onToggle={toggleMember}
-    />
-  );
 
   if (!hasAccounts) {
     return (
       <PageContainer title={titleNode}>
+        <HouseholdMemberFilter />
         <div className="space-y-10">
-          {memberFilterUI}
           <div className="text-center py-24">
             <div className="mx-auto w-20 h-20 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[var(--color-border)]">
               <PiBankFill className="h-10 w-10 text-[var(--color-muted)]" />
@@ -260,9 +215,8 @@ export default function HouseholdAccountsPage() {
   return (
     <NetWorthHoverProvider>
       <PageContainer title={titleNode}>
+        <HouseholdMemberFilter />
         <div className="space-y-10">
-          {memberFilterUI}
-
           <div className="w-full">
             <div className="flex flex-col lg:flex-row gap-8">
               <div className="lg:w-2/3">

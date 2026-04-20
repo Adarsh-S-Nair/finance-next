@@ -39,6 +39,9 @@ export default function AppTopbar() {
         <div id="page-title-portal" className="hidden md:flex flex-1 items-center min-w-0" />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Portal target for page-level topbar tools (household member
+              filter, future per-page actions). Renders nothing by default. */}
+          <div id="topbar-tools-portal" className="flex items-center" />
           {showAddButton && (
             <motion.button
               type="button"

@@ -19,7 +19,8 @@ const HouseholdMetaContext = createContext({
   members: [],
   memberByUserId: new Map(),
   excludedMemberIds: new Set(),
-  toggleMember: () => { },
+  /** @type {(userId: string) => void} */
+  toggleMember: (userId) => { void userId; },
 });
 
 export function useHouseholdMeta() {
