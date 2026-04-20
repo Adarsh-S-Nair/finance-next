@@ -62,13 +62,11 @@ type BubbleProps = {
 };
 
 function Bubble({ active = false, color, children }: BubbleProps) {
-  // Use the household color (when provided) for both the active fill and the
-  // hover preview, so each household reads as its own brand. The inactive
-  // resting state stays neutral so the rail isn't a rainbow soup.
+  // Household color shows at rest too, so each household reads as its own
+  // brand even when not selected. Active state swaps the shape to a squircle
+  // (matching the active pill indicator on the left edge).
   const inlineStyle = color
-    ? ({
-        ["--bubble-color" as string]: color,
-      } as React.CSSProperties)
+    ? ({ ["--bubble-color" as string]: color } as React.CSSProperties)
     : undefined;
 
   if (color) {
@@ -76,10 +74,8 @@ function Bubble({ active = false, color, children }: BubbleProps) {
       <span
         style={inlineStyle}
         className={clsx(
-          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold transition-all duration-200 text-white",
-          active
-            ? "rounded-xl bg-[var(--bubble-color)]"
-            : "rounded-full bg-[var(--color-surface-alt)] !text-[var(--color-fg)] group-hover:rounded-xl group-hover:bg-[var(--bubble-color)] group-hover:!text-white",
+          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 bg-[var(--bubble-color)]",
+          active ? "rounded-xl" : "rounded-full group-hover:rounded-xl",
         )}
       >
         {children}

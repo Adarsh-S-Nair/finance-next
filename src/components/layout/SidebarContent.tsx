@@ -9,18 +9,54 @@ import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import SidebarSection from "./SidebarSection";
 import SidebarItem from "./SidebarItem";
 
+/**
+ * Rewrite a personal nav href into a household-scoped one.
+ *   /dashboard       → /households/<id>
+ *   /accounts        → /households/<id>/accounts
+ *   /transactions    → /households/<id>/transactions
+ *   everything else stays at the personal href
+ */
+function scopedHref(personalHref: string, householdId: string | null): string {
+  if (!householdId) return personalHref;
+  if (personalHref === "/dashboard") return `/households/${householdId}`;
+  if (personalHref.startsWith("/")) return `/households/${householdId}${personalHref}`;
+  return personalHref;
+}
+
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
+
+  // When the user is inside /households/<id>/* the main nav should route to
+  // household-scoped variants so every page stays in that household's context.
+  const householdId = useMemo(() => {
+    const match = pathname.match(/^\/households\/([^/]+)/);
+    return match?.[1] ?? null;
+  }, [pathname]);
 
   const groups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
       ...g,
-      items: g.items.filter((item) => {
-        if (item.featureFlag && !isFeatureEnabled(item.featureFlag)) return false;
-        return true;
-      }),
+      items: g.items
+        .filter((item) => {
+          if (item.featureFlag && !isFeatureEnabled(item.featureFlag)) return false;
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          personalHref: item.href,
+          href: scopedHref(item.href, householdId),
+        })),
     })).filter((g) => g.items.length > 0);
-  }, []);
+  }, [householdId]);
+
+  // Dashboard uses the household root (/households/<id>) which is a prefix of
+  // every household sub-route, so startsWith would mark it active on every
+  // sub-page. Use an exact match for the household dashboard entry.
+  const isItemActive = (itemHref: string, personalHref: string) => {
+    const isDashboard = personalHref === "/dashboard";
+    if (isDashboard) return pathname === itemHref;
+    return pathname.startsWith(itemHref);
+  };
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
@@ -34,7 +70,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
                   href={it.href}
                   label={it.label}
                   icon={it.icon}
-                  active={pathname.startsWith(it.href)}
+                  active={isItemActive(it.href, it.personalHref)}
                   disabled={it.disabled}
                   isCollapsed={isCollapsed}
                   onClick={onNavigate}
