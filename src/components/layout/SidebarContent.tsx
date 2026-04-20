@@ -76,56 +76,10 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
     ? firstName[0].toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? "?";
   const tier = profile?.subscription_tier ?? "free";
-  const tierLabel = tier === "pro" ? "Pro" : "Free";
   const avatarUrl = profile?.avatar_url || meta.avatar_url || meta.picture || null;
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
-      {/* Branding */}
-      <div className={clsx("flex items-center h-14 flex-shrink-0", isCollapsed ? "justify-center px-2" : "px-5")}>
-        <Link
-          href="/dashboard"
-          className={clsx("flex items-center gap-3 group", isCollapsed && "justify-center")}
-        >
-          <div
-            className="h-7 w-7 bg-[var(--color-fg)] flex-shrink-0 group-hover:opacity-80"
-            style={{
-              maskImage: "url(/logo.svg)",
-              maskSize: "contain",
-              maskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-            }}
-          />
-          {!isCollapsed && (
-            <div className="flex items-center gap-2.5">
-              <span
-                className="relative text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
-                style={{ fontFamily: "var(--font-poppins)" }}
-              >
-                ZERVO
-                {tier === "pro" && (
-                  <sup className="ml-0.5 text-[7px] font-bold tracking-[0.1em] text-[var(--color-accent)]">
-                    PRO
-                  </sup>
-                )}
-              </span>
-              {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
-                <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
-                  TEST
-                </span>
-              )}
-            </div>
-          )}
-        </Link>
-      </div>
-
-      {/* Logo separator */}
-      <div className={clsx("border-t border-[var(--color-fg)]/[0.06]", isCollapsed ? "mx-3" : "mx-4")} />
-
       {/* Navigation */}
       <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin pt-5", isCollapsed ? "px-2" : "px-3")}>
         {groups.map((g, i) => (
