@@ -198,14 +198,14 @@ export default function AccountDetails({ account, institution, onViewTransaction
 
           {/* Actions */}
           {onViewTransactions && (
-            <div className="pt-2">
+            <div>
               <button
                 type="button"
                 onClick={onViewTransactions}
-                className="flex items-center justify-between w-full px-4 py-3 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]/60 transition-colors text-sm font-medium text-[var(--color-fg)]"
+                className="group flex items-center justify-between w-full py-2 -mx-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
               >
-                <span>View Transactions</span>
-                <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+                <span className="text-sm text-[var(--color-fg)]">View transactions</span>
+                <span className="text-[var(--color-muted)] text-xs opacity-0 group-hover:opacity-100 transition-opacity">&#8250;</span>
               </button>
             </div>
           )}
