@@ -8,36 +8,25 @@ import clsx from "clsx";
 import { supabase } from "../../lib/supabase/client";
 import { NAV_GROUPS } from "../nav";
 import { FaLock } from "react-icons/fa";
-import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown, LuPlus, LuUsers } from "react-icons/lu";
+import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useUser } from "../providers/UserProvider";
-import { useHouseholds } from "../providers/HouseholdsProvider";
 import { Tooltip } from "@slate-ui/react";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
 import UpgradeOverlay from "../UpgradeOverlay";
 import SidebarSection from "./SidebarSection";
 import SidebarItem from "./SidebarItem";
-import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
 
 export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate?: () => void; isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, logout, user } = useUser();
-  const { households } = useHouseholds();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [showPopover, setShowPopover] = useState(false);
   const [showUpgradeOverlay, setShowUpgradeOverlay] = useState(false);
-  const [showHouseholdSwitcher, setShowHouseholdSwitcher] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // Derive the active household from the URL so the sidebar highlight stays
-  // in sync with whatever page the user is on.
-  const activeHouseholdId = (() => {
-    const match = pathname.match(/^\/households\/([^/]+)/);
-    return match?.[1] ?? null;
-  })();
 
   const groups = useMemo(() => {
     return NAV_GROUPS.map((g) => ({
@@ -157,43 +146,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
             </SidebarSection>
           </React.Fragment>
         ))}
-
-        {/* Households */}
-        <SidebarSection label={isCollapsed ? undefined : "Households"} isCollapsed={isCollapsed}>
-          {households.map((h) => (
-            <SidebarItem
-              key={h.id}
-              href={`/households/${h.id}`}
-              label={h.name}
-              icon={LuUsers}
-              active={activeHouseholdId === h.id}
-              isCollapsed={isCollapsed}
-              onClick={onNavigate}
-            />
-          ))}
-          <li>
-            {isCollapsed ? (
-              <Tooltip content="Add household">
-                <button
-                  onClick={() => setShowHouseholdSwitcher(true)}
-                  className="group relative flex w-full items-center justify-center px-2 py-2 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
-                >
-                  <LuPlus className="h-[18px] w-[18px]" />
-                </button>
-              </Tooltip>
-            ) : (
-              <button
-                onClick={() => setShowHouseholdSwitcher(true)}
-                className="group relative flex w-full items-center gap-3 px-3 py-2 text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
-              >
-                <LuPlus className="h-[18px] w-[18px] flex-shrink-0" />
-                <span className="flex-1 text-left truncate">
-                  {households.length === 0 ? "Create or join" : "Add household"}
-                </span>
-              </button>
-            )}
-          </li>
-        </SidebarSection>
       </nav>
 
       {/* User Section */}
@@ -364,11 +316,6 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
         />
         <UpgradeOverlay isOpen={showUpgradeOverlay} onClose={() => setShowUpgradeOverlay(false)} />
       </div>
-
-      <HouseholdSwitcherModal
-        isOpen={showHouseholdSwitcher}
-        onClose={() => setShowHouseholdSwitcher(false)}
-      />
     </div>
   );
 }

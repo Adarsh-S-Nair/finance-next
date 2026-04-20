@@ -1,6 +1,7 @@
 "use client";
 
 import Sidebar from "./Sidebar";
+import HouseholdRail from "./HouseholdRail";
 import AppTopbar from "./AppTopbar";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -254,12 +255,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
           it can't live inside any React-rendered stacking context. */}
+      <HouseholdRail />
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         showToggle={isTablet}
       />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-72 relative">
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-36 xl:ml-[22rem] relative">
         <PaymentFailureBanner />
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
