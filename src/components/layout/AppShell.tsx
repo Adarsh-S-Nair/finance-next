@@ -2,6 +2,7 @@
 
 import Sidebar from "./Sidebar";
 import HouseholdRail from "./HouseholdRail";
+import ProfileBar from "./ProfileBar";
 import AppTopbar from "./AppTopbar";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -261,7 +262,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         showToggle={isTablet}
       />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-40 xl:ml-[23rem] relative">
+      <ProfileBar />
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-40 xl:ml-80 relative">
         <PaymentFailureBanner />
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
