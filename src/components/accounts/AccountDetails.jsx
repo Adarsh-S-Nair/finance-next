@@ -29,6 +29,49 @@ const isCreditAccount = (type) => {
   return t.includes("credit");
 };
 
+function CreditUtilization({ balance, limit, available, currency }) {
+  const used = Math.max(balance || 0, 0);
+  const utilization = limit > 0 ? Math.min(used / limit, 1) : 0;
+  const pct = Math.round(utilization * 100);
+  const availableCredit = available != null ? available : Math.max(limit - used, 0);
+
+  const barColor =
+    utilization < 0.3
+      ? "bg-emerald-500"
+      : utilization < 0.7
+      ? "bg-amber-500"
+      : "bg-rose-500";
+
+  return (
+    <div className="py-2">
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-xl font-medium text-[var(--color-fg)] tabular-nums tracking-tight">
+            {formatCurrency(used, currency)}
+          </span>
+          <span className="text-xs text-[var(--color-muted)] truncate">
+            of {formatCurrency(limit, currency)} limit
+          </span>
+        </div>
+        <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+          {pct}%
+        </span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+        <motion.div
+          className={clsx("h-full rounded-full", barColor)}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </div>
+      <div className="mt-2.5 text-xs text-[var(--color-muted)] tabular-nums">
+        {formatCurrency(availableCredit, currency)} available
+      </div>
+    </div>
+  );
+}
+
 export default function AccountDetails({ account, institution }) {
   if (!account) return null;
 
@@ -36,13 +79,13 @@ export default function AccountDetails({ account, institution }) {
   const isLiability = isLiabilityAccount(account);
   const isCredit = isCreditAccount(account.type);
   const currency = account.isoCurrencyCode || "USD";
-
-  const utilization =
-    isCredit && account.limit && account.limit > 0
-      ? Math.min(Math.max((account.balance || 0) / account.limit, 0), 1)
-      : null;
-
   const addedOn = formatDate(account.createdAt);
+
+  const hasCreditVisual = isCredit && account.limit != null && account.limit > 0;
+  const showAvailableRow =
+    !hasCreditVisual &&
+    account.available != null &&
+    Math.abs((account.available ?? 0) - (account.balance ?? 0)) > 0.005;
 
   return (
     <AnimatePresence mode="popLayout" initial={false}>
@@ -81,128 +124,60 @@ export default function AccountDetails({ account, institution }) {
             </h2>
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5">
               {subtypeLabel && <span className="truncate">{subtypeLabel}</span>}
-              {subtypeLabel && account.mask && (
-                <span className="opacity-40">·</span>
-              )}
+              {subtypeLabel && account.mask && <span className="opacity-40">·</span>}
               {account.mask && <span className="font-mono">•••• {account.mask}</span>}
             </div>
           </div>
 
-          <div
-            className={clsx(
-              "text-lg font-medium tracking-tight tabular-nums whitespace-nowrap",
-              isLiability ? "text-[var(--color-fg)]" : "text-[var(--color-fg)]"
-            )}
-          >
+          <div className="text-lg font-medium tracking-tight tabular-nums whitespace-nowrap text-[var(--color-fg)]">
             {formatCurrency(account.balance, currency)}
           </div>
         </div>
 
-        {/* Detail Rows */}
+        {/* Body */}
         <div className="px-5 space-y-6 pb-6">
-          <div>
-            {/* Current Balance */}
-            <div className="flex items-center justify-between py-2">
-              <span className="card-header">
-                {isLiability ? "Current Owed" : "Current Balance"}
-              </span>
-              <span className="text-sm text-[var(--color-fg)] tabular-nums">
-                {formatCurrency(account.balance, currency)}
-              </span>
+          {/* Credit utilization visual */}
+          {hasCreditVisual && (
+            <div>
+              <div className="card-header mb-3">Credit Used</div>
+              <CreditUtilization
+                balance={account.balance}
+                limit={account.limit}
+                available={account.available}
+                currency={currency}
+              />
             </div>
+          )}
 
-            {/* Available Balance */}
-            {account.available != null && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Available</span>
-                <span className="text-sm text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(account.available, currency)}
-                </span>
-              </div>
-            )}
-
-            {/* Credit Limit (credit accounts only) */}
-            {isCredit && account.limit != null && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Credit Limit</span>
-                <span className="text-sm text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(account.limit, currency)}
-                </span>
-              </div>
-            )}
-
-            {/* Utilization (credit accounts with a limit) */}
-            {utilization != null && (
-              <div className="py-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="card-header">Utilization</span>
+          {/* Meta rows */}
+          {(showAvailableRow || institution?.name || addedOn) && (
+            <div>
+              {showAvailableRow && (
+                <div className="flex items-center justify-between py-2">
+                  <span className="card-header">Available</span>
                   <span className="text-sm text-[var(--color-fg)] tabular-nums">
-                    {(utilization * 100).toFixed(0)}%
+                    {formatCurrency(account.available, currency)}
                   </span>
                 </div>
-                <div className="h-1 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
-                  <div
-                    className={clsx(
-                      "h-full rounded-full transition-all",
-                      utilization < 0.3
-                        ? "bg-emerald-500"
-                        : utilization < 0.7
-                        ? "bg-amber-500"
-                        : "bg-rose-500"
-                    )}
-                    style={{ width: `${utilization * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Institution */}
-            {institution?.name && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Institution</span>
-                <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
-                  {institution.logo && (
-                    <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 bg-white">
-                      <img
-                        src={institution.logo}
-                        alt=""
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
-                  <span className="text-sm text-[var(--color-fg)] truncate text-right">
+              {institution?.name && (
+                <div className="flex items-center justify-between py-2">
+                  <span className="card-header">Institution</span>
+                  <span className="text-sm text-[var(--color-fg)] truncate text-right pl-4">
                     {institution.name}
                   </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Type */}
-            {subtypeLabel && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Type</span>
-                <span className="text-sm text-[var(--color-fg)]">{subtypeLabel}</span>
-              </div>
-            )}
-
-            {/* Account Number */}
-            {account.mask && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Account Number</span>
-                <span className="text-sm text-[var(--color-fg)] font-mono">
-                  •••• {account.mask}
-                </span>
-              </div>
-            )}
-
-            {/* Added On */}
-            {addedOn && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Added</span>
-                <span className="text-sm text-[var(--color-fg)]">{addedOn}</span>
-              </div>
-            )}
-          </div>
+              {addedOn && (
+                <div className="flex items-center justify-between py-2">
+                  <span className="card-header">Added</span>
+                  <span className="text-sm text-[var(--color-fg)]">{addedOn}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>
