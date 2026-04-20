@@ -51,8 +51,14 @@ function ZervoMark({ active }: { active: boolean }) {
     <span
       aria-hidden
       className={clsx(
-        "block h-7 w-7 transition-colors",
-        active ? "bg-[var(--color-on-accent,white)]" : "bg-[var(--color-fg)]",
+        "block h-7 w-7 transition-colors duration-200",
+        active
+          ? "bg-[var(--color-on-accent,white)]"
+          // Inactive: dark logo on the neutral bubble, but invert to the
+          // on-accent color on hover so it stays visible when the bubble
+          // swaps to the accent fill. Without this the logo vanishes
+          // against the hovered accent background.
+          : "bg-[var(--color-fg)] group-hover:bg-[var(--color-on-accent,white)]",
       )}
       style={{
         maskImage: "url(/logo.svg)",
@@ -74,6 +80,14 @@ type BubbleProps = {
   children: React.ReactNode;
 };
 
+// rounded-full resolves to 9999px, which means the bulk of a 200ms transition
+// from full -> rounded-xl (12px) renders as "still a circle" and only snaps
+// at the end. Using a pixel value equal to half the bubble width (22px for a
+// 44px bubble) keeps the whole animation range visible.
+const BUBBLE_SHAPE_TRANSITION =
+  "transition-[border-radius,background-color,color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+const BUBBLE_CIRCLE_RADIUS = "rounded-[22px]";
+
 function Bubble({ active = false, color, children }: BubbleProps) {
   const inlineStyle = color
     ? ({ ["--bubble-color" as string]: color } as React.CSSProperties)
@@ -84,8 +98,9 @@ function Bubble({ active = false, color, children }: BubbleProps) {
       <span
         style={inlineStyle}
         className={clsx(
-          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 bg-[var(--bubble-color)]",
-          active ? "rounded-xl" : "rounded-full group-hover:rounded-xl",
+          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold text-white bg-[var(--bubble-color)]",
+          BUBBLE_SHAPE_TRANSITION,
+          active ? "rounded-xl" : clsx(BUBBLE_CIRCLE_RADIUS, "group-hover:rounded-xl"),
         )}
       >
         {children}
@@ -96,10 +111,14 @@ function Bubble({ active = false, color, children }: BubbleProps) {
   return (
     <span
       className={clsx(
-        "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold transition-all duration-200",
+        "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold",
+        BUBBLE_SHAPE_TRANSITION,
         active
           ? "rounded-xl bg-[var(--color-accent)] text-[var(--color-on-accent,white)]"
-          : "rounded-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] group-hover:rounded-xl group-hover:bg-[var(--color-accent)] group-hover:text-[var(--color-on-accent,white)]",
+          : clsx(
+              BUBBLE_CIRCLE_RADIUS,
+              "bg-[var(--color-surface-alt)] text-[var(--color-fg)] group-hover:rounded-xl group-hover:bg-[var(--color-accent)] group-hover:text-[var(--color-on-accent,white)]",
+            ),
       )}
     >
       {children}
@@ -310,7 +329,9 @@ export default function HouseholdRail() {
             >
               <span
                 className={clsx(
-                  "flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-muted)] transition-all duration-200",
+                  "flex h-11 w-11 items-center justify-center border border-dashed border-[var(--color-border)] text-[var(--color-muted)]",
+                  BUBBLE_SHAPE_TRANSITION,
+                  BUBBLE_CIRCLE_RADIUS,
                   "group-hover:rounded-xl group-hover:border-solid group-hover:border-[var(--color-accent)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)]",
                 )}
               >

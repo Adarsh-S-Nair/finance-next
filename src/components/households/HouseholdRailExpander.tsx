@@ -258,10 +258,10 @@ export function HouseholdRailPanel() {
               >
                 <span
                   className={clsx(
-                    "flex h-12 w-12 items-center justify-center overflow-hidden transition-all duration-200",
+                    "flex h-12 w-12 items-center justify-center overflow-hidden transition-[border-radius,background-color,color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
                     onPersonal
                       ? "rounded-xl bg-[var(--color-accent)] text-[var(--color-on-accent,white)]"
-                      : "rounded-full bg-[var(--color-fg)]/[0.06] text-[var(--color-fg)] group-hover:rounded-xl",
+                      : "rounded-[24px] bg-[var(--color-fg)]/[0.06] text-[var(--color-fg)] group-hover:rounded-xl",
                   )}
                 >
                   <ZervoMark inverted={onPersonal} className="h-7 w-7" />
@@ -292,8 +292,8 @@ export function HouseholdRailPanel() {
                   >
                     <span
                       className={clsx(
-                        "flex h-12 w-12 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200",
-                        active ? "rounded-xl" : "rounded-full group-hover:rounded-xl",
+                        "flex h-12 w-12 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-[border-radius] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+                        active ? "rounded-xl" : "rounded-[24px] group-hover:rounded-xl",
                       )}
                       style={{ backgroundColor: h.color }}
                     >
@@ -317,7 +317,7 @@ export function HouseholdRailPanel() {
                 className="group flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer"
                 aria-label="Create or join a household"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-muted)] transition-all duration-200 group-hover:rounded-xl group-hover:border-solid group-hover:border-[var(--color-accent)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)]">
+                <span className="flex h-12 w-12 items-center justify-center rounded-[24px] border border-dashed border-[var(--color-border)] text-[var(--color-muted)] transition-[border-radius,background-color,color,border-color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)] group-hover:rounded-xl group-hover:border-solid group-hover:border-[var(--color-accent)] group-hover:bg-[var(--color-accent)]/10 group-hover:text-[var(--color-accent)]">
                   <LuPlus className="h-5 w-5" />
                 </span>
                 <span className="text-[11px] text-[var(--color-muted)]">Add</span>
