@@ -15,6 +15,7 @@ import {
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
+import OverlayButton from "../ui/OverlayButton";
 
 type Mode = "menu" | "create" | "join";
 
@@ -343,17 +344,15 @@ export default function HouseholdSwitcherModal({
 
                     <div className="mt-10 h-9">
                       {name.trim().length > 0 && (
-                        <motion.button
+                        <motion.div
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
-                          type="button"
-                          onClick={handleCreate}
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-fg)] px-5 py-2 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                         >
-                          {busy ? "Creating…" : "Create household"}
-                        </motion.button>
+                          <OverlayButton onClick={handleCreate} loading={busy}>
+                            Create household
+                          </OverlayButton>
+                        </motion.div>
                       )}
                     </div>
                   </motion.div>
@@ -437,17 +436,15 @@ export default function HouseholdSwitcherModal({
 
                     <div className="mt-10 h-9">
                       {preview && !previewError && (
-                        <motion.button
+                        <motion.div
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
-                          type="button"
-                          onClick={handleJoin}
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-fg)] px-5 py-2 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                         >
-                          {busy ? "Joining…" : `Join ${preview.household.name}`}
-                        </motion.button>
+                          <OverlayButton onClick={handleJoin} loading={busy}>
+                            Join {preview.household.name}
+                          </OverlayButton>
+                        </motion.div>
                       )}
                     </div>
                   </motion.div>

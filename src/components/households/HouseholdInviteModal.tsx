@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { FiX, FiCopy, FiRefreshCw, FiChevronRight, FiUserCheck } from "react-icons/fi";
+import { FiX, FiCopy, FiRefreshCw, FiUserCheck } from "react-icons/fi";
 import { authFetch } from "../../lib/api/fetch";
 import { useToast } from "../providers/ToastProvider";
+import OverlayButton from "../ui/OverlayButton";
 
 type Invitation = {
   id: string;
@@ -342,17 +343,15 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
 
                     <div className="mt-6 h-9">
                       {lookup.status === "match" && !lookup.alreadyMember && (
-                        <motion.button
+                        <motion.div
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
-                          type="button"
-                          onClick={handleSendEmail}
-                          disabled={adding}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-fg)] px-5 py-2 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                         >
-                          {adding ? "Sending…" : `Invite ${lookup.user.first_name ?? "member"}`}
-                        </motion.button>
+                          <OverlayButton onClick={handleSendEmail} loading={adding}>
+                            Invite {lookup.user.first_name ?? "member"}
+                          </OverlayButton>
+                        </motion.div>
                       )}
                     </div>
                   </>

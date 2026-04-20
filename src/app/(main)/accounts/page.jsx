@@ -15,6 +15,7 @@ import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHov
 import SegmentedTabs from "../../../components/ui/SegmentedTabs";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
+import { formatAccountSubtype } from "../../../lib/accountSubtype";
 
 // Helper to format currency
 const formatCurrency = (amount) => {
@@ -68,13 +69,13 @@ const AccountRow = ({ account, institutionMap, showDivider }) => {
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5">{account.name}</div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            <span className="truncate max-w-[180px]">{institution.name}</span>
-            {account.mask && (
-              <>
-                <span className="text-[var(--color-border)]">•</span>
-                <span className="font-mono">•••• {account.mask}</span>
-              </>
+            {account.type && (
+              <span className="truncate max-w-[180px]">{formatAccountSubtype(account.type)}</span>
             )}
+            {account.type && account.mask && (
+              <span className="text-[var(--color-border)]">•</span>
+            )}
+            {account.mask && <span className="font-mono">•••• {account.mask}</span>}
           </div>
         </div>
       </div>

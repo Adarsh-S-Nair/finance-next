@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import clsx from "clsx";
-import { FiX, FiChevronRight } from "react-icons/fi";
+import { FiX } from "react-icons/fi";
+import OverlayButton from "./OverlayButton";
 
 type Variant = "primary" | "danger";
 
@@ -16,6 +16,7 @@ type ConfirmOverlayProps = {
   cancelLabel?: string;
   variant?: Variant;
   busy?: boolean;
+  /** @deprecated — OverlayButton handles the loading spinner. Kept optional for compat. */
   busyLabel?: string;
   /** If set, the user has to type this string before the confirm button enables. */
   requiredText?: string;
@@ -40,7 +41,6 @@ export default function ConfirmOverlay({
   cancelLabel = "Cancel",
   variant = "primary",
   busy = false,
-  busyLabel = "Working...",
   requiredText,
   showRequiredTextUppercase = false,
   onCancel,
@@ -152,23 +152,14 @@ export default function ConfirmOverlay({
                   >
                     {cancelLabel}
                   </button>
-                  <button
-                    type="button"
+                  <OverlayButton
                     onClick={handleConfirm}
-                    disabled={disabled}
-                    className={clsx(
-                      "group inline-flex items-center gap-1.5 text-sm font-medium transition-colors cursor-pointer",
-                      variant === "danger"
-                        ? "text-[var(--color-danger)] hover:opacity-75"
-                        : "text-[var(--color-fg)] hover:text-[var(--color-accent)]",
-                      disabled && "text-[var(--color-muted)] pointer-events-none",
-                    )}
+                    loading={busy || submitting}
+                    disabled={!requiredOk}
+                    variant={variant}
                   >
-                    {busy || submitting ? busyLabel : confirmLabel}
-                    {!busy && !submitting && (
-                      <FiChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    )}
-                  </button>
+                    {confirmLabel}
+                  </OverlayButton>
                 </div>
               </motion.div>
             </div>
