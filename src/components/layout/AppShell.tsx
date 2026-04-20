@@ -13,7 +13,7 @@ import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import ConfirmOverlay from "../ui/ConfirmOverlay";
 import PlaidOAuthHandler from "../PlaidOAuthHandler";
 import PaymentFailureBanner from "../PaymentFailureBanner";
 
@@ -79,7 +79,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={showLogout}
         onCancel={() => setShowLogout(false)}
         onConfirm={async () => {
@@ -166,7 +166,7 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={showLogout}
         onCancel={() => setShowLogout(false)}
         onConfirm={async () => {

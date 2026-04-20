@@ -6,7 +6,7 @@ import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import DynamicIcon from '../../../components/DynamicIcon';
 import Button from '../../../components/ui/Button';
-import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import ConfirmOverlay from '../../../components/ui/ConfirmOverlay';
 import LineChart from '../../../components/ui/LineChart';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { EmptyState } from '@slate-ui/react';
@@ -369,7 +369,7 @@ export default function BudgetsPage() {
       />
       <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={confirmOpen}
         variant="danger"
         title="Delete budget?"

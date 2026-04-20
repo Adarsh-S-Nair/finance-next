@@ -3,7 +3,7 @@
 import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
 import { useState, useEffect } from "react";
-import ConfirmDialog from "../../../components/ui/ConfirmDialog";
+import ConfirmOverlay from "../../../components/ui/ConfirmOverlay";
 import { supabase } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -467,7 +467,7 @@ export default function SettingsPage() {
 
       </div>
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={confirmOpen}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={async () => {
@@ -486,7 +486,7 @@ export default function SettingsPage() {
       />
 
       {/* Disconnect Individual Account Modal */}
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={disconnectAccountModal.isOpen}
         onCancel={handleCancelDisconnectAccount}
         onConfirm={handleConfirmDisconnectAccount}

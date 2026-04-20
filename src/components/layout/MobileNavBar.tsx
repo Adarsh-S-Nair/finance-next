@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { NAV_GROUPS } from "../nav";
 import { LuSettings, LuLogOut } from "react-icons/lu";
 import clsx from "clsx";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import ConfirmOverlay from "../ui/ConfirmOverlay";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
@@ -83,7 +83,7 @@ export default function MobileNavBar() {
         </div>
       </div>
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={showLogout}
         onCancel={() => setShowLogout(false)}
         onConfirm={handleLogout}

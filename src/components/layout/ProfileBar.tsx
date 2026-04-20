@@ -10,7 +10,7 @@ import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown } from "react-ic
 import { TbLogout } from "react-icons/tb";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import ConfirmOverlay from "../ui/ConfirmOverlay";
 import UpgradeOverlay from "../UpgradeOverlay";
 
 /**
@@ -196,7 +196,7 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
         </button>
       </div>
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={showLogoutConfirm}
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={async () => {

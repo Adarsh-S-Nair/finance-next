@@ -12,7 +12,7 @@ import { Tooltip } from "@slate-ui/react";
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import ConfirmOverlay from "../ui/ConfirmOverlay";
 import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
 import HouseholdInviteModal from "../households/HouseholdInviteModal";
 
@@ -107,7 +107,7 @@ function Bubble({ active = false, color, children }: BubbleProps) {
   );
 }
 
-const MENU_WIDTH = 200;
+const MENU_WIDTH = 208;
 const MENU_MARGIN = 6;
 
 function HouseholdContextMenuView({
@@ -140,42 +140,42 @@ function HouseholdContextMenuView({
     };
   }, [onClose]);
 
-  // Clamp the menu inside the viewport so it never overflows the right edge
-  // when the cursor is near the rail.
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
   const clampedX = Math.min(menu.x + MENU_MARGIN, viewportWidth - MENU_WIDTH - MENU_MARGIN);
 
+  const rowClass =
+    "flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-[13px] rounded-md transition-colors cursor-pointer";
+
   return createPortal(
-    <div
+    <motion.div
       ref={menuRef}
       role="menu"
+      initial={{ opacity: 0, scale: 0.97, y: -2 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
       style={{ top: menu.y + MENU_MARGIN, left: clampedX, width: MENU_WIDTH }}
-      className="fixed z-[70] overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]"
+      className="fixed z-[70] p-1 rounded-xl bg-[var(--color-surface)] shadow-[0_12px_40px_-8px_rgba(0,0,0,0.35)]"
     >
-      <div className="px-3 py-2 border-b border-[var(--color-border)]/60">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] truncate block">
-          {menu.name}
-        </span>
-      </div>
       <button
         type="button"
         role="menuitem"
         onClick={onInvite}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05] cursor-pointer"
+        className={clsx(rowClass, "text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06]")}
       >
         <FiUserPlus className="h-4 w-4 flex-shrink-0" />
-        <span>Invite to Household</span>
+        <span>Invite to household</span>
       </button>
       <button
         type="button"
         role="menuitem"
         onClick={onLeave}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)] cursor-pointer"
+        className={clsx(rowClass, "text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)]")}
       >
         <FiLogOut className="h-4 w-4 flex-shrink-0" />
-        <span>Leave Household</span>
+        <span>Leave household</span>
       </button>
-    </div>,
+    </motion.div>,
     document.body,
   );
 }
@@ -337,7 +337,7 @@ export default function HouseholdRail() {
         onClose={() => setInviteId(null)}
       />
 
-      <ConfirmDialog
+      <ConfirmOverlay
         isOpen={!!leaveTarget}
         onCancel={() => setLeaveTarget(null)}
         onConfirm={handleLeave}

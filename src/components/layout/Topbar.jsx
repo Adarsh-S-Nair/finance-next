@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import ConfirmOverlay from "../ui/ConfirmOverlay";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
 
@@ -71,7 +71,7 @@ export default function Topbar() {
               >
                 Sign out
               </button>
-              <ConfirmDialog
+              <ConfirmOverlay
                 isOpen={showLogout}
                 onCancel={() => setShowLogout(false)}
                 onConfirm={async () => {
