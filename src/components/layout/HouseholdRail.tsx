@@ -155,7 +155,7 @@ function HouseholdContextMenuView({
       exit={{ opacity: 0, scale: 0.97 }}
       transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
       style={{ top: menu.y + MENU_MARGIN, left: clampedX, width: MENU_WIDTH }}
-      className="fixed z-[70] p-1 rounded-xl bg-[var(--color-surface)] shadow-[0_12px_40px_-8px_rgba(0,0,0,0.35)]"
+      className="fixed z-[70] p-1 rounded-xl bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)]"
     >
       <button
         type="button"
