@@ -9,16 +9,25 @@
 export const dashboardLayout = {
   // Main content area (left side, wider)
   main: [
-    // Net Worth Banner (simple number + link to accounts)
+    // Top row: Net Worth summary (1/3) + Monthly Spending chart (2/3)
     {
-      id: 'net-worth-banner',
-      component: 'NetWorthBanner',
-    },
-    // Monthly Overview Chart (full width, hero card)
-    {
-      id: 'monthly-overview',
-      component: 'MonthlyOverviewCard',
-      height: 'h-[420px]'
+      id: 'overview-row',
+      type: 'row',
+      items: [
+        {
+          id: 'net-worth-banner',
+          component: 'NetWorthBanner',
+          width: 'lg:grow lg:basis-0',
+          mobileHeight: 'lg:h-full'
+        },
+        {
+          id: 'monthly-overview',
+          component: 'MonthlyOverviewCard',
+          width: 'lg:grow-[2] lg:basis-0',
+          mobileHeight: 'h-[420px] lg:h-full'
+        }
+      ],
+      height: 'lg:h-[420px]'
     },
     // Cashflow + Top Categories (stacked on mobile, side-by-side on desktop)
     {

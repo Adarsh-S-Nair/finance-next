@@ -572,9 +572,13 @@ function HeroDashboard() {
         <div className="grid min-w-0 gap-8 lg:grid-cols-10 lg:gap-10">
           {/* Main column (lg:col-span-7) */}
           <div className="min-w-0 space-y-10 lg:col-span-7">
-            <NetWorthBanner mockData={NET_WORTH_MOCK} />
-            <div className="h-[420px]">
-              <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+            <div className="flex min-w-0 flex-col gap-8 lg:h-[420px] lg:flex-row lg:gap-10">
+              <div className="min-w-0 lg:grow lg:basis-0">
+                <NetWorthBanner mockData={NET_WORTH_MOCK} />
+              </div>
+              <div className="h-[420px] min-w-0 lg:h-full lg:grow-[2] lg:basis-0">
+                <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+              </div>
             </div>
             <div className="flex min-w-0 flex-col gap-8 lg:h-[440px] lg:flex-row">
               <div className="min-w-0 lg:flex-1">

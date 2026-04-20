@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { useAccounts } from "../providers/AccountsProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
-import SegmentedTabs from "../ui/SegmentedTabs";
 
 function categorizeAccount(account: { type?: string; subtype?: string }) {
   const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
@@ -45,8 +44,8 @@ interface NetWorthBannerProps {
 
 function MiniBar({ label, total, segments }: MiniBarProps) {
   return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between mb-2">
+    <div className="min-w-0">
+      <div className="flex items-center justify-between mb-2.5">
         <span className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider">
           {label}
         </span>
@@ -56,7 +55,7 @@ function MiniBar({ label, total, segments }: MiniBarProps) {
       </div>
 
       {/* Bar */}
-      <div className="w-full h-1.5 flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-2.5">
+      <div className="w-full h-3 flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-3">
         {segments.map((seg) => {
           const pct = total > 0 ? (seg.amount / total) * 100 : 0;
           if (pct === 0) return null;
@@ -88,7 +87,6 @@ function MiniBar({ label, total, segments }: MiniBarProps) {
 export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
   const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
   const { allAccounts, loading: accountsLoading } = useAccounts();
-  const [mobileTab, setMobileTab] = useState<'assets' | 'liabilities'>('assets');
 
   const livePercentChange = useMemo(() => {
     if (!netWorthHistory || netWorthHistory.length < 2) return null;
@@ -130,14 +128,14 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
           <div className="h-11 w-52 bg-[var(--color-border)] rounded" />
           <div className="h-4 w-16 bg-[var(--color-border)] rounded" />
         </div>
-        <div className="flex gap-8">
-          <div className="flex-1 space-y-2">
+        <div className="space-y-6">
+          <div className="space-y-2.5">
             <div className="h-3 w-full bg-[var(--color-border)] rounded" />
-            <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full" />
+            <div className="h-3 w-full bg-[var(--color-border)] rounded-full" />
           </div>
-          <div className="flex-1 space-y-2">
+          <div className="space-y-2.5">
             <div className="h-3 w-full bg-[var(--color-border)] rounded" />
-            <div className="h-1.5 w-full bg-[var(--color-border)] rounded-full" />
+            <div className="h-3 w-full bg-[var(--color-border)] rounded-full" />
           </div>
         </div>
       </div>
@@ -187,51 +185,20 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
         </Link>
       )}
 
-      {/* Assets & Liabilities breakdown — side-by-side on desktop, tabbed on mobile */}
+      {/* Assets & Liabilities breakdown — stacked vertically */}
       {breakdown && (
-        <>
-          {/* Desktop: both side by side */}
-          <div className="hidden md:flex items-start gap-8">
-            <MiniBar
-              label="Assets"
-              total={breakdown.totalAssets}
-              segments={breakdown.assetSegments}
-            />
-            <MiniBar
-              label="Liabilities"
-              total={breakdown.totalLiabilities}
-              segments={breakdown.liabilitySegments}
-            />
-          </div>
-
-          {/* Mobile: tabbed toggle */}
-          <div className="md:hidden">
-            <div className="mb-4">
-              <SegmentedTabs
-                size="xs"
-                value={mobileTab}
-                onChange={(v: string) => setMobileTab(v as 'assets' | 'liabilities')}
-                options={[
-                  { label: 'Assets', value: 'assets' },
-                  { label: 'Liabilities', value: 'liabilities' },
-                ]}
-              />
-            </div>
-            {mobileTab === 'assets' ? (
-              <MiniBar
-                label="Assets"
-                total={breakdown.totalAssets}
-                segments={breakdown.assetSegments}
-              />
-            ) : (
-              <MiniBar
-                label="Liabilities"
-                total={breakdown.totalLiabilities}
-                segments={breakdown.liabilitySegments}
-              />
-            )}
-          </div>
-        </>
+        <div className="space-y-6">
+          <MiniBar
+            label="Assets"
+            total={breakdown.totalAssets}
+            segments={breakdown.assetSegments}
+          />
+          <MiniBar
+            label="Liabilities"
+            total={breakdown.totalLiabilities}
+            segments={breakdown.liabilitySegments}
+          />
+        </div>
       )}
     </div>
   );
