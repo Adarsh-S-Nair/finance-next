@@ -6,7 +6,7 @@ import { FiPlus } from "react-icons/fi";
 import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
-import { HouseholdRailPillTrigger } from "../households/HouseholdRailExpander";
+import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -31,7 +31,7 @@ export default function AppTopbar() {
         {/* Mobile only — tablet uses the sidebar bubble + horizontal rail,
             desktop uses the full rail on the left. */}
         <div className="md:hidden flex items-center z-10">
-          <HouseholdRailPillTrigger />
+          <HouseholdRailBubbleTrigger />
         </div>
 
         {/* Desktop: page title portal */}

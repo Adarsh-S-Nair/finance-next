@@ -35,17 +35,16 @@ function initialsFor(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function ZervoMark({ inverted, size = 5 }: { inverted?: boolean; size?: number }) {
+function ZervoMark({ inverted, className = "" }: { inverted?: boolean; className?: string }) {
   return (
     <span
       aria-hidden
       className={clsx(
-        `block`,
+        "block",
         inverted ? "bg-[var(--color-on-accent,white)]" : "bg-[var(--color-fg)]",
+        className,
       )}
       style={{
-        width: `${size * 4}px`,
-        height: `${size * 4}px`,
         maskImage: "url(/logo.svg)",
         maskSize: "contain",
         maskRepeat: "no-repeat",
@@ -145,7 +144,7 @@ export function HouseholdRailBubbleTrigger() {
         {activeHousehold ? (
           <span>{initialsFor(activeHousehold.name)}</span>
         ) : (
-          <ZervoMark inverted={expanded} size={5} />
+          <ZervoMark inverted={expanded} className="h-7 w-7" />
         )}
       </span>
       <LuChevronDown
@@ -159,8 +158,9 @@ export function HouseholdRailBubbleTrigger() {
 }
 
 /**
- * Compact pill trigger for the mobile topbar. Same scope indicator, but
- * laid out as a horizontal pill to fit a narrow header.
+ * Compact pill trigger for the mobile topbar — kept as an export for places
+ * that still want a labelled trigger, but the default mobile trigger is the
+ * bubble (HouseholdRailBubbleTrigger) for consistency with tablet.
  */
 export function HouseholdRailPillTrigger() {
   const pathname = usePathname();
@@ -221,6 +221,13 @@ export function HouseholdRailPanel() {
         style={{ height: HOUSEHOLD_RAIL_HEIGHT, willChange: "transform" }}
         className="fixed top-0 left-0 right-0 z-[55] bg-[var(--color-surface-alt)] border-b border-[var(--color-fg)]/[0.06]"
       >
+        {/* Mobile-only: a gradient at the bottom of the rail that makes the
+            main app above look like it's casting a shadow onto the rail
+            we just slid down to reveal. */}
+        <div
+          aria-hidden
+          className="md:hidden pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-black/25 to-transparent"
+        />
         <div className="h-full flex items-center overflow-x-auto scrollbar-thin px-4 md:px-6 lg:px-10 gap-3">
               <Link
                 href="/dashboard"
@@ -236,7 +243,7 @@ export function HouseholdRailPanel() {
                       : "rounded-full bg-[var(--color-fg)]/[0.06] text-[var(--color-fg)] group-hover:rounded-xl",
                   )}
                 >
-                  <ZervoMark inverted={onPersonal} size={5} />
+                  <ZervoMark inverted={onPersonal} className="h-7 w-7" />
                 </span>
                 <span
                   className={clsx(

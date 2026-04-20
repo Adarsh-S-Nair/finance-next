@@ -95,7 +95,7 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
     <>
       <div
         ref={containerRef}
-        className="hidden md:flex flex-col fixed bottom-0 left-0 md:w-20 xl:w-80 z-[60] border-t border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-surface-alt)]"
+        className="hidden md:flex flex-col fixed bottom-0 left-0 md:w-20 xl:w-80 z-[60] border-t border-r border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]"
       >
         <AnimatePresence initial={false}>
           {expanded && (
@@ -174,7 +174,7 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
             expanded ? "bg-[var(--color-fg)]/[0.04]" : "hover:bg-[var(--color-fg)]/[0.03]",
           )}
         >
-          <div className="relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-content-bg)] ring-1 ring-[var(--color-fg)]/[0.08] flex items-center justify-center text-xs font-semibold text-[var(--color-fg)] overflow-hidden">
+          <div className="relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
