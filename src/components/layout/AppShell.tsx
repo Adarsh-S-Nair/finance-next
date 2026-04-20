@@ -4,6 +4,11 @@ import Sidebar from "./Sidebar";
 import HouseholdRail from "./HouseholdRail";
 import ProfileBar from "./ProfileBar";
 import AppTopbar from "./AppTopbar";
+import {
+  TABLET_HOUSEHOLD_RAIL_PORTAL_ID,
+  TabletHouseholdRailPanel,
+  TabletHouseholdRailProvider,
+} from "../households/TabletHouseholdRail";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
@@ -252,6 +257,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <TabletHouseholdRailProvider>
     <div className="min-h-screen bg-[var(--color-content-bg)] relative">
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
@@ -267,6 +273,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <PaymentFailureBanner />
         <AppTopbar />
         <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
+          {/* Tablet household rail expands here (portal target) so content
+              below physically shifts down when the user opens the switcher
+              from the sidebar bubble. Hidden on xl+ where the full rail
+              handles switching, and on mobile where the topbar picker does. */}
+          <div id={TABLET_HOUSEHOLD_RAIL_PORTAL_ID} className="hidden md:block xl:hidden" />
+          <TabletHouseholdRailPanel />
           <div
             className={
               pathname === "/dashboard"
@@ -302,5 +314,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNavBar />
       <PlaidOAuthHandler />
     </div>
+    </TabletHouseholdRailProvider>
   );
 }

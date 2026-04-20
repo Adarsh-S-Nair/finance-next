@@ -24,8 +24,9 @@ export default function AppTopbar() {
         {/* Mobile: page-specific start portal (e.g. search button) */}
         <div id="page-mobile-start-portal" className="md:hidden flex items-center z-10" />
 
-        {/* Mobile + tablet: compact household picker (rail is xl-only) */}
-        <div className="xl:hidden flex items-center z-10">
+        {/* Mobile only — tablet uses the sidebar bubble + horizontal rail,
+            desktop uses the full rail on the left. */}
+        <div className="md:hidden flex items-center z-10">
           <HouseholdPicker />
         </div>
 
