@@ -2,19 +2,23 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
+import { resolveScope } from '../../../../lib/api/scope';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
 export async function GET(request) {
   try {
     const userId = requireVerifiedUserId(request);
 
-    if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for user ${userId}`);
+    const scope = await resolveScope(request, userId);
+    if (scope instanceof Response) return scope;
 
-    // Get all accounts for the user with their current balances
+    if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for ${scope.kind} scope`);
+
+    // Household scope aggregates every member's accounts; personal only the caller.
     const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype, balances')
-      .eq('user_id', userId);
+      .in('user_id', scope.userIds);
 
     if (accountsError) {
       console.error('Error fetching accounts:', accountsError);

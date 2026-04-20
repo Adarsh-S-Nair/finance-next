@@ -4,34 +4,21 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { PiBankFill } from "react-icons/pi";
 import PageContainer from "../../../../../components/layout/PageContainer";
+import NetWorthCard from "../../../../../components/dashboard/NetWorthCard";
+import {
+  AssetsCard,
+  LiabilitiesCard,
+} from "../../../../../components/dashboard/AccountsSummaryCard";
+import { NetWorthHoverProvider } from "../../../../../components/dashboard/NetWorthHoverContext";
+import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
+import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { authFetch } from "../../../../../lib/api/fetch";
-import { isLiabilityAccount } from "../../../../../lib/accountUtils";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount || 0);
 
-function memberName(owner) {
-  if (!owner) return "Member";
-  const first = owner.first_name || "";
-  const last = owner.last_name || "";
-  const name = [first, last].filter(Boolean).join(" ");
-  return name || "Member";
-}
-
-function memberInitials(owner) {
-  if (!owner) return "?";
-  const first = owner.first_name || "";
-  const last = owner.last_name || "";
-  if (first && last) return `${first[0]}${last[0]}`.toUpperCase();
-  if (first) return first[0].toUpperCase();
-  if (last) return last[0].toUpperCase();
-  return "?";
-}
-
-function AccountRow({ account }) {
-  const institution = account.institutions || {};
-  const owner = account.owner;
-
+function AccountRow({ account, institutionMap }) {
+  const institution = institutionMap[account.institutionId] || { name: "Unknown", logo: null };
   return (
     <div className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg">
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
@@ -40,7 +27,7 @@ function AccountRow({ account }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={institution.logo}
-              alt={institution.name || ""}
+              alt={institution.name}
               className="w-full h-full object-cover"
               onError={(e) => {
                 e.target.style.display = "none";
@@ -52,13 +39,12 @@ function AccountRow({ account }) {
             <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
           </div>
         </div>
-
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">
             {account.name}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-            <span className="truncate max-w-[160px]">{institution.name || "Unknown"}</span>
+            <span className="truncate max-w-[180px]">{institution.name}</span>
             {account.mask && (
               <>
                 <span className="text-[var(--color-border)]">•</span>
@@ -68,25 +54,9 @@ function AccountRow({ account }) {
           </div>
         </div>
       </div>
-
-      {/* Owner chip — who in the household owns this account */}
-      <div className="hidden sm:flex items-center gap-2 mr-4 min-w-0">
-        <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-[10px] font-semibold text-[var(--color-on-accent,white)]">
-          {owner?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={owner.avatar_url} alt={memberName(owner)} className="h-full w-full object-cover" />
-          ) : (
-            <span>{memberInitials(owner)}</span>
-          )}
-        </div>
-        <span className="text-xs text-[var(--color-muted)] truncate max-w-[120px]">
-          {memberName(owner)}
-        </span>
-      </div>
-
-      <div className="text-right">
+      <div className="text-right ml-4">
         <div className="font-semibold text-[var(--color-fg)] tabular-nums text-sm">
-          {formatCurrency(account.balances?.current || 0)}
+          {formatCurrency(account.balance)}
         </div>
       </div>
     </div>
@@ -107,10 +77,13 @@ function CategoryHeader({ title, total }) {
 }
 
 function categorizeAccount(account) {
-  const type = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
-  const investment = ["brokerage", "stock plan", "ira", "401k", "403b", "529", "roth", "sep", "simple", "keogh", "pension", "retirement", "investment"];
+  const type = (account.type || "").toLowerCase();
+  const investment = [
+    "brokerage", "stock plan", "ira", "401k", "403b", "529",
+    "roth", "sep", "simple", "keogh", "pension", "retirement", "investment",
+  ];
   if (investment.some((k) => type.includes(k))) return "investments";
-  if (type.includes("credit")) return "credit";
+  if (type.includes("credit") || type === "credit card") return "credit";
   const loans = ["loan", "mortgage", "student", "auto", "home equity"];
   if (loans.some((k) => type.includes(k))) return "loans";
   return "cash";
@@ -120,57 +93,35 @@ export default function HouseholdAccountsPage() {
   const params = useParams();
   const householdId = typeof params?.id === "string" ? params.id : null;
 
-  const [household, setHousehold] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { accounts, allAccounts, loading, initialized, error } = useAccounts();
 
-  const load = useCallback(async () => {
+  const [household, setHousehold] = useState(null);
+
+  const loadHousehold = useCallback(async () => {
     if (!householdId) return;
     try {
-      setLoading(true);
-      setError(null);
-      const [householdRes, accountsRes] = await Promise.all([
-        authFetch(`/api/households/${householdId}`),
-        authFetch(`/api/households/${householdId}/accounts`),
-      ]);
-      if (householdRes.ok) {
-        const data = await householdRes.json();
-        setHousehold(data.household);
-      }
-      if (!accountsRes.ok) {
-        setError(`Failed to load accounts (${accountsRes.status}).`);
-        return;
-      }
-      const data = await accountsRes.json();
-      setAccounts(data.accounts || []);
+      const res = await authFetch(`/api/households/${householdId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setHousehold(data.household);
     } catch (err) {
-      console.error("[households] accounts load error", err);
-      setError(err?.message || "Failed to load accounts.");
-    } finally {
-      setLoading(false);
+      console.error("[household] load error", err);
     }
   }, [householdId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadHousehold();
+  }, [loadHousehold]);
 
-  const totals = accounts.reduce(
-    (acc, a) => {
-      const balance = a.balances?.current || 0;
-      const normalized = { balance, type: a.type, subtype: a.subtype };
-      const isLiability = isLiabilityAccount(normalized);
-      if (isLiability || balance < 0) acc.liabilities += Math.abs(balance);
-      else if (balance > 0) acc.assets += balance;
-      return acc;
-    },
-    { assets: 0, liabilities: 0 },
-  );
-  const netWorth = totals.assets - totals.liabilities;
+  const [summaryTab, setSummaryTab] = useState("assets");
+
+  const institutionMap = {};
+  (accounts || []).forEach((inst) => {
+    institutionMap[inst.id] = inst;
+  });
 
   const categorized = { cash: [], investments: [], credit: [], loans: [] };
-  for (const a of accounts) categorized[categorizeAccount(a)].push(a);
+  for (const a of allAccounts || []) categorized[categorizeAccount(a)].push(a);
 
   const titleNode = (
     <div className="flex items-center gap-3 min-w-0">
@@ -190,7 +141,7 @@ export default function HouseholdAccountsPage() {
     </div>
   );
 
-  if (loading) {
+  if (loading || !initialized) {
     return (
       <PageContainer title={titleNode}>
         <div className="flex min-h-[40vh] items-center justify-center">
@@ -208,14 +159,18 @@ export default function HouseholdAccountsPage() {
     );
   }
 
-  if (accounts.length === 0) {
+  const hasAccounts = (allAccounts?.length ?? 0) > 0;
+
+  if (!hasAccounts) {
     return (
       <PageContainer title={titleNode}>
         <div className="text-center py-24">
           <div className="mx-auto w-20 h-20 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[var(--color-border)]">
             <PiBankFill className="h-10 w-10 text-[var(--color-muted)]" />
           </div>
-          <h3 className="text-xl font-medium text-[var(--color-fg)] mb-2">No accounts in this household yet</h3>
+          <h3 className="text-xl font-medium text-[var(--color-fg)] mb-2">
+            No accounts in this household yet
+          </h3>
           <p className="text-[var(--color-muted)] max-w-md mx-auto">
             Once members connect accounts, they&apos;ll show up here combined across everyone.
           </p>
@@ -225,95 +180,90 @@ export default function HouseholdAccountsPage() {
   }
 
   return (
-    <PageContainer title={titleNode}>
-      <div className="space-y-10">
-        {/* Summary */}
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="lg:w-2/3">
-            <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
-              Household net worth
+    <NetWorthHoverProvider>
+      <PageContainer title={titleNode}>
+        <div className="space-y-10">
+          <div className="w-full">
+            <div className="flex flex-col lg:flex-row gap-8">
+              <div className="lg:w-2/3">
+                <NetWorthCard width="full" />
+              </div>
+              <div className="lg:w-1/3 flex flex-col gap-6 lg:gap-10">
+                <div className="flex justify-start lg:hidden">
+                  <SegmentedTabs
+                    size="xs"
+                    value={summaryTab}
+                    onChange={(v) => setSummaryTab(v)}
+                    options={[
+                      { label: "Assets", value: "assets" },
+                      { label: "Liabilities", value: "liabilities" },
+                    ]}
+                  />
+                </div>
+                <div className={`${summaryTab === "assets" ? "block" : "hidden"} lg:block`}>
+                  <AssetsCard width="full" />
+                </div>
+                <div className={`${summaryTab === "liabilities" ? "block" : "hidden"} lg:block`}>
+                  <LiabilitiesCard width="full" />
+                </div>
+              </div>
             </div>
-            <div className="mt-2 text-[44px] md:text-[56px] font-medium tracking-tight text-[var(--color-fg)] tabular-nums leading-none">
-              {formatCurrency(netWorth)}
-            </div>
-            <p className="mt-3 text-xs text-[var(--color-muted)] max-w-md">
-              Combined across every member of {household?.name ?? "this household"}.
-            </p>
           </div>
-          <div className="lg:w-1/3 grid grid-cols-2 gap-6">
-            <div>
-              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                Assets
-              </div>
-              <div className="mt-2 text-xl font-semibold text-[var(--color-fg)] tabular-nums">
-                {formatCurrency(totals.assets)}
-              </div>
+
+          <div className="pt-4">
+            <div className="mb-6 px-1">
+              <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
             </div>
-            <div>
-              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                Liabilities
-              </div>
-              <div className="mt-2 text-xl font-semibold text-[var(--color-fg)] tabular-nums">
-                {formatCurrency(totals.liabilities)}
-              </div>
+
+            <div className="overflow-hidden">
+              {categorized.cash.length > 0 && (
+                <>
+                  <CategoryHeader
+                    title="Cash & Checking"
+                    total={categorized.cash.reduce((s, a) => s + a.balance, 0)}
+                  />
+                  {categorized.cash.map((a) => (
+                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                  ))}
+                </>
+              )}
+              {categorized.investments.length > 0 && (
+                <>
+                  <CategoryHeader
+                    title="Investments"
+                    total={categorized.investments.reduce((s, a) => s + a.balance, 0)}
+                  />
+                  {categorized.investments.map((a) => (
+                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                  ))}
+                </>
+              )}
+              {categorized.credit.length > 0 && (
+                <>
+                  <CategoryHeader
+                    title="Credit Cards"
+                    total={categorized.credit.reduce((s, a) => s + a.balance, 0)}
+                  />
+                  {categorized.credit.map((a) => (
+                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                  ))}
+                </>
+              )}
+              {categorized.loans.length > 0 && (
+                <>
+                  <CategoryHeader
+                    title="Loans & Mortgages"
+                    total={categorized.loans.reduce((s, a) => s + a.balance, 0)}
+                  />
+                  {categorized.loans.map((a) => (
+                    <AccountRow key={a.id} account={a} institutionMap={institutionMap} />
+                  ))}
+                </>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Accounts list */}
-        <div className="pt-4">
-          <div className="mb-6 px-1">
-            <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
-          </div>
-
-          <div className="overflow-hidden">
-            {categorized.cash.length > 0 && (
-              <>
-                <CategoryHeader
-                  title="Cash & Checking"
-                  total={categorized.cash.reduce((s, a) => s + (a.balances?.current || 0), 0)}
-                />
-                {categorized.cash.map((a) => (
-                  <AccountRow key={a.id} account={a} />
-                ))}
-              </>
-            )}
-            {categorized.investments.length > 0 && (
-              <>
-                <CategoryHeader
-                  title="Investments"
-                  total={categorized.investments.reduce((s, a) => s + (a.balances?.current || 0), 0)}
-                />
-                {categorized.investments.map((a) => (
-                  <AccountRow key={a.id} account={a} />
-                ))}
-              </>
-            )}
-            {categorized.credit.length > 0 && (
-              <>
-                <CategoryHeader
-                  title="Credit Cards"
-                  total={categorized.credit.reduce((s, a) => s + (a.balances?.current || 0), 0)}
-                />
-                {categorized.credit.map((a) => (
-                  <AccountRow key={a.id} account={a} />
-                ))}
-              </>
-            )}
-            {categorized.loans.length > 0 && (
-              <>
-                <CategoryHeader
-                  title="Loans & Mortgages"
-                  total={categorized.loans.reduce((s, a) => s + (a.balances?.current || 0), 0)}
-                />
-                {categorized.loans.map((a) => (
-                  <AccountRow key={a.id} account={a} />
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </PageContainer>
+      </PageContainer>
+    </NetWorthHoverProvider>
   );
 }

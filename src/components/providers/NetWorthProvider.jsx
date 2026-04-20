@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
 
-const NetWorthContext = createContext();
+export const NetWorthContext = createContext();
 
 export function NetWorthProvider({ children }) {
   const { user } = useUser();

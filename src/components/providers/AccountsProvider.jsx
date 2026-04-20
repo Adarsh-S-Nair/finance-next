@@ -3,9 +3,9 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
-import { isLiabilityAccount } from '../../lib/accountUtils';
+import { transformAccountsData, computeAccountTotals } from '../../lib/accountsTransform';
 
-const AccountsContext = createContext();
+export const AccountsContext = createContext();
 
 export function AccountsProvider({ children }) {
   const { user } = useUser();
@@ -14,47 +14,6 @@ export function AccountsProvider({ children }) {
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState(null);
   const [lastFetched, setLastFetched] = useState(null);
-
-  // Transform database accounts to group by institution
-  const transformAccountsData = (dbAccounts) => {
-    const institutionsMap = {};
-
-    dbAccounts.forEach(account => {
-      const institutionId = account.institution_id;
-      const institutionName = account.institutions?.name || 'Unknown Bank';
-      
-      // Create institution entry if it doesn't exist
-      if (!institutionsMap[institutionId]) {
-        institutionsMap[institutionId] = {
-          id: institutionId,
-          name: institutionName,
-          logo: account.institutions?.logo,
-          primaryColor: account.institutions?.primary_color,
-          url: account.institutions?.url,
-          plaidItemId: account.plaid_item_id,
-          accounts: []
-        };
-      }
-
-      const accountData = {
-        id: account.id,
-        name: account.name,
-        type: account.subtype || account.type,
-        balance: account.balances?.current || 0,
-        bank: institutionName,
-        mask: account.mask,
-        institutionId: account.institution_id,
-        itemId: account.item_id,
-        accountId: account.account_id,
-        createdAt: account.created_at
-      };
-
-      institutionsMap[institutionId].accounts.push(accountData);
-    });
-
-    // Convert to array and sort by institution name
-    return Object.values(institutionsMap).sort((a, b) => a.name.localeCompare(b.name));
-  };
 
   // Fetch accounts from the database
   const fetchAccounts = async (forceRefresh = false) => {
@@ -167,19 +126,7 @@ export function AccountsProvider({ children }) {
 
   // Get all accounts as a flat array
   const allAccounts = accounts.flatMap(institution => institution.accounts);
-
-  // Assets: positive balance accounts that are NOT liability types
-  const totalAssets = allAccounts
-    .filter(account => account.balance > 0 && !isLiabilityAccount(account))
-    .reduce((sum, account) => sum + account.balance, 0);
-  
-  // Liabilities: negative balance accounts OR liability type accounts (regardless of balance)
-  const totalLiabilities = allAccounts
-    .filter(account => account.balance < 0 || isLiabilityAccount(account))
-    .reduce((sum, account) => sum + Math.abs(account.balance), 0);
-
-  // Net Worth = Assets - Liabilities
-  const totalBalance = totalAssets - totalLiabilities;
+  const { totalAssets, totalLiabilities, totalBalance } = computeAccountTotals(allAccounts);
 
   const value = {
     accounts,

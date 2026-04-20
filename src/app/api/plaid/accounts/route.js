@@ -1,12 +1,18 @@
 import { getAccounts } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { resolveScope } from '../../../../lib/api/scope';
 
 export async function GET(request) {
   try {
     const userId = requireVerifiedUserId(request);
 
-    // Get user's accounts from database
+    const scope = await resolveScope(request, userId);
+    if (scope instanceof Response) return scope;
+
+    // Personal scope: just the caller. Household scope: every member of the
+    // household. Per-account sharing opt-in is a follow-up — for now every
+    // member account is visible household-wide.
     const { data: accounts, error } = await supabaseAdmin
       .from('accounts')
       .select(`
@@ -25,7 +31,7 @@ export async function GET(request) {
           access_token
         )
       `)
-      .eq('user_id', userId)
+      .in('user_id', scope.userIds)
       .order('created_at', { ascending: false });
 
     if (error) {

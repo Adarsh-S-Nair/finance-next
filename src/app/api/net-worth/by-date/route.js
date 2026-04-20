@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { requireVerifiedUserId } from '../../../../lib/api/auth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
+import { resolveScope } from '../../../../lib/api/scope';
 
 function toISODateString(date) {
   return date.toISOString().split('T')[0];
@@ -78,10 +79,13 @@ export async function GET(request) {
     const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365;
     const minimal = (searchParams.get('minimal') || '0') === '1';
 
+    const scope = await resolveScope(request, userId);
+    if (scope instanceof Response) return scope;
+
     const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, name, type, subtype, balances')
-      .eq('user_id', userId);
+      .in('user_id', scope.userIds);
 
     if (accountsError) {
       console.error('Error fetching accounts:', accountsError);
