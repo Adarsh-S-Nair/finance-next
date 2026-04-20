@@ -9,8 +9,11 @@ import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useUser } from "../../../components/providers/UserProvider";
+import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
+import { PiBankFill } from "react-icons/pi";
+import { formatAccountSubtype } from "../../../lib/accountSubtype";
 
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
@@ -379,6 +382,7 @@ const FilterListView = ({
     <FilterRow label="Amount" value={summaries.amount.label} isActive={summaries.amount.active} onClick={() => onSelectFilter('amount')} />
     <FilterRow label="Date" value={summaries.date.label} isActive={summaries.date.active} onClick={() => onSelectFilter('date')} />
     <FilterRow label="Categories" value={summaries.categories.label} isActive={summaries.categories.active} onClick={() => onSelectFilter('categories')} />
+    <FilterRow label="Account" value={summaries.account.label} isActive={summaries.account.active} onClick={() => onSelectFilter('account')} />
   </div>
 );
 
@@ -571,8 +575,104 @@ const CategoryPickerView = ({
   );
 };
 
+// ─── Account picker ─────────────────────────────────────────────────
+const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter((a) => {
+      const institution = institutionMap[a.institutionId];
+      const haystack = [
+        a.name,
+        a.type,
+        a.mask,
+        institution?.name,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [accounts, institutionMap, search]);
+
+  return (
+    <div>
+      {accounts.length > 6 && (
+        <div className="pb-1">
+          <div className="relative">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
+            <input
+              type="text"
+              placeholder="Search accounts"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className={accounts.length > 6 ? "-mx-5" : ""}>
+        <OptionRow
+          label="All accounts"
+          selected={value === 'all'}
+          onClick={() => onChange('all')}
+        />
+        {filtered.map((account) => {
+          const institution = institutionMap[account.institutionId];
+          const selected = value === account.id;
+          const subtype = formatAccountSubtype(account.type);
+          return (
+            <button
+              key={account.id}
+              type="button"
+              onClick={() => onChange(account.id)}
+              className="flex items-center justify-between w-full px-5 py-3 text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
+                  {institution?.logo ? (
+                    <img
+                      src={institution.logo}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full items-center justify-center ${institution?.logo ? 'hidden' : 'flex'}`}>
+                    <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+                  </div>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm text-[var(--color-fg)] truncate">{account.name}</span>
+                  <div className="flex items-center gap-1 text-xs text-[var(--color-muted)]">
+                    {subtype && <span className="truncate">{subtype}</span>}
+                    {subtype && account.mask && <span className="opacity-40">·</span>}
+                    {account.mask && <span className="font-mono">•••• {account.mask}</span>}
+                  </div>
+                </div>
+              </div>
+              {selected && (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0 ml-3">
+                  <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="py-8 text-center text-sm text-[var(--color-muted)]">No accounts found</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function TransactionsContent() {
   const { user, profile } = useUser();
+  const { allAccounts, accounts: institutions } = useAccounts();
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -629,6 +729,15 @@ function TransactionsContent() {
   const [transactionStatus, setTransactionStatus] = useState(() =>
     searchParams.get('status') || 'all'
   );
+  const [selectedAccountId, setSelectedAccountId] = useState(() =>
+    searchParams.get('accountId') || 'all'
+  );
+
+  const institutionMapForFilter = useMemo(() => {
+    const map = {};
+    (institutions || []).forEach((inst) => { map[inst.id] = inst; });
+    return map;
+  }, [institutions]);
 
   // Sync state changes to URL
   useEffect(() => {
@@ -641,6 +750,7 @@ function TransactionsContent() {
     if (amountRange.max) params.set('maxAmount', amountRange.max);
     if (selectedGroupIds.length > 0) params.set('groupIds', selectedGroupIds.join(','));
     if (selectedCategoryIds.length > 0) params.set('categoryIds', selectedCategoryIds.join(','));
+    if (selectedAccountId !== 'all') params.set('accountId', selectedAccountId);
 
     if (dateRange !== 'all') {
       params.set('dateRange', dateRange);
@@ -666,6 +776,7 @@ function TransactionsContent() {
     customDateRange,
     selectedGroupIds,
     selectedCategoryIds,
+    selectedAccountId,
     pathname,
     router,
     searchParams
@@ -724,6 +835,10 @@ function TransactionsContent() {
     }
     if (selectedCategoryIds.length > 0) {
       params.append('categoryIds', selectedCategoryIds.join(','));
+    }
+
+    if (selectedAccountId && selectedAccountId !== 'all') {
+      params.append('accountId', selectedAccountId);
     }
 
     // Date filtering
@@ -941,7 +1056,7 @@ function TransactionsContent() {
     return () => {
       if (initialAbortRef.current) initialAbortRef.current.abort();
     };
-  }, [user?.id, debouncedSearchQuery, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds]); // Re-fetch when ANY filter changes
+  }, [user?.id, debouncedSearchQuery, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, selectedAccountId]); // Re-fetch when ANY filter changes
 
   // Debounce search query with transition for non-blocking updates
   useEffect(() => {
@@ -995,6 +1110,7 @@ function TransactionsContent() {
     if (dateRange !== 'all') count++;
     if (transactionType !== 'all') count++;
     if (transactionStatus !== 'all') count++;
+    if (selectedAccountId !== 'all') count++;
     return count;
   };
 
@@ -1025,14 +1141,21 @@ function TransactionsContent() {
 
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+    let accountLabel = 'All';
+    if (selectedAccountId !== 'all') {
+      const match = (allAccounts || []).find(a => a.id === selectedAccountId);
+      accountLabel = match?.name || '1 selected';
+    }
+
     return {
       type: { label: transactionType === 'all' ? 'All' : cap(transactionType), active: transactionType !== 'all' },
       status: { label: transactionStatus === 'all' ? 'All' : (transactionStatus === 'attention' ? 'Needs attention' : cap(transactionStatus)), active: transactionStatus !== 'all' },
       amount: { label: amountLabel, active: amountLabel !== 'Any' },
       date: { label: dateLabel, active: dateRange !== 'all' },
       categories: { label: categoryLabel, active: totalCategorySelections > 0 },
+      account: { label: accountLabel, active: selectedAccountId !== 'all' },
     };
-  }, [transactionType, transactionStatus, amountRange, dateRange, selectedGroupIds, selectedCategoryIds, categoryGroups]);
+  }, [transactionType, transactionStatus, amountRange, dateRange, selectedGroupIds, selectedCategoryIds, categoryGroups, selectedAccountId, allAccounts]);
 
   // Reset to list view when the filters drawer closes
   const closeFiltersDrawer = useCallback(() => {
@@ -1134,6 +1257,20 @@ function TransactionsContent() {
         />
       ),
     },
+    {
+      id: 'account',
+      title: 'Account',
+      showBackButton: true,
+      noPadding: true,
+      content: (
+        <AccountPickerView
+          accounts={allAccounts || []}
+          institutionMap={institutionMapForFilter}
+          value={selectedAccountId}
+          onChange={setSelectedAccountId}
+        />
+      ),
+    },
   ];
 
   // Clear all filters
@@ -1145,6 +1282,7 @@ function TransactionsContent() {
     setCustomDateRange({ start: '', end: '' });
     setTransactionType('all');
     setTransactionStatus('all');
+    setSelectedAccountId('all');
   };
 
   // Toggle group selection

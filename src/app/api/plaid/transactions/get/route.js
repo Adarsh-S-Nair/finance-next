@@ -24,6 +24,7 @@ export async function GET(request) {
     const maxAmount = searchParams.get('maxAmount');
     const groupIds = searchParams.get('groupIds'); // comma-separated group IDs
     const categoryIds = searchParams.get('categoryIds'); // comma-separated category IDs
+    const accountId = searchParams.get('accountId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
@@ -141,6 +142,12 @@ export async function GET(request) {
       .from('transactions')
       .select(finalSelectFragment)
       .eq('accounts.user_id', userId);
+
+    // Scope to a single account when provided (still gated by the
+    // accounts.user_id match above, so the account must belong to the user)
+    if (accountId) {
+      query = query.eq('account_id', accountId);
+    }
 
     // Apply search filter if search query is provided
     if (search && search.trim().length > 0) {

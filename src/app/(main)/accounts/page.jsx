@@ -478,6 +478,14 @@ export default function AccountsPage() {
           <AccountDetails
             account={selectedAccount}
             institution={selectedAccount ? institutionMap[selectedAccount.institutionId] : null}
+            onViewTransactions={
+              selectedAccount
+                ? () => {
+                    setIsAccountDrawerOpen(false);
+                    router.push(`/transactions?accountId=${selectedAccount.id}`);
+                  }
+                : undefined
+            }
           />
         </Drawer>
       </PageContainer>

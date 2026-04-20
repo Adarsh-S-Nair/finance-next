@@ -24,6 +24,13 @@ const formatDate = (value) => {
   }
 };
 
+const formatUtilizationPct = (frac) => {
+  const pct = frac * 100;
+  if (pct === 0) return "0%";
+  if (pct >= 10) return `${Math.round(pct)}%`;
+  return `${pct.toFixed(1)}%`;
+};
+
 const isCreditAccount = (type) => {
   const t = (type || "").toLowerCase();
   return t.includes("credit");
@@ -32,7 +39,6 @@ const isCreditAccount = (type) => {
 function CreditUtilization({ balance, limit, available, currency }) {
   const used = Math.max(balance || 0, 0);
   const utilization = limit > 0 ? Math.min(used / limit, 1) : 0;
-  const pct = Math.round(utilization * 100);
   const availableCredit = available != null ? available : Math.max(limit - used, 0);
 
   const barColor =
@@ -54,14 +60,14 @@ function CreditUtilization({ balance, limit, available, currency }) {
           </span>
         </div>
         <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-          {pct}%
+          {formatUtilizationPct(utilization)}
         </span>
       </div>
       <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
         <motion.div
           className={clsx("h-full rounded-full", barColor)}
           initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
+          animate={{ width: `${utilization * 100}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
@@ -72,7 +78,7 @@ function CreditUtilization({ balance, limit, available, currency }) {
   );
 }
 
-export default function AccountDetails({ account, institution }) {
+export default function AccountDetails({ account, institution, onViewTransactions }) {
   if (!account) return null;
 
   const subtypeLabel = formatAccountSubtype(account.type);
@@ -164,9 +170,20 @@ export default function AccountDetails({ account, institution }) {
               {institution?.name && (
                 <div className="flex items-center justify-between py-2">
                   <span className="card-header">Institution</span>
-                  <span className="text-sm text-[var(--color-fg)] truncate text-right pl-4">
-                    {institution.name}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
+                    {institution.logo && (
+                      <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
+                        <img
+                          src={institution.logo}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <span className="text-sm text-[var(--color-fg)] truncate text-right">
+                      {institution.name}
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -176,6 +193,20 @@ export default function AccountDetails({ account, institution }) {
                   <span className="text-sm text-[var(--color-fg)]">{addedOn}</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Actions */}
+          {onViewTransactions && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onViewTransactions}
+                className="flex items-center justify-between w-full px-4 py-3 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]/60 transition-colors text-sm font-medium text-[var(--color-fg)]"
+              >
+                <span>View Transactions</span>
+                <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+              </button>
             </div>
           )}
         </div>

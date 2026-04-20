@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import clsx from "clsx";
+import { useRouter } from "next/navigation";
 import { PiBankFill } from "react-icons/pi";
 import PageContainer from "../../../../../components/layout/PageContainer";
 import NetWorthCard from "../../../../../components/dashboard/NetWorthCard";
@@ -12,6 +13,7 @@ import {
 import { NetWorthHoverProvider } from "../../../../../components/dashboard/NetWorthHoverContext";
 import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
 import Tooltip from "../../../../../components/ui/Tooltip";
+import { useUser } from "../../../../../components/providers/UserProvider";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 import HouseholdMemberFilter from "../../../../../components/households/HouseholdMemberFilter";
@@ -158,6 +160,8 @@ function categorizeAccount(account) {
 }
 
 export default function HouseholdAccountsPage() {
+  const { user } = useUser();
+  const router = useRouter();
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
   const { memberByUserId, excludedMemberIds } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
@@ -342,6 +346,14 @@ export default function HouseholdAccountsPage() {
           <AccountDetails
             account={selectedAccount}
             institution={selectedAccount ? institutionMap[selectedAccount.institutionId] : null}
+            onViewTransactions={
+              selectedAccount && user?.id && selectedAccount.userId === user.id
+                ? () => {
+                    setIsAccountDrawerOpen(false);
+                    router.push(`/transactions?accountId=${selectedAccount.id}`);
+                  }
+                : undefined
+            }
           />
         </Drawer>
       </PageContainer>
