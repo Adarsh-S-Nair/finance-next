@@ -15,6 +15,8 @@ import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHov
 import SegmentedTabs from "../../../components/ui/SegmentedTabs";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
+import Drawer from "../../../components/ui/Drawer";
+import AccountDetails from "../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 
 // Helper to format currency
@@ -35,15 +37,16 @@ const capitalizeWords = (str) => {
 };
 
 // Component for rendering account rows within the unified list
-const AccountRow = ({ account, institutionMap, showDivider }) => {
+const AccountRow = ({ account, institutionMap, onClick, showDivider }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
 
   return (
     <div
+      onClick={() => onClick?.(account)}
       className={`
         group flex items-center justify-between px-5 py-3.5
         hover:bg-[var(--color-card-highlight)] transition-all duration-200
-        rounded-lg
+        rounded-lg cursor-pointer
       `}
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
@@ -120,6 +123,13 @@ export default function AccountsPage() {
 
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+
+  const handleAccountClick = (account) => {
+    setSelectedAccount(account);
+    setIsAccountDrawerOpen(true);
+  };
 
   const handleConnectAccount = () => {
     if (!isPro && accounts && accounts.length >= 1) {
@@ -351,6 +361,7 @@ export default function AccountsPage() {
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
+                          onClick={handleAccountClick}
                           showDivider={index !== categorizedAccounts.cash.length - 1 ||
                             categorizedAccounts.investments.length > 0 ||
                             categorizedAccounts.credit.length > 0 ||
@@ -374,6 +385,7 @@ export default function AccountsPage() {
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
+                          onClick={handleAccountClick}
                           showDivider={index !== categorizedAccounts.investments.length - 1 ||
                             categorizedAccounts.credit.length > 0 ||
                             categorizedAccounts.loans.length > 0}
@@ -396,6 +408,7 @@ export default function AccountsPage() {
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
+                          onClick={handleAccountClick}
                           showDivider={index !== categorizedAccounts.credit.length - 1 ||
                             categorizedAccounts.loans.length > 0}
                         />
@@ -419,6 +432,7 @@ export default function AccountsPage() {
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
+                          onClick={handleAccountClick}
                           showDivider={index !== categorizedAccounts.loans.length - 1}
                         />
                       ))}
@@ -455,6 +469,17 @@ export default function AccountsPage() {
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
         />
+        <Drawer
+          isOpen={isAccountDrawerOpen}
+          onClose={() => setIsAccountDrawerOpen(false)}
+          title="Account Details"
+          size="md"
+        >
+          <AccountDetails
+            account={selectedAccount}
+            institution={selectedAccount ? institutionMap[selectedAccount.institutionId] : null}
+          />
+        </Drawer>
       </PageContainer>
     </NetWorthHoverProvider>
   );

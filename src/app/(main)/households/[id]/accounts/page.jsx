@@ -15,6 +15,8 @@ import Tooltip from "../../../../../components/ui/Tooltip";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 import HouseholdMemberFilter from "../../../../../components/households/HouseholdMemberFilter";
+import Drawer from "../../../../../components/ui/Drawer";
+import AccountDetails from "../../../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../../../lib/accountSubtype";
 
 const formatCurrency = (amount) =>
@@ -87,10 +89,13 @@ function InstitutionLogo({ institution }) {
   );
 }
 
-function AccountRow({ account, institutionMap, owner }) {
+function AccountRow({ account, institutionMap, owner, onClick }) {
   const institution = institutionMap[account.institutionId] || { name: "Unknown", logo: null };
   return (
-    <div className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg">
+    <div
+      onClick={() => onClick?.(account)}
+      className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg cursor-pointer"
+    >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         <div className="relative">
           <InstitutionLogo institution={institution} />
@@ -156,6 +161,13 @@ export default function HouseholdAccountsPage() {
   const { accounts, allAccounts, loading, initialized, error } = useAccounts();
   const { memberByUserId, excludedMemberIds } = useHouseholdMeta();
   const [summaryTab, setSummaryTab] = useState("assets");
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+
+  const handleAccountClick = (account) => {
+    setSelectedAccount(account);
+    setIsAccountDrawerOpen(true);
+  };
 
   const titleNode = "Accounts";
 
@@ -262,6 +274,7 @@ export default function HouseholdAccountsPage() {
                       account={a}
                       institutionMap={institutionMap}
                       owner={memberByUserId.get(a.userId)}
+                      onClick={handleAccountClick}
                     />
                   ))}
                 </>
@@ -278,6 +291,7 @@ export default function HouseholdAccountsPage() {
                       account={a}
                       institutionMap={institutionMap}
                       owner={memberByUserId.get(a.userId)}
+                      onClick={handleAccountClick}
                     />
                   ))}
                 </>
@@ -294,6 +308,7 @@ export default function HouseholdAccountsPage() {
                       account={a}
                       institutionMap={institutionMap}
                       owner={memberByUserId.get(a.userId)}
+                      onClick={handleAccountClick}
                     />
                   ))}
                 </>
@@ -310,6 +325,7 @@ export default function HouseholdAccountsPage() {
                       account={a}
                       institutionMap={institutionMap}
                       owner={memberByUserId.get(a.userId)}
+                      onClick={handleAccountClick}
                     />
                   ))}
                 </>
@@ -317,6 +333,17 @@ export default function HouseholdAccountsPage() {
             </div>
           </div>
         </div>
+        <Drawer
+          isOpen={isAccountDrawerOpen}
+          onClose={() => setIsAccountDrawerOpen(false)}
+          title="Account Details"
+          size="md"
+        >
+          <AccountDetails
+            account={selectedAccount}
+            institution={selectedAccount ? institutionMap[selectedAccount.institutionId] : null}
+          />
+        </Drawer>
       </PageContainer>
     </NetWorthHoverProvider>
   );
