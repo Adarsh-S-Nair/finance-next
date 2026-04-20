@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { FiPlus, FiBell } from "react-icons/fi";
 import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuChevronsUpDown } from "react-icons/lu";
 import PublicRoute from "../components/PublicRoute";
+import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
 import { BRAND } from "../config/brand";
 
 // Real dashboard components — rendered with `mockData` so they skip
@@ -770,14 +771,28 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
    ============================================================ */
 
 export default function Home() {
+  // OAuth sometimes redirects users to `/?code=...` (e.g. if Supabase's
+  // Site URL is used as the fallback). In that case, rendering the landing
+  // page for even a frame produces a jarring flash between Google and the
+  // auth loading screen. The inline script in RootLayout handles this
+  // synchronously during HTML parsing; this check is a React-side safety
+  // net in case the script is blocked or fails.
+  const [isOAuthReturn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).has("code");
+  });
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    if (code) {
-      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/dashboard`);
-    }
-  }, []);
+    if (!isOAuthReturn) return;
+    const code = new URLSearchParams(window.location.search).get("code");
+    window.location.replace(
+      `/auth/callback/exchange?code=${encodeURIComponent(code)}&next=/dashboard`
+    );
+  }, [isOAuthReturn]);
+
+  if (isOAuthReturn) {
+    return <AuthLoadingScreen />;
+  }
 
   return (
     <PublicRoute>

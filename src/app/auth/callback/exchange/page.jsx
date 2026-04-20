@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BRAND } from "../../../../config/brand";
+import AuthLoadingScreen from "../../../../components/auth/AuthLoadingScreen";
 
 function ExchangeHandler() {
   const router = useRouter();
@@ -111,38 +111,10 @@ function ExchangeHandler() {
 export default function ExchangeCodePage() {
   return (
     <>
-      {/* Force dark bg on html/body to prevent a flash of white before the
-          React tree hydrates. Mirrors the technique used on /auth. */}
-      <style>{`html, body { background: #09090b !important; }`}</style>
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-zinc-950 text-white">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="block h-10 w-10 bg-white"
-            style={{
-              WebkitMaskImage: "url(/logo.svg)",
-              maskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-          <span
-            className="text-sm font-medium tracking-[0.18em] text-white"
-            style={{ fontFamily: "var(--font-outfit)" }}
-          >
-            {BRAND.name.toUpperCase()}
-          </span>
-        </div>
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/15 border-t-white" />
-        <p className="text-sm text-zinc-500">Signing you in…</p>
-        <Suspense>
-          <ExchangeHandler />
-        </Suspense>
-      </div>
+      <AuthLoadingScreen />
+      <Suspense>
+        <ExchangeHandler />
+      </Suspense>
     </>
   );
 }
