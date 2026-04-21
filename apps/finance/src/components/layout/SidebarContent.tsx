@@ -7,8 +7,7 @@ import clsx from "clsx";
 import { LuSettings } from "react-icons/lu";
 import { NAV_GROUPS, type NavItem } from "../nav";
 import { isFeatureEnabled } from "../../lib/tierConfigClient";
-import SidebarSection from "./SidebarSection";
-import SidebarItem from "./SidebarItem";
+import { SidebarSection, SidebarItem } from "@zervo/ui";
 import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
 
 /** Subset of personal nav items that are meaningful in household scope. */

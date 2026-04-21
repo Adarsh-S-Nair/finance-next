@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { GoogleSignInButton } from "@zervo/ui";
 import { createClient } from "@/lib/supabase/client";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
@@ -29,30 +30,7 @@ export default function AuthPage() {
     <div className="relative min-h-screen bg-[var(--color-content-bg)] text-[var(--color-fg)] overflow-hidden">
       <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--color-content-bg)]/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center px-5 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className="block h-10 w-10 bg-[var(--color-fg)]"
-              style={{
-                WebkitMaskImage: "url(/logo.svg)",
-                maskImage: "url(/logo.svg)",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
-            />
-            <span className="flex items-center gap-2">
-              <span className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-fg)]">
-                Zervo
-              </span>
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface-alt)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                Admin
-              </span>
-            </span>
-          </Link>
+          <BrandMark />
         </div>
       </header>
 
