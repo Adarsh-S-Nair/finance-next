@@ -1,5 +1,6 @@
 "use client";
 
+import { LineChart, TimeRangeSelector } from "@zervo/ui";
 /**
  * InvestmentsChart
  *
@@ -11,8 +12,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import LineChart from "../../../components/ui/LineChart";
-import TimeRangeSelector from "../../../components/ui/TimeRangeSelector";
 import { authFetch } from "../../../lib/api/fetch";
 
 function formatCurrency(value) {

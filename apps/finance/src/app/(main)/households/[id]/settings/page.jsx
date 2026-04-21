@@ -9,8 +9,8 @@ import { useUser } from "../../../../../components/providers/UserProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 import { useHouseholds } from "../../../../../components/providers/HouseholdsProvider";
 import { useToast } from "../../../../../components/providers/ToastProvider";
-import ConfirmOverlay from "../../../../../components/ui/ConfirmOverlay";
 import HouseholdInviteModal from "../../../../../components/households/HouseholdInviteModal";
+import { ConfirmOverlay } from "@zervo/ui";
 
 function SectionLabel({ children, action }) {
   return (

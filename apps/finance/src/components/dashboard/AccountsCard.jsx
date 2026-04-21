@@ -3,9 +3,9 @@
 import React from "react";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useRouter } from "next/navigation";
-import ViewAllLink from "../ui/ViewAllLink";
 import { PiBankFill } from "react-icons/pi";
 import { Button, Card } from "@zervo/ui";
+import { ViewAllLink } from "@zervo/ui";
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {

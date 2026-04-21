@@ -7,8 +7,7 @@ import clsx from "clsx";
 import { FiX, FiCopy, FiRefreshCw, FiUserCheck } from "react-icons/fi";
 import { authFetch } from "../../lib/api/fetch";
 import { useToast } from "../providers/ToastProvider";
-import OverlayButton from "../ui/OverlayButton";
-
+import { OverlayButton } from "@zervo/ui";
 type Invitation = {
   id: string;
   code: string;

@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
-import ViewAllLink from "../ui/ViewAllLink";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 import * as Icons from "lucide-react";
+import { ViewAllLink } from "@zervo/ui";
 
 export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp }) {
   const { user, loading: authLoading } = useUser();

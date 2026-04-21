@@ -1,5 +1,5 @@
 import React from 'react';
-import { TOOLTIP_SURFACE_CLASSES } from '@zervo/ui';
+import { TOOLTIP_SURFACE_CLASSES } from './Tooltip';
 
 export default function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
   if (active && payload && payload.length) {
