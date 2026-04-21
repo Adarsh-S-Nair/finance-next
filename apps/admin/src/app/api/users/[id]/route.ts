@@ -87,7 +87,8 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       message?: string;
     };
     if (!res.ok) {
-      const detail = body?.error || body?.message || `finance returned ${res.status}`;
+      const parts = [body?.error, body?.message].filter(Boolean);
+      const detail = parts.length ? parts.join(" — ") : `finance returned ${res.status}`;
       return NextResponse.json(
         { error: `[finance ${res.status}] ${detail}` },
         { status: res.status },

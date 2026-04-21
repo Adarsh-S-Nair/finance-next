@@ -77,8 +77,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       message?: string;
     };
     if (!res.ok) {
-      const detail =
-        respBody?.error || respBody?.message || `finance returned ${res.status}`;
+      const parts = [respBody?.error, respBody?.message].filter(Boolean);
+      const detail = parts.length ? parts.join(" — ") : `finance returned ${res.status}`;
       return NextResponse.json(
         { error: `[finance ${res.status}] ${detail}` },
         { status: res.status },
