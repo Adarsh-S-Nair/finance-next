@@ -37,17 +37,19 @@ if [ "$VERCEL_ENV" = "production" ]; then
   fi
   echo "[ignore-build] comparing against previous prod SHA: ${BASE:0:8}"
 else
-  # Preview deploy. Fetch main if we don't have it (Vercel does a shallow clone).
-  git fetch origin main --depth=50 --quiet 2>/dev/null || true
-  if git rev-parse --verify origin/main >/dev/null 2>&1; then
-    BASE="origin/main"
-  elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    BASE="HEAD~1"
-  else
-    echo "[ignore-build] can't find a base to diff against — building"
+  # Preview deploy. We need to compare against main's tip — NOT HEAD~1, because
+  # the current commit might be mid-PR and HEAD~1 would only show the last
+  # commit's diff, not the whole PR's diff vs main. If we can't reach main
+  # for any reason, fail-open (build) — a correct build is always safer than
+  # an incorrect skip.
+  echo "[ignore-build] fetching origin/main..."
+  git fetch origin main --depth=100 2>&1 | head -3 || true
+  if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+    echo "[ignore-build] origin/main not available after fetch — fail-open, building"
     exit 1
   fi
-  echo "[ignore-build] comparing against: $BASE"
+  BASE="origin/main"
+  echo "[ignore-build] comparing against: $BASE (${BASE:0:8})"
 fi
 
 # shellcheck disable=SC2086
