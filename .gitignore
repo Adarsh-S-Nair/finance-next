@@ -53,3 +53,13 @@ docs/pricing.md
 
 # Turbo cache (reserved for future use)
 .turbo/
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/crash.log
+infra/crash.*.log
+infra/*.tfvars
+!infra/*.tfvars.example

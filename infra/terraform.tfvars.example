@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in the secrets.
+# Get the API token from https://vercel.com/account/tokens.
+# Get the Supabase values from `vercel env pull` in apps/finance, or from the
+# Supabase dashboard.
+
+vercel_api_token          = "vercel_..."
+supabase_url              = "https://xxxxx.supabase.co"
+supabase_anon_key         = "eyJhbGci..."
+supabase_service_role_key = "eyJhbGci..."
