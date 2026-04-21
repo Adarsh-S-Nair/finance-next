@@ -11,8 +11,7 @@ import { authFetch } from "../../lib/api/fetch";
 import { capitalizeFirstOnly } from "../../lib/utils/formatName";
 import { upsertUserProfile } from "../../lib/user/profile";
 import { supabase } from "../../lib/supabase/client";
-import { GoogleSignInButton } from "../auth/LoginForm";
-import { Button } from "@zervo/ui";
+import { Button, GoogleSignInButton } from "@zervo/ui";
 
 // Steps: 0=Name, 1=Email+Password, 2=Welcome, 3=Connecting, 4=Connected
 // In production (non-mock): steps 0+1 are replaced by Google OAuth gate; steps 2=Welcome, 3=Connecting, 4=Connected

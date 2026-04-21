@@ -11,12 +11,15 @@
 #   terraform import vercel_project.admin   prj_0iPC1CHOb7puvOWTunkvRIAo242R
 # -----------------------------------------------------------------------------
 
-# Only redeploy when files this app actually cares about changed. Compares
-# against the last successful deploy's SHA (VERCEL_GIT_PREVIOUS_SHA); falls
-# back to HEAD^ if there's no previous deploy. Exit 0 = skip, exit 1 = deploy.
+# Only redeploy when files this app actually cares about changed. The script
+# handles the production-vs-preview branching (compare against previous prod
+# SHA vs origin/main tip), since a one-liner ignore_command can't do both
+# cleanly. Exit 0 = skip, exit 1 = build.
 locals {
-  finance_ignore = "git diff --quiet $${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
-  admin_ignore   = "git diff --quiet $${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  # Vercel runs the ignore command from the project's Root Directory
+  # (apps/finance or apps/admin), so we have to cd up to the repo root first.
+  finance_ignore = "cd ../.. && bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  admin_ignore   = "cd ../.. && bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
 }
 
 resource "vercel_project" "finance" {
