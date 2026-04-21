@@ -278,8 +278,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
             </div>
 
             <div className="flex items-center gap-3">
-              {activeIndex !== null && currentData?.dateString && (
-                <span className="text-[11px] font-medium text-[var(--color-muted)] animate-fade-in">
+              {currentData?.dateString && (
+                <span className="text-[11px] font-medium text-[var(--color-muted)]">
                   {currentData.dateString}
                 </span>
               )}
@@ -392,8 +392,8 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
                   transition: 'opacity 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.8, 0.64, 1), translate 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
                 }}
               >
-                <div className="rounded-lg bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-2">
+                <div className="rounded-md bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-floating-muted)] mb-2">
                     {tooltipData.date}
                   </p>
                   <ul className="space-y-2">
@@ -415,15 +415,15 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
                             />
                           )}
                         </div>
-                        <span className="text-[12px] text-[var(--color-fg)] truncate flex-1">{tx.merchant}</span>
-                        <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                        <span className="text-[12px] text-[var(--color-floating-fg)] truncate flex-1">{tx.merchant}</span>
+                        <span className="text-[12px] text-[var(--color-floating-muted)] tabular-nums flex-shrink-0">
                           {formatCurrency(tx.amount)}
                         </span>
                       </li>
                     ))}
                   </ul>
                   {tooltipData.moreCount > 0 && (
-                    <p className="text-[10px] text-[var(--color-muted)] mt-2">
+                    <p className="text-[10px] text-[var(--color-floating-muted)] mt-2">
                       +{tooltipData.moreCount} more
                     </p>
                   )}
