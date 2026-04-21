@@ -1,0 +1,135 @@
+:root {
+  /* Clean Light Mode */
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-fg: #18181b;
+  --color-muted: #52525b;
+  --color-border: #e4e4e7;
+  --color-ring: #a1a1aa;
+
+  --color-primary: #18181b;
+  --color-primary-hover: #27272a;
+  --color-on-primary: #ffffff;
+
+  /* Admin uses a distinct accent (slate blue) so it's visually identifiable */
+  --color-accent: #1e40af;
+  --color-accent-hover: #1e3a8a;
+  --color-on-accent: #ffffff;
+
+  --color-success: #059669;
+  --color-danger: #b91c1c;
+  --color-on-danger: #ffffff;
+
+  --color-input-bg: #f1f1f1;
+  --color-input-fg: #18181b;
+  --color-input-placeholder: #a1a1aa;
+
+  --color-surface-alt: #f1f1f1;
+  --color-dropdown-bg: var(--color-surface-alt);
+
+  --color-floating-bg: #18181b;
+  --color-floating-fg: #fafafa;
+  --color-floating-muted: #a1a1aa;
+  --color-floating-border: color-mix(in oklab, #ffffff, transparent 90%);
+
+  --color-content-bg: #fafafa;
+  --color-sidebar-bg: var(--color-content-bg);
+  --color-sidebar-active: var(--color-surface-alt);
+  --color-card-highlight: #f4f4f5;
+
+  --glass-bg: #ffffff;
+  --glass-border: #e4e4e7;
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  --color-shadow: transparent;
+  --color-card-border: #e4e4e7;
+}
+
+.dark {
+  --color-bg: #0d0d0d;
+  --color-surface: #0d0d0d;
+  --color-fg: #e4e4e7;
+  --color-muted: #a1a1aa;
+  --color-border: #3f3f46;
+  --color-ring: #71717a;
+
+  --color-primary: #fafafa;
+  --color-primary-hover: #e4e4e7;
+  --color-on-primary: #09090b;
+
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-on-accent: #ffffff;
+
+  --color-success: #34d399;
+  --color-danger: #f87171;
+  --color-on-danger: #ffffff;
+
+  --color-input-bg: #181818;
+  --color-input-fg: #e4e4e7;
+  --color-input-placeholder: #71717a;
+
+  --color-surface-alt: #181818;
+  --color-dropdown-bg: var(--color-surface-alt);
+
+  --color-floating-bg: #fafafa;
+  --color-floating-fg: #18181b;
+  --color-floating-muted: #52525b;
+  --color-floating-border: color-mix(in oklab, #000000, transparent 88%);
+
+  --color-content-bg: #0d0d0d;
+  --color-sidebar-bg: var(--color-content-bg);
+  --color-sidebar-active: #1a1a1a;
+  --color-card-highlight: #181818;
+
+  --glass-bg: #111111;
+  --glass-border: #27272a;
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --color-shadow: transparent;
+  --color-card-border: #27272a;
+}
+
+html,
+body {
+  background-color: var(--color-content-bg);
+  color: var(--color-fg);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-width: 100%;
+}
+
+:where(button, [role="button"], a):focus-visible {
+  outline: 1px solid var(--color-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover {
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+}
