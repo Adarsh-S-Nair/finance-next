@@ -7,11 +7,12 @@ import clsx from "clsx";
 
 /**
  * Shared surface styles for any floating element — tooltips, context menus,
- * chart popovers. Kept here so they all read as the same "raised card"
- * language across the app.
+ * chart popovers. These use the floating token palette which is intentionally
+ * inverted from the app theme (dark in light mode, light in dark mode) so
+ * overlays read as a distinct layer above the page.
  */
 export const TOOLTIP_SURFACE_CLASSES =
-  "rounded-lg bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)]";
+  "rounded-lg bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)]";
 
 type Side = "top" | "bottom" | "left" | "right";
 
@@ -149,7 +150,7 @@ export default function Tooltip({ content, children, side = "top", delay = 120 }
                 }}
                 className={clsx(
                   TOOLTIP_SURFACE_CLASSES,
-                  "px-2.5 py-1.5 text-xs font-medium text-[var(--color-fg)] max-w-xs",
+                  "px-2.5 py-1.5 text-xs font-medium text-[var(--color-floating-fg)] max-w-xs",
                 )}
               >
                 {content}

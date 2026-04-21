@@ -48,6 +48,13 @@
   --color-surface-alt: #f1f1f1;
   --color-dropdown-bg: var(--color-surface-alt);
 
+  /* Floating overlays (tooltips, context menus) — intentionally inverted
+     from the app theme so they read as a distinct "layer above". */
+  --color-floating-bg: #18181b;
+  --color-floating-fg: #fafafa;
+  --color-floating-muted: #a1a1aa;
+  --color-floating-border: color-mix(in oklab, #ffffff, transparent 90%);
+
   --color-content-bg: #fafafa;
   --color-sidebar-bg: var(--color-content-bg);
   --color-sidebar-active: var(--color-surface-alt);
@@ -131,6 +138,12 @@
 
   --color-surface-alt: #181818;
   --color-dropdown-bg: var(--color-surface-alt);
+
+  /* Floating overlays — inverted from dark theme */
+  --color-floating-bg: #fafafa;
+  --color-floating-fg: #18181b;
+  --color-floating-muted: #52525b;
+  --color-floating-border: color-mix(in oklab, #000000, transparent 88%);
 
   --color-content-bg: #0d0d0d;
   --color-sidebar-bg: var(--color-content-bg);

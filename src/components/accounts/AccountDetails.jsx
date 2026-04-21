@@ -202,10 +202,10 @@ export default function AccountDetails({ account, institution, onViewTransaction
               <button
                 type="button"
                 onClick={onViewTransactions}
-                className="group flex items-center justify-between w-full py-2 -mx-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+                className="group inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
               >
-                <span className="text-sm text-[var(--color-fg)]">View transactions</span>
-                <span className="text-[var(--color-muted)] text-xs opacity-0 group-hover:opacity-100 transition-opacity">&#8250;</span>
+                <span>View all transactions</span>
+                <span className="text-xs leading-none transition-transform group-hover:translate-x-0.5">&rsaquo;</span>
               </button>
             </div>
           )}

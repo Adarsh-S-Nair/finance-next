@@ -20,7 +20,7 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
 
     return (
       <div className={`${TOOLTIP_SURFACE_CLASSES} p-3 text-xs min-w-[140px]`}>
-        <div className="font-medium mb-2 text-[var(--color-fg)]">
+        <div className="font-medium mb-2 text-[var(--color-floating-fg)]">
           {title}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -30,9 +30,9 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
                 className="w-1.5 h-1.5 rounded-full"
                 style={{ backgroundColor: color }}
               />
-              <span className="text-[var(--color-muted)]">Total</span>
+              <span className="text-[var(--color-floating-muted)]">Total</span>
             </div>
-            <span className="font-semibold text-[var(--color-fg)]">
+            <span className="font-semibold text-[var(--color-floating-fg)]">
               {formatCurrency(value)}
             </span>
           </div>
@@ -40,15 +40,15 @@ export default function ChartTooltip({ active, payload, label }: { active?: bool
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full opacity-0" />
-                <span className="text-[var(--color-muted)]">Share</span>
+                <span className="text-[var(--color-floating-muted)]">Share</span>
               </div>
-              <span className="font-semibold text-[var(--color-fg)]">
+              <span className="font-semibold text-[var(--color-floating-fg)]">
                 {data.percentage.toFixed(1)}%
               </span>
             </div>
           )}
           {data.subLabel && (
-            <div className="text-[var(--color-muted)] pl-3">
+            <div className="text-[var(--color-floating-muted)] pl-3">
               {data.subLabel}
             </div>
           )}

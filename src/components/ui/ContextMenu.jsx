@@ -67,8 +67,9 @@ const ContextMenu = ({
         <div
           role="menu"
           className={clsx(
-            "absolute mt-2 w-48 overflow-hidden rounded-lg bg-[var(--color-bg)] shadow-xl z-50",
-            "border border-[color-mix(in_oklab,var(--color-border),transparent_50%)]",
+            "absolute mt-2 w-48 overflow-hidden rounded-lg shadow-xl z-50",
+            "bg-[var(--color-floating-bg)] text-[var(--color-floating-fg)]",
+            "ring-1 ring-[var(--color-floating-border)]",
             align === "right" ? "right-0" : "left-0"
           )}
         >
@@ -123,8 +124,8 @@ const ContextMenuItem = ({
       disabled={disabled}
       className={clsx(
         "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors cursor-pointer",
-        "hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]",
-        "focus:outline-none focus:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]",
+        "hover:bg-[color-mix(in_oklab,var(--color-floating-fg),transparent_86%)]",
+        "focus:outline-none focus:bg-[color-mix(in_oklab,var(--color-floating-fg),transparent_86%)]",
         disabled && "opacity-50 cursor-not-allowed pointer-events-none",
         destructive && "text-[var(--color-danger)] hover:text-[var(--color-danger)]",
         className
@@ -138,7 +139,7 @@ const ContextMenuItem = ({
 };
 
 const ContextMenuSeparator = () => (
-  <div className="h-px bg-[color-mix(in_oklab,var(--color-border),transparent_50%)]" />
+  <div className="h-px bg-[color-mix(in_oklab,var(--color-floating-fg),transparent_90%)]" />
 );
 
 export { ContextMenu, ContextMenuItem, ContextMenuSeparator };
