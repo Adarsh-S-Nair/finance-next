@@ -69,6 +69,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
       id: cat.id,
       label: cat.label,
       amount: cat.total_spent,
+      color: cat.hex_color || 'var(--color-fg)',
       rank: i,
     }));
     const rest = categories.slice(namedCount);
@@ -79,6 +80,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           id: '__other__',
           label: 'Other',
           amount: otherTotal,
+          color: 'var(--color-muted)',
           rank: named.length,
           isOther: true,
         });
@@ -232,8 +234,8 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                   className="h-full rounded-full"
                   style={{
                     width: `${widthPct}%`,
-                    backgroundColor: 'var(--color-fg)',
-                    opacity: isHovered ? 1 : 0.7,
+                    backgroundColor: row.color,
+                    opacity: isHovered ? 1 : 0.85,
                     transition: 'opacity 0.15s ease, width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                 />

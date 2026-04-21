@@ -11,7 +11,6 @@ const ROTATE_INTERVAL = 8000;
 const toneConfig = {
   positive: {
     accent: "bg-emerald-500",
-    // Very subtle tone-tinted background — mostly surface-alt, a hint of the accent
     bg: "color-mix(in srgb, var(--color-surface-alt) 92%, #10b981 8%)",
   },
   negative: {
@@ -97,8 +96,8 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
 
   if (loading) {
     return (
-      <div className="w-full rounded-xl bg-[var(--color-surface-alt)] p-5 relative overflow-hidden">
-        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--color-border)]" />
+      <div className="w-full bg-[var(--color-surface-alt)] p-5 relative">
+        <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-[var(--color-border)]" />
         <div className="pl-3">
           <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)] mb-4" />
           <div className="space-y-2">
@@ -118,11 +117,9 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
   return (
     <div className="w-full">
       <motion.div
-        key={`bg-${current.tone}-${activeIndex}`}
-        initial={{ backgroundColor: "var(--color-surface-alt)" }}
         animate={{ backgroundColor: tone.bg }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="relative rounded-xl p-5 overflow-hidden"
+        transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+        className="relative p-5 overflow-hidden"
       >
         {/* Left accent bar — tone-colored, snappy spring-in */}
         <AnimatePresence mode="wait" initial={false}>
@@ -132,24 +129,24 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
             animate={{ scaleY: 1, opacity: 1 }}
             exit={{ scaleY: 0, opacity: 0 }}
             transition={{
-              scaleY: { duration: 0.28, ease: [0.16, 1.2, 0.3, 1] },
-              opacity: { duration: 0.12, ease: "easeOut" },
+              scaleY: { duration: 0.22, ease: [0.16, 1.4, 0.3, 1] },
+              opacity: { duration: 0.1, ease: "easeOut" },
             }}
-            className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${tone.accent}`}
+            className={`absolute left-0 top-3 bottom-3 w-[3px] ${tone.accent}`}
             style={{ originY: 0.5 }}
           />
         </AnimatePresence>
 
         <div className="pl-3">
           {/* Title row */}
-          <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center justify-between mb-3">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={current.id + activeIndex + "-title"}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.12 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
                 className="card-header"
               >
                 {current.title}
@@ -160,14 +157,14 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
               <div className="flex items-center gap-0.5 -mr-1">
                 <button
                   onClick={goPrev}
-                  className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                  className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
                   aria-label="Previous insight"
                 >
                   <span className="text-sm leading-none">&#8249;</span>
                 </button>
                 <button
                   onClick={goNext}
-                  className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                  className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
                   aria-label="Next insight"
                 >
                   <span className="text-sm leading-none">&#8250;</span>
@@ -182,10 +179,10 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
               <motion.p
                 key={current.id + activeIndex}
                 custom={direction}
-                initial={{ opacity: 0, x: direction * 16 }}
+                initial={{ opacity: 0, x: direction * 24 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -16 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
+                exit={{ opacity: 0, x: direction * -24 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="text-sm font-medium leading-relaxed text-[var(--color-fg)]"
               >
                 {current.message}
@@ -199,7 +196,7 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
               {insights.map((_, i) => (
                 <div
                   key={i}
-                  className={`h-[3px] rounded-full transition-all duration-500 ${
+                  className={`h-[3px] transition-all duration-500 ${
                     i === activeIndex
                       ? "flex-1 bg-[var(--color-fg)]"
                       : "flex-1 bg-[var(--color-fg)]/[0.15]"
