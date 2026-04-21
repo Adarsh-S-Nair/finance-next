@@ -61,7 +61,11 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     fetchData();
   }, [authLoading, user?.id, selectedPeriod, externalData]);
 
-  // Top (MAX_ROWS - 1) named, rest collapsed into "Other".
+  // Top (MAX_ROWS - 1) named, everything else collapsed into "Other".
+  // "Everything else" includes API-returned tail categories AND the sub-1%
+  // categories the API filters out (which show up as totalSpending minus the
+  // named sum) — otherwise a user with 2 big categories sees nothing accounting
+  // for the remaining few percent.
   const rows = useMemo(() => {
     if (!categories.length) return [];
     const namedCount = MAX_ROWS - 1;
@@ -72,22 +76,21 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
       color: cat.hex_color || 'var(--color-fg)',
       rank: i,
     }));
-    const rest = categories.slice(namedCount);
-    if (rest.length > 0) {
-      const otherTotal = rest.reduce((s, c) => s + (c.total_spent || 0), 0);
-      if (otherTotal > 0) {
-        named.push({
-          id: '__other__',
-          label: 'Other',
-          amount: otherTotal,
-          color: 'var(--color-muted)',
-          rank: named.length,
-          isOther: true,
-        });
-      }
+    const namedSum = named.reduce((s, n) => s + (n.amount || 0), 0);
+    const otherTotal = Math.max(0, (totalSpending || 0) - namedSum);
+    // Only show Other if there's a meaningful remainder (>0.5% of total)
+    if (otherTotal > 0 && totalSpending > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
+      named.push({
+        id: '__other__',
+        label: 'Other',
+        amount: otherTotal,
+        color: 'var(--color-muted)',
+        rank: named.length,
+        isOther: true,
+      });
     }
     return named;
-  }, [categories]);
+  }, [categories, totalSpending]);
 
   // Each row's bar is sized relative to the largest row, not to the total —
   // makes the visual easier to read when the top category dominates.
@@ -224,8 +227,8 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                   <span className="text-xs font-medium text-[var(--color-fg)] tabular-nums">
                     <CurrencyAmount amount={row.amount} />
                   </span>
-                  <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-7 text-right">
-                    {sharePct.toFixed(0)}%
+                  <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-10 text-right">
+                    {sharePct.toFixed(1)}%
                   </span>
                 </div>
               </div>
