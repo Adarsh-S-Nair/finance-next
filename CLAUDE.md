@@ -120,8 +120,10 @@ Example: `apps/finance/src/app/api/budgets/route.js`
 
 ## Deployment
 
-- **apps/finance**: Vercel project `zentari-next` — Root Directory `apps/finance`. Auto-deploy on push to `main`. Domain: `zervo.app`.
-- **apps/admin**: Vercel project `zervo-admin` — Root Directory `apps/admin`. Auto-deploy on push to `main`. Domain: `admin.zervo.app`. Same Supabase backend as finance, gated by `ADMIN_EMAILS` allowlist at middleware. Google OAuth via `supabase.auth.signInWithOAuth` (same Supabase Google provider as finance). Page port in dev: `3001` (`pnpm dev:admin`).
+- **apps/finance**: Vercel project `finance-next` — Root Directory `apps/finance`. Auto-deploy on push to `main`. Domain: `zervo.app`.
+- **apps/admin**: Vercel project `finance-admin` — Root Directory `apps/admin`. Auto-deploy on push to `main`. Domain: `admin.zervo.app`. Same Supabase backend as finance, gated by `ADMIN_EMAILS` allowlist at middleware. Google OAuth via `supabase.auth.signInWithOAuth` (same Supabase Google provider as finance). Page port in dev: `3001` (`pnpm dev:admin`).
+
+**Conditional deploys:** Each project has an `ignore_command` (see `infra/vercel.tf`) so pushes only rebuild the project whose paths changed. A commit that touches only `apps/admin` doesn't rebuild finance; `packages/**` and root pnpm files trigger both. Infra-only or docs-only changes skip both.
 
 ## Database Migrations
 

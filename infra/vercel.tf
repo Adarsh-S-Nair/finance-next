@@ -11,8 +11,16 @@
 #   terraform import vercel_project.admin   prj_0iPC1CHOb7puvOWTunkvRIAo242R
 # -----------------------------------------------------------------------------
 
+# Only redeploy when files this app actually cares about changed. Compares
+# against the last successful deploy's SHA (VERCEL_GIT_PREVIOUS_SHA); falls
+# back to HEAD^ if there's no previous deploy. Exit 0 = skip, exit 1 = deploy.
+locals {
+  finance_ignore = "git diff --quiet $${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  admin_ignore   = "git diff --quiet $${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+}
+
 resource "vercel_project" "finance" {
-  name      = "zentari-next"
+  name      = "finance-next"
   framework = "nextjs"
 
   root_directory = "apps/finance"
@@ -22,6 +30,9 @@ resource "vercel_project" "finance" {
     production_branch = "main"
   }
 
+  # Skip builds when only unrelated apps changed (e.g. apps/admin-only commits).
+  ignore_command = local.finance_ignore
+
   # Preview deploys require the Vercel login password (doesn't affect prod).
   vercel_authentication = {
     deployment_type = "standard_protection_new"
@@ -29,7 +40,7 @@ resource "vercel_project" "finance" {
 }
 
 resource "vercel_project" "admin" {
-  name      = "zervo-admin"
+  name      = "finance-admin"
   framework = "nextjs"
 
   root_directory = "apps/admin"
@@ -38,6 +49,8 @@ resource "vercel_project" "admin" {
     repo              = var.github_repo
     production_branch = "main"
   }
+
+  ignore_command = local.admin_ignore
 
   # Preview deploys require the Vercel login password (doesn't affect prod).
   vercel_authentication = {
