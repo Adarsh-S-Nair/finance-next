@@ -216,8 +216,8 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         })}
       </div>
 
-      {/* Legend — flex-1 with justify-between so rows distribute across remaining height */}
-      <div className="flex-1 min-h-0 flex flex-col justify-between py-0.5">
+      {/* Legend */}
+      <div className="space-y-2.5">
         {segments.map((seg, i) => {
           const pct = totalSpending > 0 ? (seg.amount / totalSpending) * 100 : 0;
           const isActive = activeIndex === i;

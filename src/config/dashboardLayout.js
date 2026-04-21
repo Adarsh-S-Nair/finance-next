@@ -29,7 +29,7 @@ export const dashboardLayout = {
           id: 'cashflow',
           component: 'SpendingVsEarningCard',
           width: 'lg:flex-1 lg:min-w-0',
-          mobileHeight: 'h-[400px] lg:h-full'
+          mobileHeight: 'h-[380px] lg:h-full'
         },
         {
           id: 'top-categories',
@@ -38,7 +38,7 @@ export const dashboardLayout = {
           mobileHeight: 'h-auto lg:h-full'
         }
       ],
-      height: 'lg:h-[400px]'
+      height: 'lg:h-[380px]'
     }
   ],
 

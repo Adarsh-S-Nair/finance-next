@@ -347,22 +347,35 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
           <div ref={chartContainerRef} className="relative flex-1 w-full" onMouseLeave={handleMouseLeave}>
             <LineChart
               data={chartData}
-              dataKey="spending"
               width="100%"
               height="100%"
               margin={{ top: 16, right: 16, bottom: 0, left: 16 }}
-              strokeColor="var(--color-fg)"
-              strokeWidth={2.5}
-              strokeOpacity={1}
-              showArea={true}
-              areaOpacity={0.22}
+              lines={[
+                {
+                  dataKey: "previousSpending",
+                  strokeColor: "var(--color-muted)",
+                  strokeWidth: 1.5,
+                  strokeOpacity: 1,
+                  strokeDasharray: "4 4",
+                  showArea: false,
+                  gradientId: "monthlyOverviewPrevious"
+                },
+                {
+                  dataKey: "spending",
+                  strokeColor: "var(--color-fg)",
+                  strokeWidth: 2.5,
+                  strokeOpacity: 1,
+                  showArea: true,
+                  areaOpacity: 0.22,
+                  gradientId: "monthlyOverviewSpending",
+                }
+              ]}
               showDots={false}
               curveType="monotone"
               xAxisDataKey="dateString"
               showXAxis={false}
               showYAxis={false}
               showGrid={false}
-              gradientId="monthlyOverviewSpending"
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
             />
