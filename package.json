@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "pnpm --filter @zervo/finance dev",
     "dev:finance": "pnpm --filter @zervo/finance dev",
+    "dev:admin": "pnpm --filter @zervo/admin dev",
     "build": "pnpm --filter @zervo/finance build",
     "build:finance": "pnpm --filter @zervo/finance build",
+    "build:admin": "pnpm --filter @zervo/admin build",
     "start": "pnpm --filter @zervo/finance start",
+    "start:admin": "pnpm --filter @zervo/admin start",
     "lint": "pnpm -r --parallel run lint",
     "test": "pnpm --filter @zervo/finance test",
     "test:watch": "pnpm --filter @zervo/finance test:watch",

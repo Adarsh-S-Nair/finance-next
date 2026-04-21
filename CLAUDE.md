@@ -120,8 +120,8 @@ Example: `apps/finance/src/app/api/budgets/route.js`
 
 ## Deployment
 
-- **apps/finance**: Vercel project — Root Directory set to `apps/finance`. Auto-deploy on push to `main`.
-- **apps/admin** (planned): separate Vercel project at `admin.zervo.app` — Root Directory `apps/admin`. Same Supabase backend, gated by `ADMIN_EMAILS` allowlist.
+- **apps/finance**: Vercel project `zentari-next` — Root Directory `apps/finance`. Auto-deploy on push to `main`. Domain: `zervo.app`.
+- **apps/admin**: Vercel project `zervo-admin` — Root Directory `apps/admin`. Auto-deploy on push to `main`. Domain: `admin.zervo.app`. Same Supabase backend as finance, gated by `ADMIN_EMAILS` allowlist at middleware. Google OAuth via `supabase.auth.signInWithOAuth` (same Supabase Google provider as finance). Page port in dev: `3001` (`pnpm dev:admin`).
 
 ## Database Migrations
 
