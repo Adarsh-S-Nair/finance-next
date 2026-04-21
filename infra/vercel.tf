@@ -16,8 +16,10 @@
 # SHA vs origin/main tip), since a one-liner ignore_command can't do both
 # cleanly. Exit 0 = skip, exit 1 = build.
 locals {
-  finance_ignore = "bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
-  admin_ignore   = "bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  # Vercel runs the ignore command from the project's Root Directory
+  # (apps/finance or apps/admin), so we have to cd up to the repo root first.
+  finance_ignore = "cd ../.. && bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  admin_ignore   = "cd ../.. && bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
 }
 
 resource "vercel_project" "finance" {
