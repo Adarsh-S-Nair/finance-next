@@ -14,27 +14,36 @@ type Props = {
   user: AdminUserRow | null;
   onClose: () => void;
   onDeleted: () => void;
+  onSubscriptionChanged: (patch: Partial<AdminUserRow>) => void;
 };
 
 /**
- * User detail + actions drawer. The delete path proxies through the admin
- * server, which forwards a Bearer token to the finance API's
- * /api/admin/users/[id] — that runs the same `deleteUserCompletely`
- * helper the user-facing self-delete uses, so Plaid /item/remove and
- * Stripe cleanup always fire.
+ * User detail + actions drawer. Delete proxies through the admin server
+ * to finance's /api/admin/users/[id], which runs the same
+ * `deleteUserCompletely` helper as the user-facing self-delete so Plaid
+ * /item/remove and Stripe cleanup always fire. Subscription toggles go
+ * through the same proxy → finance → subscriptionActions pattern.
  */
-export default function UserDrawer({ user, onClose, onDeleted }: Props) {
+export default function UserDrawer({
+  user,
+  onClose,
+  onDeleted,
+  onSubscriptionChanged,
+}: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [subBusy, setSubBusy] = useState(false);
+  const [subError, setSubError] = useState<string | null>(null);
 
   const isPro = user?.subscription_tier === "pro";
   const status = user?.subscription_status;
 
   async function handleDelete() {
     if (!user) return;
-    setBusy(true);
-    setError(null);
+    setDeleteBusy(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
         method: "DELETE",
@@ -46,21 +55,46 @@ export default function UserDrawer({ user, onClose, onDeleted }: Props) {
       onDeleted();
     } catch (e: unknown) {
       const err = e as { message?: string };
-      setError(err?.message || "Delete failed");
+      setDeleteError(err?.message || "Delete failed");
     } finally {
-      setBusy(false);
+      setDeleteBusy(false);
       setShowConfirm(false);
+    }
+  }
+
+  async function updateSubscription(action: "grant_pro" | "revoke_pro") {
+    if (!user) return;
+    setSubBusy(true);
+    setSubError(null);
+    try {
+      const res = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/subscription`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Subscription update failed");
+      }
+      onSubscriptionChanged(
+        action === "grant_pro"
+          ? { subscription_tier: "pro", subscription_status: "active" }
+          : { subscription_tier: "free", subscription_status: "canceled" },
+      );
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setSubError(err?.message || "Subscription update failed");
+    } finally {
+      setSubBusy(false);
     }
   }
 
   return (
     <>
-      <Drawer
-        isOpen={!!user}
-        onClose={onClose}
-        size="md"
-        title="User"
-      >
+      <Drawer isOpen={!!user} onClose={onClose} size="md" title="User">
         {user && (
           <div className="space-y-8 pt-2">
             <div className="flex items-center gap-4">
@@ -106,34 +140,56 @@ export default function UserDrawer({ user, onClose, onDeleted }: Props) {
             </section>
 
             <section>
-              <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-danger)] mb-3">
-                Danger zone
+              <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3">
+                Subscription
               </h3>
-              <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-5">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-[var(--color-fg)]">
-                      Delete user
-                    </div>
-                    <p className="mt-1 text-xs text-[var(--color-muted)] leading-relaxed">
-                      Removes all their Plaid connections (via Plaid{" "}
-                      <code className="text-[var(--color-muted)]">/item/remove</code>
-                      ), cancels any active Stripe subscriptions, deletes their data,
-                      and removes their auth account. Cannot be undone.
-                    </p>
-                  </div>
-                  <Button
-                    variant="danger"
-                    onClick={() => setShowConfirm(true)}
-                    disabled={busy}
-                  >
-                    Delete
-                  </Button>
+              <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 flex items-center justify-between gap-4">
+                <div className="text-sm text-[var(--color-fg)]">
+                  {isPro ? "Pro" : "Free"}
                 </div>
-                {error && (
-                  <p className="mt-3 text-xs text-[var(--color-danger)]">{error}</p>
+                {isPro ? (
+                  <Button
+                    variant="dangerSubtle"
+                    size="sm"
+                    onClick={() => updateSubscription("revoke_pro")}
+                    disabled={subBusy}
+                  >
+                    {subBusy ? "Revoking..." : "Revoke Pro"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => updateSubscription("grant_pro")}
+                    disabled={subBusy}
+                  >
+                    {subBusy ? "Granting..." : "Grant Pro"}
+                  </Button>
                 )}
               </div>
+              {subError && (
+                <p className="mt-2 text-xs text-[var(--color-danger)]/80">{subError}</p>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3">
+                Danger zone
+              </h3>
+              <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 flex items-center justify-between gap-4">
+                <div className="text-sm text-[var(--color-fg)]">Delete user</div>
+                <Button
+                  variant="dangerSubtle"
+                  size="sm"
+                  onClick={() => setShowConfirm(true)}
+                  disabled={deleteBusy}
+                >
+                  Delete
+                </Button>
+              </div>
+              {deleteError && (
+                <p className="mt-2 text-xs text-[var(--color-danger)]/80">{deleteError}</p>
+              )}
             </section>
           </div>
         )}
@@ -146,7 +202,7 @@ export default function UserDrawer({ user, onClose, onDeleted }: Props) {
         title="Delete user"
         description={
           user
-            ? `This will permanently delete ${fullName(user)} (${user.email ?? "no email"}). Their Plaid items will be removed and their Stripe subscriptions cancelled.`
+            ? `Permanently delete ${fullName(user)} (${user.email ?? "no email"}).`
             : ""
         }
         confirmLabel="Delete user"
@@ -155,7 +211,7 @@ export default function UserDrawer({ user, onClose, onDeleted }: Props) {
         variant="danger"
         requiredText="delete user"
         showRequiredTextUppercase
-        busy={busy}
+        busy={deleteBusy}
       />
     </>
   );

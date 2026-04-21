@@ -132,6 +132,12 @@ export default function UsersClient({ users }: { users: AdminUserRow[] }) {
           setSelected(null);
           router.refresh();
         }}
+        onSubscriptionChanged={(patch) => {
+          // Optimistically update the open drawer so the buttons flip
+          // immediately; router.refresh() syncs the list from the server.
+          setSelected((s) => (s ? { ...s, ...patch } : s));
+          router.refresh();
+        }}
       />
     </>
   );
