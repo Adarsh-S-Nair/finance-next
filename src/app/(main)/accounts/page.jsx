@@ -37,7 +37,7 @@ const capitalizeWords = (str) => {
 };
 
 // Component for rendering account rows within the unified list
-const AccountRow = ({ account, institutionMap, onClick, showDivider }) => {
+const AccountRow = ({ account, institutionMap, onClick }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
 
   return (
@@ -45,7 +45,7 @@ const AccountRow = ({ account, institutionMap, onClick, showDivider }) => {
       onClick={() => onClick?.(account)}
       className={`
         group flex items-center justify-between px-5 py-3.5
-        hover:bg-[var(--color-card-highlight)] transition-all duration-200
+        hover:bg-[var(--color-surface-alt)]/60 transition-colors
         rounded-lg cursor-pointer
       `}
     >
@@ -94,17 +94,12 @@ const AccountRow = ({ account, institutionMap, onClick, showDivider }) => {
 };
 
 // Component for category section headers within the unified list
-const CategoryHeader = ({ title, count, total, isFirst }) => {
+const CategoryHeader = ({ title }) => {
   return (
-    <div className="flex items-center justify-between px-5 py-3">
-      <div className="flex items-center gap-2">
-        <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
-          {title}
-        </h3>
-      </div>
-      <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-        {formatCurrency(total)}
-      </div>
+    <div className="flex items-center px-5 py-3">
+      <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
+        {title}
+      </h3>
     </div>
   );
 };
@@ -350,22 +345,13 @@ export default function AccountsPage() {
                   {/* Cash Section */}
                   {categorizedAccounts.cash.length > 0 && (
                     <>
-                      <CategoryHeader
-                        title="Cash"
-                        count={categorizedAccounts.cash.length}
-                        total={categorizedAccounts.cash.reduce((sum, acc) => sum + acc.balance, 0)}
-                        isFirst={true}
-                      />
-                      {categorizedAccounts.cash.map((account, index) => (
+                      <CategoryHeader title="Cash" />
+                      {categorizedAccounts.cash.map((account) => (
                         <AccountRow
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
-                          showDivider={index !== categorizedAccounts.cash.length - 1 ||
-                            categorizedAccounts.investments.length > 0 ||
-                            categorizedAccounts.credit.length > 0 ||
-                            categorizedAccounts.loans.length > 0}
                         />
                       ))}
                     </>
@@ -374,21 +360,13 @@ export default function AccountsPage() {
                   {/* Investments Section */}
                   {categorizedAccounts.investments.length > 0 && (
                     <>
-                      <CategoryHeader
-                        title="Investments"
-                        count={categorizedAccounts.investments.length}
-                        total={categorizedAccounts.investments.reduce((sum, acc) => sum + acc.balance, 0)}
-                        isFirst={categorizedAccounts.cash.length === 0}
-                      />
-                      {categorizedAccounts.investments.map((account, index) => (
+                      <CategoryHeader title="Investments" />
+                      {categorizedAccounts.investments.map((account) => (
                         <AccountRow
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
-                          showDivider={index !== categorizedAccounts.investments.length - 1 ||
-                            categorizedAccounts.credit.length > 0 ||
-                            categorizedAccounts.loans.length > 0}
                         />
                       ))}
                     </>
@@ -397,20 +375,13 @@ export default function AccountsPage() {
                   {/* Credit Cards Section */}
                   {categorizedAccounts.credit.length > 0 && (
                     <>
-                      <CategoryHeader
-                        title="Credit Cards"
-                        count={categorizedAccounts.credit.length}
-                        total={categorizedAccounts.credit.reduce((sum, acc) => sum + acc.balance, 0)}
-                        isFirst={categorizedAccounts.cash.length === 0 && categorizedAccounts.investments.length === 0}
-                      />
-                      {categorizedAccounts.credit.map((account, index) => (
+                      <CategoryHeader title="Credit Cards" />
+                      {categorizedAccounts.credit.map((account) => (
                         <AccountRow
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
-                          showDivider={index !== categorizedAccounts.credit.length - 1 ||
-                            categorizedAccounts.loans.length > 0}
                         />
                       ))}
                     </>
@@ -419,21 +390,13 @@ export default function AccountsPage() {
                   {/* Loans & Mortgages Section */}
                   {categorizedAccounts.loans.length > 0 && (
                     <>
-                      <CategoryHeader
-                        title="Loans & Mortgages"
-                        count={categorizedAccounts.loans.length}
-                        total={categorizedAccounts.loans.reduce((sum, acc) => sum + acc.balance, 0)}
-                        isFirst={categorizedAccounts.cash.length === 0 &&
-                          categorizedAccounts.investments.length === 0 &&
-                          categorizedAccounts.credit.length === 0}
-                      />
-                      {categorizedAccounts.loans.map((account, index) => (
+                      <CategoryHeader title="Loans & Mortgages" />
+                      {categorizedAccounts.loans.map((account) => (
                         <AccountRow
                           key={account.id}
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
-                          showDivider={index !== categorizedAccounts.loans.length - 1}
                         />
                       ))}
                     </>

@@ -96,7 +96,7 @@ function AccountRow({ account, institutionMap, owner, onClick }) {
   return (
     <div
       onClick={() => onClick?.(account)}
-      className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-card-highlight)] transition-all duration-200 rounded-lg cursor-pointer"
+      className="group flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors rounded-lg cursor-pointer"
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         <div className="relative">
@@ -133,15 +133,12 @@ function AccountRow({ account, institutionMap, owner, onClick }) {
   );
 }
 
-function CategoryHeader({ title, total }) {
+function CategoryHeader({ title }) {
   return (
-    <div className="flex items-center justify-between px-5 py-3">
+    <div className="flex items-center px-5 py-3">
       <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
         {title}
       </h3>
-      <div className="text-sm font-semibold text-[var(--color-fg)] tabular-nums">
-        {formatCurrency(total)}
-      </div>
     </div>
   );
 }
@@ -268,10 +265,7 @@ export default function HouseholdAccountsPage() {
             <div className="overflow-hidden">
               {categorized.cash.length > 0 && (
                 <>
-                  <CategoryHeader
-                    title="Cash"
-                    total={categorized.cash.reduce((s, a) => s + a.balance, 0)}
-                  />
+                  <CategoryHeader title="Cash" />
                   {categorized.cash.map((a) => (
                     <AccountRow
                       key={a.id}
@@ -285,10 +279,7 @@ export default function HouseholdAccountsPage() {
               )}
               {categorized.investments.length > 0 && (
                 <>
-                  <CategoryHeader
-                    title="Investments"
-                    total={categorized.investments.reduce((s, a) => s + a.balance, 0)}
-                  />
+                  <CategoryHeader title="Investments" />
                   {categorized.investments.map((a) => (
                     <AccountRow
                       key={a.id}
@@ -302,10 +293,7 @@ export default function HouseholdAccountsPage() {
               )}
               {categorized.credit.length > 0 && (
                 <>
-                  <CategoryHeader
-                    title="Credit Cards"
-                    total={categorized.credit.reduce((s, a) => s + a.balance, 0)}
-                  />
+                  <CategoryHeader title="Credit Cards" />
                   {categorized.credit.map((a) => (
                     <AccountRow
                       key={a.id}
@@ -319,10 +307,7 @@ export default function HouseholdAccountsPage() {
               )}
               {categorized.loans.length > 0 && (
                 <>
-                  <CategoryHeader
-                    title="Loans & Mortgages"
-                    total={categorized.loans.reduce((s, a) => s + a.balance, 0)}
-                  />
+                  <CategoryHeader title="Loans & Mortgages" />
                   {categorized.loans.map((a) => (
                     <AccountRow
                       key={a.id}
