@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Button from "../../components/ui/Button";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
 import { FiEye, FiEyeOff } from "react-icons/fi";
+import { Button } from "@zervo/ui";
 
 const inputLight =
   "flex h-11 w-full rounded-lg border-0 bg-zinc-200/50 px-4 py-2 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 placeholder:font-normal transition-all outline-none focus:outline-none focus:ring-0 focus:border-transparent focus:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50";

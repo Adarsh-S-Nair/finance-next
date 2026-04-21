@@ -27,6 +27,8 @@ if (process.env.USE_TEST_ENV === '1') {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  // Compile the shared workspace UI package from source (no dist/ build step)
+  transpilePackages: ['@zervo/ui'],
   // Optimize package imports to reduce dev server memory usage
   experimental: {
     optimizePackageImports: [

@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { useAccounts } from "../providers/AccountsProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
-import SegmentedTabs from "../ui/SegmentedTabs";
-
+import { SegmentedTabs } from "@zervo/ui";
 function categorizeAccount(account: { type?: string; subtype?: string }) {
   const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
   const liabilityKeywords = ["credit", "loan", "mortgage", "line of credit", "overdraft"];

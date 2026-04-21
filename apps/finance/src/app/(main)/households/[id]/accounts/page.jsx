@@ -10,14 +10,12 @@ import {
   AssetsCard,
   LiabilitiesCard,
 } from "../../../../../components/dashboard/AccountsSummaryCard";
+import { Drawer, SegmentedTabs, Tooltip } from "@zervo/ui";
 import { NetWorthHoverProvider } from "../../../../../components/dashboard/NetWorthHoverContext";
-import SegmentedTabs from "../../../../../components/ui/SegmentedTabs";
-import Tooltip from "../../../../../components/ui/Tooltip";
 import { useUser } from "../../../../../components/providers/UserProvider";
 import { useAccounts } from "../../../../../components/providers/AccountsProvider";
 import { useHouseholdMeta } from "../../../../../components/providers/HouseholdDataProvider";
 import HouseholdMemberFilter from "../../../../../components/households/HouseholdMemberFilter";
-import Drawer from "../../../../../components/ui/Drawer";
 import AccountDetails from "../../../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../../../lib/accountSubtype";
 

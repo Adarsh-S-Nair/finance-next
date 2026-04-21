@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import ContactSelector from '../reimbursements/ContactSelector';
 import { supabase } from '../../lib/supabase/client';
-import Button from '../ui/Button';
-import Card from '../ui/Card';
 import { FiDollarSign, FiCheck } from 'react-icons/fi';
 import clsx from 'clsx';
+import { Button, Card } from "@zervo/ui";
 
 export default function SplitTransactionView({ transaction, onSplitCreated, onClose }) {
   const [selectedContactId, setSelectedContactId] = useState(null);

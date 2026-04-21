@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../lib/api/fetch";
 import { useToast } from "./providers/ToastProvider";
-import { TOOLTIP_SURFACE_CLASSES } from "./ui/Tooltip";
+import { TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 
 type HouseholdSummary = { id: string; name: string; color: string };
 

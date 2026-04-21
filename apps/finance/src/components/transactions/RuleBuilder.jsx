@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
-import Card from '../ui/Card';
-import Input from '../ui/Input';
-import { Dropdown } from '@slate-ui/react';
-
+import { Card, Dropdown, Input } from "@zervo/ui";
 const FIELD_OPTIONS = [
   { value: 'merchant_name', label: 'Merchant Name', type: 'string' },
   { value: 'description', label: 'Description', type: 'string' },

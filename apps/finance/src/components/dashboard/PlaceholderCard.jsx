@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import Card from "../ui/Card";
-
+import { Card } from "@zervo/ui";
 export default function PlaceholderCard({ title, description, width = "full" }) {
   return (
     <Card width={width}>

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FiAlertCircle } from 'react-icons/fi';
-import Button from '../ui/Button';
 import TransactionRow from './TransactionRow';
-import Card from '../ui/Card';
 import RuleBuilder from './RuleBuilder';
+import { Button, Card } from "@zervo/ui";
 
 export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose, onCategorizeOnly }) {
   const [currentRules, setCurrentRules] = useState([]);

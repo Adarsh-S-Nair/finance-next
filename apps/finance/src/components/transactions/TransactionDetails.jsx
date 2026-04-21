@@ -2,8 +2,7 @@ import { FiTag, FiUser } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
-import Button from "../ui/Button";
-
+import { Button } from "@zervo/ui";
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
