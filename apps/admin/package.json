@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.57.2",
     "@zervo/ui": "workspace:*",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.23.12",
     "next": "^16.0.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

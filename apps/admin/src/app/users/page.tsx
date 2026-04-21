@@ -1,18 +1,12 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { AdminShell } from "@/components/AdminShell";
+import { createAdminClient } from "@/lib/supabase/server";
+import AdminShell from "@/components/AdminShell";
 
 export const dynamic = "force-dynamic";
 
-type User = {
-  id: string;
-  email: string | null;
-  created_at: string | null;
-  last_sign_in_at: string | null;
-};
-
 type Profile = {
   id: string;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   subscription_tier: string | null;
   subscription_status: string | null;
 };
@@ -26,12 +20,13 @@ function formatDate(iso: string | null): string {
   });
 }
 
-export default async function UsersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user: me },
-  } = await supabase.auth.getUser();
+function fullName(p: Profile | undefined): string {
+  if (!p) return "—";
+  const parts = [p.first_name, p.last_name].filter(Boolean);
+  return parts.length ? parts.join(" ") : "—";
+}
 
+export default async function UsersPage() {
   const admin = createAdminClient();
 
   const { data: authData, error: authErr } = await admin.auth.admin.listUsers({
@@ -40,13 +35,13 @@ export default async function UsersPage() {
   });
 
   const { data: profiles } = await admin
-    .from("profiles")
-    .select("id, full_name, subscription_tier, subscription_status");
+    .from("user_profiles")
+    .select("id, first_name, last_name, subscription_tier, subscription_status");
 
   const profileMap = new Map<string, Profile>();
   (profiles ?? []).forEach((p) => profileMap.set(p.id, p as Profile));
 
-  const users: User[] = (authData?.users ?? []).map((u) => ({
+  const users = (authData?.users ?? []).map((u) => ({
     id: u.id,
     email: u.email ?? null,
     created_at: u.created_at ?? null,
@@ -54,9 +49,9 @@ export default async function UsersPage() {
   }));
 
   return (
-    <AdminShell email={me?.email} activePath="/users">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-[var(--color-fg)]">
+    <AdminShell>
+      <header className="mb-10">
+        <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
           Users
         </h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
@@ -65,19 +60,21 @@ export default async function UsersPage() {
       </header>
 
       {authErr ? (
-        <div className="rounded-md border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
+        <p className="text-sm text-[var(--color-danger)]">
           Failed to load users: {authErr.message}
-        </div>
+        </p>
+      ) : users.length === 0 ? (
+        <p className="text-sm text-[var(--color-muted)]">No users yet.</p>
       ) : (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+        <div className="border-t border-[var(--color-fg)]/[0.06]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[var(--color-border)] text-xs uppercase tracking-wider text-[var(--color-muted)]">
-                <th className="px-5 py-3 text-left font-medium">Email</th>
-                <th className="px-5 py-3 text-left font-medium">Name</th>
-                <th className="px-5 py-3 text-left font-medium">Tier</th>
-                <th className="px-5 py-3 text-left font-medium">Joined</th>
-                <th className="px-5 py-3 text-left font-medium">Last login</th>
+              <tr className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
+                <th className="text-left font-medium py-3 pr-4">Email</th>
+                <th className="text-left font-medium py-3 pr-4">Name</th>
+                <th className="text-left font-medium py-3 pr-4">Tier</th>
+                <th className="text-left font-medium py-3 pr-4">Joined</th>
+                <th className="text-left font-medium py-3">Last login</th>
               </tr>
             </thead>
             <tbody>
@@ -87,44 +84,34 @@ export default async function UsersPage() {
                 return (
                   <tr
                     key={u.id}
-                    className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+                    className="border-t border-[var(--color-fg)]/[0.06] hover:bg-[var(--color-fg)]/[0.03] transition-colors"
                   >
-                    <td className="px-5 py-3 text-[var(--color-fg)]">
+                    <td className="py-3 pr-4 text-[var(--color-fg)]">
                       {u.email ?? "—"}
                     </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
-                      {p?.full_name ?? "—"}
+                    <td className="py-3 pr-4 text-[var(--color-muted)]">
+                      {fullName(p)}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="py-3 pr-4">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
+                        className={
                           tier === "pro"
-                            ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
-                            : "bg-[var(--color-surface-alt)] text-[var(--color-muted)]"
-                        }`}
+                            ? "text-[var(--color-accent)] font-medium"
+                            : "text-[var(--color-muted)]"
+                        }
                       >
                         {tier}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
+                    <td className="py-3 pr-4 text-[var(--color-muted)]">
                       {formatDate(u.created_at)}
                     </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
+                    <td className="py-3 text-[var(--color-muted)]">
                       {formatDate(u.last_sign_in_at)}
                     </td>
                   </tr>
                 );
               })}
-              {users.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-5 py-8 text-center text-[var(--color-muted)]"
-                  >
-                    No users yet.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

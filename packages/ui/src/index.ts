@@ -21,3 +21,5 @@ export { Dropdown } from "./Dropdown";
 export type { DropdownItem } from "./Dropdown";
 export { EmptyState } from "./EmptyState";
 export { default as GoogleSignInButton, GoogleIcon } from "./GoogleSignInButton";
+export { default as SidebarItem } from "./SidebarItem";
+export { default as SidebarSection } from "./SidebarSection";
