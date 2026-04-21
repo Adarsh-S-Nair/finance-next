@@ -281,8 +281,10 @@ export async function GET(request) {
     // Calculate total spending for percentage calculations
     const totalSpending = categoriesArray.reduce((sum, category) => sum + category.total_spent, 0);
 
-    // Add percentage. Apply >=1% floor always; apply consistency filter when
-    // forBudget=true and not explicitly disabled.
+    // Add percentage. Apply >=1% floor only when forBudget=true (budget tooling
+    // doesn't want sub-1% noise); apply consistency filter when forBudget=true
+    // and not explicitly disabled. Dashboard callers need every category to
+    // fill the Top Spending list rather than bucketing tail into "Other".
     const filteredCategories = categoriesArray
       .map(category => ({
         ...category,
@@ -290,7 +292,7 @@ export async function GET(request) {
         is_consistent: category.months_with_spending >= consistencyThreshold,
       }))
       .filter(category => {
-        if (category.percentage < 1.0) return false;
+        if (forBudget && category.percentage < 1.0) return false;
         if (consistentFilter && !category.is_consistent) return false;
         return true;
       });

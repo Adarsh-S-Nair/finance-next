@@ -246,12 +246,14 @@ function buildSpendingByCategory(transactions, matchedIds, since, endDate) {
 
   const categoriesArray = Object.values(categoryData).sort((a, b) => b.total_spent - a.total_spent);
   const totalSpending = categoriesArray.reduce((sum, c) => sum + c.total_spent, 0);
+  // Return every category — TopCategoriesCard shows the top 5 individually and
+  // buckets the remainder into "Other". Filtering sub-1% here would silently
+  // hide the 3rd/4th/5th categories for users whose spend is concentrated.
   const categories = categoriesArray
     .map(c => ({
       ...c,
       percentage: totalSpending > 0 ? (c.total_spent / totalSpending) * 100 : 0
-    }))
-    .filter(c => c.percentage >= 1.0);
+    }));
 
   return {
     categories,
