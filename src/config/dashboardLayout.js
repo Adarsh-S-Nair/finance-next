@@ -18,7 +18,7 @@ export const dashboardLayout = {
     {
       id: 'monthly-overview',
       component: 'MonthlyOverviewCard',
-      height: 'h-[420px]'
+      height: 'h-[360px]'
     },
     // Cashflow + Top Categories (stacked on mobile, side-by-side on desktop)
     {
@@ -35,10 +35,10 @@ export const dashboardLayout = {
           id: 'top-categories',
           component: 'TopCategoriesCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
-          mobileHeight: 'h-[440px] lg:h-full'
+          mobileHeight: 'h-auto lg:h-full'
         }
       ],
-      height: 'lg:h-[440px]'
+      height: 'lg:h-[400px]'
     }
   ],
 
