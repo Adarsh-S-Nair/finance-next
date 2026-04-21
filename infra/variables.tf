@@ -39,3 +39,9 @@ variable "supabase_service_role_key" {
   type        = string
   sensitive   = true
 }
+
+variable "finance_api_url" {
+  description = "Origin of the finance app. apps/admin proxies privileged actions (user delete, subscription changes) here so Plaid /item/remove and Stripe cleanup run in finance's environment instead of duplicating SDKs in admin."
+  type        = string
+  default     = "https://zervo.app"
+}

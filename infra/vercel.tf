@@ -96,6 +96,16 @@ resource "vercel_project_environment_variable" "admin_allowlist" {
   target     = ["production", "preview", "development"]
 }
 
+# Where apps/admin should send its proxied delete / subscription calls.
+# The admin drawer never talks to Plaid or Stripe directly — it hands the
+# action off to finance, which owns those SDKs.
+resource "vercel_project_environment_variable" "admin_finance_api_url" {
+  project_id = vercel_project.admin.id
+  key        = "FINANCE_API_URL"
+  value      = var.finance_api_url
+  target     = ["production", "preview", "development"]
+}
+
 # -----------------------------------------------------------------------------
 # Domain attachments (project ↔ host)
 # -----------------------------------------------------------------------------
