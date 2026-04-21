@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import TimeRangeSelector from "../ui/TimeRangeSelector";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
-import LineChart from '../ui/LineChart';
-
+import { LineChart, TimeRangeSelector } from "@zervo/ui";
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(value);

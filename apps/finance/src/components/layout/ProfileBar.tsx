@@ -10,8 +10,8 @@ import { LuSettings, LuHeadphones, LuSparkles, LuChevronsUpDown } from "react-ic
 import { TbLogout } from "react-icons/tb";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
-import ConfirmOverlay from "../ui/ConfirmOverlay";
 import UpgradeOverlay from "../UpgradeOverlay";
+import { ConfirmOverlay } from "@zervo/ui";
 
 /**
  * Floating profile card pinned to the bottom-left, spanning the household

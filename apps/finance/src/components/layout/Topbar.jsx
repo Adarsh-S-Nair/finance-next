@@ -3,9 +3,9 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import ConfirmOverlay from "../ui/ConfirmOverlay";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
+import { ConfirmOverlay } from "@zervo/ui";
 
 export default function Topbar() {
   const pathname = usePathname();

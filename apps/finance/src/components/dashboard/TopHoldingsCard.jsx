@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
-import ViewAllLink from "../ui/ViewAllLink";
-
+import { ViewAllLink } from "@zervo/ui";
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",

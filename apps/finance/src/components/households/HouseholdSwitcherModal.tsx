@@ -15,8 +15,7 @@ import {
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
-import OverlayButton from "../ui/OverlayButton";
-
+import { OverlayButton } from "@zervo/ui";
 type Mode = "menu" | "create" | "join";
 
 type JoinPreview = {

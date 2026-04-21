@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import LineChart from "../ui/LineChart";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { Dropdown } from "@zervo/ui";
+import { LineChart } from "@zervo/ui";
 
 export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) {
   const [activeIndex, setActiveIndex] = useState(null);

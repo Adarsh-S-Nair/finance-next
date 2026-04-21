@@ -5,13 +5,12 @@ import { useUser } from '../../../components/providers/UserProvider';
 import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import DynamicIcon from '../../../components/DynamicIcon';
-import ConfirmOverlay from '../../../components/ui/ConfirmOverlay';
-import LineChart from '../../../components/ui/LineChart';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { FiTag } from 'react-icons/fi';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
 import { Button, EmptyState } from "@zervo/ui";
+import { ConfirmOverlay, LineChart } from "@zervo/ui";
 
 export default function BudgetsPage() {
   const { user, profile, isPro, refreshProfile } = useUser();

@@ -3,7 +3,6 @@
 import PageContainer from "../../../components/layout/PageContainer";
 import ThemeToggle from "../../../components/ThemeToggle";
 import { useState, useEffect } from "react";
-import ConfirmOverlay from "../../../components/ui/ConfirmOverlay";
 import { supabase } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -15,6 +14,7 @@ import { LuLogOut } from "react-icons/lu";
 import AddAccountOverlay from "../../../components/AddAccountOverlay";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import { authFetch } from "../../../lib/api/fetch";
+import { ConfirmOverlay } from "@zervo/ui";
 
 // Section wrapper: small uppercase heading + optional action, with a trailing
 // border-b separator so every section on the page feels consistent.

@@ -6,8 +6,7 @@ import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
 import Link from 'next/link';
-import ViewAllLink from '../ui/ViewAllLink';
-
+import { ViewAllLink } from "@zervo/ui";
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

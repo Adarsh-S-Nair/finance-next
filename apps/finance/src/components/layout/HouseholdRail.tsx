@@ -11,10 +11,10 @@ import { FiUserPlus, FiLogOut } from "react-icons/fi";
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
-import ConfirmOverlay from "../ui/ConfirmOverlay";
 import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
 import HouseholdInviteModal from "../households/HouseholdInviteModal";
 import { Tooltip } from "@zervo/ui";
+import { ConfirmOverlay } from "@zervo/ui";
 
 type HouseholdContextMenu = {
   id: string;

@@ -17,9 +17,9 @@ import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
-import ConfirmOverlay from "../ui/ConfirmOverlay";
 import PlaidOAuthHandler from "../PlaidOAuthHandler";
 import PaymentFailureBanner from "../PaymentFailureBanner";
+import { ConfirmOverlay } from "@zervo/ui";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
