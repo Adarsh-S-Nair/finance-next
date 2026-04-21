@@ -7,15 +7,14 @@ import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
-const MAX_LEGEND_ROWS = 6;
+const MAX_LEGEND_ROWS = 8;
 
-// Grayscale shade for a segment by rank (0 = darkest / highest spend)
-function shadeFor(rank, total) {
-  if (total <= 1) return 'var(--color-fg)';
-  // 1.0 → 0.32 across the range, rest collapsed onto last step for "Other"
-  const stops = [1.0, 0.78, 0.58, 0.42, 0.32, 0.24];
+// Solid grayscale shade for a segment by rank (0 = top spender, darkest).
+// Gradient from --color-fg towards --color-muted so every step stays visible.
+function shadeFor(rank) {
+  const stops = [0, 22, 38, 52, 64, 74, 82, 88];
   const idx = Math.min(rank, stops.length - 1);
-  return `color-mix(in srgb, var(--color-fg) ${stops[idx] * 100}%, transparent)`;
+  return `color-mix(in srgb, var(--color-fg), var(--color-muted) ${stops[idx]}%)`;
 }
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
@@ -70,8 +69,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     fetchData();
   }, [authLoading, user?.id, selectedPeriod, externalData]);
 
-  // Build the segments shown in the bar + legend.
-  // Top (MAX_LEGEND_ROWS - 1) named categories, then collapse the rest into "Other".
+  // Top (MAX_LEGEND_ROWS - 1) named categories, rest collapsed into "Other".
   const segments = useMemo(() => {
     if (!categories.length) return [];
     const namedCount = MAX_LEGEND_ROWS - 1;
@@ -102,7 +100,6 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     router.push(`/transactions?categoryIds=${seg.id}&dateRange=30days`);
   };
 
-  // Center hover values
   const hoveredSeg = activeIndex !== null ? segments[activeIndex] : null;
   const heroValue = hoveredSeg ? hoveredSeg.amount : totalSpending;
   const heroLabel = hoveredSeg
@@ -112,18 +109,18 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   if (loading) {
     return (
       <div className="h-full flex flex-col animate-pulse">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
           <div className="h-7 w-40 bg-[var(--color-border)] rounded" />
         </div>
         <div className="h-9 w-32 bg-[var(--color-border)] rounded mb-2" />
-        <div className="h-3 w-20 bg-[var(--color-border)] rounded mb-6" />
-        <div className="h-3 w-full bg-[var(--color-border)] rounded-full mb-6" />
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
+        <div className="h-3 w-20 bg-[var(--color-border)] rounded mb-5" />
+        <div className="h-3 w-full bg-[var(--color-border)] rounded-full mb-5" />
+        <div className="flex-1 flex flex-col justify-between">
+          {[...Array(7)].map((_, i) => (
             <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[var(--color-border)]" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-border)]" />
                 <div className="h-3 w-20 bg-[var(--color-border)] rounded" />
               </div>
               <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
@@ -137,7 +134,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   if (error) {
     return (
       <div className="h-full flex flex-col">
-        <div className="card-header mb-6">Top Spending</div>
+        <div className="card-header mb-5">Top Spending</div>
         <div className="flex-1 flex items-center justify-center text-xs text-[var(--color-muted)]">
           Failed to load data
         </div>
@@ -148,7 +145,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   if (segments.length === 0 || totalSpending === 0) {
     return (
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="card-header">Top Spending</div>
           <SegmentedTabs
             options={periodOptions}
@@ -160,10 +157,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)] mb-1.5">
           <CurrencyAmount amount={0} />
         </div>
-        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-6">
+        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-5">
           {periodOptions.find((p) => p.value === selectedPeriod)?.label}
         </div>
-        <div className="h-3 w-full rounded-full bg-[var(--color-surface-alt)] mb-6" />
+        <div className="h-3 w-full rounded-full bg-[var(--color-surface-alt)] mb-5" />
         <div className="text-xs text-[var(--color-muted)]">No spending yet.</div>
       </div>
     );
@@ -172,7 +169,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div className="card-header">Top Spending</div>
         <SegmentedTabs
           options={periodOptions}
@@ -187,14 +184,14 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1.5 transition-colors">
           <CurrencyAmount amount={heroValue} />
         </div>
-        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-6">
+        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-5">
           {heroLabel}
         </div>
       </div>
 
       {/* Stacked bar */}
       <div
-        className="h-3 w-full flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-6"
+        className="h-3 w-full flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-5"
         onMouseLeave={() => setActiveIndex(null)}
       >
         {segments.map((seg, i) => {
@@ -208,8 +205,8 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
               className={`h-full ${seg.isOther ? '' : 'cursor-pointer'}`}
               style={{
                 width: `${pct}%`,
-                backgroundColor: shadeFor(seg.rank, segments.length),
-                opacity: isDimmed ? 0.35 : 1,
+                backgroundColor: shadeFor(seg.rank),
+                opacity: isDimmed ? 0.3 : 1,
                 transition: 'opacity 0.2s ease',
               }}
               onMouseEnter={() => setActiveIndex(i)}
@@ -219,8 +216,8 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex-1 min-h-0 space-y-3">
+      {/* Legend — flex-1 with justify-between so rows distribute across remaining height */}
+      <div className="flex-1 min-h-0 flex flex-col justify-between py-0.5">
         {segments.map((seg, i) => {
           const pct = totalSpending > 0 ? (seg.amount / totalSpending) * 100 : 0;
           const isActive = activeIndex === i;
@@ -237,10 +234,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
               onMouseLeave={() => setActiveIndex(null)}
               onClick={() => onRowClick(seg)}
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <div
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: shadeFor(seg.rank, segments.length) }}
+                  style={{ backgroundColor: shadeFor(seg.rank) }}
                 />
                 <span
                   className={`text-xs truncate ${

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../../lib/api/fetch";
+import LineChart from "../ui/LineChart";
 import { Dropdown } from "@slate-ui/react";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount } from "../../lib/formatCurrency";
@@ -32,11 +33,9 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     const today = now.getDate();
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return Array.from({ length: Math.max(today, 1) }, (_, i) => ({
-      day: i + 1,
       dateString: `${monthNames[month]} ${i + 1}`,
       spending: 0,
       previousSpending: 0,
-      dailySpending: 0,
     }));
   };
 
@@ -117,6 +116,16 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     fetchMonthlyData();
   }, [authLoading, user?.id, selectedMonth, mockData]);
 
+  const chartContainerRef = useRef(null);
+
+  const handleMouseMove = useCallback((data, index) => {
+    setActiveIndex(index);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setActiveIndex(null);
+  }, []);
+
   const lastValidDataPoint = useMemo(() => {
     for (let i = chartData.length - 1; i >= 0; i--) {
       if (chartData[i]?.spending !== null && chartData[i]?.spending !== undefined) {
@@ -191,6 +200,31 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     };
   }, [activeIndex, chartData]);
 
+  // Cache last tooltip data so it can render during exit animation
+  const [cachedTooltip, setCachedTooltip] = useState({ data: null, style: {} });
+
+  const isTooltipVisible = !!hoveredDayTransactions;
+
+  const tooltipStyle = useMemo(() => {
+    if (activeIndex === null || !chartData.length) return {};
+    const pct = (activeIndex / Math.max(chartData.length - 1, 1)) * 100;
+    if (pct < 20) {
+      return { left: `${Math.max(2, pct)}%`, transform: 'translateX(0)' };
+    } else if (pct > 80) {
+      return { left: `${Math.min(98, pct)}%`, transform: 'translateX(-100%)' };
+    }
+    return { left: `${pct}%`, transform: 'translateX(-50%)' };
+  }, [activeIndex, chartData.length]);
+
+  useEffect(() => {
+    if (hoveredDayTransactions) {
+      setCachedTooltip({ data: hoveredDayTransactions, style: tooltipStyle });
+    }
+  }, [hoveredDayTransactions, tooltipStyle]);
+
+  const tooltipData = hoveredDayTransactions || cachedTooltip.data;
+  const displayTooltipStyle = Object.keys(tooltipStyle).length > 0 ? tooltipStyle : cachedTooltip.style;
+
   const showLoading = isFetching;
 
   const selectedMonthName = useMemo(() => {
@@ -205,7 +239,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
         <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
         <div className="h-7 w-24 bg-[var(--color-border)] rounded" />
       </div>
-      <div className="flex items-start gap-8 mb-8">
+      <div className="flex items-start gap-8 mb-6">
         <div>
           <div className="h-9 w-28 bg-[var(--color-border)] rounded mb-2" />
           <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
@@ -215,15 +249,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
           <div className="h-3 w-14 bg-[var(--color-border)] rounded" />
         </div>
       </div>
-      <div className="flex items-end gap-1.5 h-[140px]">
-        {[...Array(28)].map((_, i) => (
-          <div
-            key={i}
-            className="flex-1 bg-[var(--color-border)] rounded-t-md opacity-40"
-            style={{ height: `${30 + Math.sin(i * 0.7) * 25 + Math.random() * 25}%` }}
-          />
-        ))}
-      </div>
+      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 rounded-lg" />
     </div>
   );
 
@@ -252,6 +278,11 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
             </div>
 
             <div className="flex items-center gap-3">
+              {activeIndex !== null && currentData?.dateString && (
+                <span className="text-[11px] font-medium text-[var(--color-muted)] animate-fade-in">
+                  {currentData.dateString}
+                </span>
+              )}
               {availableMonths.length > 0 && (
                 <Dropdown
                   label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
@@ -273,7 +304,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
           </div>
 
           {/* Numbers side by side */}
-          <div className="flex items-start gap-8 mb-8">
+          <div className="flex items-start gap-8 mb-6">
             {/* Current month */}
             <div>
               <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1.5">
@@ -312,162 +343,79 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
             </div>
           </div>
 
-          {/* Daily bar strip */}
-          <DailyBars
-            data={chartData}
-            activeIndex={activeIndex}
-            setActiveIndex={setActiveIndex}
-            hoveredDayTransactions={hoveredDayTransactions}
-            formatCurrency={formatCurrency}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
+          {/* Chart */}
+          <div ref={chartContainerRef} className="relative flex-1 w-full" onMouseLeave={handleMouseLeave}>
+            <LineChart
+              data={chartData}
+              dataKey="spending"
+              width="100%"
+              height="100%"
+              margin={{ top: 16, right: 16, bottom: 0, left: 16 }}
+              strokeColor="var(--color-fg)"
+              strokeWidth={2.5}
+              strokeOpacity={1}
+              showArea={true}
+              areaOpacity={0.22}
+              showDots={false}
+              curveType="monotone"
+              xAxisDataKey="dateString"
+              showXAxis={false}
+              showYAxis={false}
+              showGrid={false}
+              gradientId="monthlyOverviewSpending"
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+            />
 
-function DailyBars({ data, activeIndex, setActiveIndex, hoveredDayTransactions, formatCurrency }) {
-  const containerRef = useRef(null);
-
-  const maxDaily = useMemo(() => {
-    let m = 0;
-    for (const d of data) {
-      const v = d?.dailySpending ?? 0;
-      if (v > m) m = v;
-    }
-    return m;
-  }, [data]);
-
-  // Cache last tooltip data so it can render during exit animation
-  const [cachedTooltip, setCachedTooltip] = useState({ data: null, index: null });
-  useEffect(() => {
-    if (hoveredDayTransactions) {
-      setCachedTooltip({ data: hoveredDayTransactions, index: activeIndex });
-    }
-  }, [hoveredDayTransactions, activeIndex]);
-
-  const isTooltipVisible = !!hoveredDayTransactions;
-  const tooltipData = hoveredDayTransactions || cachedTooltip.data;
-  const tooltipBarIndex = activeIndex !== null ? activeIndex : cachedTooltip.index;
-
-  const tooltipStyle = useMemo(() => {
-    if (tooltipBarIndex === null || !data.length) return {};
-    const pct = ((tooltipBarIndex + 0.5) / data.length) * 100;
-    if (pct < 18) {
-      return { left: `${Math.max(2, pct)}%`, transform: 'translateX(0)' };
-    } else if (pct > 82) {
-      return { left: `${Math.min(98, pct)}%`, transform: 'translateX(-100%)' };
-    }
-    return { left: `${pct}%`, transform: 'translateX(-50%)' };
-  }, [tooltipBarIndex, data.length]);
-
-  const handleLeave = useCallback(() => setActiveIndex(null), [setActiveIndex]);
-
-  return (
-    <div className="relative flex-1 min-h-[140px] w-full" ref={containerRef}>
-      {/* Bars */}
-      <div
-        className="flex items-end gap-[3px] h-full pt-6"
-        onMouseLeave={handleLeave}
-      >
-        {data.map((d, i) => {
-          const daily = d?.dailySpending ?? 0;
-          const hasData = d?.dailySpending !== null && d?.dailySpending !== undefined;
-          // Min visual height so even empty days are clickable / visible as a baseline tick
-          const minPct = hasData ? 2 : 0;
-          const heightPct = maxDaily > 0 ? Math.max(minPct, (daily / maxDaily) * 100) : minPct;
-          const isActive = activeIndex === i;
-          const isDimmed = activeIndex !== null && !isActive;
-
-          return (
-            <div
-              key={i}
-              className="flex-1 h-full flex flex-col justify-end group cursor-pointer"
-              onMouseEnter={() => setActiveIndex(i)}
-            >
+            {/* Transaction tooltip on hover — always mounted for exit animation */}
+            {tooltipData && (
               <div
-                className="w-full rounded-t-[3px]"
+                className="absolute top-2 z-10 pointer-events-none"
                 style={{
-                  height: `${heightPct}%`,
-                  backgroundColor: 'var(--color-fg)',
-                  opacity: isActive ? 1 : isDimmed ? 0.18 : 0.55,
-                  transition: 'opacity 0.18s ease, height 0.3s ease',
+                  ...displayTooltipStyle,
+                  opacity: isTooltipVisible ? 1 : 0,
+                  scale: isTooltipVisible ? 1 : 0.85,
+                  translateY: isTooltipVisible ? 0 : 8,
+                  transition: 'opacity 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.8, 0.64, 1), translate 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
                 }}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* X-axis: first / mid / last day labels */}
-      <div className="flex justify-between mt-2 px-1 text-[10px] text-[var(--color-muted)] tabular-nums">
-        {data.length > 0 && (
-          <>
-            <span>{data[0]?.day ?? ''}</span>
-            {data.length > 8 && <span>{data[Math.floor(data.length / 2)]?.day ?? ''}</span>}
-            <span>{data[data.length - 1]?.day ?? ''}</span>
-          </>
-        )}
-      </div>
-
-      {/* Hovered date pill */}
-      {activeIndex !== null && data[activeIndex]?.dateString && (
-        <div
-          className="absolute top-0 z-10 pointer-events-none animate-fade-in"
-          style={tooltipStyle}
-        >
-          <span className="text-[10px] font-medium text-[var(--color-muted)] uppercase tracking-wider whitespace-nowrap">
-            {data[activeIndex].dateString}
-          </span>
-        </div>
-      )}
-
-      {/* Transaction tooltip on hover — always mounted for exit animation */}
-      {tooltipData && (
-        <div
-          className="absolute -top-2 z-20 pointer-events-none"
-          style={{
-            ...tooltipStyle,
-            opacity: isTooltipVisible ? 1 : 0,
-            transform: `${tooltipStyle.transform || ''} translateY(${isTooltipVisible ? '-100%' : 'calc(-100% + 8px)'}) scale(${isTooltipVisible ? 1 : 0.9})`,
-            transformOrigin: 'bottom center',
-            transition: 'opacity 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.5, 0.64, 1)',
-          }}
-        >
-          <div className="rounded-lg bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-2">
-              {tooltipData.date}
-            </p>
-            <ul className="space-y-2">
-              {tooltipData.transactions.map((tx, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                    style={{ backgroundColor: tx.icon_url ? 'transparent' : (tx.category_hex_color || '#71717a') }}
-                  >
-                    {tx.icon_url ? (
-                      <img src={tx.icon_url} alt="" className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      <DynamicIcon
-                        iconLib={tx.category_icon_lib}
-                        iconName={tx.category_icon_name}
-                        className="h-3 w-3 text-white"
-                        fallback={FiTag}
-                        style={{ strokeWidth: 2.5 }}
-                      />
-                    )}
-                  </div>
-                  <span className="text-[12px] text-[var(--color-fg)] truncate flex-1">{tx.merchant}</span>
-                  <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
-                    {formatCurrency(tx.amount)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {tooltipData.moreCount > 0 && (
-              <p className="text-[10px] text-[var(--color-muted)] mt-2">
-                +{tooltipData.moreCount} more
-              </p>
+              >
+                <div className="rounded-lg bg-[var(--color-surface-alt)] ring-1 ring-[var(--color-fg)]/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-2">
+                    {tooltipData.date}
+                  </p>
+                  <ul className="space-y-2">
+                    {tooltipData.transactions.map((tx, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+                          style={{ backgroundColor: tx.icon_url ? 'transparent' : (tx.category_hex_color || '#71717a') }}
+                        >
+                          {tx.icon_url ? (
+                            <img src={tx.icon_url} alt="" className="w-full h-full object-cover rounded-full" />
+                          ) : (
+                            <DynamicIcon
+                              iconLib={tx.category_icon_lib}
+                              iconName={tx.category_icon_name}
+                              className="h-3 w-3 text-white"
+                              fallback={FiTag}
+                              style={{ strokeWidth: 2.5 }}
+                            />
+                          )}
+                        </div>
+                        <span className="text-[12px] text-[var(--color-fg)] truncate flex-1">{tx.merchant}</span>
+                        <span className="text-[12px] text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                          {formatCurrency(tx.amount)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {tooltipData.moreCount > 0 && (
+                    <p className="text-[10px] text-[var(--color-muted)] mt-2">
+                      +{tooltipData.moreCount} more
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
