@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import AdminPageHeader from "@/components/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -87,18 +88,16 @@ export default async function UsersPage() {
 
   return (
     <>
-      <header className="mb-10 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-            Users
-          </h1>
-          <p className="text-sm text-[var(--color-muted)] mt-1">
+      <AdminPageHeader
+        title="Users"
+        subtitle={
+          <>
             {users.length} total
-            <span className="mx-2 text-[var(--color-muted)]/40">·</span>
+            <span className="mx-1.5 text-[var(--color-muted)]/40">·</span>
             {proCount} pro
-          </p>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {authErr ? (
         <p className="text-sm text-[var(--color-danger)]">
@@ -116,9 +115,10 @@ export default async function UsersPage() {
             return (
               <li
                 key={u.id}
-                className="group relative flex items-center gap-4 py-4 px-3 -mx-3 rounded-md transition-colors hover:bg-[var(--color-fg)]/[0.04]"
+                style={{ gridTemplateColumns: "auto minmax(0, 1.3fr) minmax(0, 1fr) auto" }}
+                className="group relative grid items-center gap-x-4 gap-y-0.5 py-3.5 px-3 -mx-3 rounded-md transition-colors hover:bg-[var(--color-fg)]/[0.04]"
               >
-                <div className="relative h-10 w-10 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-xs font-semibold text-[var(--color-on-accent)]">
+                <div className="row-span-2 relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-xs font-semibold text-[var(--color-on-accent)]">
                   {p?.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -131,43 +131,45 @@ export default async function UsersPage() {
                   )}
                   {isPro && (
                     <span
-                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-content-bg)]"
+                      className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-content-bg)]"
                       aria-hidden
                     />
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[var(--color-fg)] truncate">
-                      {fullName(p, u.email)}
+                <div className="min-w-0 flex items-center gap-2">
+                  <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                    {fullName(p, u.email)}
+                  </span>
+                  {isPro && (
+                    <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)] font-semibold">
+                      pro
                     </span>
-                    {isPro && (
-                      <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)] font-semibold">
-                        pro
-                      </span>
-                    )}
-                    {status && status !== "active" && isPro && (
-                      <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-danger)] font-semibold">
-                        {status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-xs text-[var(--color-muted)] truncate">
-                    {u.email ?? "—"}
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-[11px] text-[var(--color-muted)]/80">
-                    <Meta label="Joined" value={formatDate(u.created_at)} />
-                    <span className="text-[var(--color-muted)]/30">·</span>
-                    <Meta label="Last seen" value={formatRelative(u.last_sign_in_at)} />
-                    <span className="text-[var(--color-muted)]/30">·</span>
-                    <Meta label="ID" value={u.id.slice(0, 8)} mono />
-                  </div>
+                  )}
+                  {status && status !== "active" && isPro && (
+                    <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-danger)] font-semibold">
+                      {status}
+                    </span>
+                  )}
                 </div>
 
-                <span className="text-[var(--color-muted)]/40 text-lg flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="hidden md:grid grid-cols-2 gap-x-6 text-[11px] text-[var(--color-muted)]">
+                  <Meta label="Joined" value={formatDate(u.created_at)} />
+                  <Meta label="Last seen" value={formatRelative(u.last_sign_in_at)} />
+                </div>
+
+                <span className="text-[var(--color-muted)]/40 text-lg flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100 row-span-2 self-center">
                   ›
                 </span>
+
+                <div className="min-w-0 text-xs text-[var(--color-muted)] truncate">
+                  {u.email ?? "—"}
+                </div>
+
+                <div className="hidden md:grid grid-cols-2 gap-x-6 text-[11px] text-[var(--color-muted)]/70">
+                  <Meta label="Tier" value={tier} />
+                  <Meta label="ID" value={u.id.slice(0, 8)} mono />
+                </div>
               </li>
             );
           })}
@@ -179,11 +181,17 @@ export default async function UsersPage() {
 
 function Meta({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <span className="inline-flex items-baseline gap-1">
-      <span className="text-[var(--color-muted)]/50">{label}</span>
-      <span className={mono ? "font-mono text-[var(--color-muted)]" : "text-[var(--color-muted)]"}>
+    <div className="flex items-baseline justify-between gap-2 min-w-0">
+      <span className="text-[var(--color-muted)]/50 flex-shrink-0">{label}</span>
+      <span
+        className={
+          mono
+            ? "font-mono text-[var(--color-muted)] truncate"
+            : "text-[var(--color-muted)] truncate"
+        }
+      >
         {value}
       </span>
-    </span>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import AdminSidebar from "./AdminSidebar";
 import AdminProfileBar from "./AdminProfileBar";
+import AdminTopbar from "./AdminTopbar";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -45,6 +46,7 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
         initials={initials}
       />
       <main className="ml-60 min-h-screen">
+        <AdminTopbar />
         <div className="max-w-6xl mx-auto px-8 py-10">{children}</div>
       </main>
     </div>

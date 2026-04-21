@@ -1,3 +1,4 @@
+import AdminPageHeader from "@/components/AdminPageHeader";
 import { ThemeControls } from "./ThemeControls";
 
 export const dynamic = "force-static";
@@ -5,14 +6,10 @@ export const dynamic = "force-static";
 export default function SettingsPage() {
   return (
     <>
-      <header className="mb-10">
-        <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-          Settings
-        </h1>
-        <p className="text-sm text-[var(--color-muted)] mt-1">
-          Preferences for this admin console. Only affects your browser.
-        </p>
-      </header>
+      <AdminPageHeader
+        title="Settings"
+        subtitle="Preferences for this admin console. Only affects your browser."
+      />
 
       <section>
         <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-4">

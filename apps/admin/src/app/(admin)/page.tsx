@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
+import AdminPageHeader from "@/components/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -131,14 +132,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <header className="mb-10">
-        <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-          Overview
-        </h1>
-        <p className="text-sm text-[var(--color-muted)] mt-1">
-          Internal state at a glance.
-        </p>
-      </header>
+      <AdminPageHeader title="Overview" subtitle="Internal state at a glance." />
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-8 mb-14">
         <Stat

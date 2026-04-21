@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
-import { LuChevronsUpDown } from "react-icons/lu";
+import { LuChevronsUpDown, LuSettings } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import { ConfirmOverlay } from "@zervo/ui";
 import { createClient } from "@/lib/supabase/client";
@@ -21,10 +23,16 @@ type Props = {
  * Sign-out uses a ConfirmOverlay, same pattern as apps/finance/ProfileBar.
  */
 export default function AdminProfileBar({ name, email, avatarUrl, initials }: Props) {
+  const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Collapse the dropdown on route change so settings clicks close it.
+  useEffect(() => {
+    setExpanded(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -66,6 +74,20 @@ export default function AdminProfileBar({ name, email, avatarUrl, initials }: Pr
               className="overflow-hidden border-b border-[var(--color-fg)]/[0.06]"
             >
               <div className="py-2">
+                <Link
+                  href="/settings"
+                  onClick={() => setExpanded(false)}
+                  className={clsx(
+                    optionRowClass,
+                    pathname.startsWith("/settings")
+                      ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+                  )}
+                >
+                  <LuSettings className="h-[18px] w-[18px] flex-shrink-0" />
+                  <span>Settings</span>
+                </Link>
+
                 <button
                   onClick={() => {
                     setExpanded(false);
