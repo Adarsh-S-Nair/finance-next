@@ -11,12 +11,16 @@ const ROTATE_INTERVAL = 8000;
 const toneConfig = {
   positive: {
     accent: "bg-emerald-500",
+    // Very subtle tone-tinted background — mostly surface-alt, a hint of the accent
+    bg: "color-mix(in srgb, var(--color-surface-alt) 92%, #10b981 8%)",
   },
   negative: {
     accent: "bg-rose-500",
+    bg: "color-mix(in srgb, var(--color-surface-alt) 92%, #f43f5e 8%)",
   },
   neutral: {
     accent: "bg-[var(--color-muted)]",
+    bg: "var(--color-surface-alt)",
   },
 };
 
@@ -93,11 +97,14 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
 
   if (loading) {
     return (
-      <div className="w-full pl-4 border-l-4 border-[var(--color-border)]">
-        <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)] mb-4" />
-        <div className="space-y-2">
-          <div className="h-3.5 w-full animate-pulse rounded bg-[var(--color-border)]" />
-          <div className="h-3.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
+      <div className="w-full rounded-xl bg-[var(--color-surface-alt)] p-5 relative overflow-hidden">
+        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-[var(--color-border)]" />
+        <div className="pl-3">
+          <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)] mb-4" />
+          <div className="space-y-2">
+            <div className="h-3.5 w-full animate-pulse rounded bg-[var(--color-border)]" />
+            <div className="h-3.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
+          </div>
         </div>
       </div>
     );
@@ -110,88 +117,99 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
 
   return (
     <div className="w-full">
-      <div className="relative pl-4">
-        {/* Left accent bar — tone-colored, spans full component */}
+      <motion.div
+        key={`bg-${current.tone}-${activeIndex}`}
+        initial={{ backgroundColor: "var(--color-surface-alt)" }}
+        animate={{ backgroundColor: tone.bg }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="relative rounded-xl p-5 overflow-hidden"
+      >
+        {/* Left accent bar — tone-colored, snappy spring-in */}
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={current.tone + activeIndex}
-            initial={{ opacity: 0, scaleY: 0.6 }}
-            animate={{ opacity: 1, scaleY: 1 }}
-            exit={{ opacity: 0, scaleY: 0.6 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className={`absolute left-0 top-0 bottom-0 w-1 rounded-full ${tone.accent}`}
-            style={{ originY: 0 }}
+            initial={{ scaleY: 0, opacity: 0 }}
+            animate={{ scaleY: 1, opacity: 1 }}
+            exit={{ scaleY: 0, opacity: 0 }}
+            transition={{
+              scaleY: { duration: 0.28, ease: [0.16, 1.2, 0.3, 1] },
+              opacity: { duration: 0.12, ease: "easeOut" },
+            }}
+            className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${tone.accent}`}
+            style={{ originY: 0.5 }}
           />
         </AnimatePresence>
 
-        {/* Title row */}
-        <div className="flex items-center justify-between mb-3">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={current.id + activeIndex + "-title"}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="card-header"
-            >
-              {current.title}
-            </motion.span>
-          </AnimatePresence>
+        <div className="pl-3">
+          {/* Title row */}
+          <div className="flex items-center justify-between mb-2.5">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={current.id + activeIndex + "-title"}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                className="card-header"
+              >
+                {current.title}
+              </motion.span>
+            </AnimatePresence>
 
+            {insights.length > 1 && (
+              <div className="flex items-center gap-0.5 -mr-1">
+                <button
+                  onClick={goPrev}
+                  className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                  aria-label="Previous insight"
+                >
+                  <span className="text-sm leading-none">&#8249;</span>
+                </button>
+                <button
+                  onClick={goNext}
+                  className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                  aria-label="Next insight"
+                >
+                  <span className="text-sm leading-none">&#8250;</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Insight message */}
+          <div className="relative overflow-hidden min-h-[44px]">
+            <AnimatePresence mode="wait" initial={false} custom={direction}>
+              <motion.p
+                key={current.id + activeIndex}
+                custom={direction}
+                initial={{ opacity: 0, x: direction * 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: direction * -16 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="text-sm font-medium leading-relaxed text-[var(--color-fg)]"
+              >
+                {current.message}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+
+          {/* Progress bar */}
           {insights.length > 1 && (
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={goPrev}
-                className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-                aria-label="Previous insight"
-              >
-                <span className="text-sm leading-none">&#8249;</span>
-              </button>
-              <button
-                onClick={goNext}
-                className="w-6 h-6 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-                aria-label="Next insight"
-              >
-                <span className="text-sm leading-none">&#8250;</span>
-              </button>
+            <div className="flex items-center gap-1 mt-4">
+              {insights.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-[3px] rounded-full transition-all duration-500 ${
+                    i === activeIndex
+                      ? "flex-1 bg-[var(--color-fg)]"
+                      : "flex-1 bg-[var(--color-fg)]/[0.15]"
+                  }`}
+                />
+              ))}
             </div>
           )}
         </div>
-
-        {/* Insight message */}
-        <div className="relative overflow-hidden min-h-[44px]">
-          <AnimatePresence mode="wait" initial={false} custom={direction}>
-            <motion.p
-              key={current.id + activeIndex}
-              custom={direction}
-              initial={{ opacity: 0, x: direction * 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: direction * -20 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="text-sm font-medium leading-relaxed text-[var(--color-fg)]"
-            >
-              {current.message}
-            </motion.p>
-          </AnimatePresence>
-        </div>
-
-        {/* Progress bar — inside the accent area */}
-        {insights.length > 1 && (
-          <div className="flex items-center gap-1 mt-5">
-            {insights.map((_, i) => (
-              <div
-                key={i}
-                className={`h-[3px] rounded-full transition-all duration-500 ${
-                  i === activeIndex
-                    ? "flex-1 bg-[var(--color-fg)]"
-                    : "flex-1 bg-[var(--color-border)]"
-                }`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      </motion.div>
     </div>
   );
 }

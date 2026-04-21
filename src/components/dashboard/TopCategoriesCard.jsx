@@ -7,15 +7,7 @@ import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
-const MAX_LEGEND_ROWS = 8;
-
-// Solid grayscale shade for a segment by rank (0 = top spender, darkest).
-// Gradient from --color-fg towards --color-muted so every step stays visible.
-function shadeFor(rank) {
-  const stops = [0, 22, 38, 52, 64, 74, 82, 88];
-  const idx = Math.min(rank, stops.length - 1);
-  return `color-mix(in srgb, var(--color-fg), var(--color-muted) ${stops[idx]}%)`;
-}
+const MAX_ROWS = 7;
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
@@ -24,7 +16,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   const [totalSpending, setTotalSpending] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeIndex, setActiveIndex] = useState(null);
+  const [hoverIndex, setHoverIndex] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
 
   const periodOptions = [
@@ -69,10 +61,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     fetchData();
   }, [authLoading, user?.id, selectedPeriod, externalData]);
 
-  // Top (MAX_LEGEND_ROWS - 1) named categories, rest collapsed into "Other".
-  const segments = useMemo(() => {
+  // Top (MAX_ROWS - 1) named, rest collapsed into "Other".
+  const rows = useMemo(() => {
     if (!categories.length) return [];
-    const namedCount = MAX_LEGEND_ROWS - 1;
+    const namedCount = MAX_ROWS - 1;
     const named = categories.slice(0, namedCount).map((cat, i) => ({
       id: cat.id,
       label: cat.label,
@@ -95,16 +87,17 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     return named;
   }, [categories]);
 
-  const onRowClick = (seg) => {
-    if (!seg || seg.isOther || !seg.id) return;
-    router.push(`/transactions?categoryIds=${seg.id}&dateRange=30days`);
-  };
+  // Each row's bar is sized relative to the largest row, not to the total —
+  // makes the visual easier to read when the top category dominates.
+  const maxAmount = useMemo(
+    () => rows.reduce((m, r) => Math.max(m, r.amount || 0), 0),
+    [rows]
+  );
 
-  const hoveredSeg = activeIndex !== null ? segments[activeIndex] : null;
-  const heroValue = hoveredSeg ? hoveredSeg.amount : totalSpending;
-  const heroLabel = hoveredSeg
-    ? hoveredSeg.label
-    : periodOptions.find((p) => p.value === selectedPeriod)?.label;
+  const onRowClick = (row) => {
+    if (!row || row.isOther || !row.id) return;
+    router.push(`/transactions?categoryIds=${row.id}&dateRange=30days`);
+  };
 
   if (loading) {
     return (
@@ -114,16 +107,15 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           <div className="h-7 w-40 bg-[var(--color-border)] rounded" />
         </div>
         <div className="h-9 w-32 bg-[var(--color-border)] rounded mb-2" />
-        <div className="h-3 w-20 bg-[var(--color-border)] rounded mb-5" />
-        <div className="h-3 w-full bg-[var(--color-border)] rounded-full mb-5" />
-        <div className="flex-1 flex flex-col justify-between">
-          {[...Array(7)].map((_, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-border)]" />
+        <div className="h-3 w-20 bg-[var(--color-border)] rounded mb-6" />
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div className="h-3 w-20 bg-[var(--color-border)] rounded" />
+                <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
               </div>
-              <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
+              <div className="h-1 w-full bg-[var(--color-border)] rounded-full" />
             </div>
           ))}
         </div>
@@ -142,7 +134,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     );
   }
 
-  if (segments.length === 0 || totalSpending === 0) {
+  if (rows.length === 0 || totalSpending === 0) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-5">
@@ -160,11 +152,16 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-5">
           {periodOptions.find((p) => p.value === selectedPeriod)?.label}
         </div>
-        <div className="h-3 w-full rounded-full bg-[var(--color-surface-alt)] mb-5" />
         <div className="text-xs text-[var(--color-muted)]">No spending yet.</div>
       </div>
     );
   }
+
+  const hovered = hoverIndex !== null ? rows[hoverIndex] : null;
+  const heroValue = hovered ? hovered.amount : totalSpending;
+  const heroLabel = hovered
+    ? hovered.label
+    : periodOptions.find((p) => p.value === selectedPeriod)?.label;
 
   return (
     <div className="h-full flex flex-col">
@@ -184,77 +181,62 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1.5 transition-colors">
           <CurrencyAmount amount={heroValue} />
         </div>
-        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-5">
+        <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-6">
           {heroLabel}
         </div>
       </div>
 
-      {/* Stacked bar */}
+      {/* Per-row horizontal bars */}
       <div
-        className="h-3 w-full flex rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-5"
-        onMouseLeave={() => setActiveIndex(null)}
+        className="space-y-3.5"
+        onMouseLeave={() => setHoverIndex(null)}
       >
-        {segments.map((seg, i) => {
-          const pct = totalSpending > 0 ? (seg.amount / totalSpending) * 100 : 0;
-          if (pct === 0) return null;
-          const isActive = activeIndex === i;
-          const isDimmed = activeIndex !== null && !isActive;
+        {rows.map((row, i) => {
+          const widthPct = maxAmount > 0 ? (row.amount / maxAmount) * 100 : 0;
+          const sharePct = totalSpending > 0 ? (row.amount / totalSpending) * 100 : 0;
+          const isHovered = hoverIndex === i;
+          const isDimmed = hoverIndex !== null && !isHovered;
           return (
             <div
-              key={seg.id}
-              className={`h-full ${seg.isOther ? '' : 'cursor-pointer'}`}
-              style={{
-                width: `${pct}%`,
-                backgroundColor: shadeFor(seg.rank),
-                opacity: isDimmed ? 0.3 : 1,
-                transition: 'opacity 0.2s ease',
-              }}
-              onMouseEnter={() => setActiveIndex(i)}
-              onClick={() => onRowClick(seg)}
-            />
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div className="space-y-2.5">
-        {segments.map((seg, i) => {
-          const pct = totalSpending > 0 ? (seg.amount / totalSpending) * 100 : 0;
-          const isActive = activeIndex === i;
-          const isDimmed = activeIndex !== null && !isActive;
-          return (
-            <div
-              key={seg.id}
-              className={`flex items-center justify-between ${seg.isOther ? '' : 'cursor-pointer'}`}
+              key={row.id}
+              className={`group ${row.isOther ? '' : 'cursor-pointer'}`}
               style={{
                 opacity: isDimmed ? 0.4 : 1,
-                transition: 'opacity 0.2s ease',
+                transition: 'opacity 0.15s ease',
               }}
-              onMouseEnter={() => setActiveIndex(i)}
-              onMouseLeave={() => setActiveIndex(null)}
-              onClick={() => onRowClick(seg)}
+              onMouseEnter={() => setHoverIndex(i)}
+              onClick={() => onRowClick(row)}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: shadeFor(seg.rank) }}
-                />
+              <div className="flex items-baseline justify-between mb-1.5">
                 <span
                   className={`text-xs truncate ${
-                    isActive ? 'text-[var(--color-fg)] font-medium' : 'text-[var(--color-muted)]'
+                    isHovered
+                      ? 'text-[var(--color-fg)] font-medium'
+                      : 'text-[var(--color-fg)]'
                   }`}
-                  style={{ transition: 'color 0.2s ease' }}
+                  style={{ transition: 'font-weight 0.15s ease' }}
                 >
-                  {seg.label}
+                  {row.label}
                 </span>
+                <div className="flex items-baseline gap-2 flex-shrink-0 ml-3">
+                  <span className="text-xs font-medium text-[var(--color-fg)] tabular-nums">
+                    <CurrencyAmount amount={row.amount} />
+                  </span>
+                  <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-7 text-right">
+                    {sharePct.toFixed(0)}%
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0 ml-3">
-                <span className="text-xs font-semibold text-[var(--color-fg)] tabular-nums">
-                  <CurrencyAmount amount={seg.amount} />
-                </span>
-                <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-7 text-right">
-                  {pct.toFixed(0)}%
-                </span>
+              <div className="h-1 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${widthPct}%`,
+                    backgroundColor: 'var(--color-fg)',
+                    opacity: isHovered ? 1 : 0.7,
+                    transition: 'opacity 0.15s ease, width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                />
               </div>
             </div>
           );
