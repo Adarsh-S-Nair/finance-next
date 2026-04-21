@@ -7,7 +7,7 @@ import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 
-const MAX_ROWS = 7;
+const MAX_ROWS = 6;
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
@@ -117,7 +117,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                 <div className="h-3 w-20 bg-[var(--color-border)] rounded" />
                 <div className="h-3 w-12 bg-[var(--color-border)] rounded" />
               </div>
-              <div className="h-1 w-full bg-[var(--color-border)] rounded-full" />
+              <div className="h-2 w-full bg-[var(--color-border)] rounded-full" />
             </div>
           ))}
         </div>
@@ -229,7 +229,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                   </span>
                 </div>
               </div>
-              <div className="h-1 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
                 <div
                   className="h-full rounded-full"
                   style={{

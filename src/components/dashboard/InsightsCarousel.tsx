@@ -11,15 +11,12 @@ const ROTATE_INTERVAL = 8000;
 const toneConfig = {
   positive: {
     accent: "bg-emerald-500",
-    bg: "color-mix(in srgb, var(--color-surface-alt) 92%, #10b981 8%)",
   },
   negative: {
     accent: "bg-rose-500",
-    bg: "color-mix(in srgb, var(--color-surface-alt) 92%, #f43f5e 8%)",
   },
   neutral: {
     accent: "bg-[var(--color-muted)]",
-    bg: "var(--color-surface-alt)",
   },
 };
 
@@ -97,7 +94,7 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
   if (loading) {
     return (
       <div className="w-full bg-[var(--color-surface-alt)] p-5 relative">
-        <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-[var(--color-border)]" />
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--color-border)]" />
         <div className="pl-3">
           <div className="h-3 w-20 animate-pulse rounded bg-[var(--color-border)] mb-4" />
           <div className="space-y-2">
@@ -116,12 +113,8 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
 
   return (
     <div className="w-full">
-      <motion.div
-        animate={{ backgroundColor: tone.bg }}
-        transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
-        className="relative p-5 overflow-hidden"
-      >
-        {/* Left accent bar — tone-colored, snappy spring-in */}
+      <div className="relative p-5 overflow-hidden bg-[var(--color-surface-alt)]">
+        {/* Left accent bar — tone-colored, snappy spring-in, spans full height */}
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={current.tone + activeIndex}
@@ -132,7 +125,7 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
               scaleY: { duration: 0.22, ease: [0.16, 1.4, 0.3, 1] },
               opacity: { duration: 0.1, ease: "easeOut" },
             }}
-            className={`absolute left-0 top-3 bottom-3 w-[3px] ${tone.accent}`}
+            className={`absolute left-0 top-0 bottom-0 w-[3px] ${tone.accent}`}
             style={{ originY: 0.5 }}
           />
         </AnimatePresence>
@@ -206,7 +199,7 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
