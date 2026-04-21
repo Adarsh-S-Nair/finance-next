@@ -1,8 +1,13 @@
-# Finance Next
+# Zervo Workspace
 
-Personal finance platform with bank account integration, transaction tracking, budgeting, and investment portfolio monitoring.
+pnpm monorepo. Two apps share one codebase:
 
-## Tech Stack
+- `apps/finance` — the personal finance product (this file's historical "finance-next"). Deploys to Vercel at the primary domain.
+- `apps/admin` — internal admin dashboard at `admin.zervo.app` (planned, not yet scaffolded).
+
+Shared code will live in `packages/*` (UI primitives, Supabase client, config). `packages/ui` replaces the old external `@slate-ui/react` dep.
+
+## Tech Stack (apps/finance)
 
 - **Framework**: Next.js 16 (App Router) + React 19
 - **Language**: TypeScript/JavaScript mixed codebase
@@ -18,54 +23,74 @@ Personal finance platform with bank account integration, transaction tracking, b
 ## Project Structure
 
 ```
-src/
-├── app/                    # Next.js App Router
-│   ├── (main)/             # Protected routes (wrapped by AuthGuard + AppShell)
-│   │   ├── dashboard/      # Financial overview
-│   │   ├── accounts/       # Plaid-connected bank accounts
-│   │   ├── transactions/   # Transaction history
-│   │   ├── budgets/        # Budget tracking
-│   │   ├── investments/    # Stock/crypto portfolio monitoring
-│   │   └── settings/       # User preferences
-│   └── api/                # API routes (see src/app/api/)
-├── components/             # React components
-│   ├── ui/                 # Reusable primitives (Button, Card, Modal, etc.)
-│   ├── dashboard/          # Dashboard-specific cards
-│   ├── UserProvider.jsx    # Global auth/theme context
-│   ├── AppShell.tsx        # Layout wrapper with sidebar
-│   └── AuthGuard.jsx       # Route protection
-├── lib/                    # Utilities and services
-│   ├── supabaseClient.js   # Client-side Supabase (with auth)
-│   ├── supabaseAdmin.js    # Server-side admin client (bypasses RLS)
-│   ├── marketData.js       # Finnhub ticker metadata helpers
-│   ├── plaid/              # Plaid sync pipelines (transactions, holdings, etc.)
-│   └── spending.js         # Budget calculations
-├── config/                 # Configuration
-│   └── dashboardLayout.js  # Dashboard card layout config
-└── styles/
-    └── colors.css          # CSS variables for light/dark themes
+/                           # workspace root (pnpm)
+├── pnpm-workspace.yaml
+├── package.json            # root manifest — thin, just dev scripts
+├── apps/
+│   └── finance/            # Next.js app (everything from the old repo root lives here)
+│       ├── src/
+│       │   ├── app/                    # Next.js App Router
+│       │   │   ├── (main)/             # Protected routes (wrapped by AuthGuard + AppShell)
+│       │   │   │   ├── dashboard/
+│       │   │   │   ├── accounts/
+│       │   │   │   ├── transactions/
+│       │   │   │   ├── budgets/
+│       │   │   │   ├── investments/
+│       │   │   │   └── settings/
+│       │   │   └── api/                # API routes
+│       │   ├── components/
+│       │   │   ├── ui/                 # Reusable primitives (will migrate to packages/ui)
+│       │   │   ├── dashboard/
+│       │   │   └── providers/
+│       │   ├── lib/
+│       │   │   ├── supabaseClient.js
+│       │   │   ├── supabaseAdmin.js
+│       │   │   ├── marketData.js
+│       │   │   ├── plaid/
+│       │   │   └── spending.js
+│       │   ├── config/
+│       │   │   └── dashboardLayout.js
+│       │   └── styles/
+│       │       └── colors.css
+│       ├── supabase/migrations/
+│       ├── public/
+│       ├── next.config.mjs
+│       ├── tsconfig.json
+│       └── vercel.json
+└── packages/               # (planned) shared code
+    ├── ui/                 # UI primitives (Button, Card, Modal, ...)
+    ├── supabase/           # shared client + generated types
+    └── config/             # shared tsconfig / eslint / tailwind preset
 ```
 
 ## Essential Commands
 
+All commands run from the workspace root.
+
 ```bash
 # Development
-npm run dev              # Start Next.js dev server
+pnpm dev                 # Start Next.js dev server (apps/finance)
+pnpm dev:finance         # Same, explicit
 
 # Build & Production
-npm run build            # Build for production
-npm run start            # Start production server
+pnpm build               # Build apps/finance
+pnpm start               # Start production server
 
 # Testing
-npm run lint             # Run ESLint
-npm test                 # Run Jest tests
-npm test:watch           # Watch mode
-npm test:coverage        # Generate coverage report
+pnpm lint                # ESLint across all packages
+pnpm test                # Jest (apps/finance)
+pnpm test:watch
+pnpm test:coverage
+
+# Targeting a specific package directly
+pnpm --filter @zervo/finance <script>
 ```
+
+**Package manager:** pnpm (via Corepack — `corepack enable && corepack prepare pnpm@9.15.0 --activate`). Do not mix in npm/yarn — commit only `pnpm-lock.yaml`.
 
 ## Environment Variables
 
-Required in `.env.local`:
+Required in `apps/finance/.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` - Admin key (server-side only)
@@ -75,34 +100,37 @@ Required in `.env.local`:
 
 ## Key Entry Points
 
-- Protected route layout: `src/app/(main)/layout.jsx:6`
-- Auth state management: `src/components/UserProvider.jsx:22`
-- Route protection: `src/components/AuthGuard.jsx:12`
-- Supabase client setup: `src/lib/supabaseClient.js:11`
-- Server-side DB access: `src/lib/supabaseAdmin.js:17`
-- Dashboard layout config: `src/config/dashboardLayout.js:10`
+All paths are relative to the workspace root.
+
+- Protected route layout: `apps/finance/src/app/(main)/layout.jsx:6`
+- Auth state management: `apps/finance/src/components/providers/UserProvider.jsx`
+- Route protection: `apps/finance/src/components/AuthGuard.jsx`
+- Supabase client setup: `apps/finance/src/lib/supabaseClient.js`
+- Server-side DB access: `apps/finance/src/lib/supabaseAdmin.js`
+- Dashboard layout config: `apps/finance/src/config/dashboardLayout.js`
 
 ## API Route Pattern
 
-Routes follow Next.js App Router convention in `src/app/api/[feature]/route.js`:
+Routes follow Next.js App Router convention in `apps/finance/src/app/api/[feature]/route.js`:
 - GET for fetching with query params
 - POST for creating/processing
 - DELETE for removal
 
-Example: `src/app/api/budgets/route.js:4-56`
+Example: `apps/finance/src/app/api/budgets/route.js`
 
 ## Deployment
 
-- **Main App**: Vercel (auto-deploy on push)
+- **apps/finance**: Vercel project — Root Directory set to `apps/finance`. Auto-deploy on push to `main`.
+- **apps/admin** (planned): separate Vercel project at `admin.zervo.app` — Root Directory `apps/admin`. Same Supabase backend, gated by `ADMIN_EMAILS` allowlist.
 
 ## Database Migrations
 
-**CRITICAL:** When applying migrations via Supabase MCP (`apply_migration`), you **must also create a matching local migration file** in `supabase/migrations/`. The CI/CD pipeline runs `supabase db push` which compares the remote migration history table against local files — if a remote migration version has no local `.sql` file, the deploy **will fail**.
+**CRITICAL:** When applying migrations via Supabase MCP (`apply_migration`), you **must also create a matching local migration file** in `apps/finance/supabase/migrations/`. The CI/CD pipeline runs `supabase db push` which compares the remote migration history table against local files — if a remote migration version has no local `.sql` file, the deploy **will fail**.
 
 **Workflow:**
 1. Apply migration via MCP `apply_migration` (this runs it on the remote DB and records the version)
 2. Note the version timestamp from the MCP result (e.g. `20260411024907`)
-3. Create `supabase/migrations/<version>_<name>.sql` with the same SQL content
+3. Create `apps/finance/supabase/migrations/<version>_<name>.sql` with the same SQL content
 4. Commit and push the migration file along with your code changes
 
 **Never** apply a migration remotely without committing the corresponding local file in the same push.
@@ -155,8 +183,8 @@ When working on specific areas, consult these files:
 
 | Topic | File |
 |-------|------|
-| UI Style Guide | `docs/ui_style_guide.md` |
-| Architecture & Patterns | `docs/architectural_patterns.md` |
+| UI Style Guide | `apps/finance/docs/ui_style_guide.md` |
+| Architecture & Patterns | `apps/finance/docs/architectural_patterns.md` |
 | Log Debugging Guide | `.claude/docs/debugging_logs.md` |
 
 ## Git & Commits
@@ -171,17 +199,14 @@ When working on specific areas, consult these files:
 - **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
 - **Do NOT include the Claude session URL** (e.g. `https://claude.ai/code/...`) in commit messages. It triggers co-author attribution.
 
-## Slate UI (`@slate-ui/react`)
+## Shared UI (`@zervo/ui` — planned)
 
-Custom component library maintained in a sibling repo at `../slate-ui` (GitHub: `Adarsh-S-Nair/slate-ui`).
+Shared component library lives in `packages/ui` inside this workspace. **This replaces the old external `@slate-ui/react` package** — we stopped maintaining that separate repo once the monorepo landed (publish-loop friction was killing updates).
 
-- **Source**: `../slate-ui/src/components/` — TypeScript components built with Tailwind + CSS variables
-- **Build**: `npm run build` in the slate-ui repo (uses `tsup`), outputs to `dist/`
-- **Install in finance-next**: `npm install @slate-ui/react@github:Adarsh-S-Nair/slate-ui`
-- **Tailwind scanning**: finance-next must include `@source "../../node_modules/@slate-ui/react/dist"` in `globals.css` so Tailwind 4 JIT generates utility classes used by slate-ui components
-- **Theming**: Components consume CSS variables from `colors.css` (e.g. `--color-dropdown-bg`, `--color-fg`, `--color-surface`, `--color-accent`)
-- **Components**: Dropdown, Button, Card, Tooltip, EmptyState, and more
-- **Workflow**: Edit source in `../slate-ui/src/` → `npm run build` → commit + push slate-ui → `npm install` in finance-next to pull updated dist
+- **Source**: `packages/ui/src/` — TypeScript components built with Tailwind + CSS variables
+- **Consumption**: `apps/finance` and `apps/admin` depend on `@zervo/ui` via pnpm workspace (`"@zervo/ui": "workspace:*"`). Edits propagate instantly — no publish, no reinstall.
+- **Theming**: Components consume CSS variables from `apps/*/src/styles/colors.css` (e.g. `--color-fg`, `--color-surface`, `--color-accent`).
+- **Extraction discipline**: a component moves to `packages/ui` only after it's genuinely needed in both apps. Don't pre-extract churny components.
 
 ## Working Conventions
 
