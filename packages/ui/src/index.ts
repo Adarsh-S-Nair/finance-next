@@ -20,3 +20,4 @@ export type { SegmentedTabOption, SegmentedTabsProps } from "./SegmentedTabs";
 export { Dropdown } from "./Dropdown";
 export type { DropdownItem } from "./Dropdown";
 export { EmptyState } from "./EmptyState";
+export { default as GoogleSignInButton, GoogleIcon } from "./GoogleSignInButton";
