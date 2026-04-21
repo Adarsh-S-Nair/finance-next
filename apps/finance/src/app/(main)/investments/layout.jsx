@@ -4,11 +4,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { LuChevronRight, LuRefreshCw } from "react-icons/lu";
 import PageContainer from "../../../components/layout/PageContainer";
 import PageHeader from "../../../components/layout/PageHeader";
-import Button from "../../../components/ui/Button";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase/client";
 import { useUser } from "../../../components/providers/UserProvider";
 import { InvestmentsHeaderContext } from "./InvestmentsHeaderContext";
+import { Button } from "@zervo/ui";
 
 export default function InvestmentsLayout({ children }) {
   const pathname = usePathname();

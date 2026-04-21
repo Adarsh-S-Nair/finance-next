@@ -3,12 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { FiCheckCircle, FiLoader, FiXCircle } from 'react-icons/fi';
-import Modal from './ui/Modal';
-import Button from './ui/Button';
 import MockPlaidLink from './MockPlaidLink';
 import { useUser } from './providers/UserProvider';
 import { useAccounts } from './providers/AccountsProvider';
 import { authFetch } from '../lib/api/fetch';
+import { Button, Modal } from "@zervo/ui";
 
 const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === 'mock';
 

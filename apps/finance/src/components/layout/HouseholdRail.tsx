@@ -8,13 +8,13 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { LuPlus } from "react-icons/lu";
 import { FiUserPlus, FiLogOut } from "react-icons/fi";
-import Tooltip from "../ui/Tooltip";
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
 import ConfirmOverlay from "../ui/ConfirmOverlay";
 import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
 import HouseholdInviteModal from "../households/HouseholdInviteModal";
+import { Tooltip } from "@zervo/ui";
 
 type HouseholdContextMenu = {
   id: string;

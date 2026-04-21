@@ -2,7 +2,6 @@
 
 import { ButtonHTMLAttributes, forwardRef } from "react";
 import clsx from "clsx";
-import { useUser } from "../providers/UserProvider";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "accent" | "secondary" | "ghost" | "danger" | "dangerSubtle" | "outline" | "glass" | "matte" | "minimal";
@@ -32,16 +31,13 @@ const variants: Record<string, string> = {
   glass:
     "bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/20 hover:border-[var(--color-accent)]/30 backdrop-blur-sm shadow-sm shadow-[var(--color-accent)]/5 transition-all duration-200",
   matte:
-    "bg-[var(--color-accent)] text-[var(--color-on-accent)] border-none hover:bg-[var(--color-accent)]/90 shadow-none hover:shadow-md hover:shadow-[var(--color-accent)]/10",
+    "bg-[var(--color-accent)] text-[var(--color-on-accent,white)] border-none hover:bg-[var(--color-accent)]/90 shadow-none hover:shadow-md hover:shadow-[var(--color-accent)]/10",
   minimal:
     "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/50 border-none shadow-none",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", fullWidth = false, loading = false, children, ...props }, ref) => {
-    const { profile } = useUser();
-    const isCustomAccent = !!profile?.accent_color;
-
     const sizeClasses =
       size === "sm"
         ? "h-8 px-3 py-2"
@@ -55,21 +51,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 ? "h-9 w-9 p-0"
                 : "h-10 px-4 py-2";
 
-    let variantClasses = variants[variant];
-
-    // Custom accent colors are always vivid → force white text.
-    // Default accent uses --color-on-accent which the CSS theme sets correctly
-    // (white in light mode, black in dark mode).
-    if ((variant === "primary" || variant === "matte") && isCustomAccent) {
-      variantClasses = variantClasses
-        .replace("text-[var(--color-on-accent)]", "text-white")
-        .replace("text-[var(--color-on-accent,white)]", "text-white");
-    }
-
     return (
       <button
         ref={ref}
-        className={clsx(baseStyles, variantClasses, sizeClasses, fullWidth && "w-full", className)}
+        className={clsx(baseStyles, variants[variant], sizeClasses, fullWidth && "w-full", className)}
         disabled={loading || props.disabled}
         {...props}
       >

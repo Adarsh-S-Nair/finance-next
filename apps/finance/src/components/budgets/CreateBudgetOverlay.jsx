@@ -5,9 +5,9 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiCheck, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { FiTag } from "react-icons/fi";
-import Button from "../ui/Button";
 import DynamicIcon from "../DynamicIcon";
 import IncomeBreakdownChart from "./IncomeBreakdownChart";
+import { Button } from "@zervo/ui";
 
 export default function CreateBudgetOverlay({
   isOpen,

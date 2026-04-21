@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
-import Button from "../../../components/ui/Button";
-import Card from "../../../components/ui/Card";
 import { PiBankFill } from "react-icons/pi";
 import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
 import { useUser } from "../../../components/providers/UserProvider";
@@ -12,12 +10,11 @@ import { useAccounts } from "../../../components/providers/AccountsProvider";
 import NetWorthCard from "../../../components/dashboard/NetWorthCard";
 import { AssetsCard, LiabilitiesCard } from "../../../components/dashboard/AccountsSummaryCard";
 import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
-import SegmentedTabs from "../../../components/ui/SegmentedTabs";
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
-import Drawer from "../../../components/ui/Drawer";
 import AccountDetails from "../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
+import { Button, Card, Drawer, SegmentedTabs } from "@zervo/ui";
 
 // Helper to format currency
 const formatCurrency = (amount) => {

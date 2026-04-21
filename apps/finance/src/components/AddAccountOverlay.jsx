@@ -12,7 +12,7 @@ import {
   FiChevronRight,
   FiAlertCircle,
 } from "react-icons/fi";
-import Button from "./ui/Button";
+import { Button } from "@zervo/ui";
 import MockPlaidLink from "./MockPlaidLink";
 import UpgradeOverlay from "./UpgradeOverlay";
 import { useAccounts } from "./providers/AccountsProvider";

@@ -5,8 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { IconType } from "react-icons";
 import { FaLock } from "react-icons/fa";
-import Tooltip from "../ui/Tooltip";
-
+import { Tooltip } from "@zervo/ui";
 interface SidebarItemProps {
   href: string;
   label: string;

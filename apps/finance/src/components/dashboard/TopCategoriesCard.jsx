@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
-import SegmentedTabs from "../ui/SegmentedTabs";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
+import { SegmentedTabs } from "@zervo/ui";
 
 const MAX_ROWS = 6;
 

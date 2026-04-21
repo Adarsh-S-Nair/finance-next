@@ -1,8 +1,6 @@
 "use client";
 
 import PageContainer from "../../../components/layout/PageContainer";
-import Button from "../../../components/ui/Button";
-import Drawer from "../../../components/ui/Drawer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
@@ -14,6 +12,7 @@ import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
 import { PiBankFill } from "react-icons/pi";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
+import { Button, Drawer } from "@zervo/ui";
 
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";

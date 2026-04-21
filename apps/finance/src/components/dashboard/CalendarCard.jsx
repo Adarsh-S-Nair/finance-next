@@ -5,8 +5,8 @@ import { authFetch } from '../../lib/api/fetch';
 import { useUser } from '../providers/UserProvider';
 import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
-import Drawer from '../ui/Drawer';
 import ViewAllLink from '../ui/ViewAllLink';
+import { Drawer } from "@zervo/ui";
 
 // Get next occurrence on/after today for a recurring stream
 const getNextOccurrence = (stream) => {

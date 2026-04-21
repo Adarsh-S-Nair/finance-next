@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import ContactSelector from '../reimbursements/ContactSelector';
 import { supabase } from '../../lib/supabase/client';
-import Button from '../ui/Button';
-
+import { Button } from "@zervo/ui";
 export default function RepaymentView({ transaction, onRepaymentCreated, onClose }) {
   const [selectedContactId, setSelectedContactId] = useState(null);
   const [debts, setDebts] = useState([]);
