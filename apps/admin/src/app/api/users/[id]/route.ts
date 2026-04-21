@@ -4,15 +4,51 @@ import { isAllowedAdmin } from "@/lib/auth/admin";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/**
- * Resolve the finance app's origin. In prod we default to zervo.app; in
- * local dev the caller can override with FINANCE_API_URL=http://localhost:3000.
- * The delete flow that lives in finance owns the Plaid + Stripe SDKs, so
- * admin never needs those deps — it just proxies with the admin's Bearer
- * token and lets finance execute the teardown.
- */
 function getFinanceApiUrl(): string {
   return process.env.FINANCE_API_URL || "https://zervo.app";
+}
+
+/**
+ * Resolve the admin's verified user + access_token, or describe why we
+ * can't. We call getUser() first (round-trips to Supabase to actually
+ * verify the JWT instead of trusting cookie state) and only then pull
+ * the access_token off the session for forwarding. Returning distinct
+ * error strings per failure mode is the difference between "I got 401"
+ * being a 5-minute fix vs. a 30-minute debugging session.
+ */
+async function resolveAdmin(): Promise<
+  | { ok: true; userId: string; email: string; accessToken: string }
+  | { ok: false; status: number; error: string }
+> {
+  const supabase = await createClient();
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData?.user) {
+    return { ok: false, status: 401, error: "No admin session (getUser failed)" };
+  }
+  const user = userData.user;
+
+  if (!isAllowedAdmin(user.email)) {
+    return { ok: false, status: 403, error: "Caller is not on the admin allowlist" };
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Admin session has no access_token to forward to finance",
+    };
+  }
+
+  return {
+    ok: true,
+    userId: user.id,
+    email: user.email ?? "",
+    accessToken: session.access_token,
+  };
 }
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
@@ -22,45 +58,48 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Missing user id" }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user || !session.access_token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const admin = await resolveAdmin();
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status });
     }
-    if (!isAllowedAdmin(session.user.email)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    if (session.user.id === targetUserId) {
+    if (admin.userId === targetUserId) {
       return NextResponse.json(
         { error: "You can't delete your own admin account from here." },
         { status: 400 },
       );
     }
 
-    const financeUrl = `${getFinanceApiUrl()}/api/admin/users/${encodeURIComponent(targetUserId)}`;
+    const financeBase = getFinanceApiUrl();
+    const financeUrl = `${financeBase}/api/admin/users/${encodeURIComponent(targetUserId)}`;
+    console.log(`[admin users DELETE] ${admin.email} -> ${financeUrl}`);
+
     const res = await fetch(financeUrl, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${admin.accessToken}`,
         "Content-Type": "application/json",
       },
       cache: "no-store",
     });
 
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
     if (!res.ok) {
+      const detail = body?.error || body?.message || `finance returned ${res.status}`;
       return NextResponse.json(
-        { error: body?.error || "Delete failed at finance API" },
+        { error: `[finance ${res.status}] ${detail}` },
         { status: res.status },
       );
     }
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     const err = e as { message?: string };
-    console.error("[admin users proxy] unexpected error:", err?.message ?? e);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+    console.error("[admin users DELETE] unexpected error:", err?.message ?? e);
+    return NextResponse.json(
+      { error: err?.message || "Failed to delete user" },
+      { status: 500 },
+    );
   }
 }
