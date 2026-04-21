@@ -109,9 +109,8 @@ export default async function UsersPage() {
         <ul className="border-t border-b border-[var(--color-fg)]/[0.06] divide-y divide-[var(--color-fg)]/[0.06]">
           {users.map((u) => {
             const p = profileMap.get(u.id);
-            const tier = p?.subscription_tier ?? "free";
             const status = p?.subscription_status ?? null;
-            const isPro = tier === "pro";
+            const isPro = p?.subscription_tier === "pro";
             return (
               <li
                 key={u.id}
@@ -166,8 +165,7 @@ export default async function UsersPage() {
                   {u.email ?? "—"}
                 </div>
 
-                <div className="hidden md:grid grid-cols-2 gap-x-6 text-[11px] text-[var(--color-muted)]/70">
-                  <Meta label="Tier" value={tier} />
+                <div className="hidden md:block text-[11px] text-[var(--color-muted)]/70">
                   <Meta label="ID" value={u.id.slice(0, 8)} mono />
                 </div>
               </li>

@@ -8,7 +8,7 @@
  */
 export default function AdminTopbar() {
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-[var(--color-fg)]/[0.06] bg-[var(--color-content-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_15%)]">
+    <header className="sticky top-0 z-40 h-16 bg-[var(--color-content-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_15%)]">
       <div className="max-w-6xl mx-auto h-full px-8 flex items-center gap-4">
         <div
           id="admin-page-title-portal"

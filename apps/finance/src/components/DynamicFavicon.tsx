@@ -10,12 +10,14 @@ export default function DynamicFavicon() {
         const response = await fetch('/logo.svg');
         const svgText = await response.text();
 
-        // Get the current accent color from CSS variable
+        // Get the current accent color from CSS variable. Fall back to the
+        // brand primary so the favicon is always a Zervo logo even before
+        // the user's profile (and accent) has loaded.
         let accentColor = getComputedStyle(document.documentElement)
           .getPropertyValue('--color-accent')
           .trim();
 
-        if (!accentColor) return;
+        if (!accentColor) accentColor = '#18181b';
 
         // Check if accent color is the default light color in dark mode (#fafafa / rgb(250, 250, 250))
         // If so, we force the background to be dark (#18181b) to maintain visibility and the "dark" look
