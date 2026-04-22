@@ -35,6 +35,14 @@ if [ "$VERCEL_ENV" = "production" ]; then
     echo "[ignore-build] no previous production SHA, first deploy — building"
     exit 1
   fi
+  # Manual "Redeploy" button on the Vercel dashboard reuses the same commit
+  # SHA. A diff against yourself is empty, which would make us skip — but
+  # that's exactly when someone is trying to pick up a changed env var and
+  # needs a real rebuild. Always build in that case.
+  if [ "$BASE" = "$VERCEL_GIT_COMMIT_SHA" ]; then
+    echo "[ignore-build] manual redeploy of same commit — building (env var refresh)"
+    exit 1
+  fi
   echo "[ignore-build] comparing against previous prod SHA: ${BASE:0:8}"
 else
   # Preview deploy. We need to compare against main's tip — NOT HEAD~1, because

@@ -62,7 +62,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const financeUrl = `${financeBase}/api/admin/users/${encodeURIComponent(
       targetUserId,
     )}/subscription`;
-    console.log(`[admin subscription PATCH] ${admin.email} -> ${financeUrl}`);
+    console.log(
+      `[admin subscription PATCH] ${admin.email} -> ${financeUrl} (env FINANCE_API_URL=${process.env.FINANCE_API_URL ?? "<unset>"})`,
+    );
 
     const res = await fetch(financeUrl, {
       method: "PATCH",

@@ -75,7 +75,9 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
 
     const financeBase = getFinanceApiUrl();
     const financeUrl = `${financeBase}/api/admin/users/${encodeURIComponent(targetUserId)}`;
-    console.log(`[admin users DELETE] ${admin.email} -> ${financeUrl}`);
+    console.log(
+      `[admin users DELETE] ${admin.email} -> ${financeUrl} (env FINANCE_API_URL=${process.env.FINANCE_API_URL ?? "<unset>"})`,
+    );
 
     const res = await fetch(financeUrl, {
       method: "DELETE",
