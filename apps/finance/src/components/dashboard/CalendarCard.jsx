@@ -158,16 +158,54 @@ export default function CalendarCard({ className = '', mockData }) {
   // (outflows) and income (inflows) so the two don't visually collide — a
   // green "+$3,000" sitting beside a red bill confuses the hierarchy.
   // Bills are the primary concern; income gets a smaller secondary section.
-  const { bills, income } = useMemo(() => {
+  const { bills, income, allBillsSorted } = useMemo(() => {
     const all = recurring
       .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
       .filter((item) => item.nextDate)
       .sort((a, b) => a.nextDate - b.nextDate);
 
-    const billItems = all.filter((u) => u.stream.stream_type !== "inflow").slice(0, 5);
+    const allBills = all.filter((u) => u.stream.stream_type !== "inflow");
+    const billItems = allBills.slice(0, 5);
     const incomeItems = all.filter((u) => u.stream.stream_type === "inflow").slice(0, 2);
-    return { bills: billItems, income: incomeItems };
+    return { bills: billItems, income: incomeItems, allBillsSorted: allBills };
   }, [recurring]);
+
+  // 7-day strip: today + next 6 days. For each day, list of bills due.
+  // Uses ALL bills (not just the top-5 in the list) so the strip is a
+  // complete week-at-a-glance view of bill density.
+  const weekStrip = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const byKey = new Map();
+    for (const { stream, nextDate } of allBillsSorted) {
+      const d = new Date(nextDate);
+      d.setHours(0, 0, 0, 0);
+      const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
+      if (diff < 0 || diff > 6) continue;
+      const key = dayKey(d);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(stream);
+    }
+
+    const days = [];
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const streams = byKey.get(dayKey(d)) || [];
+      days.push({
+        date: d,
+        isToday: i === 0,
+        dayLabel: i === 0 ? "Today" : dayLabels[d.getDay()],
+        dateNum: d.getDate(),
+        streams,
+      });
+    }
+    return days;
+  }, [allBillsSorted]);
+
+  const weekHasAnyBills = weekStrip.some((d) => d.streams.length > 0);
 
   const hasBills = bills.length > 0;
   const hasIncome = income.length > 0;
@@ -208,6 +246,66 @@ export default function CalendarCard({ className = '', mockData }) {
 
       {(hasBills || hasIncome) ? (
         <div className="flex flex-col">
+          {/* Week-at-a-glance strip (bills only) */}
+          {hasBills && (
+            <div className="grid grid-cols-7 gap-0.5 mb-4">
+              {weekStrip.map((day, i) => {
+                const count = day.streams.length;
+                const hasBillsOnDay = count > 0;
+                const tooltip = hasBillsOnDay
+                  ? day.streams
+                      .map((s) => s.merchant_name || s.description || 'Recurring')
+                      .join(', ')
+                  : '';
+                return (
+                  <div
+                    key={i}
+                    title={tooltip}
+                    className={`flex flex-col items-center py-1.5 rounded-md ${
+                      day.isToday ? 'bg-[var(--color-surface-alt)]' : ''
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-wide text-[var(--color-muted)] leading-none">
+                      {day.dayLabel.slice(0, 3)}
+                    </span>
+                    <span
+                      className={`text-[11px] font-medium tabular-nums mt-1 leading-none ${
+                        day.isToday ? 'text-[var(--color-fg)]' : 'text-[var(--color-fg)]'
+                      }`}
+                    >
+                      {day.dateNum}
+                    </span>
+                    <div className="h-2 mt-1.5 flex items-center justify-center gap-0.5">
+                      {hasBillsOnDay && (
+                        <>
+                          {count === 1 && (
+                            <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
+                          )}
+                          {count === 2 && (
+                            <>
+                              <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
+                              <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
+                            </>
+                          )}
+                          {count >= 3 && (
+                            <span className="text-[8px] font-semibold text-[var(--color-fg)] leading-none tabular-nums">
+                              {count}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {!weekHasAnyBills && (
+                <div className="col-span-7 -mt-1 text-center text-[10px] text-[var(--color-muted)]">
+                  No bills due this week
+                </div>
+              )}
+            </div>
+          )}
+
           {hasBills && (
             <>
               {showSectionLabels && (
