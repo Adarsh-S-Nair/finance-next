@@ -18,6 +18,8 @@
 import crypto from 'crypto';
 import { createPublicKey } from 'crypto';
 import jwt from 'jsonwebtoken';
+import { PlaidEnvironments } from 'plaid';
+import { PLAID_ENV } from '../client';
 import type { WebhookLogger } from './types';
 
 /**
@@ -106,8 +108,23 @@ export async function verifyWebhookSignature({
       return false;
     }
 
-    // Fetch Plaid's public key for this kid.
-    const response = await fetch('https://production.plaid.com/webhook_verification_key/get', {
+    // Fetch Plaid's public key for this kid from the correct env host.
+    //
+    // Each Plaid environment (sandbox / development / production) signs its
+    // webhooks with its own keys and exposes its own /webhook_verification_key
+    // endpoint. Hitting production's endpoint for a sandbox-signed webhook
+    // returns a key that can't verify the signature, which means the webhook
+    // silently fails verification and gets rejected. Using PlaidEnvironments
+    // from the SDK avoids hand-maintaining the host list.
+    const plaidHost = PlaidEnvironments[PLAID_ENV];
+    if (!plaidHost) {
+      logger.error('PLAID_ENV does not map to a known Plaid host', null, {
+        plaidEnv: PLAID_ENV,
+      });
+      return false;
+    }
+
+    const response = await fetch(`${plaidHost}/webhook_verification_key/get`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
