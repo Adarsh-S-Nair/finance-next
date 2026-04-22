@@ -9,7 +9,7 @@
  * This supplements Plaid's recurring API, not replaces it.
  */
 
-import { supabaseAdmin } from './supabaseAdmin';
+import { supabaseAdmin } from './supabase/admin';
 
 // Categories that often get missed by Plaid's recurring detection
 const TARGET_CATEGORIES = [

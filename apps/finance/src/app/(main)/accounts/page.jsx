@@ -18,13 +18,9 @@ import { authFetch } from "../../../lib/api/fetch";
 import { supabase } from "../../../lib/supabase/client";
 import { Button, Card, Drawer, SegmentedTabs } from "@zervo/ui";
 
-// Helper to format currency
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
-};
+import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
+
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 // Helper to capitalize words
 const capitalizeWords = (str) => {

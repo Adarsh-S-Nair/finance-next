@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import clsx from "clsx";
 import { LuSettings } from "react-icons/lu";
 import { NAV_GROUPS, type NavItem } from "../nav";
-import { isFeatureEnabled } from "../../lib/tierConfigClient";
+import { isFeatureEnabled } from "../../lib/tierConfig";
 import { SidebarSection, SidebarItem } from "@zervo/ui";
 import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
 

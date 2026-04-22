@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
+import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }) {
@@ -46,15 +49,6 @@ function AnimatedCounter({ value, duration = 120 }) {
   return (
     <span>{formatCurrency(displayValue)}</span>
   );
-}
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 // Helper function to categorize accounts

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabaseAdmin';
+import { supabaseAdmin } from './supabase/admin';
 
 /**
  * Detects unmatched transfers for a user within a specific date range.

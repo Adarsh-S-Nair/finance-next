@@ -16,13 +16,9 @@
  */
 
 import { useMemo, useState } from "react";
+import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount || 0);
-}
+const formatCurrency = (amount) => formatCurrencyBase(amount || 0, true);
 
 const CATEGORY_ORDER = ["Stocks", "Crypto", "Cash"];
 

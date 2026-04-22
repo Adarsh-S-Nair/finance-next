@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabaseAdmin';
+import { supabaseAdmin } from './supabase/admin';
 
 /**
  * Creates account snapshots for a list of accounts

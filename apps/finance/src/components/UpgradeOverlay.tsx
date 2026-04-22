@@ -6,7 +6,7 @@ import { FiCheck, FiX } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { useToast } from "./providers/ToastProvider";
 import { authFetch } from "../lib/api/fetch";
-import { getTierDisplayFeatures } from "../lib/tierConfigClient";
+import { getTierDisplayFeatures } from "../lib/tierConfig";
 
 const FREE_FEATURES = getTierDisplayFeatures("free");
 const PRO_FEATURES = getTierDisplayFeatures("pro");

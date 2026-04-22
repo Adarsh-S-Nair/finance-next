@@ -7,14 +7,9 @@ import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
 import Link from 'next/link';
 import { ViewAllLink } from "@zervo/ui";
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
+import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
+
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 function formatDate(dateString) {
   if (!dateString) return '';

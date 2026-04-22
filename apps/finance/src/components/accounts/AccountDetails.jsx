@@ -3,13 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 import { formatAccountSubtype } from "../../lib/accountSubtype";
 import { isLiabilityAccount } from "../../lib/accountUtils";
+import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
 
-const formatCurrency = (amount, currency = "USD") => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-  }).format(amount ?? 0);
-};
+const formatCurrency = (amount, currency = "USD") =>
+  formatCurrencyBase(amount ?? 0, true, currency || "USD");
 
 const formatDate = (value) => {
   if (!value) return null;

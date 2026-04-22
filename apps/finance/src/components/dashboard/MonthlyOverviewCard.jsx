@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
-import { CurrencyAmount } from "../../lib/formatCurrency";
+import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
 import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { Dropdown } from "@zervo/ui";
@@ -164,14 +164,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     }
     return fullPreviousMonthSpending;
   }, [activeIndex, chartData, fullPreviousMonthSpending]);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const momComparison = useMemo(() => {
     const current = currentData?.spending || 0;

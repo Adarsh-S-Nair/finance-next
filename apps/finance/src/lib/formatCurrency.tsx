@@ -4,10 +4,14 @@ import React from "react";
  * Format a number as a currency string (plain text).
  * Returns e.g. "$1,234" or "$1,234.56"
  */
-export function formatCurrency(amount: number, cents = false): string {
+export function formatCurrency(
+  amount: number,
+  cents = false,
+  currency = "USD",
+): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: cents ? 2 : 0,
     maximumFractionDigits: cents ? 2 : 0,
   }).format(amount);

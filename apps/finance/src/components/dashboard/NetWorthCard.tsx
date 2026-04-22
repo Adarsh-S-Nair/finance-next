@@ -6,6 +6,9 @@ import { useUser } from "../providers/UserProvider";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 import { LineChart, TimeRangeSelector } from "@zervo/ui";
+import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+
+const formatCurrency = (amount: number) => formatCurrencyBase(amount, true);
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -57,15 +60,6 @@ function AnimatedCounter({ value, duration = 120 }: { value: number; duration?: 
       {formatCurrency(displayValue)}
     </span>
   );
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 // Helper function to categorize account balances (same logic as AccountsSummaryCard)

@@ -1,15 +1,11 @@
 import React, { memo } from 'react';
 import { FiTag, FiAlertCircle } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
+import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
-};
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact, showDate = false }) {
   const [logoFailed, setLogoFailed] = React.useState(false);

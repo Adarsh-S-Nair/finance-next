@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabaseAdmin';
+import { supabaseAdmin } from './supabase/admin';
 
 /**
  * Fetches all category rules for a specific user.

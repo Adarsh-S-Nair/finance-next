@@ -1,142 +1,135 @@
 /**
  * tierConfig.ts
  *
- * Centralized tier gating + feature flags.
- * Loaded once at module initialization from config/tiers.yaml and config/features.yaml.
- * Do NOT import this from client components directly — use the re-exported
- * client-safe helpers in tierConfigClient.ts instead.
+ * Centralized tier gating + feature flags. Data is inlined as TS so this
+ * module is safe to import from both server (API routes, webhooks) and
+ * client (React components) code — no fs, no yaml.
+ *
+ * Tier / feature changes require a code change + deploy. That's intentional:
+ * pricing rarely shifts and a code push is the simplest audit trail.
  */
-
-import fs from 'fs';
-import path from 'path';
-import yaml from 'js-yaml';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface TierFeatures {
-  [feature: string]: boolean;
-}
-
 interface TierConfig {
   connections: number | 'unlimited';
-  features: TierFeatures;
+  features: Record<string, boolean>;
   plaid_products: string[];
 }
 
-interface TiersConfig {
-  tiers: {
-    [tier: string]: TierConfig;
-  };
-}
-
-interface FeatureFlag {
-  enabled_envs: string[];
-  description?: string;
-}
-
-interface FeaturesConfig {
-  features: {
-    [feature: string]: FeatureFlag;
-  };
-}
-
 // ---------------------------------------------------------------------------
-// Load configs once at module init (build/startup time)
+// Config data (single source of truth)
 // ---------------------------------------------------------------------------
 
-function loadTiersConfig(): TiersConfig {
-  const configPath = path.join(process.cwd(), 'config', 'tiers.yaml');
-  const raw = fs.readFileSync(configPath, 'utf8');
-  return yaml.load(raw) as TiersConfig;
-}
+const TIERS: Record<string, TierConfig> = {
+  free: {
+    connections: 1,
+    features: {
+      transactions: true,
+      budgets: false,
+      investments: false,
+      recurring: false,
+      net_worth_history: true,
+    },
+    plaid_products: ['transactions'],
+  },
+  pro: {
+    connections: 5,
+    features: {
+      transactions: true,
+      budgets: true,
+      investments: true,
+      recurring: true,
+      net_worth_history: true,
+    },
+    plaid_products: ['transactions', 'investments'],
+  },
+};
 
-function loadFeaturesConfig(): FeaturesConfig {
-  const configPath = path.join(process.cwd(), 'config', 'features.yaml');
-  const raw = fs.readFileSync(configPath, 'utf8');
-  return yaml.load(raw) as FeaturesConfig;
-}
+const FEATURE_ENABLED_ENVS: Record<string, string[]> = {
+  budgets: ['development', 'test', 'production'],
+  investments: ['development', 'test', 'production'],
+  recurring: ['development', 'test', 'production'],
+  transactions: ['development', 'test', 'production'],
+  net_worth_history: ['development', 'test', 'production'],
+};
 
-// Loaded once — not on every request
-let _tiersConfig: TiersConfig | null = null;
-let _featuresConfig: FeaturesConfig | null = null;
+const FEATURE_LABELS: Record<string, string> = {
+  transactions: 'Transaction history',
+  budgets: 'Budget tracking',
+  investments: 'Investment portfolio tracking',
+  recurring: 'Recurring transactions analysis',
+  net_worth_history: 'Net worth tracking',
+};
 
-function getTiersConfig(): TiersConfig {
-  if (!_tiersConfig) {
-    _tiersConfig = loadTiersConfig();
-  }
-  return _tiersConfig;
-}
-
-function getFeaturesConfig(): FeaturesConfig {
-  if (!_featuresConfig) {
-    _featuresConfig = loadFeaturesConfig();
-  }
-  return _featuresConfig;
-}
+const PRO_EXTRAS: string[] = ['Priority support'];
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Check whether a subscription tier has access to a given feature.
- *
- * @param tier - e.g. 'free' | 'pro'
- * @param feature - e.g. 'budgets' | 'investments' | 'recurring'
- */
-export function canAccess(tier: string, feature: string): boolean {
-  const config = getTiersConfig();
-  const tierConfig = config.tiers[tier] ?? config.tiers['free'];
-  return tierConfig?.features?.[feature] === true;
+function getTier(tier: string): TierConfig {
+  return TIERS[tier] ?? TIERS['free'];
 }
 
-/**
- * Get a numeric/unlimited limit for a tier.
- *
- * @param tier - e.g. 'free' | 'pro'
- * @param key - e.g. 'connections'
- */
+/** Check whether a subscription tier has access to a given feature. */
+export function canAccess(tier: string, feature: string): boolean {
+  return getTier(tier).features?.[feature] === true;
+}
+
+/** Get a numeric/unlimited limit for a tier. */
 export function getLimit(tier: string, key: string): number | 'unlimited' {
-  const config = getTiersConfig();
-  const tierConfig = config.tiers[tier] ?? config.tiers['free'];
-  const value = (tierConfig as unknown as Record<string, unknown>)?.[key];
+  const value = (getTier(tier) as unknown as Record<string, unknown>)?.[key];
   if (value === 'unlimited') return 'unlimited';
   if (typeof value === 'number') return value;
   return 0;
 }
 
-/**
- * Get the Plaid products enabled for a tier.
- *
- * @param tier - e.g. 'free' | 'pro'
- */
+/** Get the Plaid products enabled for a tier. */
 export function getPlaidProducts(tier: string): string[] {
-  const config = getTiersConfig();
-  const tierConfig = config.tiers[tier] ?? config.tiers['free'];
-  return tierConfig?.plaid_products ?? ['transactions'];
+  return getTier(tier).plaid_products ?? ['transactions'];
 }
 
 /**
  * Check whether a feature is enabled in the current environment.
- * Uses NEXT_PUBLIC_APP_ENV if set, otherwise falls back to NODE_ENV.
- *
- * NOTE: This reads process.env at call time so it works both server-side and
- * during Next.js build/static analysis. On the client, Next.js inlines
- * NEXT_PUBLIC_* env vars at build time.
- *
- * @param feature - e.g. 'budgets' | 'investments' | 'recurring'
+ * Uses NEXT_PUBLIC_APP_ENV if set, otherwise NODE_ENV.
  */
 export function isFeatureEnabled(feature: string): boolean {
-  const config = getFeaturesConfig();
-  const flagConfig = config.features[feature];
-  if (!flagConfig) return false;
-
+  const enabledEnvs = FEATURE_ENABLED_ENVS[feature];
+  if (!enabledEnvs) return false;
   const env =
     (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_ENV) ||
     (typeof process !== 'undefined' && process.env.NODE_ENV) ||
     'production';
+  return enabledEnvs.includes(env);
+}
 
-  return flagConfig.enabled_envs.includes(env);
+/**
+ * Build the display feature list for a tier's upgrade card.
+ * Includes the connection count + enabled features with human labels.
+ * For pro tier, also includes extra perks like "Priority support".
+ */
+export function getTierDisplayFeatures(tier: string): string[] {
+  const cfg = getTier(tier);
+  const connections = cfg.connections;
+  const connectionLabel =
+    connections === 'unlimited'
+      ? 'Unlimited bank connections'
+      : `${connections} bank connection${connections !== 1 ? 's' : ''}`;
+
+  const features: string[] = [connectionLabel];
+
+  for (const [key, enabled] of Object.entries(cfg.features ?? {})) {
+    if (enabled && FEATURE_LABELS[key]) {
+      features.push(FEATURE_LABELS[key]);
+    }
+  }
+
+  if (tier === 'pro') {
+    features.push(...PRO_EXTRAS);
+  }
+
+  return features;
 }

@@ -7,6 +7,7 @@ import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import { Drawer } from "@zervo/ui";
 import { ViewAllLink } from "@zervo/ui";
+import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 
 // Get next occurrence on/after today for a recurring stream
 const getNextOccurrence = (stream) => {
@@ -46,12 +47,7 @@ const getNextOccurrence = (stream) => {
   return date;
 };
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-};
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 const formatRelativeDate = (date) => {
   const today = new Date();

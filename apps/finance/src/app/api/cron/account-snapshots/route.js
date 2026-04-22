@@ -26,7 +26,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { verifyCronSecret } from '../../../../lib/api/cron';
 import { createLogger } from '../../../../lib/logger';
 

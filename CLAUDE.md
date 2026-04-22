@@ -43,8 +43,7 @@ Shared code will live in `packages/*` (UI primitives, Supabase client, config). 
 │       │   │   ├── dashboard/
 │       │   │   └── providers/
 │       │   ├── lib/
-│       │   │   ├── supabaseClient.js
-│       │   │   ├── supabaseAdmin.js
+│       │   │   ├── supabase/            # client + admin + tokenCache
 │       │   │   ├── marketData.js
 │       │   │   ├── plaid/
 │       │   │   └── spending.js
@@ -117,8 +116,8 @@ All paths are relative to the workspace root.
 - Protected route layout: `apps/finance/src/app/(main)/layout.jsx:6`
 - Auth state management: `apps/finance/src/components/providers/UserProvider.jsx`
 - Route protection: `apps/finance/src/components/AuthGuard.jsx`
-- Supabase client setup: `apps/finance/src/lib/supabaseClient.js`
-- Server-side DB access: `apps/finance/src/lib/supabaseAdmin.js`
+- Supabase client setup: `apps/finance/src/lib/supabase/client.js`
+- Server-side DB access: `apps/finance/src/lib/supabase/admin.js`
 - Dashboard layout config: `apps/finance/src/config/dashboardLayout.js`
 
 ## API Route Pattern

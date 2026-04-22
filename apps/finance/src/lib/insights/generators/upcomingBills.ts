@@ -1,4 +1,5 @@
 import type { Insight } from '../types';
+import { formatCurrency } from '../../formatCurrency';
 
 interface RecurringStream {
   stream_type: string;
@@ -26,12 +27,7 @@ export function upcomingBills(streams: RecurringStream[]): Insight | null {
   if (upcoming.length === 0) return null;
 
   const total = upcoming.reduce((sum, s) => sum + Math.abs(s.average_amount || 0), 0);
-  const formatted = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(total);
+  const formatted = formatCurrency(total);
 
   const count = upcoming.length;
   const billWord = count === 1 ? 'bill' : 'bills';

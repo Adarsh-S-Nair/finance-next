@@ -6,15 +6,7 @@ import { useRouter } from "next/navigation";
 import { PiBankFill } from "react-icons/pi";
 import { Button, Card } from "@zervo/ui";
 import { ViewAllLink } from "@zervo/ui";
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatCurrency } from "../../lib/formatCurrency";
 
 export default function AccountsCard() {
   const { accounts, allAccounts, loading } = useAccounts();

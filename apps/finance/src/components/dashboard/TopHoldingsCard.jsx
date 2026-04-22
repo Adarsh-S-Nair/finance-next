@@ -4,12 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
 import { ViewAllLink } from "@zervo/ui";
-function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number(amount || 0));
-}
+import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+
+const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true);
 
 function formatShares(value) {
   const num = Number(value || 0);

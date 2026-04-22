@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import { useUser } from "../providers/UserProvider";
-import { CurrencyAmount } from "../../lib/formatCurrency";
+import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
 import * as Icons from "lucide-react";
 import { ViewAllLink } from "@zervo/ui";
 
@@ -43,21 +43,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
   const remaining = totalBudget - totalSpent;
   const percentage = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatCurrencyWithCents = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+  const formatCurrencyWithCents = (amount) => formatCurrency(amount, true);
 
   // Loading state
   if (loading) {

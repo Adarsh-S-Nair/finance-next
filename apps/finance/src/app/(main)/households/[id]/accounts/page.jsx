@@ -18,9 +18,9 @@ import { useHouseholdMeta } from "../../../../../components/providers/HouseholdD
 import HouseholdMemberFilter from "../../../../../components/households/HouseholdMemberFilter";
 import AccountDetails from "../../../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../../../lib/accountSubtype";
+import { formatCurrency as formatCurrencyBase } from "../../../../../lib/formatCurrency";
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount || 0);
+const formatCurrency = (amount) => formatCurrencyBase(amount || 0, true);
 
 function ownerName(owner) {
   if (!owner) return "Member";

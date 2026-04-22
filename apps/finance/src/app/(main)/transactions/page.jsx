@@ -12,6 +12,7 @@ import { supabase } from "../../../lib/supabase/client";
 import { authFetch } from "../../../lib/api/fetch";
 import { PiBankFill } from "react-icons/pi";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
+import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
 import { Button, Drawer } from "@zervo/ui";
 
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
@@ -23,13 +24,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
-};
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {

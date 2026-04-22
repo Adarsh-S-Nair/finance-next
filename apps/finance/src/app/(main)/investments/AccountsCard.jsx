@@ -13,13 +13,9 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { PiBankFill } from "react-icons/pi";
+import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number(amount || 0));
-}
+const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true);
 
 function InstitutionAvatar({ logo, name, size = 32 }) {
   const dim = `${size}px`;

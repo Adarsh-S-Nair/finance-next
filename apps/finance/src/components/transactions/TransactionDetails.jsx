@@ -3,12 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
 import { Button } from "@zervo/ui";
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
-};
+import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+
+const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 

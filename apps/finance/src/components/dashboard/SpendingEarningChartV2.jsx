@@ -1,15 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatCurrency } from '../../lib/formatCurrency';
 
 // Rounded top corners (positive bars — grow upward)
 function roundedTopPath(x, y, w, h, r) {

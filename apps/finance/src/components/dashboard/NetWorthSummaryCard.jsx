@@ -4,15 +4,7 @@ import React from "react";
 import { useUser } from "../providers/UserProvider";
 import { useNetWorth } from "../providers/NetWorthProvider";
 import { Card } from "@zervo/ui";
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatCurrency } from "../../lib/formatCurrency";
 
 export default function NetWorthSummaryCard() {
   const { profile } = useUser();
