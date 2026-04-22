@@ -220,8 +220,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const isSetupRoute = pathname === "/setup";
+  // /setup/syncing is the post-FTUX sync splash — same minimal chrome as
+  // /setup (logo + content only, no sidebar/topbar). AuthGuard still
+  // applies because the user must be signed in to have connected an
+  // account, but we don't want the full app shell pulling focus.
+  const isSyncingRoute = pathname === "/setup/syncing";
   const isFtuxRoute = pathname === "/dashboard" || pathname === "/accounts";
-  const shouldUseSetupShell = isSetupRoute;
+  const shouldUseSetupShell = isSetupRoute || isSyncingRoute;
   const shouldUseFtuxShell =
     !isSetupRoute && (isFtuxRoute && initialized && !loading && accounts.length === 0);
 

@@ -105,7 +105,11 @@ function SetupContent() {
       console.warn("[setup] onboarding finalize threw", err);
     }
     await refreshAccounts();
-    router.replace("/dashboard");
+    // Route through the sync splash instead of the dashboard directly.
+    // New Plaid items need a backfill pass before the dashboard has
+    // anything to render; the splash polls sync-status + subscribes to
+    // Realtime and ships the user to /dashboard once items are ready.
+    router.replace("/setup/syncing");
   };
 
   if (completing || initialStep === null) {

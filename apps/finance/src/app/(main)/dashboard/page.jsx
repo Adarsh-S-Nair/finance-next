@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { authFetch } from "../../../lib/api/fetch";
+import { supabase } from "../../../lib/supabase/client";
 import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
 import { dashboardLayout } from "../../../config/dashboardLayout";
@@ -93,25 +94,61 @@ export default function DashboardPage() {
   // Fetch consolidated dashboard summary (single DB round-trip for both chart cards)
   // Fetches once when the user is ready; the cleanup function prevents stale responses.
   const summaryFetchedRef = useRef(false);
+  const fetchSummary = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data) {
+        setSummaryData(data);
+        summaryFetchedRef.current = true;
+      }
+    } catch (err) {
+      console.error('[dashboard] summary fetch error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading || !user?.id) return;
-    // Reset on each mount so navigating away and back refetches
     summaryFetchedRef.current = false;
-    let cancelled = false;
-    authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (cancelled) return;
-        if (data) {
-          setSummaryData(data);
-          summaryFetchedRef.current = true;
+    fetchSummary();
+  }, [authLoading, user?.id, fetchSummary]);
+
+  // Realtime: refetch dashboard summary whenever plaid_items changes for
+  // this user — catches the post-FTUX case where the dashboard renders
+  // with an empty summary (no transactions yet) and transactions land a
+  // few seconds later via webhook. Debounced so burst writes collapse
+  // into one refetch.
+  const summaryDebounceRef = useRef(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`dashboard-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'plaid_items',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          if (summaryDebounceRef.current) clearTimeout(summaryDebounceRef.current);
+          summaryDebounceRef.current = setTimeout(() => {
+            summaryDebounceRef.current = null;
+            fetchSummary();
+          }, 800);
         }
-      })
-      .catch(err => {
-        if (!cancelled) console.error('[dashboard] summary fetch error:', err);
-      });
-    return () => { cancelled = true; };
-  }, [authLoading, user?.id]);
+      )
+      .subscribe();
+    return () => {
+      if (summaryDebounceRef.current) {
+        clearTimeout(summaryDebounceRef.current);
+        summaryDebounceRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchSummary]);
 
   // Fetch budgets at dashboard level so we can hide the card when empty
   useEffect(() => {

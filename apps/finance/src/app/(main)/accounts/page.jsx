@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
 import { PiBankFill } from "react-icons/pi";
@@ -14,6 +14,8 @@ import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import AccountDetails from "../../../components/accounts/AccountDetails";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
+import { authFetch } from "../../../lib/api/fetch";
+import { supabase } from "../../../lib/supabase/client";
 import { Button, Card, Drawer, SegmentedTabs } from "@zervo/ui";
 
 // Helper to format currency
@@ -33,8 +35,26 @@ const capitalizeWords = (str) => {
     .join(' ');
 };
 
+// Small inline pill shown on accounts whose backing plaid_item is
+// still syncing (typical window: 30–60s after initial FTUX connection,
+// or a few seconds on subsequent webhook-triggered syncs). Using a
+// breathing dot instead of a spinner keeps it from competing with the
+// page's primary visual rhythm.
+const SyncingPill = () => (
+  <span
+    className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-alt)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-muted)]"
+    title="Still fetching data from your bank — usually done within a minute."
+  >
+    <span className="relative flex h-1.5 w-1.5">
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-fg)] opacity-40" />
+      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-fg)] opacity-70" />
+    </span>
+    Syncing
+  </span>
+);
+
 // Component for rendering account rows within the unified list
-const AccountRow = ({ account, institutionMap, onClick }) => {
+const AccountRow = ({ account, institutionMap, onClick, isSyncing = false }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
 
   return (
@@ -67,7 +87,10 @@ const AccountRow = ({ account, institutionMap, onClick }) => {
 
         {/* Account Info */}
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5">{account.name}</div>
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{account.name}</div>
+            {isSyncing && <SyncingPill />}
+          </div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
             {account.type && (
               <span className="truncate max-w-[180px]">{formatAccountSubtype(account.type)}</span>
@@ -83,7 +106,11 @@ const AccountRow = ({ account, institutionMap, onClick }) => {
       {/* Balance */}
       <div className="text-right ml-4">
         <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
-          {formatCurrency(account.balance)}
+          {isSyncing ? (
+            <span className="text-[var(--color-muted)]/60">…</span>
+          ) : (
+            formatCurrency(account.balance)
+          )}
         </div>
       </div>
     </div>
@@ -103,7 +130,7 @@ const CategoryHeader = ({ title }) => {
 
 export default function AccountsPage() {
   const router = useRouter();
-  const { profile, isPro } = useUser();
+  const { user, profile, isPro } = useUser();
   const {
     accounts, // Institutions
     allAccounts, // Flat list of accounts
@@ -117,6 +144,68 @@ export default function AccountsPage() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+  // plaid_item_ids whose backend sync is still in progress. Drives the
+  // per-row "Syncing…" pill so users see "data is arriving" instead of
+  // a zero balance that looks like a bug. Populated by /api/plaid/sync-status
+  // and refreshed whenever plaid_items changes via Realtime.
+  const [syncingItemIds, setSyncingItemIds] = useState(() => new Set());
+
+  const fetchSyncStatus = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/plaid/sync-status');
+      if (!res.ok) return;
+      const data = await res.json();
+      const syncing = new Set(
+        (data.items || [])
+          .filter((it) => !it.ready)
+          .map((it) => it.id)
+      );
+      setSyncingItemIds(syncing);
+    } catch (err) {
+      console.warn('[accounts] sync-status fetch failed:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchSyncStatus();
+  }, [user?.id, fetchSyncStatus]);
+
+  // Refresh sync-status in response to plaid_items changes. This keeps
+  // the Syncing pill in sync with backend state without a polling loop.
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`accounts-page-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'plaid_items',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchSyncStatus();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchSyncStatus]);
+
+  // Helper: an account is "syncing" when its institution's plaid_item
+  // is in the syncing set. Institution → plaidItemId lookup lives on
+  // the institutionMap we already build below.
+  const isAccountSyncing = useCallback(
+    (account, institutionMap) => {
+      const inst = institutionMap[account.institutionId];
+      if (!inst?.plaidItemId) return false;
+      return syncingItemIds.has(inst.plaidItemId);
+    },
+    [syncingItemIds]
+  );
 
   const handleAccountClick = (account) => {
     setSelectedAccount(account);
@@ -349,6 +438,7 @@ export default function AccountsPage() {
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
+                          isSyncing={isAccountSyncing(account, institutionMap)}
                         />
                       ))}
                     </>
@@ -364,6 +454,7 @@ export default function AccountsPage() {
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
+                          isSyncing={isAccountSyncing(account, institutionMap)}
                         />
                       ))}
                     </>
@@ -379,6 +470,7 @@ export default function AccountsPage() {
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
+                          isSyncing={isAccountSyncing(account, institutionMap)}
                         />
                       ))}
                     </>
@@ -394,6 +486,7 @@ export default function AccountsPage() {
                           account={account}
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
+                          isSyncing={isAccountSyncing(account, institutionMap)}
                         />
                       ))}
                     </>

@@ -3,7 +3,13 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
+import { supabase } from '../../lib/supabase/client';
 import { transformAccountsData, computeAccountTotals } from '../../lib/accountsTransform';
+
+// Small debounce so a burst of Plaid webhook writes (e.g. item sync
+// followed immediately by balance sync) doesn't fire three back-to-back
+// /api/plaid/accounts calls. 600ms is short enough to feel instant.
+const REALTIME_REFETCH_DEBOUNCE_MS = 600;
 
 export const AccountsContext = createContext();
 
@@ -123,6 +129,58 @@ export function AccountsProvider({ children }) {
   const refreshAccounts = () => {
     fetchAccounts(true);
   };
+
+  // Supabase Realtime: watch plaid_items for this user. Any change —
+  // initial backfill completing, webhook flipping sync_status, balance
+  // sync writing last_balance_sync — is a signal that the accounts list
+  // is now stale and should be refetched. This eliminates the "connect
+  // an account, see empty state, hit refresh" dance that used to
+  // confuse new users.
+  //
+  // Scope intentionally narrow: we only listen to plaid_items, not
+  // accounts or transactions. All server-side writes to those tables
+  // are preceded by a plaid_items UPDATE (status flips, timestamp
+  // writes), so this single subscription catches every relevant event
+  // while keeping wire traffic minimal.
+  const refetchDebounceRef = useRef(null);
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`accounts-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'plaid_items',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          // Debounce: collapse rapid-fire webhook writes into one
+          // refetch. Without this, a user who connects an account
+          // would see 3-4 back-to-back accounts API calls as the
+          // transaction/balance/recurring syncs each tick status.
+          if (refetchDebounceRef.current) {
+            clearTimeout(refetchDebounceRef.current);
+          }
+          refetchDebounceRef.current = setTimeout(() => {
+            refetchDebounceRef.current = null;
+            fetchAccounts(true);
+          }, REALTIME_REFETCH_DEBOUNCE_MS);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (refetchDebounceRef.current) {
+        clearTimeout(refetchDebounceRef.current);
+        refetchDebounceRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Get all accounts as a flat array
   const allAccounts = accounts.flatMap(institution => institution.accounts);
