@@ -8,6 +8,8 @@ import {
   type PlaidItemRow,
 } from "@/lib/plaidPricing";
 
+type AccountRow = { item_id: string };
+
 export const dynamic = "force-dynamic";
 
 type RecentSignup = {
@@ -66,6 +68,7 @@ export default async function HomePage() {
     { data: authUsers },
     { data: profiles },
     { data: plaidItems },
+    { data: accounts },
   ] = await Promise.all([
     admin.from("user_profiles").select("*", { count: "exact", head: true }),
     admin
@@ -87,8 +90,19 @@ export default async function HomePage() {
       .select("id, first_name, last_name, avatar_url, subscription_tier"),
     admin
       .from("plaid_items")
-      .select("id, user_id, item_id, products, sync_status, last_error, created_at"),
+      .select(
+        "id, user_id, item_id, products, recurring_ready, sync_status, last_error, created_at",
+      ),
+    admin.from("accounts").select("item_id"),
   ]);
+
+  const accountCountByItemId = new Map<string, number>();
+  for (const row of (accounts ?? []) as AccountRow[]) {
+    accountCountByItemId.set(
+      row.item_id,
+      (accountCountByItemId.get(row.item_id) ?? 0) + 1,
+    );
+  }
 
   type ProfileRow = {
     id: string;
@@ -125,15 +139,18 @@ export default async function HomePage() {
     (u) => u.last_sign_in_at && u.last_sign_in_at >= last7,
   ).length;
 
-  // Plaid cost aggregation. Group items by user so we can show top spenders
-  // alongside the running total, and compute per-item cost once.
+  // Plaid cost aggregation. Billing is per connected account, so we key into
+  // accountCountByItemId when computing each item's monthly cost.
   const plaidCostByUser = new Map<string, number>();
   let totalPlaidCost = 0;
   let totalPlaidItems = 0;
+  let totalBillableAccounts = 0;
   for (const item of (plaidItems ?? []) as PlaidItemRow[]) {
-    const itemCost = estimateItemMonthlyCost(item.products);
+    const accountCount = accountCountByItemId.get(item.item_id) ?? 0;
+    const itemCost = estimateItemMonthlyCost(item, accountCount);
     totalPlaidCost += itemCost;
     totalPlaidItems += 1;
+    totalBillableAccounts += accountCount;
     plaidCostByUser.set(
       item.user_id,
       (plaidCostByUser.get(item.user_id) ?? 0) + itemCost,
@@ -196,6 +213,7 @@ export default async function HomePage() {
           value={`${formatUsd(totalPlaidCost)}`}
           sub={
             <span className="text-[var(--color-muted)]/80 tabular-nums">
+              {totalBillableAccounts} account{totalBillableAccounts === 1 ? "" : "s"} ·{" "}
               {totalPlaidItems} item{totalPlaidItems === 1 ? "" : "s"} · /mo
             </span>
           }

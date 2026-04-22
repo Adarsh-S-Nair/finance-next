@@ -1,64 +1,113 @@
 /**
- * Rough Plaid recurring-billing estimate, in USD per active item per month.
+ * Plaid billing rates from our Master Agreement (dashboard → Contracts & Rates).
  *
- * Plaid bills per connected item (one bank login == one item) at a rate that
- * depends on which products are attached. The numbers here are mid-tier
- * ballpark rates — your real invoice depends on your Plaid contract, so the
- * admin UI labels everything "est." and treats this as guidance, not truth.
+ * Plaid bills per *connected account* per month for each recurring product,
+ * not per item. One login to Chase that exposes 5 accounts counts as 5 for
+ * every product we enable on it.
  *
- * Only recurring products are listed. Per-call products (auth, identity)
- * are billed per verification, not per item/month, so they don't belong in
- * a monthly estimate.
+ * Per-call products (Balance at $0.10/call, Auth, Identity) don't fit a
+ * monthly estimate and are intentionally excluded. Balance usage shows up
+ * on the invoice only when we hit /accounts/balance/get; it's not a flat
+ * monthly line.
  *
- * Override any line via env var (no redeploy wall for rate changes):
- *   PLAID_PRICE_TRANSACTIONS=0.50
- *   PLAID_PRICE_INVESTMENTS=1.20
- *   PLAID_PRICE_LIABILITIES=0.20
- *   PLAID_PRICE_SIGNAL=0.60
- *   PLAID_PRICE_INCOME=0.60
- *   PLAID_PRICE_ASSETS=0.60
+ * All of these can be overridden via env vars without a code change:
+ *   PLAID_PRICE_TRANSACTIONS=0.40
+ *   PLAID_PRICE_RECURRING_TRANSACTIONS=0.20
+ *   PLAID_PRICE_INVESTMENTS_HOLDINGS=0.22
+ *   PLAID_PRICE_INVESTMENTS_TRANSACTIONS=0.40
+ * If Plaid renegotiates the contract, bump whichever env var is out of
+ * date — the admin rebuild picks it up.
  */
 
-const DEFAULTS: Record<string, number> = {
-  transactions: 0.3,
-  investments: 1.5,
-  liabilities: 0.2,
-  signal: 0.6,
-  income: 0.6,
-  assets: 0.6,
-};
-
-function envOverride(product: string): number | null {
-  const key = `PLAID_PRICE_${product.toUpperCase()}`;
+function envNum(key: string, fallback: number): number {
   const raw = process.env[key];
-  if (!raw) return null;
+  if (!raw) return fallback;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? n : fallback;
 }
 
-export function getProductMonthlyRate(product: string): number {
-  return envOverride(product) ?? DEFAULTS[product] ?? 0;
-}
-
-export function estimateItemMonthlyCost(
-  products: string[] | null | undefined,
-): number {
-  if (!products?.length) return 0;
-  return products.reduce((sum, p) => sum + getProductMonthlyRate(p), 0);
-}
+export const PLAID_RATES = {
+  transactions: envNum("PLAID_PRICE_TRANSACTIONS", 0.3),
+  recurring_transactions: envNum("PLAID_PRICE_RECURRING_TRANSACTIONS", 0.15),
+  investments_holdings: envNum("PLAID_PRICE_INVESTMENTS_HOLDINGS", 0.18),
+  investments_transactions: envNum("PLAID_PRICE_INVESTMENTS_TRANSACTIONS", 0.35),
+} as const;
 
 export type PlaidItemRow = {
   id: string;
   user_id: string;
   item_id: string;
   products: string[] | null;
+  recurring_ready: boolean | null;
   sync_status: string | null;
   last_error: string | null;
   created_at: string | null;
 };
 
-export function estimateUserMonthlyCost(items: PlaidItemRow[]): number {
-  return items.reduce((sum, it) => sum + estimateItemMonthlyCost(it.products), 0);
+export type BillableLine = {
+  label: string;
+  ratePerAccount: number;
+  accountCount: number;
+  total: number;
+};
+
+/**
+ * Break an item down into the exact lines Plaid would show on an invoice
+ * for that item this month. Takes account_count because billing is
+ * per-account-per-month. Returns both a flat total and the per-line
+ * breakdown so the drawer can show where the money goes.
+ */
+export function billableLinesForItem(
+  item: Pick<PlaidItemRow, "products" | "recurring_ready">,
+  accountCount: number,
+): BillableLine[] {
+  if (accountCount === 0) return [];
+  const lines: BillableLine[] = [];
+  const products = item.products ?? [];
+
+  if (products.includes("transactions")) {
+    lines.push({
+      label: "Transactions",
+      ratePerAccount: PLAID_RATES.transactions,
+      accountCount,
+      total: PLAID_RATES.transactions * accountCount,
+    });
+    if (item.recurring_ready) {
+      lines.push({
+        label: "Recurring Transactions",
+        ratePerAccount: PLAID_RATES.recurring_transactions,
+        accountCount,
+        total: PLAID_RATES.recurring_transactions * accountCount,
+      });
+    }
+  }
+
+  if (products.includes("investments")) {
+    lines.push({
+      label: "Investments Holdings",
+      ratePerAccount: PLAID_RATES.investments_holdings,
+      accountCount,
+      total: PLAID_RATES.investments_holdings * accountCount,
+    });
+    lines.push({
+      label: "Investments Transactions",
+      ratePerAccount: PLAID_RATES.investments_transactions,
+      accountCount,
+      total: PLAID_RATES.investments_transactions * accountCount,
+    });
+  }
+
+  return lines;
+}
+
+export function estimateItemMonthlyCost(
+  item: Pick<PlaidItemRow, "products" | "recurring_ready">,
+  accountCount: number,
+): number {
+  return billableLinesForItem(item, accountCount).reduce(
+    (sum, line) => sum + line.total,
+    0,
+  );
 }
 
 export function formatUsd(n: number): string {

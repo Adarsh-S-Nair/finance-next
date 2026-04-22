@@ -1,10 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import {
-  estimateUserMonthlyCost,
+  estimateItemMonthlyCost,
   type PlaidItemRow,
 } from "@/lib/plaidPricing";
-import UsersClient, { type AdminUserRow } from "./UsersClient";
+import UsersClient, {
+  type AdminUserRow,
+  type PlaidItemWithCost,
+} from "./UsersClient";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +27,7 @@ export default async function UsersPage() {
     { data: authData, error: authErr },
     { data: profiles },
     { data: plaidItems },
+    { data: accounts },
   ] = await Promise.all([
     admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     admin
@@ -33,7 +37,10 @@ export default async function UsersPage() {
       ),
     admin
       .from("plaid_items")
-      .select("id, user_id, item_id, products, sync_status, last_error, created_at"),
+      .select(
+        "id, user_id, item_id, products, recurring_ready, sync_status, last_error, created_at",
+      ),
+    admin.from("accounts").select("item_id"),
   ]);
 
   const profileMap = new Map<string, ProfileRow>();
@@ -41,10 +48,27 @@ export default async function UsersPage() {
     profileMap.set(row.id, row);
   }
 
-  const itemsByUser = new Map<string, PlaidItemRow[]>();
+  // Plaid bills per connected account. Group account rows by item_id so each
+  // plaid_items row knows how many accounts it's being billed for.
+  const accountCountByItemId = new Map<string, number>();
+  for (const row of (accounts ?? []) as { item_id: string }[]) {
+    accountCountByItemId.set(
+      row.item_id,
+      (accountCountByItemId.get(row.item_id) ?? 0) + 1,
+    );
+  }
+
+  const itemsByUser = new Map<string, PlaidItemWithCost[]>();
   for (const row of (plaidItems ?? []) as PlaidItemRow[]) {
+    const accountCount = accountCountByItemId.get(row.item_id) ?? 0;
+    const monthlyCost = estimateItemMonthlyCost(row, accountCount);
+    const enriched: PlaidItemWithCost = {
+      ...row,
+      account_count: accountCount,
+      monthly_cost: monthlyCost,
+    };
     const list = itemsByUser.get(row.user_id) ?? [];
-    list.push(row);
+    list.push(enriched);
     itemsByUser.set(row.user_id, list);
   }
 
@@ -52,6 +76,7 @@ export default async function UsersPage() {
     .map((u) => {
       const p = profileMap.get(u.id);
       const items = itemsByUser.get(u.id) ?? [];
+      const monthlyCost = items.reduce((sum, it) => sum + it.monthly_cost, 0);
       return {
         id: u.id,
         email: u.email ?? null,
@@ -63,7 +88,7 @@ export default async function UsersPage() {
         subscription_tier: p?.subscription_tier ?? null,
         subscription_status: p?.subscription_status ?? null,
         plaid_items: items,
-        plaid_monthly_cost: estimateUserMonthlyCost(items),
+        plaid_monthly_cost: monthlyCost,
       };
     })
     .sort((a, b) => {

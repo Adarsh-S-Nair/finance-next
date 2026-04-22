@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
-import {
-  estimateItemMonthlyCost,
-  formatUsd,
-  getProductMonthlyRate,
-} from "@/lib/plaidPricing";
+import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
   type AdminUserRow,
   formatDate,
@@ -182,7 +178,7 @@ export default function UserDrawer({
                 <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
                   Plaid usage
                 </h3>
-                <span className="text-[11px] text-[var(--color-muted)]/60">
+                <span className="text-[11px] text-[var(--color-muted)]/60 tabular-nums">
                   est. {formatUsd(user.plaid_monthly_cost)} / mo
                 </span>
               </div>
@@ -193,31 +189,42 @@ export default function UserDrawer({
               ) : (
                 <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
                   {user.plaid_items.map((item) => {
-                    const itemCost = estimateItemMonthlyCost(item.products);
+                    const lines = billableLinesForItem(item, item.account_count);
                     return (
                       <li key={item.id} className="py-3">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="font-mono text-[11px] text-[var(--color-fg)] truncate">
                             {item.item_id}
                           </span>
-                          <span className="text-[11px] tabular-nums text-[var(--color-fg)] flex-shrink-0">
-                            {formatUsd(itemCost)}
+                          <span className="text-xs tabular-nums text-[var(--color-fg)] flex-shrink-0">
+                            {formatUsd(item.monthly_cost)}
                           </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--color-muted)]">
-                          {item.products && item.products.length > 0 ? (
-                            item.products.map((p) => (
-                              <span key={p} className="inline-flex items-baseline gap-1">
-                                <span>{p}</span>
-                                <span className="text-[var(--color-muted)]/50 tabular-nums">
-                                  ({formatUsd(getProductMonthlyRate(p))})
-                                </span>
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-[var(--color-muted)]/60">no products</span>
-                          )}
+                        <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+                          {item.account_count} account{item.account_count === 1 ? "" : "s"}
                         </div>
+                        {lines.length > 0 ? (
+                          <ul className="mt-2 space-y-0.5 text-[11px]">
+                            {lines.map((line) => (
+                              <li
+                                key={line.label}
+                                className="flex items-baseline justify-between gap-3 text-[var(--color-muted)]"
+                              >
+                                <span>{line.label}</span>
+                                <span className="tabular-nums text-[var(--color-muted)]/80">
+                                  {line.accountCount} × {formatUsd(line.ratePerAccount)} ={" "}
+                                  <span className="text-[var(--color-fg)]">
+                                    {formatUsd(line.total)}
+                                  </span>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="mt-1 text-[11px] text-[var(--color-muted)]/60">
+                            no billable products
+                          </div>
+                        )}
                         {item.sync_status && item.sync_status !== "idle" && (
                           <div className="mt-1 text-[11px] text-[var(--color-muted)]/70">
                             status: {item.sync_status}

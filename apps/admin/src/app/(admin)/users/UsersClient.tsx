@@ -5,6 +5,11 @@ import { useState } from "react";
 import type { PlaidItemRow } from "@/lib/plaidPricing";
 import UserDrawer from "./UserDrawer";
 
+export type PlaidItemWithCost = PlaidItemRow & {
+  account_count: number;
+  monthly_cost: number;
+};
+
 export type AdminUserRow = {
   id: string;
   email: string | null;
@@ -15,7 +20,7 @@ export type AdminUserRow = {
   avatar_url: string | null;
   subscription_tier: string | null;
   subscription_status: string | null;
-  plaid_items: PlaidItemRow[];
+  plaid_items: PlaidItemWithCost[];
   plaid_monthly_cost: number;
 };
 
