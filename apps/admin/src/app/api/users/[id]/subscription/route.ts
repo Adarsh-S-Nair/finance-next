@@ -5,7 +5,9 @@ import { isAllowedAdmin } from "@/lib/auth/admin";
 type RouteContext = { params: Promise<{ id: string }> };
 
 function getFinanceApiUrl(): string {
-  return process.env.FINANCE_API_URL || "https://zervo.app";
+  // See /api/users/[id] route.ts — must be www host to avoid the apex
+  // redirect that strips the Bearer token.
+  return process.env.FINANCE_API_URL || "https://www.zervo.app";
 }
 
 async function resolveAdmin(): Promise<

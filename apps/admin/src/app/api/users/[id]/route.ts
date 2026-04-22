@@ -5,7 +5,11 @@ import { isAllowedAdmin } from "@/lib/auth/admin";
 type RouteContext = { params: Promise<{ id: string }> };
 
 function getFinanceApiUrl(): string {
-  return process.env.FINANCE_API_URL || "https://zervo.app";
+  // Must be the canonical host. zervo.app 301-redirects to www.zervo.app
+  // and Node's fetch (undici) strips the Authorization header across
+  // redirects, so hitting the apex here turns into a silent 401 at
+  // finance's middleware with "Authentication required".
+  return process.env.FINANCE_API_URL || "https://www.zervo.app";
 }
 
 /**

@@ -41,7 +41,7 @@ variable "supabase_service_role_key" {
 }
 
 variable "finance_api_url" {
-  description = "Origin of the finance app. apps/admin proxies privileged actions (user delete, subscription changes) here so Plaid /item/remove and Stripe cleanup run in finance's environment instead of duplicating SDKs in admin."
+  description = "Origin of the finance app. apps/admin proxies privileged actions (user delete, subscription changes) here so Plaid /item/remove and Stripe cleanup run in finance's environment instead of duplicating SDKs in admin. Must be the canonical host (www.zervo.app, NOT the apex zervo.app which 301-redirects — Node's fetch strips the Authorization header across redirects)."
   type        = string
-  default     = "https://zervo.app"
+  default     = "https://www.zervo.app"
 }
