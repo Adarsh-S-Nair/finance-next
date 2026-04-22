@@ -10,7 +10,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "dev:test": "npx cross-env USE_TEST_ENV=1 next dev",
     "seed:ftux": "node --experimental-vm-modules scripts/seed/seed-empty-user.js",
     "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js",
     "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"

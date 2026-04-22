@@ -408,9 +408,6 @@ export function LandingNav({ showLinks = true }) {
           >
             {BRAND.name}
           </span>
-          {process.env.NEXT_PUBLIC_PLAID_ENV === "mock" && (
-            <span className="card-header ml-1">Test</span>
-          )}
         </Link>
 
         {showLinks && (

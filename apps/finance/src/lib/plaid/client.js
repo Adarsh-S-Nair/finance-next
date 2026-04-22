@@ -1,28 +1,12 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
-import * as mockClient from './mock-client.js';
 import { BRAND } from '../../config/brand';
 
-// Environment configuration
+// Plaid environment: 'sandbox' | 'development' | 'production'.
+// Never defaulted to 'sandbox' silently in prod — the platform env must
+// set this explicitly.
 export const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
 export const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
 export const PLAID_SECRET = process.env.PLAID_SECRET;
-
-/**
- * When PLAID_ENV=mock, all functions delegate to the mock client.
- * This ensures mock mode works regardless of which import path is used.
- * NEVER allowed in NODE_ENV=production.
- */
-const IS_MOCK = PLAID_ENV === 'mock';
-
-if (IS_MOCK && process.env.NODE_ENV === 'production') {
-  throw new Error(
-    '[finance-next] PLAID_ENV=mock is not allowed in NODE_ENV=production.'
-  );
-}
-
-if (IS_MOCK) {
-  console.log('[finance-next] Using MOCK Plaid client (PLAID_ENV=mock)');
-}
 
 const globalForPlaid = global;
 
@@ -62,7 +46,6 @@ export { getPlaidClient };
 // Helper function to create link token
 // If accessToken is provided, creates a Link token in update mode for additional consent
 export async function createLinkToken(userId, products = ['transactions'], accountFilters = null, accessToken = null) {
-  if (IS_MOCK) return mockClient.createLinkToken(userId, products, accountFilters, accessToken);
   try {
     // Check environment variables first
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
@@ -117,7 +100,6 @@ export async function createLinkToken(userId, products = ['transactions'], accou
 
 // Helper function to exchange public token for access token
 export async function exchangePublicToken(publicToken) {
-  if (IS_MOCK) return mockClient.exchangePublicToken(publicToken);
   try {
     const client = getPlaidClient();
     const request = {
@@ -134,7 +116,6 @@ export async function exchangePublicToken(publicToken) {
 
 // Helper function to get accounts
 export async function getAccounts(accessToken) {
-  if (IS_MOCK) return mockClient.getAccounts(accessToken);
   try {
     const client = getPlaidClient();
     const request = {
@@ -151,7 +132,6 @@ export async function getAccounts(accessToken) {
 
 // Helper function to get institution info
 export async function getInstitution(institutionId) {
-  if (IS_MOCK) return mockClient.getInstitution(institutionId);
   try {
     const client = getPlaidClient();
     const request = {
@@ -177,7 +157,6 @@ export async function getInstitution(institutionId) {
 
 // Helper function to get transactions
 export async function getTransactions(accessToken, startDate, endDate, accountIds = null) {
-  if (IS_MOCK) return mockClient.getTransactions(accessToken, startDate, endDate, accountIds);
   try {
     const client = getPlaidClient();
     const request = {
@@ -201,7 +180,6 @@ export async function getTransactions(accessToken, startDate, endDate, accountId
 
 // Helper function to sync transactions using cursor-based pagination
 export async function syncTransactions(accessToken, cursor = null) {
-  if (IS_MOCK) return mockClient.syncTransactions(accessToken, cursor);
   try {
     const client = getPlaidClient();
 
@@ -246,7 +224,6 @@ export async function syncTransactions(accessToken, cursor = null) {
 
 // Helper function to get investment holdings
 export async function getInvestmentsHoldings(accessToken) {
-  if (IS_MOCK) return mockClient.getInvestmentsHoldings(accessToken);
   try {
     const client = getPlaidClient();
     const request = {
@@ -263,7 +240,6 @@ export async function getInvestmentsHoldings(accessToken) {
 
 // Helper function to get investment transactions
 export async function getInvestmentTransactions(accessToken, startDate, endDate, accountIds = null, options = {}) {
-  if (IS_MOCK) return mockClient.getInvestmentTransactions(accessToken, startDate, endDate, accountIds, options);
   try {
     const client = getPlaidClient();
     const request = {
@@ -286,7 +262,6 @@ export async function getInvestmentTransactions(accessToken, startDate, endDate,
 
 // Helper function to remove a Plaid item
 export async function removeItem(accessToken) {
-  if (IS_MOCK) return mockClient.removeItem(accessToken);
   try {
     const client = getPlaidClient();
     const request = {

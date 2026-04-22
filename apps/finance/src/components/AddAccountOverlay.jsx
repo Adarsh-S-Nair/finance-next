@@ -13,13 +13,10 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 import { Button } from "@zervo/ui";
-import MockPlaidLink from "./MockPlaidLink";
 import UpgradeOverlay from "./UpgradeOverlay";
 import { useAccounts } from "./providers/AccountsProvider";
 import { useUser } from "./providers/UserProvider";
 import { authFetch } from "../lib/api/fetch";
-
-const isMockPlaidEnv = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
 
 const SUBTYPE_LABELS = {
   checking: "Checking",
@@ -357,7 +354,6 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
   const [error, setError] = useState(null);
   const [exchanging, setExchanging] = useState(false);
   const [plaidOpened, setPlaidOpened] = useState(false);
-  const [showMockPicker, setShowMockPicker] = useState(false);
 
   // Prevent strict-mode double-invocation of Plaid Link's open(), which
   // otherwise produces a phantom onExit (visible as "Connection cancelled").
@@ -366,7 +362,6 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
   const exchangeToken = async (publicToken) => {
     try {
       setExchanging(true);
-      setShowMockPicker(false);
       const body = { publicToken };
       if (activePlaidItemId) body.existingPlaidItemId = activePlaidItemId;
       const response = await authFetch("/api/plaid/exchange-token", {
@@ -401,7 +396,7 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
   };
 
   const { open, ready } = usePlaidLink({
-    token: isMockPlaidEnv ? null : linkToken,
+    token: linkToken,
     onSuccess: (publicToken) => exchangeToken(publicToken),
     onExit: handlePlaidExit,
   });
@@ -432,11 +427,7 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
         const data = await response.json();
         if (cancelled) return;
         if (data.plaidItemId) setActivePlaidItemId(data.plaidItemId);
-        if (isMockPlaidEnv) {
-          setShowMockPicker(true);
-        } else {
-          setLinkToken(data.link_token);
-        }
+        setLinkToken(data.link_token);
       } catch (err) {
         if (!cancelled) setError(err.message || "Failed to prepare connection");
       }
@@ -449,24 +440,12 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
   }, []);
 
   useEffect(() => {
-    if (!isMockPlaidEnv && linkToken && ready && !error && !openedRef.current) {
+    if (linkToken && ready && !error && !openedRef.current) {
       openedRef.current = true;
       setPlaidOpened(true);
       open();
     }
   }, [linkToken, ready, error, open]);
-
-  if (isMockPlaidEnv && showMockPicker) {
-    return (
-      <MockPlaidLink
-        onSuccess={(token) => exchangeToken(token)}
-        onExit={() => {
-          setShowMockPicker(false);
-          onCancel?.();
-        }}
-      />
-    );
-  }
 
   if (error) {
     return (

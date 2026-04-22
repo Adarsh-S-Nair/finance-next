@@ -1,20 +1,44 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import LoginForm from "../../components/auth/LoginForm";
 import PublicRoute from "../../components/PublicRoute";
 import RouteTransition from "../../components/RouteTransition";
 import { BRAND } from "../../config/brand";
-
-const isMock = process.env.NEXT_PUBLIC_PLAID_ENV === "mock";
+import { supabase } from "../../lib/supabase/client";
+import { useToast } from "../../components/providers/ToastProvider";
+import { GoogleSignInButton } from "@zervo/ui";
 
 export default function AuthPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const { setToast } = useToast();
+
   // Match the landing page: light-first. Dashboard/app can still
   // set `.dark` via its own theme state without us fighting.
   useEffect(() => {
     document.documentElement.classList.remove("dark");
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        // Exchange page decides /dashboard vs /setup based on whether the
+        // user has accounts — no need to hardcode a `next` here.
+        redirectTo: `${window.location.origin}/auth/callback/exchange`,
+      },
+    });
+    if (error) {
+      setToast({
+        title: "Sign in failed",
+        description: error.message,
+        variant: "error",
+      });
+      setIsLoading(false);
+    }
+    // On success the browser redirects to Google OAuth — no state cleanup needed.
+  };
 
   return (
     <PublicRoute>
@@ -48,31 +72,23 @@ export default function AuthPage() {
             </div>
           </header>
 
-          {/* Centered login content */}
+          {/* Centered auth content. Copy is neutral ("continue") rather
+              than "sign in" / "welcome back" because Google OAuth handles
+              both first-time sign-up and returning sign-in on the same
+              button — new users should not feel like they're in the wrong
+              place. */}
           <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-5">
             <div className="w-full max-w-sm">
               <h1 className="text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
-                Sign in
+                Continue to {BRAND.name}
               </h1>
               <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
-                Welcome back. Sign in to continue.
+                Sign in or create an account — one tap with Google.
               </p>
 
               <div className="mt-8">
-                <LoginForm />
+                <GoogleSignInButton loading={isLoading} onClick={handleGoogleSignIn} />
               </div>
-
-              {isMock && (
-                <p className="mt-6 text-sm text-[var(--color-muted)]">
-                  Don&apos;t have an account?{" "}
-                  <Link
-                    href="/setup"
-                    className="font-medium text-[var(--color-fg)] underline underline-offset-4 transition-colors hover:text-[var(--color-muted)]"
-                  >
-                    Get started
-                  </Link>
-                </p>
-              )}
 
               <p className="mt-8 text-xs leading-5 text-[var(--color-muted)]">
                 By continuing, you agree to our{" "}

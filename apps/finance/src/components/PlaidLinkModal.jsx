@@ -3,13 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { FiCheckCircle, FiLoader, FiXCircle } from 'react-icons/fi';
-import MockPlaidLink from './MockPlaidLink';
 import { useUser } from './providers/UserProvider';
 import { useAccounts } from './providers/AccountsProvider';
 import { authFetch } from '../lib/api/fetch';
 import { Button, Modal } from "@zervo/ui";
-
-const isMockPlaid = process.env.NEXT_PUBLIC_PLAID_ENV === 'mock';
 
 export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null, onUpgradeNeeded = null, plaidItemId = null }) {
   const { user } = useUser();
@@ -18,7 +15,6 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [showMockPicker, setShowMockPicker] = useState(false);
   // Track the plaidItemId returned from link-token in update mode
   const [activePlaidItemId, setActivePlaidItemId] = useState(plaidItemId);
   // Handle for the "close after success" delay. We hold it so we can
@@ -54,7 +50,6 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     try {
       setLoading(true);
       setError(null);
-      setShowMockPicker(false);
 
       const body = { publicToken };
       // In update mode, pass the existing plaidItemId so the backend merges rather than creates
@@ -119,15 +114,10 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     setLoading(false);
   };
 
-  const handleMockExit = () => {
-    setShowMockPicker(false);
-    setLoading(false);
-  };
-
-  const { open, ready } = usePlaidLink({ token: isMockPlaid ? null : linkToken, onSuccess, onExit });
+  const { open, ready } = usePlaidLink({ token: linkToken, onSuccess, onExit });
 
   useEffect(() => {
-    if (!isMockPlaid && linkToken && ready && !error) {
+    if (linkToken && ready && !error) {
       setLoading(false);
       open();
     }
@@ -169,12 +159,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
         setActivePlaidItemId(data.plaidItemId);
       }
 
-      if (isMockPlaid) {
-        setLoading(false);
-        setShowMockPicker(true);
-      } else {
-        setLinkToken(data.link_token);
-      }
+      setLinkToken(data.link_token);
     } catch (err) {
       console.error('Error fetching link token:', err);
       setError(err.message);
@@ -195,7 +180,6 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     setSuccess(false);
     setLinkToken(null);
     setLoading(false);
-    setShowMockPicker(false);
     setActivePlaidItemId(plaidItemId);
   };
 
@@ -218,14 +202,6 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
   );
 
   return (
-    <>
-      {/* Mock institution picker — rendered outside the Modal so it can cover everything */}
-      {isMockPlaid && showMockPicker && (
-        <MockPlaidLink
-          onSuccess={(token) => exchangeToken(token)}
-          onExit={handleMockExit}
-        />
-      )}
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -270,6 +246,5 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
         )}
       </div>
     </Modal>
-    </>
   );
 }

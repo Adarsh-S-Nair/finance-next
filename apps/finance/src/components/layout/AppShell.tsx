@@ -57,11 +57,6 @@ function SetupShell({ children }: { children: React.ReactNode }) {
             }}
           />
           <span className="text-sm font-semibold tracking-[0.18em] text-white">ZERVO</span>
-          {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
-            <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
-              TEST
-            </span>
-          )}
         </Link>
       </div>
 
@@ -146,11 +141,6 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
               }}
             />
             <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZERVO</span>
-            {process.env.NEXT_PUBLIC_PLAID_ENV === 'mock' && (
-              <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 border border-white/10 leading-none">
-                TEST
-              </span>
-            )}
           </Link>
         </div>
 
