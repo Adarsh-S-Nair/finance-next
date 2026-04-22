@@ -65,6 +65,7 @@ export default async function HomePage() {
     { count: proCount },
     { count: signupsLast30 },
     { count: signupsPrev30 },
+    { count: activeLast7 },
     { data: authUsers },
     { data: profiles },
     { data: plaidItems },
@@ -84,6 +85,10 @@ export default async function HomePage() {
       .select("*", { count: "exact", head: true })
       .gte("created_at", prev30)
       .lt("created_at", last30),
+    admin
+      .from("user_profiles")
+      .select("*", { count: "exact", head: true })
+      .gte("last_active_at", last7),
     admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     admin
       .from("user_profiles")
@@ -134,9 +139,6 @@ export default async function HomePage() {
     };
   });
 
-  const activeLast7 = (authUsers?.users ?? []).filter(
-    (u) => u.last_sign_in_at && u.last_sign_in_at >= last7,
-  ).length;
 
   // Plaid cost aggregation. Billing is per Item per product; account types
   // gate which products an Item is eligible for (an Item with only credit
@@ -220,8 +222,8 @@ export default async function HomePage() {
         />
         <Stat
           label="Active · 7d"
-          value={activeLast7}
-          sub={<span className="text-[var(--color-muted)]/80">signed in recently</span>}
+          value={activeLast7 ?? 0}
+          sub={<span className="text-[var(--color-muted)]/80">used the app recently</span>}
         />
       </section>
 

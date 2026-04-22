@@ -15,7 +15,7 @@ export type AdminUserRow = {
   id: string;
   email: string | null;
   created_at: string | null;
-  last_sign_in_at: string | null;
+  last_active_at: string | null;
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
@@ -116,7 +116,7 @@ export default function UsersClient({ users }: { users: AdminUserRow[] }) {
 
                 <div className="hidden md:grid grid-cols-2 gap-x-6 text-[11px] text-[var(--color-muted)]">
                   <Meta label="Joined" value={formatDate(u.created_at)} />
-                  <Meta label="Last seen" value={formatRelative(u.last_sign_in_at)} />
+                  <Meta label="Last seen" value={formatRelative(u.last_active_at)} />
                 </div>
 
                 <span className="text-[var(--color-muted)]/40 text-lg flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100 row-span-2 self-center">

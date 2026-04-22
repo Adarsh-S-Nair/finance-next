@@ -18,6 +18,7 @@ type ProfileRow = {
   avatar_url: string | null;
   subscription_tier: string | null;
   subscription_status: string | null;
+  last_active_at: string | null;
 };
 
 export default async function UsersPage() {
@@ -33,7 +34,7 @@ export default async function UsersPage() {
     admin
       .from("user_profiles")
       .select(
-        "id, first_name, last_name, avatar_url, subscription_tier, subscription_status",
+        "id, first_name, last_name, avatar_url, subscription_tier, subscription_status, last_active_at",
       ),
     admin
       .from("plaid_items")
@@ -82,7 +83,7 @@ export default async function UsersPage() {
         id: u.id,
         email: u.email ?? null,
         created_at: u.created_at ?? null,
-        last_sign_in_at: u.last_sign_in_at ?? null,
+        last_active_at: p?.last_active_at ?? u.last_sign_in_at ?? null,
         first_name: p?.first_name ?? null,
         last_name: p?.last_name ?? null,
         avatar_url: p?.avatar_url ?? null,

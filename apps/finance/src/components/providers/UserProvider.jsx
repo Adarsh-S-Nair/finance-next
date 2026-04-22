@@ -204,6 +204,31 @@ export default function UserProvider({ children }) {
   }, [user, profile, pathname, applyTheme, applyAccent]);
 
   // -----------------------------------------------------------------------
+  // Heartbeat — bump user_profiles.last_active_at so the admin "last seen"
+  // column reflects real activity, not the stale auth.last_sign_in_at
+  // (which only updates on a fresh sign-in event, never on token refresh).
+  // Throttled in localStorage to once per 5 min per browser; the API also
+  // server-side throttles, so even multiple tabs/devices stay cheap.
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    if (!user) return;
+    const isPublic = pathname === "/" || pathname.startsWith("/auth");
+    if (isPublic) return;
+    try {
+      const key = `last-heartbeat:${user.id}`;
+      const last = Number(localStorage.getItem(key) || 0);
+      if (Date.now() - last < 5 * 60 * 1000) return;
+      localStorage.setItem(key, String(Date.now()));
+      fetch("/api/user/heartbeat", { method: "POST", keepalive: true }).catch(() => {
+        // best-effort; allow retry on next mount
+        try { localStorage.removeItem(key); } catch {}
+      });
+    } catch {
+      // localStorage unavailable — skip silently rather than spam the API
+    }
+  }, [user, pathname]);
+
+  // -----------------------------------------------------------------------
   // Public API: theme & accent persistence
   // -----------------------------------------------------------------------
 

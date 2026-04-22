@@ -131,7 +131,7 @@ export default function UserDrawer({
               <dl className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
                 <Row label="User ID" value={user.id} mono />
                 <Row label="Joined" value={formatDate(user.created_at)} />
-                <Row label="Last seen" value={formatRelative(user.last_sign_in_at)} />
+                <Row label="Last seen" value={formatRelative(user.last_active_at)} />
                 <Row label="Tier" value={user.subscription_tier ?? "free"} />
                 <Row
                   label="Subscription status"
