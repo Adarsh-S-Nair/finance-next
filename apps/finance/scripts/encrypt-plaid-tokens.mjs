@@ -60,8 +60,13 @@ function loadEnvFile(filename) {
   console.log(`✅ Loaded ${filename}`);
 }
 
+// Try .env.prod first, then .env.local, then .env.development. First writer
+// wins (loadEnvFile guards with `if (!process.env[key])`), so putting the
+// most-specific file first keeps expected behavior. Some workspaces keep
+// production credentials in .env.development — that's why it's in the list.
 loadEnvFile('.env.prod');
 loadEnvFile('.env.local');
+loadEnvFile('.env.development');
 
 // ── Validate env ────────────────────────────────────────────────────────────
 const required = [
