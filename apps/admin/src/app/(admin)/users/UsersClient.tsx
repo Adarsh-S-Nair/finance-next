@@ -6,6 +6,7 @@ import type { PlaidItemRow } from "@/lib/plaidPricing";
 import UserDrawer from "./UserDrawer";
 
 export type PlaidItemWithCost = PlaidItemRow & {
+  account_types: (string | null)[];
   account_count: number;
   monthly_cost: number;
 };

@@ -189,7 +189,19 @@ export default function UserDrawer({
               ) : (
                 <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
                   {user.plaid_items.map((item) => {
-                    const lines = billableLinesForItem(item, item.account_count);
+                    const lines = billableLinesForItem(item, item.account_types);
+                    const typeCounts = item.account_types.reduce<Record<string, number>>(
+                      (acc, t) => {
+                        const k = t ?? "unknown";
+                        acc[k] = (acc[k] ?? 0) + 1;
+                        return acc;
+                      },
+                      {},
+                    );
+                    const typeSummary = Object.entries(typeCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([t, n]) => `${n} ${t}`)
+                      .join(" · ");
                     return (
                       <li key={item.id} className="py-3">
                         <div className="flex items-baseline justify-between gap-3">
@@ -202,6 +214,12 @@ export default function UserDrawer({
                         </div>
                         <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
                           {item.account_count} account{item.account_count === 1 ? "" : "s"}
+                          {typeSummary && (
+                            <span className="text-[var(--color-muted)]/60">
+                              {" · "}
+                              {typeSummary}
+                            </span>
+                          )}
                         </div>
                         {lines.length > 0 ? (
                           <ul className="mt-2 space-y-0.5 text-[11px]">
@@ -222,7 +240,7 @@ export default function UserDrawer({
                           </ul>
                         ) : (
                           <div className="mt-1 text-[11px] text-[var(--color-muted)]/60">
-                            no billable products
+                            no billable products for these account types
                           </div>
                         )}
                         {item.sync_status && item.sync_status !== "idle" && (

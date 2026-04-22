@@ -40,7 +40,7 @@ export default async function UsersPage() {
       .select(
         "id, user_id, item_id, products, recurring_ready, sync_status, last_error, created_at",
       ),
-    admin.from("accounts").select("item_id"),
+    admin.from("accounts").select("item_id, type"),
   ]);
 
   const profileMap = new Map<string, ProfileRow>();
@@ -48,23 +48,24 @@ export default async function UsersPage() {
     profileMap.set(row.id, row);
   }
 
-  // Plaid bills per connected account. Group account rows by item_id so each
-  // plaid_items row knows how many accounts it's being billed for.
-  const accountCountByItemId = new Map<string, number>();
-  for (const row of (accounts ?? []) as { item_id: string }[]) {
-    accountCountByItemId.set(
-      row.item_id,
-      (accountCountByItemId.get(row.item_id) ?? 0) + 1,
-    );
+  // Group account types by item_id. Plaid bills per connected account per
+  // product, but only for accounts the product actually applies to — so we
+  // need the account *types* per item, not just the count.
+  const accountTypesByItemId = new Map<string, (string | null)[]>();
+  for (const row of (accounts ?? []) as { item_id: string; type: string | null }[]) {
+    const list = accountTypesByItemId.get(row.item_id) ?? [];
+    list.push(row.type);
+    accountTypesByItemId.set(row.item_id, list);
   }
 
   const itemsByUser = new Map<string, PlaidItemWithCost[]>();
   for (const row of (plaidItems ?? []) as PlaidItemRow[]) {
-    const accountCount = accountCountByItemId.get(row.item_id) ?? 0;
-    const monthlyCost = estimateItemMonthlyCost(row, accountCount);
+    const accountTypes = accountTypesByItemId.get(row.item_id) ?? [];
+    const monthlyCost = estimateItemMonthlyCost(row, accountTypes);
     const enriched: PlaidItemWithCost = {
       ...row,
-      account_count: accountCount,
+      account_types: accountTypes,
+      account_count: accountTypes.length,
       monthly_cost: monthlyCost,
     };
     const list = itemsByUser.get(row.user_id) ?? [];

@@ -1,22 +1,20 @@
 /**
  * Plaid billing rates from our Master Agreement (dashboard → Contracts & Rates).
  *
- * Plaid bills per *connected account* per month for each recurring product,
- * not per item. One login to Chase that exposes 5 accounts counts as 5 for
- * every product we enable on it.
+ * Plaid bills per connected account per month, where "connected account"
+ * means an account Plaid can actually operate the product on. A credit
+ * card doesn't get billed for Investments Holdings; a 401k doesn't get
+ * billed for Transactions. The per-product eligibility below mirrors the
+ * filters our own sync code already uses in apps/finance/src/lib/plaid.
  *
  * Per-call products (Balance at $0.10/call, Auth, Identity) don't fit a
- * monthly estimate and are intentionally excluded. Balance usage shows up
- * on the invoice only when we hit /accounts/balance/get; it's not a flat
- * monthly line.
+ * monthly estimate and are intentionally excluded.
  *
- * All of these can be overridden via env vars without a code change:
- *   PLAID_PRICE_TRANSACTIONS=0.40
- *   PLAID_PRICE_RECURRING_TRANSACTIONS=0.20
- *   PLAID_PRICE_INVESTMENTS_HOLDINGS=0.22
- *   PLAID_PRICE_INVESTMENTS_TRANSACTIONS=0.40
- * If Plaid renegotiates the contract, bump whichever env var is out of
- * date — the admin rebuild picks it up.
+ * All line rates are overridable via env (no redeploy wall for rate changes):
+ *   PLAID_PRICE_TRANSACTIONS
+ *   PLAID_PRICE_RECURRING_TRANSACTIONS
+ *   PLAID_PRICE_INVESTMENTS_HOLDINGS
+ *   PLAID_PRICE_INVESTMENTS_TRANSACTIONS
  */
 
 function envNum(key: string, fallback: number): number {
@@ -32,6 +30,12 @@ export const PLAID_RATES = {
   investments_holdings: envNum("PLAID_PRICE_INVESTMENTS_HOLDINGS", 0.18),
   investments_transactions: envNum("PLAID_PRICE_INVESTMENTS_TRANSACTIONS", 0.35),
 } as const;
+
+// Which Plaid account types each product is billed against. Mirrors
+// apps/finance/src/lib/plaid/**: transactions sync skips non-depository/
+// non-credit accounts; investment sync filters to type === 'investment'.
+const TRANSACTION_ACCOUNT_TYPES = new Set(["depository", "credit"]);
+const INVESTMENT_ACCOUNT_TYPES = new Set(["investment"]);
 
 export type PlaidItemRow = {
   id: string;
@@ -51,50 +55,62 @@ export type BillableLine = {
   total: number;
 };
 
+function countEligible(types: (string | null)[], allowed: Set<string>): number {
+  let n = 0;
+  for (const t of types) if (t && allowed.has(t)) n += 1;
+  return n;
+}
+
 /**
- * Break an item down into the exact lines Plaid would show on an invoice
- * for that item this month. Takes account_count because billing is
- * per-account-per-month. Returns both a flat total and the per-line
- * breakdown so the drawer can show where the money goes.
+ * Break an item down into the exact invoice lines Plaid would bill for it
+ * this month. Takes the account *types* (not just a count) because billing
+ * filters by type per product — a Fidelity item with 5 investment accounts
+ * shouldn't ring up Transactions charges, and a Chase item with 4 credit
+ * cards + 1 checking shouldn't ring up Investments charges.
  */
 export function billableLinesForItem(
   item: Pick<PlaidItemRow, "products" | "recurring_ready">,
-  accountCount: number,
+  accountTypes: (string | null)[],
 ): BillableLine[] {
-  if (accountCount === 0) return [];
   const lines: BillableLine[] = [];
   const products = item.products ?? [];
 
   if (products.includes("transactions")) {
-    lines.push({
-      label: "Transactions",
-      ratePerAccount: PLAID_RATES.transactions,
-      accountCount,
-      total: PLAID_RATES.transactions * accountCount,
-    });
-    if (item.recurring_ready) {
+    const count = countEligible(accountTypes, TRANSACTION_ACCOUNT_TYPES);
+    if (count > 0) {
       lines.push({
-        label: "Recurring Transactions",
-        ratePerAccount: PLAID_RATES.recurring_transactions,
-        accountCount,
-        total: PLAID_RATES.recurring_transactions * accountCount,
+        label: "Transactions",
+        ratePerAccount: PLAID_RATES.transactions,
+        accountCount: count,
+        total: PLAID_RATES.transactions * count,
       });
+      if (item.recurring_ready) {
+        lines.push({
+          label: "Recurring Transactions",
+          ratePerAccount: PLAID_RATES.recurring_transactions,
+          accountCount: count,
+          total: PLAID_RATES.recurring_transactions * count,
+        });
+      }
     }
   }
 
   if (products.includes("investments")) {
-    lines.push({
-      label: "Investments Holdings",
-      ratePerAccount: PLAID_RATES.investments_holdings,
-      accountCount,
-      total: PLAID_RATES.investments_holdings * accountCount,
-    });
-    lines.push({
-      label: "Investments Transactions",
-      ratePerAccount: PLAID_RATES.investments_transactions,
-      accountCount,
-      total: PLAID_RATES.investments_transactions * accountCount,
-    });
+    const count = countEligible(accountTypes, INVESTMENT_ACCOUNT_TYPES);
+    if (count > 0) {
+      lines.push({
+        label: "Investments Holdings",
+        ratePerAccount: PLAID_RATES.investments_holdings,
+        accountCount: count,
+        total: PLAID_RATES.investments_holdings * count,
+      });
+      lines.push({
+        label: "Investments Transactions",
+        ratePerAccount: PLAID_RATES.investments_transactions,
+        accountCount: count,
+        total: PLAID_RATES.investments_transactions * count,
+      });
+    }
   }
 
   return lines;
@@ -102,9 +118,9 @@ export function billableLinesForItem(
 
 export function estimateItemMonthlyCost(
   item: Pick<PlaidItemRow, "products" | "recurring_ready">,
-  accountCount: number,
+  accountTypes: (string | null)[],
 ): number {
-  return billableLinesForItem(item, accountCount).reduce(
+  return billableLinesForItem(item, accountTypes).reduce(
     (sum, line) => sum + line.total,
     0,
   );
