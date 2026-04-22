@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
 import AdminPageHeader from "@/components/AdminPageHeader";
+import {
+  estimateItemMonthlyCost,
+  formatUsd,
+  type PlaidItemRow,
+} from "@/lib/plaidPricing";
 
 export const dynamic = "force-dynamic";
 
@@ -56,18 +61,17 @@ export default async function HomePage() {
   const [
     { count: userCount },
     { count: proCount },
-    { count: householdCount },
     { count: signupsLast30 },
     { count: signupsPrev30 },
     { data: authUsers },
     { data: profiles },
+    { data: plaidItems },
   ] = await Promise.all([
     admin.from("user_profiles").select("*", { count: "exact", head: true }),
     admin
       .from("user_profiles")
       .select("*", { count: "exact", head: true })
       .eq("subscription_tier", "pro"),
-    admin.from("households").select("*", { count: "exact", head: true }),
     admin
       .from("user_profiles")
       .select("*", { count: "exact", head: true })
@@ -77,10 +81,13 @@ export default async function HomePage() {
       .select("*", { count: "exact", head: true })
       .gte("created_at", prev30)
       .lt("created_at", last30),
-    admin.auth.admin.listUsers({ page: 1, perPage: 50 }),
+    admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     admin
       .from("user_profiles")
       .select("id, first_name, last_name, avatar_url, subscription_tier"),
+    admin
+      .from("plaid_items")
+      .select("id, user_id, item_id, products, sync_status, last_error, created_at"),
   ]);
 
   type ProfileRow = {
@@ -118,6 +125,37 @@ export default async function HomePage() {
     (u) => u.last_sign_in_at && u.last_sign_in_at >= last7,
   ).length;
 
+  // Plaid cost aggregation. Group items by user so we can show top spenders
+  // alongside the running total, and compute per-item cost once.
+  const plaidCostByUser = new Map<string, number>();
+  let totalPlaidCost = 0;
+  let totalPlaidItems = 0;
+  for (const item of (plaidItems ?? []) as PlaidItemRow[]) {
+    const itemCost = estimateItemMonthlyCost(item.products);
+    totalPlaidCost += itemCost;
+    totalPlaidItems += 1;
+    plaidCostByUser.set(
+      item.user_id,
+      (plaidCostByUser.get(item.user_id) ?? 0) + itemCost,
+    );
+  }
+
+  const topPlaidCostUsers = [...plaidCostByUser.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([userId, cost]) => {
+      const authUser = sortedAuth.find((u) => u.id === userId);
+      const p = profileById.get(userId);
+      return {
+        id: userId,
+        email: authUser?.email ?? null,
+        first_name: p?.first_name ?? null,
+        last_name: p?.last_name ?? null,
+        avatar_url: p?.avatar_url ?? null,
+        cost,
+      };
+    });
+
   const totalUsers = userCount ?? 0;
   const proShare = totalUsers > 0 ? Math.round(((proCount ?? 0) / totalUsers) * 100) : 0;
 
@@ -154,9 +192,13 @@ export default async function HomePage() {
           }
         />
         <Stat
-          label="Households"
-          value={householdCount ?? 0}
-          sub={<span className="text-[var(--color-muted)]/80">shared workspaces</span>}
+          label="Plaid · est."
+          value={`${formatUsd(totalPlaidCost)}`}
+          sub={
+            <span className="text-[var(--color-muted)]/80 tabular-nums">
+              {totalPlaidItems} item{totalPlaidItems === 1 ? "" : "s"} · /mo
+            </span>
+          }
         />
         <Stat
           label="Active · 7d"
@@ -219,6 +261,37 @@ export default async function HomePage() {
             Tier breakdown
           </h2>
           <TierBar pro={proCount ?? 0} total={totalUsers} />
+
+          <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3 mt-10">
+            Top Plaid cost
+          </h2>
+          {topPlaidCostUsers.length === 0 ? (
+            <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-3 text-xs text-[var(--color-muted)]">
+              No Plaid items connected.
+            </div>
+          ) : (
+            <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
+              {topPlaidCostUsers.map((u) => (
+                <li key={u.id} className="flex items-center gap-3 py-2.5">
+                  <Avatar
+                    url={u.avatar_url}
+                    initials={initials(u.first_name, u.last_name, u.email)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-[var(--color-fg)] truncate leading-tight">
+                      {fullName(u.first_name, u.last_name, u.email)}
+                    </div>
+                    <div className="text-[11px] text-[var(--color-muted)] truncate leading-tight">
+                      {u.email ?? "—"}
+                    </div>
+                  </div>
+                  <span className="text-xs tabular-nums text-[var(--color-fg)] flex-shrink-0">
+                    {formatUsd(u.cost)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3 mt-10">
             Quick actions

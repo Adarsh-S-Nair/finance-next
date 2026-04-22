@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
 import {
+  estimateItemMonthlyCost,
+  formatUsd,
+  getProductMonthlyRate,
+} from "@/lib/plaidPricing";
+import {
   type AdminUserRow,
   formatDate,
   formatRelative,
@@ -169,6 +174,60 @@ export default function UserDrawer({
               </div>
               {subError && (
                 <p className="mt-2 text-xs text-[var(--color-danger)]/80">{subError}</p>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
+                  Plaid usage
+                </h3>
+                <span className="text-[11px] text-[var(--color-muted)]/60">
+                  est. {formatUsd(user.plaid_monthly_cost)} / mo
+                </span>
+              </div>
+              {user.plaid_items.length === 0 ? (
+                <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 text-xs text-[var(--color-muted)]">
+                  No Plaid items connected.
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
+                  {user.plaid_items.map((item) => {
+                    const itemCost = estimateItemMonthlyCost(item.products);
+                    return (
+                      <li key={item.id} className="py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-mono text-[11px] text-[var(--color-fg)] truncate">
+                            {item.item_id}
+                          </span>
+                          <span className="text-[11px] tabular-nums text-[var(--color-fg)] flex-shrink-0">
+                            {formatUsd(itemCost)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--color-muted)]">
+                          {item.products && item.products.length > 0 ? (
+                            item.products.map((p) => (
+                              <span key={p} className="inline-flex items-baseline gap-1">
+                                <span>{p}</span>
+                                <span className="text-[var(--color-muted)]/50 tabular-nums">
+                                  ({formatUsd(getProductMonthlyRate(p))})
+                                </span>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[var(--color-muted)]/60">no products</span>
+                          )}
+                        </div>
+                        {item.sync_status && item.sync_status !== "idle" && (
+                          <div className="mt-1 text-[11px] text-[var(--color-muted)]/70">
+                            status: {item.sync_status}
+                            {item.last_error ? ` · ${item.last_error}` : ""}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </section>
 

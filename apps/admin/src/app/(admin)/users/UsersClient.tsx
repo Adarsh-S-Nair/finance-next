@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { PlaidItemRow } from "@/lib/plaidPricing";
 import UserDrawer from "./UserDrawer";
 
 export type AdminUserRow = {
@@ -14,6 +15,8 @@ export type AdminUserRow = {
   avatar_url: string | null;
   subscription_tier: string | null;
   subscription_status: string | null;
+  plaid_items: PlaidItemRow[];
+  plaid_monthly_cost: number;
 };
 
 function formatDate(iso: string | null): string {

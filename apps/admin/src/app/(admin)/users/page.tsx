@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import AdminPageHeader from "@/components/AdminPageHeader";
+import {
+  estimateUserMonthlyCost,
+  type PlaidItemRow,
+} from "@/lib/plaidPricing";
 import UsersClient, { type AdminUserRow } from "./UsersClient";
 
 export const dynamic = "force-dynamic";
@@ -16,25 +20,38 @@ type ProfileRow = {
 export default async function UsersPage() {
   const admin = createAdminClient();
 
-  const { data: authData, error: authErr } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 200,
-  });
-
-  const { data: profiles } = await admin
-    .from("user_profiles")
-    .select(
-      "id, first_name, last_name, avatar_url, subscription_tier, subscription_status",
-    );
+  const [
+    { data: authData, error: authErr },
+    { data: profiles },
+    { data: plaidItems },
+  ] = await Promise.all([
+    admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
+    admin
+      .from("user_profiles")
+      .select(
+        "id, first_name, last_name, avatar_url, subscription_tier, subscription_status",
+      ),
+    admin
+      .from("plaid_items")
+      .select("id, user_id, item_id, products, sync_status, last_error, created_at"),
+  ]);
 
   const profileMap = new Map<string, ProfileRow>();
   for (const row of (profiles ?? []) as ProfileRow[]) {
     profileMap.set(row.id, row);
   }
 
+  const itemsByUser = new Map<string, PlaidItemRow[]>();
+  for (const row of (plaidItems ?? []) as PlaidItemRow[]) {
+    const list = itemsByUser.get(row.user_id) ?? [];
+    list.push(row);
+    itemsByUser.set(row.user_id, list);
+  }
+
   const users: AdminUserRow[] = (authData?.users ?? [])
     .map((u) => {
       const p = profileMap.get(u.id);
+      const items = itemsByUser.get(u.id) ?? [];
       return {
         id: u.id,
         email: u.email ?? null,
@@ -45,6 +62,8 @@ export default async function UsersPage() {
         avatar_url: p?.avatar_url ?? null,
         subscription_tier: p?.subscription_tier ?? null,
         subscription_status: p?.subscription_status ?? null,
+        plaid_items: items,
+        plaid_monthly_cost: estimateUserMonthlyCost(items),
       };
     })
     .sort((a, b) => {
