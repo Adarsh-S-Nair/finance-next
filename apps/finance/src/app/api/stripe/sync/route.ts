@@ -49,16 +49,27 @@ export async function POST(request: NextRequest) {
       return Response.json({ tier: profile?.subscription_tier ?? 'free' });
     }
 
-    // Check Stripe for active subscriptions
+    // Check Stripe for active subscriptions. Filter by our Pro price ID so
+    // we don't flip the user to Pro just because they have *any* active
+    // subscription — a future add-on product or a mistakenly-attached sub
+    // on this customer would otherwise grant Pro.
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
       status: 'active',
-      limit: 5,
+      limit: 20,
     });
 
-    const hasActiveSub = subscriptions.data.length > 0;
+    const expectedPriceId = process.env.STRIPE_PRO_PRICE_ID;
+    if (!expectedPriceId) {
+      console.warn('[stripe/sync] STRIPE_PRO_PRICE_ID is not set — refusing to flip tier');
+      return Response.json({ tier: profile?.subscription_tier ?? 'free' });
+    }
 
-    if (hasActiveSub) {
+    const hasActiveProSub = subscriptions.data.some((sub) =>
+      sub.items.data.some((item) => item.price?.id === expectedPriceId)
+    );
+
+    if (hasActiveProSub) {
       const { error: updateError } = await supabaseAdmin
         .from('user_profiles')
         .update({
