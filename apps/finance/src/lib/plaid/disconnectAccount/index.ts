@@ -22,6 +22,7 @@
 import { removeItem } from '../client';
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
+import { decryptPlaidToken } from '../../crypto/plaidTokens';
 
 import { extractPlaidErrorCode, isDeadItemError } from './errors';
 import {
@@ -206,7 +207,8 @@ async function removePlaidItemUpstream(
   logger.info('Calling Plaid /item/remove', { plaidItemRowId });
 
   try {
-    await removeItem(accessToken);
+    // accessToken arrives encrypted from DB; decrypt at the Plaid boundary.
+    await removeItem(decryptPlaidToken(accessToken));
     logger.info('Plaid /item/remove succeeded', { plaidItemRowId });
     return null;
   } catch (plaidError) {

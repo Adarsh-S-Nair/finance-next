@@ -15,6 +15,7 @@
 import { getInvestmentsHoldings } from '../client';
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
+import { decryptPlaidToken } from '../../crypto/plaidTokens';
 // @ts-ignore — tierConfig is TS but not imported for typing
 import { canAccess } from '../../tierConfig';
 // fetchBulkTickerDetails is in a JS module that has no types.
@@ -79,7 +80,10 @@ export async function syncHoldingsForItem(
     const plaidItem = await loadPlaidItem(plaidItemId, userId);
 
     // --- Fetch from Plaid ---
-    const { accounts, holdings, securities } = await fetchHoldings(plaidItem.access_token);
+    // plaidItem.access_token is encrypted at rest; decrypt for outbound calls.
+    const { accounts, holdings, securities } = await fetchHoldings(
+      decryptPlaidToken(plaidItem.access_token)
+    );
 
     logger.info('Holdings data received', {
       accounts_count: accounts?.length ?? 0,

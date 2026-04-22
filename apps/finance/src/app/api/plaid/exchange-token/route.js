@@ -7,6 +7,7 @@ import { getPlaidProducts } from '../../../../lib/tierConfig';
 import { createLogger } from '../../../../lib/logger';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 import { formatDisplayName } from '../../../../lib/utils/formatName';
+import { encryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 
 const logger = createLogger('plaid-exchange-token');
 
@@ -31,9 +32,14 @@ export async function POST(request) {
     const tierPlaidProducts = getPlaidProducts(subscriptionTier);
     const tierAllowsInvestments = tierPlaidProducts.includes('investments');
 
-    // Exchange public token for access token
+    // Exchange public token for access token.
+    // `access_token` is the plaintext credential used for outbound Plaid API
+    // calls in this request. `storedAccessToken` is the AES-256-GCM-encrypted
+    // form we persist — every DB write below must use the encrypted form so
+    // we never leave plaintext Plaid credentials at rest.
     const tokenResponse = await exchangePublicToken(publicToken);
     const { access_token, item_id } = tokenResponse;
+    const storedAccessToken = encryptPlaidToken(access_token);
     // Get accounts from Plaid
     const accountsResponse = await getAccounts(access_token);
     const { accounts: allAccounts, institution_id } = accountsResponse;
@@ -194,7 +200,7 @@ export async function POST(request) {
       ({ data: plaidItemData, error: plaidItemError } = await supabaseAdmin
         .from('plaid_items')
         .update({
-          access_token: access_token,
+          access_token: storedAccessToken,
           products: mergedProducts,
           sync_status: 'idle',
         })
@@ -207,7 +213,7 @@ export async function POST(request) {
         .upsert({
           user_id: userId,
           item_id: item_id,
-          access_token: access_token,
+          access_token: storedAccessToken,
           sync_status: 'idle',
           products: products,
           // recurring_ready: true for items that have transaction accounts
@@ -275,7 +281,7 @@ export async function POST(request) {
             type: account.type,
             subtype: account.subtype,
             product_type: 'investments',
-            access_token: access_token,
+            access_token: storedAccessToken,
             institution_id: institutionData?.id || existingAccount.institution_id,
             plaid_item_id: plaidItemData.id,
           });
@@ -292,7 +298,7 @@ export async function POST(request) {
             type: account.type,
             subtype: account.subtype,
             product_type: 'investments',
-            access_token: access_token,
+            access_token: storedAccessToken,
             account_key: accountKey,
             institution_id: institutionData?.id || null,
             plaid_item_id: plaidItemData.id,
@@ -310,7 +316,7 @@ export async function POST(request) {
           subtype: account.subtype,
           balances: account.balances,
           product_type: 'transactions',
-          access_token: access_token,
+          access_token: storedAccessToken,
           account_key: accountKey,
           institution_id: institutionData?.id || null,
           plaid_item_id: plaidItemData.id,

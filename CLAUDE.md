@@ -97,6 +97,18 @@ Required in `apps/finance/.env.local`:
 - `FINNHUB_API_KEY` - Ticker metadata lookups (name, sector, domain)
 - `STRIPE_SECRET_KEY` - Stripe API key (server-side only)
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+- `PLAID_TOKEN_ENCRYPTION_KEY` - AES-256 key used to encrypt
+  `plaid_items.access_token` / `accounts.access_token` at rest. 64 hex chars
+  (preferred) or base64 that decodes to 32 bytes. Generate with:
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+  Rotating this key requires re-encrypting every stored token — treat loss
+  as credential loss (all bank connections must be re-linked). To backfill
+  existing plaintext tokens once: `node scripts/encrypt-plaid-tokens.mjs`
+  from `apps/finance/`.
+- `ADMIN_EMAILS` - Comma-separated allowlist of admin emails. Same value on
+  apps/finance and apps/admin. Gates the admin subdomain and server-side
+  `isCallerAdmin` checks on admin-only routes (e.g.
+  `/api/tickers/refresh-crypto-logos`).
 
 ## Key Entry Points
 

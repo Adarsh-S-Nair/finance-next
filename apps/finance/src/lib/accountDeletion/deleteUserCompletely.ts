@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../supabase/admin";
 import { removeItem } from "../plaid/client";
 import { stripe } from "../stripe/client";
+import { decryptPlaidToken } from "../crypto/plaidTokens";
 
 export type DeleteUserResult =
   | { ok: true }
@@ -49,7 +50,8 @@ export async function deleteUserCompletely(userId: string): Promise<DeleteUserRe
     for (const plaidItem of plaidItems) {
       try {
         console.log(`[deleteUser ${userId}] Removing Plaid item: ${plaidItem.item_id}`);
-        await removeItem(plaidItem.access_token);
+        // plaid_items.access_token is encrypted at rest; decrypt for Plaid SDK.
+        await removeItem(decryptPlaidToken(plaidItem.access_token));
         console.log(`[deleteUser ${userId}] Successfully removed Plaid item: ${plaidItem.item_id}`);
       } catch (plaidError: unknown) {
         const err = plaidError as { response?: { data?: { error_code?: string } }; message?: string };

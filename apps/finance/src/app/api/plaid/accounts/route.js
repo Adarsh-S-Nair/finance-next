@@ -13,6 +13,12 @@ export async function GET(request) {
     // Personal scope: just the caller. Household scope: every member of the
     // household. Per-account sharing opt-in is a follow-up — for now every
     // member account is visible household-wide.
+    //
+    // NOTE: the nested `plaid_items` select intentionally omits `access_token`.
+    // This response is returned to the browser and leaking the token would let
+    // anyone who opens DevTools read a user's bank credential. We also strip
+    // `access_token` from the top-level `accounts` rows below (SELECT *
+    // returns it because the column exists on the accounts table as well).
     const { data: accounts, error } = await supabaseAdmin
       .from('accounts')
       .select(`
@@ -27,8 +33,7 @@ export async function GET(request) {
         ),
         plaid_items (
           id,
-          item_id,
-          access_token
+          item_id
         )
       `)
       .in('user_id', scope.userIds)
@@ -42,7 +47,22 @@ export async function GET(request) {
       );
     }
 
-    return Response.json({ accounts });
+    // Defense in depth: even if a future change re-adds access_token to the
+    // nested select, strip it here before the response leaves the server.
+    const sanitized = (accounts ?? []).map((row) => {
+      const { access_token: _stripAccessToken, plaid_items, ...rest } = row;
+      void _stripAccessToken;
+      const cleanPlaidItems = plaid_items
+        ? (() => {
+            const { access_token: _stripNested, ...keep } = plaid_items;
+            void _stripNested;
+            return keep;
+          })()
+        : plaid_items;
+      return { ...rest, plaid_items: cleanPlaidItems };
+    });
+
+    return Response.json({ accounts: sanitized });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('Error in accounts API:', error);

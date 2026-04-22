@@ -20,6 +20,7 @@
 import { getInvestmentTransactions } from '../client';
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
+import { decryptPlaidToken } from '../../crypto/plaidTokens';
 
 import { buildInvestmentTransactionRows, buildSecuritiesMap } from './buildRows';
 import type {
@@ -92,8 +93,9 @@ export async function syncInvestmentTransactionsForItem(
     const accountMap = buildAccountMap(accounts);
 
     // --- Fetch from Plaid (paginated) ---
+    // plaidItem.access_token is encrypted at rest; decrypt for outbound call.
     const { transactions, securities } = await fetchAllInvestmentTransactions(
-      plaidItem.access_token,
+      decryptPlaidToken(plaidItem.access_token),
       accounts.map((a) => a.account_id)
     );
 

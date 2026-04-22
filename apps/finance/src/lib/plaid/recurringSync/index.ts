@@ -21,6 +21,7 @@ import { getPlaidClient } from '../client';
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
 import { detectMissedRecurring } from '../../recurringGapFiller';
+import { decryptPlaidToken } from '../../crypto/plaidTokens';
 
 import { buildStreamRecords } from './buildRecord';
 import type {
@@ -199,8 +200,9 @@ async function syncItems(
     try {
       logger.info('Fetching recurring transactions for item', { plaidItemId: item.id });
 
+      // item.access_token is encrypted at rest; decrypt for outbound call.
       const response = await client.transactionsRecurringGet({
-        access_token: item.access_token,
+        access_token: decryptPlaidToken(item.access_token),
         options: {
           include_personal_finance_category: true,
           personal_finance_category_version: 'v2',

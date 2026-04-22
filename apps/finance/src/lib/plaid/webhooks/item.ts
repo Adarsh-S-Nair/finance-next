@@ -14,6 +14,7 @@ import { getPlaidProducts } from '../../tierConfig';
 import { getAccounts, getInstitution } from '../client';
 import { loadPlaidItemByItemId } from './loadItem';
 import { formatDisplayName } from '../../utils/formatName';
+import { decryptPlaidToken, encryptPlaidToken } from '../../crypto/plaidTokens';
 import type {
   ItemWebhookPayload,
   PlaidItemContext,
@@ -109,7 +110,7 @@ async function handleNewAccountsAvailable(
     const tierPlaidProducts = getPlaidProducts(subscriptionTier);
     const tierAllowsInvestments = tierPlaidProducts.includes('investments');
 
-    const accountsResponse = (await getAccounts(plaidItem.access_token)) as {
+    const accountsResponse = (await getAccounts(decryptPlaidToken(plaidItem.access_token))) as {
       accounts?: PlaidAccountLite[];
       institution_id?: string | null;
       item?: { institution_id?: string | null };
@@ -189,7 +190,10 @@ async function handleNewAccountsAvailable(
         mask: account.mask,
         type: account.type,
         subtype: account.subtype,
-        access_token: plaidItem.access_token,
+        // plaidItem.access_token is stored encrypted; keep it encrypted when
+        // we copy the value into `accounts.access_token`. If the source is a
+        // legacy plaintext row (pre-backfill), encryptPlaidToken upgrades it.
+        access_token: encryptPlaidToken(plaidItem.access_token),
         account_key: `${plaidItem.item_id}_${account.account_id}`,
         institution_id: institutionData?.id || null,
         plaid_item_id: plaidItem.id,

@@ -26,6 +26,7 @@ import {
 import { createAccountSnapshotConditional } from '../../accountSnapshotUtils';
 import { fetchUserRules, applyRulesToTransactions } from '../../category-rules';
 import { detectUnmatchedTransfers } from '../../transfer-detection';
+import { decryptPlaidToken } from '../../crypto/plaidTokens';
 
 import { buildTransactionRows } from './buildRows';
 import {
@@ -92,8 +93,12 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     const { transactions: rawTransactions, nextCursor } = await fetchFromPlaid(plaidItem);
 
     // Production: also fetch fresh account balances in the same pass.
+    // plaidItem.access_token is encrypted at rest; decrypt for the outbound
+    // Plaid API call.
     const plaidAccounts: PlaidAccount[] =
-      PLAID_ENV === 'sandbox' ? [] : await fetchAccountsSafe(plaidItem.access_token);
+      PLAID_ENV === 'sandbox'
+        ? []
+        : await fetchAccountsSafe(decryptPlaidToken(plaidItem.access_token));
 
     // --- Build row plan (pure) ---
     const accountMap = await loadAccountMap(plaidItemId);
@@ -258,7 +263,7 @@ async function fetchFromPlaid(
 
     try {
       const res = await getTransactions(
-        plaidItem.access_token,
+        decryptPlaidToken(plaidItem.access_token),
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
       );
@@ -276,7 +281,7 @@ async function fetchFromPlaid(
 
   while (hasMore) {
     try {
-      const res = await syncTransactions(plaidItem.access_token, cursor);
+      const res = await syncTransactions(decryptPlaidToken(plaidItem.access_token), cursor);
       const added = (res.added ?? []) as unknown as PlaidTransaction[];
       const modified = (res.modified ?? []) as unknown as PlaidTransaction[];
       collected.push(...added, ...modified);

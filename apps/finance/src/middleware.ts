@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkRateLimit } from './lib/api/rateLimit';
 
-// Routes that do NOT require user auth
+// Routes that do NOT require user auth.
+//
+// Only webhooks (authenticated by provider signature) and internal cron jobs
+// (authenticated by CRON_SECRET inside the handler) belong here. Anything
+// that uses the Supabase service-role client must go through user auth —
+// otherwise anonymous callers can drive service-role DB access and/or burn
+// through upstream API quotas.
+//
+// `/api/market-data/` used to be public, which meant anonymous callers could
+// abuse our Yahoo/CoinGecko fan-out. Moved back behind auth 2026-04-22.
 const PUBLIC_ROUTES = [
   '/api/plaid/webhook',
   '/api/stripe/webhook',
@@ -10,7 +19,6 @@ const PUBLIC_ROUTES = [
 
 const PUBLIC_PREFIXES = [
   '/api/cron/',
-  '/api/market-data/',
 ];
 
 function isPublicRoute(pathname: string): boolean {

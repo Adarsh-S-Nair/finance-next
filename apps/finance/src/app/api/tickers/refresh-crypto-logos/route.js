@@ -1,7 +1,34 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
+import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { isCallerAdmin } from '../../../../lib/api/admin';
 
 const logger = createLogger('refresh-crypto-logos');
+
+/**
+ * Both handlers in this file mutate or enumerate the global `tickers` table —
+ * refresh-crypto-logos rewrites logos for every crypto ticker, and the GET
+ * handler enumerates every row. That is a per-deployment admin action, not a
+ * per-user feature, so it must be gated by the ADMIN_EMAILS allowlist.
+ *
+ * Without this gate, any authenticated user could:
+ *   - force a full CoinGecko fan-out on our side (quota burn), or
+ *   - enumerate every crypto ticker logo in the system.
+ *
+ * Returns a 401/403 `Response` when the caller isn't an admin; returns `null`
+ * when the caller is allowed and the handler should proceed.
+ */
+async function requireAdmin(request) {
+  const userId = requireVerifiedUserId(request);
+  const allowed = await isCallerAdmin(userId);
+  if (!allowed) {
+    return Response.json(
+      { error: 'Forbidden', message: 'Admin access required' },
+      { status: 403 }
+    );
+  }
+  return null;
+}
 
 /**
  * Fetch crypto logo from CoinGecko API
@@ -47,6 +74,9 @@ async function fetchCryptoInfoFromCoinGecko(ticker) {
  */
 export async function POST(request) {
   try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
+
     const body = await request.json().catch(() => ({}));
     const forceRefresh = body.forceRefresh === true;
     
@@ -134,8 +164,9 @@ export async function POST(request) {
       total: cryptoTickers.length,
       details: updates.map(u => ({ symbol: u.symbol, hasLogo: !!u.logo }))
     });
-    
+
   } catch (error) {
+    if (error instanceof Response) return error;
     logger.error('Error refreshing crypto logos', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -145,8 +176,11 @@ export async function POST(request) {
  * GET /api/tickers/refresh-crypto-logos
  * Returns status of crypto tickers and their logos
  */
-export async function GET() {
+export async function GET(request) {
   try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
+
     const { data: cryptoTickers, error } = await supabaseAdmin
       .from('tickers')
       .select('symbol, name, logo, asset_type')
@@ -172,6 +206,7 @@ export async function GET() {
       }))
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
