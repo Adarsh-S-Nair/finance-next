@@ -1,11 +1,17 @@
 /**
  * Plaid billing rates from our Master Agreement (dashboard → Contracts & Rates).
  *
- * Plaid bills per connected account per month, where "connected account"
- * means an account Plaid can actually operate the product on. A credit
- * card doesn't get billed for Investments Holdings; a 401k doesn't get
- * billed for Transactions. The per-product eligibility below mirrors the
- * filters our own sync code already uses in apps/finance/src/lib/plaid.
+ * Plaid bills per Item per month, not per sub-account. The contract page
+ * uses the phrase "per connected account/month" but the Transactions
+ * Activity Summary on the same dashboard tracks Items, not sub-accounts —
+ * "connected account" in Plaid's pricing language === Item (one user's
+ * connection to one institution).
+ *
+ * Eligibility still matters per product: an Item with only investment
+ * accounts shouldn't bill for Transactions even though `products`
+ * includes it, because there's nothing for sync to pull. The
+ * per-product type filters mirror the ones our own sync code uses in
+ * apps/finance/src/lib/plaid.
  *
  * Per-call products (Balance at $0.10/call, Auth, Identity) don't fit a
  * monthly estimate and are intentionally excluded.
@@ -50,23 +56,20 @@ export type PlaidItemRow = {
 
 export type BillableLine = {
   label: string;
-  ratePerAccount: number;
-  accountCount: number;
-  total: number;
+  rate: number;
 };
 
-function countEligible(types: (string | null)[], allowed: Set<string>): number {
-  let n = 0;
-  for (const t of types) if (t && allowed.has(t)) n += 1;
-  return n;
+function hasEligible(types: (string | null)[], allowed: Set<string>): boolean {
+  for (const t of types) if (t && allowed.has(t)) return true;
+  return false;
 }
 
 /**
- * Break an item down into the exact invoice lines Plaid would bill for it
- * this month. Takes the account *types* (not just a count) because billing
- * filters by type per product — a Fidelity item with 5 investment accounts
- * shouldn't ring up Transactions charges, and a Chase item with 4 credit
- * cards + 1 checking shouldn't ring up Investments charges.
+ * Break an item down into the invoice lines Plaid would bill for it this
+ * month. Each line is a flat per-Item charge; the account types are only
+ * used to filter out products the Item can't actually exercise (a Fidelity
+ * item with only investment accounts doesn't ring up Transactions; a Chase
+ * item with only credit cards doesn't ring up Investments).
  */
 export function billableLinesForItem(
   item: Pick<PlaidItemRow, "products" | "recurring_ready">,
@@ -75,42 +78,22 @@ export function billableLinesForItem(
   const lines: BillableLine[] = [];
   const products = item.products ?? [];
 
-  if (products.includes("transactions")) {
-    const count = countEligible(accountTypes, TRANSACTION_ACCOUNT_TYPES);
-    if (count > 0) {
+  if (products.includes("transactions") && hasEligible(accountTypes, TRANSACTION_ACCOUNT_TYPES)) {
+    lines.push({ label: "Transactions", rate: PLAID_RATES.transactions });
+    if (item.recurring_ready) {
       lines.push({
-        label: "Transactions",
-        ratePerAccount: PLAID_RATES.transactions,
-        accountCount: count,
-        total: PLAID_RATES.transactions * count,
+        label: "Recurring Transactions",
+        rate: PLAID_RATES.recurring_transactions,
       });
-      if (item.recurring_ready) {
-        lines.push({
-          label: "Recurring Transactions",
-          ratePerAccount: PLAID_RATES.recurring_transactions,
-          accountCount: count,
-          total: PLAID_RATES.recurring_transactions * count,
-        });
-      }
     }
   }
 
-  if (products.includes("investments")) {
-    const count = countEligible(accountTypes, INVESTMENT_ACCOUNT_TYPES);
-    if (count > 0) {
-      lines.push({
-        label: "Investments Holdings",
-        ratePerAccount: PLAID_RATES.investments_holdings,
-        accountCount: count,
-        total: PLAID_RATES.investments_holdings * count,
-      });
-      lines.push({
-        label: "Investments Transactions",
-        ratePerAccount: PLAID_RATES.investments_transactions,
-        accountCount: count,
-        total: PLAID_RATES.investments_transactions * count,
-      });
-    }
+  if (products.includes("investments") && hasEligible(accountTypes, INVESTMENT_ACCOUNT_TYPES)) {
+    lines.push({ label: "Investments Holdings", rate: PLAID_RATES.investments_holdings });
+    lines.push({
+      label: "Investments Transactions",
+      rate: PLAID_RATES.investments_transactions,
+    });
   }
 
   return lines;
@@ -121,7 +104,7 @@ export function estimateItemMonthlyCost(
   accountTypes: (string | null)[],
 ): number {
   return billableLinesForItem(item, accountTypes).reduce(
-    (sum, line) => sum + line.total,
+    (sum, line) => sum + line.rate,
     0,
   );
 }

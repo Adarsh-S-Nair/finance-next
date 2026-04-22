@@ -229,11 +229,8 @@ export default function UserDrawer({
                                 className="flex items-baseline justify-between gap-3 text-[var(--color-muted)]"
                               >
                                 <span>{line.label}</span>
-                                <span className="tabular-nums text-[var(--color-muted)]/80">
-                                  {line.accountCount} × {formatUsd(line.ratePerAccount)} ={" "}
-                                  <span className="text-[var(--color-fg)]">
-                                    {formatUsd(line.total)}
-                                  </span>
+                                <span className="tabular-nums text-[var(--color-fg)]">
+                                  {formatUsd(line.rate)}
                                 </span>
                               </li>
                             ))}

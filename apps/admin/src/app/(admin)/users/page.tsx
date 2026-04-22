@@ -48,9 +48,9 @@ export default async function UsersPage() {
     profileMap.set(row.id, row);
   }
 
-  // Group account types by item_id. Plaid bills per connected account per
-  // product, but only for accounts the product actually applies to — so we
-  // need the account *types* per item, not just the count.
+  // Group account types by item_id. Plaid bills per Item per product, but
+  // only for products the Item is actually eligible to use — so we need
+  // the account *types* per item to gate eligibility.
   const accountTypesByItemId = new Map<string, (string | null)[]>();
   for (const row of (accounts ?? []) as { item_id: string; type: string | null }[]) {
     const list = accountTypesByItemId.get(row.item_id) ?? [];

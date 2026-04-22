@@ -138,9 +138,9 @@ export default async function HomePage() {
     (u) => u.last_sign_in_at && u.last_sign_in_at >= last7,
   ).length;
 
-  // Plaid cost aggregation. Billing is per connected account, filtered by
-  // whether the product applies to each account's type — pass types so the
-  // pricing helper can gate properly.
+  // Plaid cost aggregation. Billing is per Item per product; account types
+  // gate which products an Item is eligible for (an Item with only credit
+  // accounts shouldn't bill for Investments even if products includes it).
   const plaidCostByUser = new Map<string, number>();
   let totalPlaidCost = 0;
   let totalPlaidItems = 0;
