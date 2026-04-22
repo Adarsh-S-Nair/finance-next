@@ -66,6 +66,57 @@ const formatRelativeDate = (date) => {
   return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+function UpcomingRow({ stream, nextDate, disableLogos }) {
+  const showLogo = !disableLogos && stream.icon_url && stream.merchant_name;
+  const isInflow = stream.stream_type === 'inflow';
+  const amount = stream.last_amount || 0;
+
+  return (
+    <div className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors">
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+        style={{
+          backgroundColor: showLogo
+            ? 'transparent'
+            : (stream.category_hex_color || 'var(--color-accent)'),
+        }}
+      >
+        {showLogo ? (
+          <img
+            src={stream.icon_url}
+            alt={stream.merchant_name || ''}
+            className="w-full h-full object-cover rounded-full"
+            loading="lazy"
+          />
+        ) : (
+          <DynamicIcon
+            iconLib={stream.category_icon_lib}
+            iconName={stream.category_icon_name}
+            className="h-4 w-4 text-white"
+            style={{ strokeWidth: 2.5 }}
+            fallback={FiTag}
+          />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 mr-3">
+        <div className="font-medium text-[var(--color-fg)] truncate text-xs">
+          {stream.merchant_name || stream.description || 'Recurring'}
+        </div>
+        <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+          {formatRelativeDate(nextDate)}
+        </div>
+      </div>
+
+      <div className="text-right flex-shrink-0">
+        <div className={`font-medium text-xs tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+          {isInflow ? '+' : ''}{formatCurrency(amount)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CalendarCard({ className = '', mockData }) {
   const { user, isPro: liveIsPro, loading: authLoading } = useUser();
   const isPro = mockData ? true : liveIsPro;
@@ -103,14 +154,24 @@ export default function CalendarCard({ className = '', mockData }) {
     fetchRecurring();
   }, [authLoading, user?.id, liveIsPro, mockData]);
 
-  // Upcoming items: next 6 occurrences sorted by date
-  const upcoming = useMemo(() => {
-    return recurring
+  // Upcoming items: next 6 occurrences sorted by date. Split into bills
+  // (outflows) and income (inflows) so the two don't visually collide — a
+  // green "+$3,000" sitting beside a red bill confuses the hierarchy.
+  // Bills are the primary concern; income gets a smaller secondary section.
+  const { bills, income } = useMemo(() => {
+    const all = recurring
       .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
       .filter((item) => item.nextDate)
-      .sort((a, b) => a.nextDate - b.nextDate)
-      .slice(0, 6);
+      .sort((a, b) => a.nextDate - b.nextDate);
+
+    const billItems = all.filter((u) => u.stream.stream_type !== "inflow").slice(0, 5);
+    const incomeItems = all.filter((u) => u.stream.stream_type === "inflow").slice(0, 2);
+    return { bills: billItems, income: incomeItems };
   }, [recurring]);
+
+  const hasBills = bills.length > 0;
+  const hasIncome = income.length > 0;
+  const showSectionLabels = hasBills && hasIncome;
 
   if (loading) {
     return (
@@ -145,61 +206,47 @@ export default function CalendarCard({ className = '', mockData }) {
         <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
       </div>
 
-      {upcoming.length > 0 ? (
-        <div className="flex flex-col -mx-2">
-          {upcoming.map(({ stream, nextDate }, idx) => {
-            const showLogo = !DISABLE_LOGOS && stream.icon_url && stream.merchant_name;
-            const isInflow = stream.stream_type === 'inflow';
-            const amount = stream.last_amount || 0;
-
-            return (
-              <div
-                key={stream.id || idx}
-                className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                  style={{
-                    backgroundColor: showLogo
-                      ? 'transparent'
-                      : (stream.category_hex_color || 'var(--color-accent)'),
-                  }}
-                >
-                  {showLogo ? (
-                    <img
-                      src={stream.icon_url}
-                      alt={stream.merchant_name || ''}
-                      className="w-full h-full object-cover rounded-full"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <DynamicIcon
-                      iconLib={stream.category_icon_lib}
-                      iconName={stream.category_icon_name}
-                      className="h-4 w-4 text-white"
-                      style={{ strokeWidth: 2.5 }}
-                      fallback={FiTag}
-                    />
-                  )}
+      {(hasBills || hasIncome) ? (
+        <div className="flex flex-col">
+          {hasBills && (
+            <>
+              {showSectionLabels && (
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] px-2 mb-1">
+                  Bills
                 </div>
-
-                <div className="min-w-0 flex-1 mr-3">
-                  <div className="font-medium text-[var(--color-fg)] truncate text-xs">
-                    {stream.merchant_name || stream.description || 'Recurring'}
-                  </div>
-                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
-                    {formatRelativeDate(nextDate)}
-                  </div>
-                </div>
-
-                <div className="text-right flex-shrink-0">
-                  <div className={`font-medium text-xs tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
-                    {isInflow ? '+' : ''}{formatCurrency(amount)}
-                  </div>
-                </div>
+              )}
+              <div className="flex flex-col -mx-2">
+                {bills.map(({ stream, nextDate }, idx) => (
+                  <UpcomingRow
+                    key={stream.id || `bill-${idx}`}
+                    stream={stream}
+                    nextDate={nextDate}
+                    disableLogos={DISABLE_LOGOS}
+                  />
+                ))}
               </div>
-            );
-          })}
+            </>
+          )}
+
+          {hasIncome && (
+            <>
+              {showSectionLabels && (
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] px-2 mt-3 mb-1">
+                  Expected income
+                </div>
+              )}
+              <div className="flex flex-col -mx-2">
+                {income.map(({ stream, nextDate }, idx) => (
+                  <UpcomingRow
+                    key={stream.id || `income-${idx}`}
+                    stream={stream}
+                    nextDate={nextDate}
+                    disableLogos={DISABLE_LOGOS}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="text-center py-6 text-xs text-[var(--color-muted)]">

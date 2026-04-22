@@ -8,49 +8,100 @@ import { CurrencyAmount } from "../../lib/formatCurrency";
 import { SegmentedTabs } from "@zervo/ui";
 
 const MAX_ROWS = 6;
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+// Same-day-of-month window for prior-month comparison: if today is Apr 22,
+// prior = Mar 1 to Mar 22. Apples-to-apples; avoids the "you've spent less
+// because the month isn't over" false signal.
+function getComparisonDateRanges() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
+  const pad = (n) => String(n).padStart(2, "0");
+
+  const currentStart = `${year}-${pad(month + 1)}-01`;
+  const currentEnd = `${year}-${pad(month + 1)}-${pad(day)}`;
+
+  const priorMonthDate = new Date(year, month - 1, 1);
+  const priorYear = priorMonthDate.getFullYear();
+  const priorMonth = priorMonthDate.getMonth();
+  const daysInPriorMonth = new Date(priorYear, priorMonth + 1, 0).getDate();
+  const priorEndDay = Math.min(day, daysInPriorMonth);
+  const priorStart = `${priorYear}-${pad(priorMonth + 1)}-01`;
+  const priorEnd = `${priorYear}-${pad(priorMonth + 1)}-${pad(priorEndDay)}`;
+
+  return {
+    currentStart,
+    currentEnd,
+    priorStart,
+    priorEnd,
+    priorMonthLabel: MONTH_NAMES[priorMonth],
+  };
+}
 
 export default function TopCategoriesCard({ data: externalData } = {}) {
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
+  const [priorCategories, setPriorCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
+  const [priorTotalSpending, setPriorTotalSpending] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
+  const [viewMode, setViewMode] = useState("thisMonth"); // 'thisMonth' | 'changes'
 
-  const periodOptions = [
-    { label: 'This Month', value: 'thisMonth' },
-    { label: 'Last 30 Days', value: 'last30' },
+  const viewOptions = [
+    { label: "This Month", value: "thisMonth" },
+    { label: "Changes", value: "changes" },
   ];
 
+  const dateRanges = useMemo(() => getComparisonDateRanges(), []);
+
   useEffect(() => {
-    if (externalData && selectedPeriod === 'thisMonth') {
-      setCategories((externalData.categories || []).slice(0, 10));
+    // Prefetched data covers the default view only.
+    if (externalData && viewMode === "thisMonth") {
+      setCategories((externalData.categories || []).slice(0, 20));
       setTotalSpending(externalData.totalSpending || 0);
       setLoading(false);
       return;
     }
 
     if (authLoading) return;
-    if (!user?.id) { setLoading(false); return; }
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchData() {
       try {
         setLoading(true);
-        const now = new Date();
-        let apiUrl;
-        if (selectedPeriod === 'thisMonth') {
-          const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-          const endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          apiUrl = `/api/transactions/spending-by-category?startDate=${startDate}&endDate=${endDate}`;
+        const currentUrl = `/api/transactions/spending-by-category?startDate=${dateRanges.currentStart}&endDate=${dateRanges.currentEnd}`;
+
+        if (viewMode === "changes") {
+          // Fetch both windows in parallel so we can compute movers.
+          const priorUrl = `/api/transactions/spending-by-category?startDate=${dateRanges.priorStart}&endDate=${dateRanges.priorEnd}`;
+          const [curRes, priorRes] = await Promise.all([
+            authFetch(currentUrl),
+            authFetch(priorUrl),
+          ]);
+          if (!curRes.ok || !priorRes.ok) throw new Error("Failed to fetch data");
+          const [curData, priorData] = await Promise.all([curRes.json(), priorRes.json()]);
+          setCategories((curData.categories || []).slice(0, 20));
+          setTotalSpending(curData.totalSpending || 0);
+          setPriorCategories(priorData.categories || []);
+          setPriorTotalSpending(priorData.totalSpending || 0);
         } else {
-          apiUrl = `/api/transactions/spending-by-category?days=30`;
+          const res = await authFetch(currentUrl);
+          if (!res.ok) throw new Error("Failed to fetch data");
+          const data = await res.json();
+          setCategories((data.categories || []).slice(0, 20));
+          setTotalSpending(data.totalSpending || 0);
         }
-        const res = await authFetch(apiUrl);
-        if (!res.ok) throw new Error("Failed to fetch data");
-        const data = await res.json();
-        setCategories(data.categories.slice(0, 10));
-        setTotalSpending(data.totalSpending || 0);
       } catch (err) {
         console.error(err);
         setError(err.message);
@@ -59,45 +110,89 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
       }
     }
     fetchData();
-  }, [authLoading, user?.id, selectedPeriod, externalData]);
+  }, [
+    authLoading,
+    user?.id,
+    viewMode,
+    externalData,
+    dateRanges.currentStart,
+    dateRanges.currentEnd,
+    dateRanges.priorStart,
+    dateRanges.priorEnd,
+  ]);
 
-  // Top (MAX_ROWS - 1) named, everything else collapsed into "Other".
-  // "Everything else" includes API-returned tail categories AND the sub-1%
-  // categories the API filters out (which show up as totalSpending minus the
-  // named sum) — otherwise a user with 2 big categories sees nothing accounting
-  // for the remaining few percent.
+  // Rows differ by mode:
+  //  - thisMonth: top N categories by total, with a collapsed "Other" tail
+  //  - changes:   top N categories by abs(delta vs prior), no "Other" roll-up
+  //               (mixing a delta with a sum-of-tails is meaningless)
   const rows = useMemo(() => {
+    if (viewMode === "changes") {
+      if (!categories.length && !priorCategories.length) return [];
+      const priorById = new Map(
+        priorCategories.map((c) => [c.id, c.total_spent || 0])
+      );
+      const currentById = new Map(
+        categories.map((c) => [c.id, { cat: c, amount: c.total_spent || 0 }])
+      );
+      const allIds = new Set([
+        ...currentById.keys(),
+        ...priorById.keys(),
+      ]);
+      const merged = [];
+      for (const id of allIds) {
+        const current = currentById.get(id);
+        const prior = priorById.get(id) || 0;
+        const amount = current?.amount || 0;
+        const delta = amount - prior;
+        if (amount === 0 && prior === 0) continue;
+        merged.push({
+          id,
+          label: current?.cat?.label || priorCategories.find((p) => p.id === id)?.label || "Unknown",
+          color: current?.cat?.hex_color || priorCategories.find((p) => p.id === id)?.hex_color || "var(--color-fg)",
+          amount,
+          prior,
+          delta,
+        });
+      }
+      merged.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      return merged.slice(0, MAX_ROWS).map((m, i) => ({ ...m, rank: i }));
+    }
+
+    // thisMonth mode
     if (!categories.length) return [];
     const namedCount = MAX_ROWS - 1;
     const named = categories.slice(0, namedCount).map((cat, i) => ({
       id: cat.id,
       label: cat.label,
       amount: cat.total_spent,
-      color: cat.hex_color || 'var(--color-fg)',
+      color: cat.hex_color || "var(--color-fg)",
       rank: i,
     }));
     const namedSum = named.reduce((s, n) => s + (n.amount || 0), 0);
     const otherTotal = Math.max(0, (totalSpending || 0) - namedSum);
-    // Only show Other if there's a meaningful remainder (>0.5% of total)
     if (otherTotal > 0 && totalSpending > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
       named.push({
-        id: '__other__',
-        label: 'Other',
+        id: "__other__",
+        label: "Other",
         amount: otherTotal,
-        color: 'var(--color-muted)',
+        color: "var(--color-muted)",
         rank: named.length,
         isOther: true,
       });
     }
     return named;
-  }, [categories, totalSpending]);
+  }, [viewMode, categories, priorCategories, totalSpending]);
 
-  // Each row's bar is sized relative to the largest row, not to the total —
-  // makes the visual easier to read when the top category dominates.
-  const maxAmount = useMemo(
-    () => rows.reduce((m, r) => Math.max(m, r.amount || 0), 0),
-    [rows]
-  );
+  // Bar widths:
+  //  - thisMonth: scaled to the largest row's amount (easier to compare ranks)
+  //  - changes:   scaled to the largest abs(delta) so the bar visually
+  //               reinforces the movement size, not the raw total
+  const maxBarValue = useMemo(() => {
+    if (viewMode === "changes") {
+      return rows.reduce((m, r) => Math.max(m, Math.abs(r.delta || 0)), 0);
+    }
+    return rows.reduce((m, r) => Math.max(m, r.amount || 0), 0);
+  }, [rows, viewMode]);
 
   const onRowClick = (row) => {
     if (!row || row.isOther || !row.id) return;
@@ -139,15 +234,17 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     );
   }
 
-  if (rows.length === 0 || totalSpending === 0) {
+  const isChanges = viewMode === "changes";
+
+  if (rows.length === 0 || (!isChanges && totalSpending === 0)) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-5">
           <div className="card-header">Top Spending</div>
           <SegmentedTabs
-            options={periodOptions}
-            value={selectedPeriod}
-            onChange={setSelectedPeriod}
+            options={viewOptions}
+            value={viewMode}
+            onChange={setViewMode}
             size="sm"
           />
         </div>
@@ -155,18 +252,32 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
           <CurrencyAmount amount={0} />
         </div>
         <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-5">
-          {periodOptions.find((p) => p.value === selectedPeriod)?.label}
+          {isChanges ? `vs ${dateRanges.priorMonthLabel}` : "This Month"}
         </div>
-        <div className="text-xs text-[var(--color-muted)]">No spending yet.</div>
+        <div className="text-xs text-[var(--color-muted)]">
+          {isChanges ? "No changes to show." : "No spending yet."}
+        </div>
       </div>
     );
   }
 
   const hovered = hoverIndex !== null ? rows[hoverIndex] : null;
-  const heroValue = hovered ? hovered.amount : totalSpending;
-  const heroLabel = hovered
-    ? hovered.label
-    : periodOptions.find((p) => p.value === selectedPeriod)?.label;
+
+  // Hero number:
+  //   thisMonth: total spent this month, swaps to hovered row on hover
+  //   changes:   net spending delta vs prior period, swaps to hovered row's delta on hover
+  let heroValue, heroLabel, heroDelta;
+  if (isChanges) {
+    const netDelta = totalSpending - priorTotalSpending;
+    heroValue = hovered ? hovered.amount : totalSpending;
+    heroDelta = hovered ? hovered.delta : netDelta;
+    heroLabel = hovered
+      ? hovered.label
+      : `vs ${dateRanges.priorMonthLabel}`;
+  } else {
+    heroValue = hovered ? hovered.amount : totalSpending;
+    heroLabel = hovered ? hovered.label : "This Month";
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -174,61 +285,88 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
       <div className="flex items-center justify-between mb-5">
         <div className="card-header">Top Spending</div>
         <SegmentedTabs
-          options={periodOptions}
-          value={selectedPeriod}
-          onChange={setSelectedPeriod}
+          options={viewOptions}
+          value={viewMode}
+          onChange={setViewMode}
           size="sm"
         />
       </div>
 
       {/* Hero number */}
       <div>
-        <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] mb-1.5 transition-colors">
-          <CurrencyAmount amount={heroValue} />
+        <div className="flex items-baseline gap-3 mb-1.5">
+          <div className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] transition-colors">
+            <CurrencyAmount amount={heroValue} />
+          </div>
+          {isChanges && Number.isFinite(heroDelta) && Math.abs(heroDelta) > 0.5 && (
+            <div
+              className={`text-xs font-medium tabular-nums ${
+                heroDelta > 0 ? "text-red-500" : "text-emerald-500"
+              }`}
+            >
+              {heroDelta > 0 ? "▲" : "▼"}{" "}
+              <CurrencyAmount amount={Math.abs(heroDelta)} />
+            </div>
+          )}
         </div>
         <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-6">
           {heroLabel}
         </div>
       </div>
 
-      {/* Per-row horizontal bars */}
+      {/* Per-row bars */}
       <div
         className="space-y-3.5"
         onMouseLeave={() => setHoverIndex(null)}
       >
         {rows.map((row, i) => {
-          const widthPct = maxAmount > 0 ? (row.amount / maxAmount) * 100 : 0;
-          const sharePct = totalSpending > 0 ? (row.amount / totalSpending) * 100 : 0;
+          const barBasis = isChanges ? Math.abs(row.delta || 0) : row.amount || 0;
+          const widthPct = maxBarValue > 0 ? (barBasis / maxBarValue) * 100 : 0;
           const isHovered = hoverIndex === i;
           const isDimmed = hoverIndex !== null && !isHovered;
+          // In "changes" mode: ▲ = more spending (red), ▼ = less (emerald).
+          const deltaPositive = isChanges && (row.delta || 0) > 0;
+          const deltaNegative = isChanges && (row.delta || 0) < 0;
+          const deltaColor = deltaPositive
+            ? "text-red-500"
+            : deltaNegative
+              ? "text-emerald-500"
+              : "text-[var(--color-muted)]";
+          const barColor = isChanges
+            ? (deltaPositive ? "#ef4444" : deltaNegative ? "#10b981" : "var(--color-muted)")
+            : row.color;
+
           return (
             <div
               key={row.id}
-              className={`group ${row.isOther ? '' : 'cursor-pointer'}`}
+              className={`group ${row.isOther ? "" : "cursor-pointer"}`}
               style={{
                 opacity: isDimmed ? 0.4 : 1,
-                transition: 'opacity 0.15s ease',
+                transition: "opacity 0.15s ease",
               }}
               onMouseEnter={() => setHoverIndex(i)}
               onClick={() => onRowClick(row)}
             >
-              <div className="flex items-baseline justify-between mb-1.5">
+              <div className="flex items-baseline justify-between mb-1.5 gap-3">
                 <span
                   className={`text-xs truncate ${
                     isHovered
-                      ? 'text-[var(--color-fg)] font-medium'
-                      : 'text-[var(--color-fg)]'
+                      ? "text-[var(--color-fg)] font-medium"
+                      : "text-[var(--color-fg)]"
                   }`}
-                  style={{ transition: 'font-weight 0.15s ease' }}
+                  style={{ transition: "font-weight 0.15s ease" }}
                 >
                   {row.label}
                 </span>
-                <div className="flex items-baseline gap-2 flex-shrink-0 ml-3">
+                <div className="flex items-baseline gap-2 flex-shrink-0">
+                  {isChanges && Math.abs(row.delta || 0) >= 0.5 && (
+                    <span className={`text-[10px] tabular-nums ${deltaColor}`}>
+                      {deltaPositive ? "▲" : "▼"}{" "}
+                      <CurrencyAmount amount={Math.abs(row.delta)} />
+                    </span>
+                  )}
                   <span className="text-xs font-medium text-[var(--color-fg)] tabular-nums">
                     <CurrencyAmount amount={row.amount} />
-                  </span>
-                  <span className="text-[10px] text-[var(--color-muted)] tabular-nums w-10 text-right">
-                    {sharePct.toFixed(1)}%
                   </span>
                 </div>
               </div>
@@ -237,9 +375,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
                   className="h-full rounded-full"
                   style={{
                     width: `${widthPct}%`,
-                    backgroundColor: row.color,
+                    backgroundColor: barColor,
                     opacity: isHovered ? 1 : 0.85,
-                    transition: 'opacity 0.15s ease, width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                    transition:
+                      "opacity 0.15s ease, width 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 />
               </div>
