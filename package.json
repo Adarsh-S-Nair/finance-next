@@ -1,6 +1,7 @@
 {
   "name": "zervo-workspace",
   "version": "0.0.0",
+  "description": "Zervo monorepo — apps/finance (zervo.app) and apps/admin (admin.zervo.app).",
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "scripts": {
