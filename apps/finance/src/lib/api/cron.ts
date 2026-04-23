@@ -1,3 +1,4 @@
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
@@ -5,7 +6,7 @@ import crypto from 'crypto';
  * Verify the cron secret from the Authorization header.
  * Returns a NextResponse error if verification fails, or null if it passes.
  */
-export function verifyCronSecret(request) {
+export function verifyCronSecret(request: NextRequest): NextResponse | null {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
