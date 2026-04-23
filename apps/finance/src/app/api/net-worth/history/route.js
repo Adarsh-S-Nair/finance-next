@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
@@ -21,9 +21,7 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('net-worth:history', async (request, userId) => {
     const { searchParams } = new URL(request.url);
     const months = parseInt(searchParams.get('months') || '12');
 
@@ -140,11 +138,5 @@ export async function GET(request) {
     }
 
     return NextResponse.json({ data: netWorthHistory });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in net worth history API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});
 

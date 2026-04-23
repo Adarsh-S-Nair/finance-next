@@ -1,13 +1,10 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
-
+export const GET = withAuth('net-worth:dates', async (request, userId) => {
     if (DEBUG) console.log(`🔍 Dates API: Getting unique dates for user ${userId}`);
 
     // Get all accounts for the user
@@ -96,11 +93,5 @@ export async function GET(request) {
       totalSnapshots: snapshots.length,
       totalAccounts: accounts.length
     });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in net worth dates API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});
 

@@ -1,9 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../../../lib/api/auth";
+import { withAuth } from "../../../../../../lib/api/withAuth";
 import { getMembershipRole } from "../../../../../../lib/households/server";
-
-type RouteContext = { params: Promise<{ id: string }> };
 
 type UserLookupRow = {
   id: string;
@@ -19,10 +17,8 @@ type UserLookupRow = {
  * invite) can call this. Requires an exact case-insensitive email match —
  * no fuzzy matching — to limit account-enumeration surface area.
  */
-export async function GET(request: NextRequest, context: RouteContext) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { id: householdId } = await context.params;
+export const GET = withAuth<{ id: string }>("households:invitations:lookup", async (request, userId, { params }) => {
+    const { id: householdId } = await params;
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -80,9 +76,4 @@ export async function GET(request: NextRequest, context: RouteContext) {
         avatar_url: user.avatar_url,
       },
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] lookup error", error);
-    return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
-  }
-}
+});

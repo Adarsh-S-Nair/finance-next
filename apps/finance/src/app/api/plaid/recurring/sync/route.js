@@ -14,13 +14,11 @@
  */
 
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../../lib/api/auth';
+import { withAuth } from '../../../../../lib/api/withAuth';
 import { canAccess } from '../../../../../lib/tierConfig';
 import { syncRecurringForUser } from '../../../../../lib/plaid/recurringSync';
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:recurring:sync', async (request, userId) => {
     const body = await request.json();
     const forceReset = Boolean(body.forceReset);
     const plaidItemId = body.plaidItemId ?? null;
@@ -37,12 +35,4 @@ export async function POST(request) {
 
     const result = await syncRecurringForUser({ userId, forceReset, plaidItemId });
     return Response.json(result);
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Failed to sync recurring transactions:', error);
-    return Response.json(
-      { error: 'Failed to sync recurring transactions' },
-      { status: 500 }
-    );
-  }
-}
+});

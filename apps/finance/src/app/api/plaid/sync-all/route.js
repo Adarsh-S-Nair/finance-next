@@ -1,12 +1,10 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 
 const logger = createLogger('sync-all');
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:sync-all', async (request, userId) => {
     const { forceSync = false, includeHoldingsDebug = false } = await request.json();
     logger.info('Sync all items requested', { userId, forceSync, includeHoldingsDebug });
     // Get all plaid items for this user
@@ -139,12 +137,4 @@ export async function POST(request) {
       itemsFailed: failCount,
       results: syncResults,
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    logger.error('Error in sync-all', error);
-    return Response.json(
-      { error: 'Failed to sync items' },
-      { status: 500 }
-    );
-  }
-}
+});

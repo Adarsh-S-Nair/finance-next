@@ -1,9 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireVerifiedUserId } from "../../../../../lib/api/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../../../lib/api/withAuth";
 import { isCallerAdmin } from "../../../../../lib/api/admin";
 import { deleteUserCompletely } from "../../../../../lib/accountDeletion/deleteUserCompletely";
-
-type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * Admin-only user deletion. Called by the admin subdomain's own proxy
@@ -11,10 +9,8 @@ type RouteContext = { params: Promise<{ id: string }> };
  * through the same `deleteUserCompletely` helper as the user-facing
  * self-delete so Plaid /item/remove and Stripe cleanup always run.
  */
-export async function DELETE(req: NextRequest, context: RouteContext) {
-  try {
-    const callerId = requireVerifiedUserId(req);
-    const { id: targetUserId } = await context.params;
+export const DELETE = withAuth<{ id: string }>("admin:users:delete", async (_req, callerId, { params }) => {
+    const { id: targetUserId } = await params;
 
     if (!targetUserId) {
       return NextResponse.json({ error: "Missing user id" }, { status: 400 });
@@ -39,9 +35,4 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     return NextResponse.json({ success: true });
-  } catch (e: unknown) {
-    if (e instanceof Response) return e;
-    console.error("[admin users DELETE] unexpected error:", e);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
-  }
-}
+});

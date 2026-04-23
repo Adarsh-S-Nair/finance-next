@@ -10,12 +10,10 @@
  */
 
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('dashboard:summary', async (request, userId) => {
     const { searchParams } = new URL(request.url);
 
     // ── Params ──────────────────────────────────────────────────────────────
@@ -111,13 +109,7 @@ export async function GET(request) {
     );
 
     return Response.json({ spendingEarning, spendingByCategory });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('[dashboard/summary] Unexpected error:', error);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

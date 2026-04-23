@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../lib/api/auth";
+import { withAuth } from "../../../../lib/api/withAuth";
 
 type HouseholdRow = {
   id: string;
@@ -19,9 +19,7 @@ type ProfileRow = {
  * Pending targeted invitations addressed to the caller. Used by the
  * AlertsIcon dropdown to surface "X invited you to Y household".
  */
-export async function GET(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth("invitations:pending", async (_request, userId) => {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -79,9 +77,4 @@ export async function GET(request: NextRequest) {
         invited_by: profileById.get(r.created_by) ?? null,
       })),
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[invitations] pending error", error);
-    return NextResponse.json({ error: "Failed to load invitations" }, { status: 500 });
-  }
-}
+});

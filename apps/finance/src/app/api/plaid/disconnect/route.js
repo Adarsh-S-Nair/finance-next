@@ -1,10 +1,8 @@
 import { removeItem } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:disconnect', async (request, userId) => {
     const { plaidItemId } = await request.json();
     console.log('Disconnect request for plaid item:', plaidItemId, 'user:', userId);
     if (!plaidItemId) {
@@ -72,12 +70,4 @@ export async function POST(request) {
       success: true,
       message: 'Institution disconnected successfully'
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in disconnect process:', error);
-    return Response.json(
-      { error: 'Failed to disconnect institution' },
-      { status: 500 }
-    );
-  }
-}
+});

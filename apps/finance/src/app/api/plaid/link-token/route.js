@@ -1,11 +1,9 @@
 import { createLinkToken } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { canAccess, getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:link-token', async (request, userId) => {
     const { plaidItemId, additionalProducts } = await request.json();
     // Verify user exists
     const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
@@ -73,12 +71,4 @@ export async function POST(request) {
       link_token: linkTokenResponse.link_token,
       expiration: linkTokenResponse.expiration,
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in link token API:', error);
-    return Response.json(
-      { error: error.message || 'Failed to create link token' },
-      { status: 500 }
-    );
-  }
-}
+});

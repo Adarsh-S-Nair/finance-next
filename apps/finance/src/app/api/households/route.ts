@@ -1,28 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../lib/api/auth";
+import { withAuth } from "../../../lib/api/withAuth";
 import { listHouseholdsForUser, pickRandomHouseholdColor } from "../../../lib/households/server";
 
-export async function GET(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const households = await listHouseholdsForUser(userId);
-    return NextResponse.json({ households });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] list error", error);
-    return NextResponse.json({ error: "Failed to list households" }, { status: 500 });
+export const GET = withAuth("households:list", async (_request, userId) => {
+  const households = await listHouseholdsForUser(userId);
+  return NextResponse.json({ households });
+});
+
+export const POST = withAuth("households:create", async (request, userId) => {
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    }
-
-    const body = await request.json().catch(() => ({}));
+  const body = await request.json().catch(() => ({}));
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     if (!name || name.length > 60) {
       return NextResponse.json(
@@ -52,12 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create household" }, { status: 500 });
     }
 
-    return NextResponse.json({
-      household: { ...household, role: "owner" as const, member_count: 1 },
-    });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] create error", error);
-    return NextResponse.json({ error: "Failed to create household" }, { status: 500 });
-  }
-}
+  return NextResponse.json({
+    household: { ...household, role: "owner" as const, member_count: 1 },
+  });
+});

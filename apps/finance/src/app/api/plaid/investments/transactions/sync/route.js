@@ -14,46 +14,36 @@
  */
 
 import { supabaseAdmin } from '../../../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../../../lib/api/auth';
+import { withAuth } from '../../../../../../lib/api/withAuth';
 import { canAccess } from '../../../../../../lib/tierConfig';
 import { syncInvestmentTransactionsForItem } from '../../../../../../lib/plaid/investmentTransactionSync';
 
-export async function POST(request) {
-  let plaidItemId = null;
+export const POST = withAuth('plaid:investments:transactions:sync', async (request, userId) => {
+  const body = await request.json();
+  const plaidItemId = body.plaidItemId ?? null;
+  const forceSync = Boolean(body.forceSync);
+
+  if (!plaidItemId) {
+    return Response.json({ error: 'Plaid item ID is required' }, { status: 400 });
+  }
+
+  // Tier gate: investments is a Pro feature
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!canAccess(userProfile?.subscription_tier || 'free', 'investments')) {
+    return Response.json({ error: 'feature_locked', feature: 'investments' }, { status: 403 });
+  }
+
   try {
-    const userId = requireVerifiedUserId(request);
-    const body = await request.json();
-    plaidItemId = body.plaidItemId ?? null;
-    const forceSync = Boolean(body.forceSync);
-
-    if (!plaidItemId) {
-      return Response.json(
-        { error: 'Plaid item ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Tier gate: investments is a Pro feature
-    const { data: userProfile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('subscription_tier')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!canAccess(userProfile?.subscription_tier || 'free', 'investments')) {
-      return Response.json({ error: 'feature_locked', feature: 'investments' }, { status: 403 });
-    }
-
     const result = await syncInvestmentTransactionsForItem({ plaidItemId, userId, forceSync });
     return Response.json(result);
   } catch (error) {
-    if (error instanceof Response) return error;
     if (error?.httpStatus === 404) {
       return Response.json({ error: error.message || 'Plaid item not found' }, { status: 404 });
     }
-    console.error('Failed to sync investment transactions:', error);
-    return Response.json(
-      { error: 'Failed to sync investment transactions' },
-      { status: 500 }
-    );
+    throw error;
   }
-}
+});

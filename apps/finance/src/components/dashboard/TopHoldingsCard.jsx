@@ -5,16 +5,9 @@ import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
 import { ViewAllLink } from "@zervo/ui";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import { formatShares } from "../../lib/formatShares";
 
 const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true);
-
-function formatShares(value) {
-  const num = Number(value || 0);
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: num < 1 ? 4 : 2,
-    maximumFractionDigits: num < 1 ? 6 : 4,
-  });
-}
 
 /**
  * Tiny inline SVG sparkline — 30-day daily close.

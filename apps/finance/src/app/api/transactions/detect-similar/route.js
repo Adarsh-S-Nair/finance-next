@@ -1,12 +1,10 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
 const logger = createLogger('detect-similar');
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('detect-similar', async (request, userId) => {
     const { transactionId, categoryId } = await request.json();
 
     if (!transactionId || !categoryId) {
@@ -130,11 +128,5 @@ export async function POST(request) {
       transactions: transformedTransactions,
       criteria
     });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    logger.error('Error in detect-similar', error);
-    return Response.json({ error: 'Failed to detect similar transactions' }, { status: 500 });
-  }
-}
+});
 

@@ -13,25 +13,20 @@
  * See `docs/architectural_patterns.md` for the pattern.
  */
 
-import { requireVerifiedUserId } from '../../../../../../lib/api/auth';
+import { withAuth } from '../../../../../../lib/api/withAuth';
 import { syncHoldingsForItem } from '../../../../../../lib/plaid/holdingsSync';
 
-export async function POST(request) {
-  let plaidItemId = null;
+export const POST = withAuth('plaid:holdings:sync', async (request, userId) => {
+  const body = await request.json();
+  const plaidItemId = body.plaidItemId ?? null;
+  const includeDebug = Boolean(body.includeDebug);
+  const forceSync = Boolean(body.forceSync);
+
+  if (!plaidItemId) {
+    return Response.json({ error: 'Plaid item ID is required' }, { status: 400 });
+  }
+
   try {
-    const userId = requireVerifiedUserId(request);
-    const body = await request.json();
-    plaidItemId = body.plaidItemId ?? null;
-    const includeDebug = Boolean(body.includeDebug);
-    const forceSync = Boolean(body.forceSync);
-
-    if (!plaidItemId) {
-      return Response.json(
-        { error: 'Plaid item ID is required' },
-        { status: 400 }
-      );
-    }
-
     const result = await syncHoldingsForItem({
       plaidItemId,
       userId,
@@ -40,24 +35,19 @@ export async function POST(request) {
     });
     return Response.json(result);
   } catch (error) {
-    if (error instanceof Response) return error;
     // HoldingsSyncError carries an httpStatus; map it to the matching response.
     if (error?.httpStatus === 403) {
       return Response.json(
         { error: error.message, code: error.code, feature: error.feature },
-        { status: 403 }
+        { status: 403 },
       );
     }
     if (error?.httpStatus === 404) {
       return Response.json(
         { error: error.message || 'Plaid item not found' },
-        { status: 404 }
+        { status: 404 },
       );
     }
-    console.error('Failed to sync holdings:', error);
-    return Response.json(
-      { error: 'Failed to sync holdings' },
-      { status: 500 }
-    );
+    throw error;
   }
-}
+});

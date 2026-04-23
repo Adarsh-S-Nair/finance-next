@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../../lib/api/auth";
-
-type RouteContext = { params: Promise<{ id: string }> };
+import { withAuth } from "../../../../../lib/api/withAuth";
 
 /**
  * Accept a targeted invitation. The caller must be the invited user. On
  * success the caller becomes a household_members row and the invite is
  * marked used so it can't be re-accepted.
  */
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { id: inviteId } = await context.params;
+export const POST = withAuth<{ id: string }>("invitations:accept", async (_request, userId, { params }) => {
+    const { id: inviteId } = await params;
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -68,9 +64,4 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .eq("id", inviteId);
 
     return NextResponse.json({ household_id: invite.household_id });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[invitations] accept error", error);
-    return NextResponse.json({ error: "Failed to accept invitation" }, { status: 500 });
-  }
-}
+});

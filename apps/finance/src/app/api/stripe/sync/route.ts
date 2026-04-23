@@ -1,7 +1,6 @@
-import { NextRequest } from 'next/server';
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
 /**
  * POST /api/stripe/sync
@@ -15,9 +14,7 @@ import { requireVerifiedUserId } from '../../../../lib/api/auth';
  * 3. If active, updates subscription_tier → 'pro' in Supabase
  * 4. Returns { tier }
  */
-export async function POST(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('stripe:sync', async (_request, userId) => {
     const stripe = requireStripe();
 
     if (!supabaseAdmin) {
@@ -90,9 +87,4 @@ export async function POST(request: NextRequest) {
     // No active subscription found
     console.log(`[stripe/sync] user ${userId} has no active Stripe subscription`);
     return Response.json({ tier: profile?.subscription_tier ?? 'free' });
-  } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('[stripe/sync] error:', err);
-    return Response.json({ error: (err as Error).message || 'Internal error' }, { status: 500 });
-  }
-}
+});

@@ -1,11 +1,9 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('spending-earning', async (request, userId) => {
     const { searchParams } = new URL(request.url);
     const monthsParam = parseInt(searchParams.get('months') || '24', 10);
     const MAX_MONTHS = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 36) : 24;
@@ -346,12 +344,4 @@ export async function GET(request) {
         lastMonthSpending
       }
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in spending-earning API:', error);
-    return Response.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+});

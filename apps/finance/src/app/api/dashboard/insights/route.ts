@@ -1,4 +1,4 @@
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { canAccess } from '../../../../lib/tierConfig';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
@@ -9,16 +9,7 @@ import { upcomingBills } from '../../../../lib/insights/generators/upcomingBills
 import { topCategoryShift } from '../../../../lib/insights/generators/topCategoryShift';
 import type { Insight } from '../../../../lib/insights/types';
 
-export async function GET(request: Request) {
-  let userId: string;
-  try {
-    userId = requireVerifiedUserId(request);
-  } catch (err) {
-    if (err instanceof Response) return err;
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
+export const GET = withAuth('dashboard:insights', async (_request, userId) => {
     // Fetch user tier
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
@@ -185,8 +176,4 @@ export async function GET(request: Request) {
     insights.sort((a, b) => a.priority - b.priority || toneOrder[a.tone] - toneOrder[b.tone]);
 
     return Response.json({ insights });
-  } catch (err) {
-    console.error('[insights] unexpected error:', err);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});

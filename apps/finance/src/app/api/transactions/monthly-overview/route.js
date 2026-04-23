@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 
 // Helper function to fetch and process transactions for a given month
@@ -120,9 +120,7 @@ async function getMonthData(userId, year, month, excludedCategoryIds) {
   return { daysInMonth, data: result };
 }
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('monthly-overview', async (request, userId) => {
     const { searchParams } = new URL(request.url);
 
     // Get month and year from params or default to current
@@ -258,9 +256,4 @@ export async function GET(request) {
       isCurrentMonth,
       currentDay: isCurrentMonth ? currentDay : null
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in monthly overview API:', error);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});

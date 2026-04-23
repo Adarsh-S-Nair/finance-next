@@ -1,18 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireVerifiedUserId } from "../../../../../../lib/api/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../../../../lib/api/withAuth";
 import { isCallerAdmin } from "../../../../../../lib/api/admin";
 import {
   grantUserPro,
   revokeUserPro,
 } from "../../../../../../lib/accountDeletion/subscriptionActions";
 
-type RouteContext = { params: Promise<{ id: string }> };
 type Action = "grant_pro" | "revoke_pro";
 
-export async function PATCH(req: NextRequest, context: RouteContext) {
-  try {
-    const callerId = requireVerifiedUserId(req);
-    const { id: targetUserId } = await context.params;
+export const PATCH = withAuth<{ id: string }>("admin:subscription:patch", async (req, callerId, { params }) => {
+    const { id: targetUserId } = await params;
 
     if (!targetUserId) {
       return NextResponse.json({ error: "Missing user id" }, { status: 400 });
@@ -39,9 +36,4 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     return NextResponse.json({ success: true });
-  } catch (e: unknown) {
-    if (e instanceof Response) return e;
-    console.error("[admin subscription PATCH] unexpected error:", e);
-    return NextResponse.json({ error: "Failed to update subscription" }, { status: 500 });
-  }
-}
+});

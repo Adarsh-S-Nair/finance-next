@@ -1,18 +1,15 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
 import { resolveScope } from '../../../../lib/api/scope';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('net-worth:current', async (request, userId) => {
+  const scope = await resolveScope(request, userId);
+  if (scope instanceof Response) return scope;
 
-    const scope = await resolveScope(request, userId);
-    if (scope instanceof Response) return scope;
-
-    if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for ${scope.kind} scope`);
+  if (DEBUG) console.log(`🔍 Current Net Worth API: Getting net worth for ${scope.kind} scope`);
 
     // Household scope aggregates every member's accounts; personal only the caller.
     const { data: accounts, error: accountsError } = await supabaseAdmin
@@ -87,11 +84,5 @@ export async function GET(request) {
     };
 
     return NextResponse.json(response);
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in current net worth API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});
 

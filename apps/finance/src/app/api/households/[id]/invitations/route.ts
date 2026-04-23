@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../../lib/api/auth";
+import { withAuth } from "../../../../../lib/api/withAuth";
 import {
   generateInviteCode,
   getMembershipRole,
 } from "../../../../../lib/households/server";
-
-type RouteContext = { params: Promise<{ id: string }> };
 
 const INVITE_TTL_DAYS = 7;
 
@@ -18,10 +16,8 @@ type UserLookupRow = {
   avatar_url: string | null;
 };
 
-export async function GET(request: NextRequest, context: RouteContext) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { id: householdId } = await context.params;
+export const GET = withAuth<{ id: string }>("households:invitations:list", async (_request, userId, { params }) => {
+    const { id: householdId } = await params;
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -102,12 +98,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }));
 
     return NextResponse.json({ invitations });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] list invitations error", error);
-    return NextResponse.json({ error: "Failed to list invitations" }, { status: 500 });
-  }
-}
+});
 
 /**
  * Owner-only. Creates an invitation.
@@ -119,10 +110,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
  * stores their user_id on the invite, no code needed. The invitee sees
  * the pending invite in their notifications and has to accept it.
  */
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { id: householdId } = await context.params;
+export const POST = withAuth<{ id: string }>("households:invitations:create", async (request, userId, { params }) => {
+    const { id: householdId } = await params;
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -238,9 +227,4 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     console.error("[households] create invitation error", lastError);
     return NextResponse.json({ error: "Failed to create invitation" }, { status: 500 });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] create invitation error", error);
-    return NextResponse.json({ error: "Failed to create invitation" }, { status: 500 });
-  }
-}
+});

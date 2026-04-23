@@ -2,7 +2,7 @@ import { after } from 'next/server';
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { getPlaidProducts } from '../../../../lib/tierConfig';
 import { createLogger } from '../../../../lib/logger';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
@@ -11,9 +11,7 @@ import { encryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 
 const logger = createLogger('plaid-exchange-token');
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:exchange-token', async (request, userId) => {
     const { publicToken, existingPlaidItemId } = await request.json();
     if (!publicToken) {
       return Response.json(
@@ -484,13 +482,4 @@ export async function POST(request) {
       accounts: accountsData,
       institution: institutionData || null,
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    logger.error('Error exchanging token', error);
-    await logger.flush();
-    return Response.json(
-      { error: 'Failed to exchange token' },
-      { status: 500 }
-    );
-  }
-}
+});

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
 import { resolveScope } from '../../../../lib/api/scope';
 
@@ -71,9 +71,7 @@ function getPrice(priceMap, dateString) {
   return null;
 }
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('net-worth:by-date', async (request, userId) => {
     const { searchParams } = new URL(request.url);
     const maxDaysParam = parseInt(searchParams.get('maxDays') || '0', 10);
     const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365;
@@ -292,9 +290,4 @@ export async function GET(request) {
         latest: series[series.length - 1]?.date || null,
       },
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in net worth by date API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});

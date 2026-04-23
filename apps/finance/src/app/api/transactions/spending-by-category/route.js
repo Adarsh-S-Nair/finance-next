@@ -1,11 +1,9 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 const DEBUG = process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('spending-by-category', async (request, userId) => {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'spending'; // 'spending' or 'income'
     const daysParam = parseInt(searchParams.get('days') || '90', 10);
@@ -307,14 +305,5 @@ export async function GET(request) {
       completeMonths: completeMonths || 1, // Default to 1 to avoid division by 0
       consistencyThreshold,
     });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in spending by category API:', error);
-    return Response.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+});
 

@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../lib/api/auth";
+import { withAuth } from "../../../../lib/api/withAuth";
 
 /**
  * Preview an invite code before redeeming. Lets the UI show "You've been
  * invited to <name> by <person>" before the user commits.
  */
-export async function GET(request: NextRequest) {
-  try {
-    requireVerifiedUserId(request);
+export const GET = withAuth("households:join:preview", async (request) => {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -64,20 +62,13 @@ export async function GET(request: NextRequest) {
         ? { first_name: inviter.first_name, last_name: inviter.last_name }
         : null,
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] join preview error", error);
-    return NextResponse.json({ error: "Failed to look up invite" }, { status: 500 });
-  }
-}
+});
 
 /**
  * Redeem an invite code. The caller becomes a member of the referenced
  * household; the invite is marked used so it can't be replayed.
  */
-export async function POST(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth("households:join", async (request, userId) => {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -146,9 +137,4 @@ export async function POST(request: NextRequest) {
       .eq("id", invite.id);
 
     return NextResponse.json({ household_id: invite.household_id });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[households] join error", error);
-    return NextResponse.json({ error: "Failed to join household" }, { status: 500 });
-  }
-}
+});

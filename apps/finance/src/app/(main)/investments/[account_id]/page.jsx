@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase/client";
 import { useUser } from "../../../../components/providers/UserProvider";
+import { formatShares } from "../../../../lib/formatShares";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -12,15 +13,6 @@ function formatCurrency(value) {
     currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-}
-
-function formatShares(value) {
-  if (value == null || Number.isNaN(value)) return "—";
-  const num = Number(value);
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: num < 1 ? 4 : 2,
-    maximumFractionDigits: num < 1 ? 6 : 4,
   });
 }
 

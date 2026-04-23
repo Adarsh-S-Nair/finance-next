@@ -1,10 +1,7 @@
 import { supabaseAdmin } from '../../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../../lib/api/auth';
+import { withAuth } from '../../../../../lib/api/withAuth';
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
-
+export const POST = withAuth('plaid:transactions:sync-all', async (request, userId) => {
     console.log('Sync all transactions request for user:', userId);
 
     // Get all plaid items for the user
@@ -94,13 +91,4 @@ export async function POST(request) {
       total_pending_updated: totalPendingUpdated,
       results: results
     });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in sync all transactions:', error);
-    return Response.json(
-      { error: 'Failed to sync all transactions' },
-      { status: 500 }
-    );
-  }
-}
+});

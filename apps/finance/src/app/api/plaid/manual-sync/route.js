@@ -1,13 +1,11 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { createLogger } from '../../../../lib/logger';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
 
 const logger = createLogger('manual-sync-trigger');
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('plaid:manual-sync', async (request, userId) => {
     const { plaidItemId, includeHoldingsDebug = false } = await request.json();
 
     logger.info('Manual sync trigger requested', { plaidItemId, includeHoldingsDebug, userId });
@@ -123,15 +121,4 @@ export async function POST(request) {
     await logger.flush();
 
     return Response.json(responsePayload);
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    logger.error('Error triggering manual sync', error);
-    await logger.flush();
-
-    return Response.json(
-      { error: 'Failed to trigger sync' },
-      { status: 500 }
-    );
-  }
-}
+});

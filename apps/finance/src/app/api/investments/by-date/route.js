@@ -17,7 +17,7 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
 function toISODateString(date) {
   return date.toISOString().split('T')[0];
@@ -95,9 +95,7 @@ function getPrice(priceMap, dateString) {
   return null;
 }
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('investments:by-date', async (request, userId) => {
     const { searchParams } = new URL(request.url);
     const maxDaysParam = parseInt(searchParams.get('maxDays') || '0', 10);
     const MAX_DAYS = Number.isFinite(maxDaysParam) && maxDaysParam > 0 ? Math.min(maxDaysParam, 365) : 365;
@@ -303,9 +301,4 @@ export async function GET(request) {
       totalDates: series.length,
       totalAccounts: accounts.length,
     });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in /api/investments/by-date:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+});

@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../lib/supabase/admin";
-import { requireVerifiedUserId } from "../../../../../lib/api/auth";
-
-type RouteContext = { params: Promise<{ id: string }> };
+import { withAuth } from "../../../../../lib/api/withAuth";
 
 /**
  * Decline a targeted invitation. Marks the invite dismissed so it stops
  * showing in the invitee's notifications. The inviter can still see that
  * it was declined if we ever surface that (currently we just hide it).
  */
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { id: inviteId } = await context.params;
+export const POST = withAuth<{ id: string }>("invitations:decline", async (_request, userId, { params }) => {
+    const { id: inviteId } = await params;
     if (!supabaseAdmin) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
@@ -46,9 +42,4 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error("[invitations] decline error", error);
-    return NextResponse.json({ error: "Failed to decline invitation" }, { status: 500 });
-  }
-}
+});

@@ -9,6 +9,7 @@ import { authFetch } from "../../../lib/api/fetch";
 import InvestmentsChart from "./InvestmentsChart";
 import AllocationCard from "./AllocationCard";
 import AccountsCard from "./AccountsCard";
+import { formatShares } from "../../../lib/formatShares";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -16,15 +17,6 @@ function formatCurrency(value) {
     style: "currency",
     currency: "USD",
   }).format(Number(value));
-}
-
-function formatShares(value) {
-  if (value == null || Number.isNaN(value)) return "—";
-  const num = Number(value);
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: num < 1 ? 4 : 2,
-    maximumFractionDigits: num < 1 ? 6 : 4,
-  });
 }
 
 /* ── Sub-components ──────────────────────────────────────── */

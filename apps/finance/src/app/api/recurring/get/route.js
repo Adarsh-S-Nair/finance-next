@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { canAccess } from '../../../../lib/tierConfig';
 
@@ -7,15 +7,7 @@ import { canAccess } from '../../../../lib/tierConfig';
  * GET /api/recurring/get
  * Retrieves recurring transaction streams for a user from the database.
  */
-export async function GET(request) {
-  let userId;
-  try {
-    userId = requireVerifiedUserId(request);
-  } catch (err) {
-    if (err instanceof Response) return err;
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth('recurring:get', async (request, userId) => {
   // Check subscription tier — recurring is a Pro feature
   const { data: userProfile } = await supabaseAdmin
     .from('user_profiles')
@@ -34,8 +26,7 @@ export async function GET(request) {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  try {
-    let query = supabase
+  let query = supabase
       .from('recurring_streams')
       .select('*')
       .eq('user_id', userId)
@@ -170,10 +161,5 @@ export async function GET(request) {
       }
     }
 
-    return Response.json({ recurring: streams });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error fetching recurring streams:', error);
-    return Response.json({ error: 'Failed to fetch recurring streams' }, { status: 500 });
-  }
-}
+  return Response.json({ recurring: streams });
+});

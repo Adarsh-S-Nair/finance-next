@@ -1,7 +1,6 @@
-import { NextRequest } from 'next/server';
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
 /**
  * POST /api/stripe/checkout
@@ -13,9 +12,7 @@ import { requireVerifiedUserId } from '../../../../lib/api/auth';
  * - Stores the stripe_customer_id on the user_profiles row so we can
  *   match webhook events back to the right user.
  */
-export async function POST(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('stripe:checkout', async (_request, userId) => {
     const stripe = requireStripe();
 
     const priceId = process.env.STRIPE_PRO_PRICE_ID;
@@ -92,9 +89,4 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json({ url: session.url });
-  } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('[stripe/checkout] error:', err);
-    return Response.json({ error: (err as Error).message || 'Internal error' }, { status: 500 });
-  }
-}
+});

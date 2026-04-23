@@ -35,53 +35,45 @@
  */
 
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('sync-status', async (request, userId) => {
+  const { data: items, error } = await supabaseAdmin
+    .from('plaid_items')
+    .select('id, sync_status, last_transaction_sync, last_balance_sync, last_error')
+    .eq('user_id', userId);
 
-    const { data: items, error } = await supabaseAdmin
-      .from('plaid_items')
-      .select('id, sync_status, last_transaction_sync, last_balance_sync, last_error')
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('[sync-status] query failed:', error);
-      return Response.json({ error: 'Failed to fetch sync status' }, { status: 500 });
-    }
-
-    const rows = items || [];
-
-    const enriched = rows.map((it) => {
-      const hasCompletedOnce =
-        it.last_transaction_sync !== null ||
-        it.last_balance_sync !== null ||
-        it.sync_status === 'error';
-      const isSyncing = it.sync_status === 'syncing';
-      const ready = hasCompletedOnce && !isSyncing;
-      return { ...it, ready };
-    });
-
-    const itemsReady = enriched.filter((i) => i.ready).length;
-    const itemsSyncing = enriched.filter((i) => i.sync_status === 'syncing').length;
-    const itemsError = enriched.filter((i) => i.sync_status === 'error').length;
-    const itemsTotal = enriched.length;
-    // Zero items → ready (nothing to wait on). This matters for users who
-    // land on /setup/syncing with no pending work (e.g. direct nav).
-    const ready = itemsTotal === 0 || itemsReady === itemsTotal;
-
-    return Response.json({
-      ready,
-      itemsTotal,
-      itemsReady,
-      itemsSyncing,
-      itemsError,
-      items: enriched,
-    });
-  } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('[sync-status] unexpected:', err);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  if (error) {
+    console.error('[sync-status] query failed:', error);
+    return Response.json({ error: 'Failed to fetch sync status' }, { status: 500 });
   }
-}
+
+  const rows = items || [];
+
+  const enriched = rows.map((it) => {
+    const hasCompletedOnce =
+      it.last_transaction_sync !== null ||
+      it.last_balance_sync !== null ||
+      it.sync_status === 'error';
+    const isSyncing = it.sync_status === 'syncing';
+    const ready = hasCompletedOnce && !isSyncing;
+    return { ...it, ready };
+  });
+
+  const itemsReady = enriched.filter((i) => i.ready).length;
+  const itemsSyncing = enriched.filter((i) => i.sync_status === 'syncing').length;
+  const itemsError = enriched.filter((i) => i.sync_status === 'error').length;
+  const itemsTotal = enriched.length;
+  // Zero items → ready (nothing to wait on). This matters for users who
+  // land on /setup/syncing with no pending work (e.g. direct nav).
+  const ready = itemsTotal === 0 || itemsReady === itemsTotal;
+
+  return Response.json({
+    ready,
+    itemsTotal,
+    itemsReady,
+    itemsSyncing,
+    itemsError,
+    items: enriched,
+  });
+});

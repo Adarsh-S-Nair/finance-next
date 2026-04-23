@@ -1,9 +1,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
-export async function GET(request) {
-    try {
-        const userId = requireVerifiedUserId(request);
+export const GET = withAuth('category-history', async (request, userId) => {
         const { searchParams } = new URL(request.url);
         const categoryId = searchParams.get('categoryId');
         const categoryGroupId = searchParams.get('categoryGroupId');
@@ -204,13 +202,4 @@ export async function GET(request) {
             categoryGroupId: categoryGroupId || null,
             totalMonths: result.length
         });
-
-    } catch (error) {
-        if (error instanceof Response) return error;
-        console.error('Error in category history API:', error);
-        return Response.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
-    }
-}
+});

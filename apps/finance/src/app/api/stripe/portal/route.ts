@@ -1,7 +1,6 @@
-import { NextRequest } from 'next/server';
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
 /**
  * POST /api/stripe/portal
@@ -13,9 +12,7 @@ import { requireVerifiedUserId } from '../../../../lib/api/auth';
  * Requires the user to have a stripe_customer_id already set (i.e., they
  * went through Checkout at least once).
  */
-export async function POST(request: NextRequest) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const POST = withAuth('stripe:portal', async (_request, userId) => {
     const stripe = requireStripe();
 
     const { data: profile, error: profileError } = await supabaseAdmin!
@@ -57,9 +54,4 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json({ url: portalSession.url });
-  } catch (err) {
-    if (err instanceof Response) return err;
-    console.error('[stripe/portal] error:', err);
-    return Response.json({ error: (err as Error).message || 'Internal error' }, { status: 500 });
-  }
-}
+});

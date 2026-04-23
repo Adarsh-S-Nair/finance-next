@@ -1,10 +1,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 
-export async function POST(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
-
+export const POST = withAuth('plaid:reset-cursor', async (request, userId) => {
     // 1. Reset cursors for all items belonging to this user
     const { error: updateError } = await supabaseAdmin
       .from('plaid_items')
@@ -68,10 +65,4 @@ export async function POST(request) {
       message: 'Cursors reset and sync triggered',
       results: syncResults
     });
-
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in reset-cursor:', error);
-    return Response.json({ error: 'Failed to reset cursors' }, { status: 500 });
-  }
-}
+});

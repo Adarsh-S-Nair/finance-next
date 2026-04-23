@@ -1,112 +1,81 @@
-import { getAccounts } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { requireVerifiedUserId } from '../../../../lib/api/auth';
+import { withAuth } from '../../../../lib/api/withAuth';
 import { resolveScope } from '../../../../lib/api/scope';
 
-export async function GET(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
+export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
+  const scope = await resolveScope(request, userId);
+  if (scope instanceof Response) return scope;
 
-    const scope = await resolveScope(request, userId);
-    if (scope instanceof Response) return scope;
+  // Personal scope: just the caller. Household scope: every member of the
+  // household. Per-account sharing opt-in is a follow-up — for now every
+  // member account is visible household-wide.
+  //
+  // NOTE: the nested `plaid_items` select intentionally omits `access_token`.
+  // This response is returned to the browser and leaking the token would let
+  // anyone who opens DevTools read a user's bank credential. We also strip
+  // `access_token` from the top-level `accounts` rows below (SELECT *
+  // returns it because the column exists on the accounts table as well).
+  const { data: accounts, error } = await supabaseAdmin
+    .from('accounts')
+    .select(`
+      *,
+      institutions (
+        id,
+        institution_id,
+        name,
+        logo,
+        primary_color,
+        url
+      ),
+      plaid_items (
+        id,
+        item_id
+      )
+    `)
+    .in('user_id', scope.userIds)
+    .order('created_at', { ascending: false });
 
-    // Personal scope: just the caller. Household scope: every member of the
-    // household. Per-account sharing opt-in is a follow-up — for now every
-    // member account is visible household-wide.
-    //
-    // NOTE: the nested `plaid_items` select intentionally omits `access_token`.
-    // This response is returned to the browser and leaking the token would let
-    // anyone who opens DevTools read a user's bank credential. We also strip
-    // `access_token` from the top-level `accounts` rows below (SELECT *
-    // returns it because the column exists on the accounts table as well).
-    const { data: accounts, error } = await supabaseAdmin
-      .from('accounts')
-      .select(`
-        *,
-        institutions (
-          id,
-          institution_id,
-          name,
-          logo,
-          primary_color,
-          url
-        ),
-        plaid_items (
-          id,
-          item_id
-        )
-      `)
-      .in('user_id', scope.userIds)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching accounts:', error);
-      return Response.json(
-        { error: 'Failed to fetch accounts' },
-        { status: 500 }
-      );
-    }
-
-    // Defense in depth: even if a future change re-adds access_token to the
-    // nested select, strip it here before the response leaves the server.
-    const sanitized = (accounts ?? []).map((row) => {
-      const { access_token: _stripAccessToken, plaid_items, ...rest } = row;
-      void _stripAccessToken;
-      const cleanPlaidItems = plaid_items
-        ? (() => {
-            const { access_token: _stripNested, ...keep } = plaid_items;
-            void _stripNested;
-            return keep;
-          })()
-        : plaid_items;
-      return { ...rest, plaid_items: cleanPlaidItems };
-    });
-
-    return Response.json({ accounts: sanitized });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    console.error('Error in accounts API:', error);
-    return Response.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  if (error) {
+    console.error('Error fetching accounts:', error);
+    return Response.json({ error: 'Failed to fetch accounts' }, { status: 500 });
   }
-}
 
-export async function DELETE(request) {
-  try {
-    const userId = requireVerifiedUserId(request);
-    const { accountId } = await request.json();
+  // Defense in depth: even if a future change re-adds access_token to the
+  // nested select, strip it here before the response leaves the server.
+  const sanitized = (accounts ?? []).map((row) => {
+    const { access_token: _stripAccessToken, plaid_items, ...rest } = row;
+    void _stripAccessToken;
+    const cleanPlaidItems = plaid_items
+      ? (() => {
+          const { access_token: _stripNested, ...keep } = plaid_items;
+          void _stripNested;
+          return keep;
+        })()
+      : plaid_items;
+    return { ...rest, plaid_items: cleanPlaidItems };
+  });
 
-    if (!accountId) {
-      return Response.json(
-        { error: 'Account ID is required' },
-        { status: 400 }
-      );
-    }
+  return Response.json({ accounts: sanitized });
+});
 
-    // Delete account (verify ownership via user_id)
-    const { error } = await supabaseAdmin
-      .from('accounts')
-      .delete()
-      .eq('id', accountId)
-      .eq('user_id', userId);
+export const DELETE = withAuth('plaid/accounts:delete', async (request, userId) => {
+  const { accountId } = await request.json();
 
-    if (error) {
-      console.error('Error deleting account:', error);
-      return Response.json(
-        { error: 'Failed to delete account' },
-        { status: 500 }
-      );
-    }
+  if (!accountId) {
+    return Response.json({ error: 'Account ID is required' }, { status: 400 });
+  }
 
-    return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof Response) return error;
+  // Delete account (verify ownership via user_id)
+  const { error } = await supabaseAdmin
+    .from('accounts')
+    .delete()
+    .eq('id', accountId)
+    .eq('user_id', userId);
+
+  if (error) {
     console.error('Error deleting account:', error);
-    return Response.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return Response.json({ error: 'Failed to delete account' }, { status: 500 });
   }
-}
+
+  return Response.json({ success: true });
+});
