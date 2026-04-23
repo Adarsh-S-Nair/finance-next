@@ -10,7 +10,14 @@ import { SegmentedTabs } from "@zervo/ui";
 const MAX_ROWS = 5;
 const DONUT_SIZE = 220;
 const DONUT_STROKE = 18;
-const SEGMENT_GAP_DEG = 3;
+// Rounded caps extend past each dash endpoint by strokeWidth/2, so the gap
+// has to be wider than the full stroke to actually be visible between
+// adjacent slices. ~1.8x gives ~14px of clear separation.
+const SEGMENT_GAP_PX = DONUT_STROKE * 1.8;
+// Any slice thinner than the stroke width just renders as a pair of rounded
+// caps meeting — a "lollipop stub". Roll those into Other so every visible
+// segment has a real arc.
+const MIN_SEGMENT_PCT = 3;
 
 function getRangeFor(viewMode) {
   const today = new Date();
@@ -63,10 +70,9 @@ function Skeleton() {
 function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onClick }) {
   const radius = (DONUT_SIZE - DONUT_STROKE) / 2;
   const circumference = 2 * Math.PI * radius;
-  const gapArc = (SEGMENT_GAP_DEG / 360) * circumference;
   // When there's only one segment, a gap would create a visible notch in
   // what should look like a continuous ring — skip it.
-  const effectiveGap = segments.length > 1 ? gapArc : 0;
+  const effectiveGap = segments.length > 1 ? SEGMENT_GAP_PX : 0;
 
   let cumulative = 0;
   const rendered = segments.map((seg) => {
@@ -201,16 +207,24 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   ]);
 
   const segments = useMemo(() => {
-    if (!categories.length) return [];
-    const named = categories.slice(0, MAX_ROWS).map((cat) => ({
-      id: cat.id,
-      label: cat.label,
-      value: cat.total_spent,
-      color: cat.hex_color || "var(--color-muted)",
-    }));
+    if (!categories.length || !totalSpending) return [];
+
+    // Keep categories that are both in the top N AND at least MIN_SEGMENT_PCT
+    // of total spending; everything else rolls into "Other". That avoids
+    // lollipop-stub slices and ensures the donut always reads cleanly.
+    const top = categories.slice(0, MAX_ROWS);
+    const named = top
+      .filter((cat) => (cat.total_spent / totalSpending) * 100 >= MIN_SEGMENT_PCT)
+      .map((cat) => ({
+        id: cat.id,
+        label: cat.label,
+        value: cat.total_spent,
+        color: cat.hex_color || "var(--color-muted)",
+      }));
+
     const namedSum = named.reduce((s, n) => s + (n.value || 0), 0);
-    const otherTotal = Math.max(0, (totalSpending || 0) - namedSum);
-    if (otherTotal > 0 && totalSpending > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
+    const otherTotal = Math.max(0, totalSpending - namedSum);
+    if (otherTotal > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
       named.push({
         id: "__other__",
         label: "Other",
