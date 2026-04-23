@@ -1,0 +1,288 @@
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '../../../../lib/supabase/admin';
+
+/**
+ * Fetch historical stock/crypto prices for a time range with specified interval
+ * GET /api/market-data/historical-range?ticker=CRM&start=...&end=...&interval=1h
+ */
+
+const COINGECKO_ID_MAP: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', DOGE: 'dogecoin', XRP: 'ripple',
+  ADA: 'cardano', DOT: 'polkadot', AVAX: 'avalanche-2', MATIC: 'matic-network',
+  POL: 'matic-network', ATOM: 'cosmos', LTC: 'litecoin', LINK: 'chainlink',
+  UNI: 'uniswap', SHIB: 'shiba-inu', PEPE: 'pepe', TRX: 'tron', BCH: 'bitcoin-cash',
+  XLM: 'stellar', NEAR: 'near', APT: 'aptos', ARB: 'arbitrum', OP: 'optimism',
+  SUI: 'sui', TON: 'the-open-network', FIL: 'filecoin', AAVE: 'aave', FTM: 'fantom',
+  ALGO: 'algorand', BNB: 'binancecoin',
+};
+
+interface HistoricalPricePoint {
+  timestamp: number;
+  price: number;
+}
+
+async function fetchCoinGeckoMarketChart(
+  coinId: string,
+  startTimestamp: string | number,
+  endTimestamp: string | number
+): Promise<HistoricalPricePoint[] | null> {
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${startTimestamp}&to=${endTimestamp}`;
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+
+    if (!response.ok) {
+      console.log(`[CoinGecko Historical] API returned ${response.status} for ${coinId}`);
+      return null;
+    }
+
+    const data = (await response.json()) as { prices?: [number, number][] };
+    const prices = data.prices || [];
+
+    if (prices.length === 0) return null;
+
+    const formattedPrices: HistoricalPricePoint[] = prices.map(([timestamp, price]) => ({
+      timestamp: Math.floor(timestamp / 1000),
+      price,
+    }));
+
+    console.log(`[CoinGecko Historical] ${coinId}: Got ${formattedPrices.length} data points`);
+    return formattedPrices;
+  } catch (error) {
+    console.log(
+      `[CoinGecko Historical] Error fetching ${coinId}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
+  }
+}
+
+async function fetchHistoricalFromCoinGecko(
+  ticker: string,
+  startTimestamp: string | number,
+  endTimestamp: string | number
+): Promise<HistoricalPricePoint[] | null> {
+  const coinId = COINGECKO_ID_MAP[ticker.toUpperCase()];
+
+  if (!coinId) {
+    try {
+      const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(ticker)}`;
+      const searchResponse = await fetch(searchUrl, { headers: { Accept: 'application/json' } });
+
+      if (searchResponse.ok) {
+        const searchData = (await searchResponse.json()) as {
+          coins?: { id: string; symbol: string }[];
+        };
+        const coin = searchData.coins?.find(
+          (c) => c.symbol.toUpperCase() === ticker.toUpperCase()
+        );
+        if (coin) {
+          return await fetchCoinGeckoMarketChart(coin.id, startTimestamp, endTimestamp);
+        }
+      }
+    } catch (e) {
+      console.log(
+        `[CoinGecko Historical] Search failed for ${ticker}:`,
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+    return null;
+  }
+
+  return await fetchCoinGeckoMarketChart(coinId, startTimestamp, endTimestamp);
+}
+
+export async function GET(request: NextRequest): Promise<Response> {
+  try {
+    const { searchParams } = new URL(request.url);
+    const ticker = searchParams.get('ticker')?.toUpperCase();
+    const startTimestamp = searchParams.get('start');
+    const endTimestamp = searchParams.get('end');
+    const interval = searchParams.get('interval') || '1h';
+
+    if (!ticker || !startTimestamp || !endTimestamp) {
+      return NextResponse.json(
+        { error: 'Ticker, start, and end timestamps are required' },
+        { status: 400 }
+      );
+    }
+
+    const validIntervals = ['1m', '5m', '15m', '30m', '1h', '1d'];
+    if (!validIntervals.includes(interval)) {
+      return NextResponse.json(
+        { error: `Invalid interval. Must be one of: ${validIntervals.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    let isCrypto = false;
+    let isCash = false;
+
+    if (ticker.startsWith('CUR:')) {
+      isCash = true;
+      console.log(
+        `[Historical-Range ${ticker}] Detected as cash (CUR: prefix), returning flat $1.00`
+      );
+    } else {
+      try {
+        const { data: tickerData } = await supabaseAdmin
+          .from('tickers')
+          .select('asset_type')
+          .eq('symbol', ticker)
+          .single();
+
+        if (tickerData?.asset_type === 'crypto') {
+          isCrypto = true;
+          console.log(
+            `[Historical-Range ${ticker}] Detected as crypto, will use ${ticker}-USD`
+          );
+        } else if (tickerData?.asset_type === 'cash') {
+          isCash = true;
+          console.log(`[Historical-Range ${ticker}] Detected as cash, returning flat $1.00`);
+        }
+      } catch {
+        try {
+          const { data: holdingData } = await supabaseAdmin
+            .from('holdings')
+            .select('asset_type')
+            .eq('ticker', ticker)
+            .limit(1)
+            .single();
+
+          if (holdingData?.asset_type === 'crypto') {
+            isCrypto = true;
+            console.log(
+              `[Historical-Range ${ticker}] Detected as crypto (from holdings), will use ${ticker}-USD`
+            );
+          } else if (holdingData?.asset_type === 'cash') {
+            isCash = true;
+            console.log(
+              `[Historical-Range ${ticker}] Detected as cash (from holdings), returning flat $1.00`
+            );
+          }
+        } catch {
+          console.warn(
+            `[Historical-Range ${ticker}] Could not look up asset type from either table`
+          );
+        }
+      }
+    }
+
+    if (isCash) {
+      const start = parseInt(startTimestamp) * 1000;
+      const end = parseInt(endTimestamp) * 1000;
+      const intervalMs: Record<string, number> = {
+        '1m': 60 * 1000,
+        '5m': 5 * 60 * 1000,
+        '15m': 15 * 60 * 1000,
+        '30m': 30 * 60 * 1000,
+        '1h': 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+      };
+      const stepMs = intervalMs[interval];
+
+      const dataPoints: { time: number; close: number }[] = [];
+      for (let ts = start; ts <= end; ts += stepMs) {
+        dataPoints.push({ time: Math.floor(ts / 1000), close: 1.0 });
+      }
+
+      console.log(
+        `[Historical-Range ${ticker}] 💵 Cash Generated ${dataPoints.length} data points (interval: ${interval})`
+      );
+      return NextResponse.json({
+        ticker,
+        data: dataPoints,
+      });
+    }
+
+    const yahooTicker = isCrypto ? `${ticker}-USD` : ticker;
+
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=${interval}&period1=${startTimestamp}&period2=${endTimestamp}`;
+
+    let prices: HistoricalPricePoint[] = [];
+    let source = 'yahoo';
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as {
+          chart?: {
+            result?: Array<{
+              timestamp?: number[];
+              indicators?: { quote?: Array<{ close?: (number | null)[] }> };
+            }>;
+          };
+        };
+        const result = data.chart?.result?.[0];
+
+        if (result) {
+          const timestamps = result.timestamp || [];
+          const closes = result.indicators?.quote?.[0]?.close || [];
+
+          for (let i = 0; i < timestamps.length; i++) {
+            const c = closes[i];
+            if (c !== null && c !== undefined) {
+              prices.push({ timestamp: timestamps[i], price: c });
+            }
+          }
+        }
+      }
+    } catch (yahooError) {
+      console.log(
+        `[Historical-Range ${ticker}] Yahoo fetch error:`,
+        yahooError instanceof Error ? yahooError.message : String(yahooError)
+      );
+    }
+
+    if (prices.length === 0 && isCrypto) {
+      console.log(
+        `[Historical-Range ${ticker}] Yahoo returned no data, trying CoinGecko...`
+      );
+      const coinGeckoPrices = await fetchHistoricalFromCoinGecko(
+        ticker,
+        startTimestamp,
+        endTimestamp
+      );
+      if (coinGeckoPrices && coinGeckoPrices.length > 0) {
+        prices = coinGeckoPrices;
+        source = 'coingecko';
+      }
+    }
+
+    if (prices.length === 0) {
+      return NextResponse.json({
+        ticker,
+        interval,
+        prices: [],
+        source,
+        no_data: true,
+      });
+    }
+
+    const assetType = isCrypto ? '🪙 Crypto' : '📊 Stock';
+    console.log(
+      `[Historical-Range ${ticker}] ${assetType} Fetched ${prices.length} data points from ${source} (interval: ${interval})${
+        isCrypto ? ` (ticker: ${yahooTicker})` : ''
+      }`
+    );
+
+    return NextResponse.json({
+      ticker,
+      interval,
+      prices,
+      source,
+    });
+  } catch (error) {
+    console.error('[Historical-Range] Error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

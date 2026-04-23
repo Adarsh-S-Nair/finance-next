@@ -15,143 +15,99 @@
  *   - Never delete the most recent snapshot per account
  *   - Never delete the very first snapshot per account (baseline)
  *   - Within each thinning window, keep the first snapshot (earliest recorded_at)
- *
- * Vercel Cron Configuration (vercel.json):
- * {
- *   "crons": [{
- *     "path": "/api/cron/account-snapshots",
- *     "schedule": "30 14 * * *"  // 2:30 PM UTC = 9:30 AM EST daily
- *   }]
- * }
  */
 
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { verifyCronSecret } from '../../../../lib/api/cron';
 import { createLogger } from '../../../../lib/logger';
+import type { TablesInsert } from '../../../../types/database';
 
 const logger = createLogger('cron-account-snapshots');
 
-// Mark route as dynamic to avoid build-time analysis
 export const dynamic = 'force-dynamic';
 
-// ---------------------------------------------------------------------------
-// Thinning helpers
-// ---------------------------------------------------------------------------
+interface SnapshotRecord {
+  id: string;
+  account_id: string;
+  recorded_at: string;
+  current_balance?: number | null;
+}
 
-/**
- * Given a list of snapshots (sorted ascending by recorded_at) and an age bucket
- * definition, returns the IDs to DELETE for that bucket.
- *
- * Strategy: divide snapshots in the bucket into windows of `windowDays` days.
- * Within each window keep only the FIRST snapshot; mark the rest for deletion.
- * Safety: never mark the first or last snapshot overall for deletion.
- *
- * @param {Array}  snapshots   - all snapshots for one account, asc by recorded_at
- * @param {Date}   oldestDate  - lower bound (exclusive) for this bucket
- * @param {Date}   newestDate  - upper bound (inclusive) for this bucket
- * @param {number} windowDays  - thinning window size in days
- * @param {string} firstId     - id of the very first snapshot (baseline — never delete)
- * @param {string} lastId      - id of the most recent snapshot (never delete)
- * @returns {string[]} ids to delete
- */
-function thinBucket(snapshots, oldestDate, newestDate, windowDays, firstId, lastId) {
-  // Filter to this bucket
-  const bucket = snapshots.filter(s => {
+function thinBucket(
+  snapshots: SnapshotRecord[],
+  oldestDate: Date,
+  newestDate: Date,
+  windowDays: number,
+  firstId: string,
+  lastId: string
+): string[] {
+  const bucket = snapshots.filter((s) => {
     const t = new Date(s.recorded_at);
     return t > oldestDate && t <= newestDate;
   });
 
   if (bucket.length <= 1) return [];
 
-  const toDelete = [];
-  let windowStart = null;
-  let keepInWindow = null; // id of the snapshot to keep in the current window
+  const toDelete: string[] = [];
+  let windowStart: Date | null = null;
 
   for (const snap of bucket) {
-    // Safety: never mark first or last overall
     if (snap.id === firstId || snap.id === lastId) {
-      // Starting a new window at this protected point
       windowStart = new Date(snap.recorded_at);
-      keepInWindow = snap.id;
       continue;
     }
 
     const t = new Date(snap.recorded_at);
 
     if (windowStart === null) {
-      // First snapshot in bucket — keep it, start window
       windowStart = t;
-      keepInWindow = snap.id;
       continue;
     }
 
-    const daysDiff = (t - windowStart) / (1000 * 60 * 60 * 24);
+    const daysDiff = (t.getTime() - windowStart.getTime()) / (1000 * 60 * 60 * 24);
 
     if (daysDiff < windowDays) {
-      // Same window — this snapshot is a duplicate, mark for deletion
       toDelete.push(snap.id);
     } else {
-      // New window — keep this one
       windowStart = t;
-      keepInWindow = snap.id;
     }
   }
 
   return toDelete;
 }
 
-/**
- * Compute the set of snapshot IDs to delete for one account.
- *
- * @param {Array}  snapshots - old snapshots for the account (>30 days), sorted asc by recorded_at
- * @param {string} firstId   - id of the absolute first snapshot for the account (baseline)
- * @param {string} lastId    - id of the absolute most recent snapshot for the account
- * @returns {string[]}
- */
-function computeIdsToThin(snapshots, firstId, lastId) {
+function computeIdsToThin(
+  snapshots: SnapshotRecord[],
+  firstId: string,
+  lastId: string
+): string[] {
   if (snapshots.length <= 1) return [];
 
   const now = new Date();
-  const date30  = new Date(now); date30.setDate(now.getDate() - 30);
-  const date90  = new Date(now); date90.setDate(now.getDate() - 90);
-  const date365 = new Date(now); date365.setDate(now.getDate() - 365);
+  const date30 = new Date(now);
+  date30.setDate(now.getDate() - 30);
+  const date90 = new Date(now);
+  date90.setDate(now.getDate() - 90);
+  const date365 = new Date(now);
+  date365.setDate(now.getDate() - 365);
 
-  const ids = [
-    // 30–90 days: keep 1 per 3 days
-    ...thinBucket(snapshots, date90,  date30,  3,  firstId, lastId),
-    // 90–365 days: keep 1 per 7 days
-    ...thinBucket(snapshots, date365, date90,  7,  firstId, lastId),
-    // > 1 year: keep 1 per 30 days
+  return [
+    ...thinBucket(snapshots, date90, date30, 3, firstId, lastId),
+    ...thinBucket(snapshots, date365, date90, 7, firstId, lastId),
     ...thinBucket(snapshots, new Date(0), date365, 30, firstId, lastId),
   ];
-
-  return ids;
 }
 
-// ---------------------------------------------------------------------------
-// Main handler
-// ---------------------------------------------------------------------------
-
-export async function GET(request) {
-  // Verify cron secret (mandatory — refuses to run if CRON_SECRET is unset)
+export async function GET(request: NextRequest): Promise<Response> {
   const authError = verifyCronSecret(request);
   if (authError) return authError;
 
   try {
     const opId = logger.startOperation('account-snapshots-cron');
 
-    // ------------------------------------------------------------------
-    // Phase 0: Refresh investment balances from Plaid
-    //
-    // Investment account values only change when holdings sync fires, which
-    // normally happens on Plaid's HOLDINGS webhook. To make sure today's
-    // snapshot captures the latest value even if the webhook didn't fire,
-    // we proactively run the holdings sync for every plaid_item that owns
-    // at least one investment account. The sync updates accounts.balances.current
-    // (plus writes its own account_snapshots row), so by the time we reach
-    // Phase 1, investment balances are fresh.
-    // ------------------------------------------------------------------
+    // ── Phase 0: Refresh investment balances from Plaid ──
     try {
       const { data: investmentItems, error: invItemsError } = await supabaseAdmin
         .from('accounts')
@@ -165,18 +121,25 @@ export async function GET(request) {
         });
       } else if (investmentItems && investmentItems.length > 0) {
         const uniqueItems = Array.from(
-          new Map(investmentItems.map(r => [r.plaid_item_id, r])).values()
+          new Map(investmentItems.map((r) => [r.plaid_item_id, r])).values()
         );
         logger.info('Refreshing holdings before snapshotting', { count: uniqueItems.length });
 
-        const { POST: holdingsSyncEndpoint } = await import('../../plaid/investments/holdings/sync/route');
+        const { POST: holdingsSyncEndpoint } = await import(
+          '../../plaid/investments/holdings/sync/route'
+        );
         for (const item of uniqueItems) {
           try {
             const syncRequest = {
               headers: { get: () => null },
-              json: async () => ({ plaidItemId: item.plaid_item_id, userId: item.user_id }),
-            };
-            const syncResponse = await holdingsSyncEndpoint(syncRequest);
+              json: async () => ({
+                plaidItemId: item.plaid_item_id,
+                userId: item.user_id,
+              }),
+            } as unknown as NextRequest;
+            const syncResponse = await holdingsSyncEndpoint(syncRequest, {
+              params: Promise.resolve({}),
+            });
             if (!syncResponse.ok) {
               logger.warn('Holdings sync returned non-ok during cron refresh', {
                 plaidItemId: item.plaid_item_id,
@@ -184,21 +147,20 @@ export async function GET(request) {
               });
             }
           } catch (syncErr) {
-            logger.error('Exception during holdings sync in cron refresh', syncErr, {
+            logger.error('Exception during holdings sync in cron refresh', syncErr as Error, {
               plaidItemId: item.plaid_item_id,
             });
           }
         }
       }
     } catch (refreshErr) {
-      logger.error('Phase 0 investment refresh crashed, continuing with stale data', refreshErr);
+      logger.error(
+        'Phase 0 investment refresh crashed, continuing with stale data',
+        refreshErr as Error
+      );
     }
 
-    // ------------------------------------------------------------------
-    // Phase 1: Create daily snapshots
-    // ------------------------------------------------------------------
-
-    // Fetch all accounts with their current balances (post-refresh) in one query
+    // ── Phase 1: Create daily snapshots ──
     const { data: accounts, error: accountsError } = await supabaseAdmin
       .from('accounts')
       .select('id, user_id, type, balances');
@@ -209,7 +171,11 @@ export async function GET(request) {
 
     if (!accounts || accounts.length === 0) {
       logger.info('No accounts found, exiting early');
-      logger.endOperation(opId, { snapshotsCreated: 0, snapshotsSkipped: 0, thinned: 0 });
+      logger.endOperation(opId, {
+        snapshotsCreated: 0,
+        snapshotsSkipped: 0,
+        thinned: 0,
+      });
       await logger.flush();
       return NextResponse.json({
         success: true,
@@ -222,11 +188,8 @@ export async function GET(request) {
 
     logger.info('Fetched accounts for snapshotting', { count: accounts.length });
 
-    const accountIds = accounts.map(a => a.id);
+    const accountIds = accounts.map((a) => a.id);
 
-    // Fetch the most recent snapshot for each account in one query
-    // We use a subquery approach: fetch all snapshots for these accounts ordered desc,
-    // then pick the first per account_id in JS.
     const { data: recentSnapshots, error: recentError } = await supabaseAdmin
       .from('account_snapshots')
       .select('account_id, current_balance, recorded_at')
@@ -237,9 +200,13 @@ export async function GET(request) {
       throw new Error(`Failed to fetch recent snapshots: ${recentError.message}`);
     }
 
-    // Build a map of account_id → most recent snapshot
-    const mostRecentByAccount = new Map();
-    for (const snap of recentSnapshots || []) {
+    interface RecentSnap {
+      account_id: string;
+      current_balance: number | null;
+      recorded_at: string;
+    }
+    const mostRecentByAccount = new Map<string, RecentSnap>();
+    for (const snap of (recentSnapshots ?? []) as RecentSnap[]) {
       if (!mostRecentByAccount.has(snap.account_id)) {
         mostRecentByAccount.set(snap.account_id, snap);
       }
@@ -247,37 +214,36 @@ export async function GET(request) {
 
     const todayUtc = new Date().toISOString().slice(0, 10);
 
-    // Determine which accounts need a new snapshot
-    const snapshotsToInsert = [];
+    const snapshotsToInsert: TablesInsert<'account_snapshots'>[] = [];
     let skippedCount = 0;
 
     for (const account of accounts) {
-      // Investment accounts are handled in Phase 0 (holdings sync writes its
-      // own snapshot with holdings-derived values). Don't write a second
-      // snapshot here from the stale accounts.balances row.
       if (account.type === 'investment') {
         skippedCount++;
         continue;
       }
 
-      const balances = account.balances || {};
+      const balances = (account.balances as {
+        available?: number | null;
+        current?: number | null;
+        limit?: number | null;
+        iso_currency_code?: string | null;
+      } | null) || {};
       const currentBalance = balances.current ?? null;
       const mostRecent = mostRecentByAccount.get(account.id);
 
       if (mostRecent) {
-        // Skip if a snapshot already exists for today (holdings sync may have
-        // already written one in Phase 0, or another cron run did earlier today).
         const mostRecentDay = new Date(mostRecent.recorded_at).toISOString().slice(0, 10);
         if (mostRecentDay === todayUtc) {
           skippedCount++;
           continue;
         }
 
-        // Otherwise skip if balance is unchanged vs. the most recent snapshot
-        const prevBalance = mostRecent.current_balance !== null
-          ? parseFloat(mostRecent.current_balance)
-          : null;
-        const newBalance = currentBalance !== null ? parseFloat(currentBalance) : null;
+        const prevBalance =
+          mostRecent.current_balance !== null
+            ? Number(mostRecent.current_balance)
+            : null;
+        const newBalance = currentBalance !== null ? Number(currentBalance) : null;
 
         if (prevBalance === newBalance) {
           skippedCount++;
@@ -309,22 +275,19 @@ export async function GET(request) {
       }
 
       createdCount = inserted?.length || 0;
-      logger.info('Inserted account snapshots', { created: createdCount, skipped: skippedCount });
+      logger.info('Inserted account snapshots', {
+        created: createdCount,
+        skipped: skippedCount,
+      });
     } else {
       logger.info('No new snapshots needed', { skipped: skippedCount });
     }
 
-    // ------------------------------------------------------------------
-    // Phase 2: Snapshot thinning
-    // ------------------------------------------------------------------
-
+    // ── Phase 2: Snapshot thinning ──
     const now = new Date();
-    const cutoff365 = new Date(now); cutoff365.setDate(now.getDate() - 365);
-    const cutoff90  = new Date(now); cutoff90.setDate(now.getDate() - 90);
-    const cutoff30  = new Date(now); cutoff30.setDate(now.getDate() - 30);
+    const cutoff30 = new Date(now);
+    cutoff30.setDate(now.getDate() - 30);
 
-    // Fetch all snapshots older than 30 days (those are the candidates for thinning)
-    // Only fetch id, account_id, recorded_at to keep payload small
     const { data: oldSnapshots, error: oldError } = await supabaseAdmin
       .from('account_snapshots')
       .select('id, account_id, recorded_at, current_balance')
@@ -336,12 +299,7 @@ export async function GET(request) {
       logger.error('Error fetching old snapshots for thinning, skipping this run', null, {
         error: oldError.message,
       });
-      // Non-fatal — skip thinning this run
     } else if (oldSnapshots && oldSnapshots.length > 0) {
-      // Also need the first snapshot and latest snapshot per account for safety invariants.
-      // "First" snapshots are already in oldSnapshots (they're old).
-      // "Latest" snapshot per account: we already have mostRecentByAccount but those don't
-      // include ids. Re-fetch just ids for the latest per account.
       const { data: latestSnaps, error: latestError } = await supabaseAdmin
         .from('account_snapshots')
         .select('id, account_id, recorded_at')
@@ -354,42 +312,38 @@ export async function GET(request) {
         });
       }
 
-      const latestIdByAccount = new Map();
-      const firstIdByAccount = new Map();
+      const latestIdByAccount = new Map<string, string>();
+      const firstIdByAccount = new Map<string, string>();
 
-      for (const snap of latestSnaps || []) {
+      for (const snap of latestSnaps ?? []) {
         if (!latestIdByAccount.has(snap.account_id)) {
           latestIdByAccount.set(snap.account_id, snap.id);
         }
       }
 
-      // First snapshots: group oldSnapshots by account (already sorted asc)
-      const oldByAccount = new Map();
+      const oldByAccount = new Map<string, SnapshotRecord[]>();
       for (const snap of oldSnapshots) {
         if (!oldByAccount.has(snap.account_id)) {
           oldByAccount.set(snap.account_id, []);
-          firstIdByAccount.set(snap.account_id, snap.id); // first encountered = oldest
+          firstIdByAccount.set(snap.account_id, snap.id);
         }
-        oldByAccount.get(snap.account_id).push(snap);
+        oldByAccount.get(snap.account_id)!.push(snap);
       }
 
-      // Compute IDs to delete across all accounts
-      const allIdsToDelete = [];
+      const allIdsToDelete: string[] = [];
 
       for (const [accountId, snaps] of oldByAccount.entries()) {
         const firstId = firstIdByAccount.get(accountId);
-        const lastId  = latestIdByAccount.get(accountId);
+        const lastId = latestIdByAccount.get(accountId);
 
         if (!firstId || !lastId) continue;
 
-        // Build full list for this account (old portion only; recent < 30 days are never thinned)
         const idsToDelete = computeIdsToThin(snaps, firstId, lastId);
         allIdsToDelete.push(...idsToDelete);
       }
 
       let deletedTotal = 0;
       if (allIdsToDelete.length > 0) {
-        // Batch deletes in chunks of 500 to avoid URL length limits
         const chunkSize = 500;
 
         for (let i = 0; i < allIdsToDelete.length; i += chunkSize) {
@@ -409,7 +363,10 @@ export async function GET(request) {
           }
         }
 
-        logger.info('Thinned snapshots', { deleted: deletedTotal, targeted: allIdsToDelete.length });
+        logger.info('Thinned snapshots', {
+          deleted: deletedTotal,
+          targeted: allIdsToDelete.length,
+        });
       } else {
         logger.info('No snapshots eligible for thinning');
       }
@@ -445,14 +402,13 @@ export async function GET(request) {
       snapshotsSkipped: skippedCount,
       thinned: 0,
     });
-
   } catch (error) {
-    logger.error('Account snapshots cron job failed', error);
+    logger.error('Account snapshots cron job failed', error as Error);
     await logger.flush();
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to run account snapshots cron',
+        error: error instanceof Error ? error.message : 'Failed to run account snapshots cron',
       },
       { status: 500 }
     );
