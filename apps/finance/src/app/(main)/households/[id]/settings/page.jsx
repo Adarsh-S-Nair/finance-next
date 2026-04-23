@@ -85,10 +85,11 @@ export default function HouseholdSettingsPage() {
   const [leaveOpen, setLeaveOpen] = useState(false);
 
   const isOwner = useMemo(() => {
-    if (!user?.id) return false;
-    const me = members.find((m) => m.user_id === user.id);
+    const userId = user?.id;
+    if (!userId) return false;
+    const me = members.find((m) => m.user_id === userId);
     return me?.role === "owner";
-  }, [members, user?.id]);
+  }, [members, user]);
 
   const loadInvitations = useCallback(async () => {
     if (!householdId) return;

@@ -7,6 +7,28 @@ import { FiTag } from "react-icons/fi";
 import { Dropdown } from "@zervo/ui";
 import { LineChart } from "@zervo/ui";
 
+function SkeletonLoader() {
+  return (
+    <div className="flex flex-col h-full animate-pulse">
+      <div className="flex items-center justify-between mb-6">
+        <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
+        <div className="h-7 w-24 bg-[var(--color-border)] rounded" />
+      </div>
+      <div className="flex items-start gap-8 mb-6">
+        <div>
+          <div className="h-9 w-28 bg-[var(--color-border)] rounded mb-2" />
+          <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
+        </div>
+        <div>
+          <div className="h-9 w-24 bg-[var(--color-border)] rounded mb-2" />
+          <div className="h-3 w-14 bg-[var(--color-border)] rounded" />
+        </div>
+      </div>
+      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 rounded-lg" />
+    </div>
+  );
+}
+
 export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [chartData, setChartData] = useState(mockData?.chartData || []);
@@ -224,26 +246,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     const [y, m] = selectedMonth.split('-');
     return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
   }, [selectedMonth]);
-
-  const SkeletonLoader = () => (
-    <div className="flex flex-col h-full animate-pulse">
-      <div className="flex items-center justify-between mb-6">
-        <div className="h-3 w-28 bg-[var(--color-border)] rounded" />
-        <div className="h-7 w-24 bg-[var(--color-border)] rounded" />
-      </div>
-      <div className="flex items-start gap-8 mb-6">
-        <div>
-          <div className="h-9 w-28 bg-[var(--color-border)] rounded mb-2" />
-          <div className="h-3 w-16 bg-[var(--color-border)] rounded" />
-        </div>
-        <div>
-          <div className="h-9 w-24 bg-[var(--color-border)] rounded mb-2" />
-          <div className="h-3 w-14 bg-[var(--color-border)] rounded" />
-        </div>
-      </div>
-      <div className="flex-1 w-full bg-[var(--color-border)] opacity-30 rounded-lg" />
-    </div>
-  );
 
   return (
     <div className="relative h-full">
