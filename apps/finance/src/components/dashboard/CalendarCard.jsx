@@ -48,29 +48,27 @@ const getNextOccurrence = (stream) => {
 };
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
+const formatCurrencyWhole = (amount) => formatCurrencyBase(amount, false);
 
-const formatRelativeDate = (date) => {
+const formatDayLabel = (date) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(date);
   target.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((target - today) / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays > 1 && diffDays <= 6) return `In ${diffDays} days`;
-  return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const diff = Math.round((target - today) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return target.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
-function UpcomingRow({ stream, nextDate, disableLogos }) {
+function BillRow({ stream, disableLogos }) {
   const showLogo = !disableLogos && stream.icon_url && stream.merchant_name;
-  const isInflow = stream.stream_type === 'inflow';
-  const amount = stream.last_amount || 0;
+  const amount = Math.abs(stream.last_amount || 0);
 
   return (
-    <div className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors">
+    <div className="flex items-center gap-3 py-1.5">
       <div
-        className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+        className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
         style={{
           backgroundColor: showLogo
             ? 'transparent'
@@ -88,26 +86,19 @@ function UpcomingRow({ stream, nextDate, disableLogos }) {
           <DynamicIcon
             iconLib={stream.category_icon_lib}
             iconName={stream.category_icon_name}
-            className="h-4 w-4 text-white"
+            className="h-3.5 w-3.5 text-white"
             style={{ strokeWidth: 2.5 }}
             fallback={FiTag}
           />
         )}
       </div>
-
-      <div className="min-w-0 flex-1 mr-3">
-        <div className="font-medium text-[var(--color-fg)] truncate text-xs">
+      <div className="min-w-0 flex-1">
+        <div className="font-medium text-xs text-[var(--color-fg)] truncate">
           {stream.merchant_name || stream.description || 'Recurring'}
         </div>
-        <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
-          {formatRelativeDate(nextDate)}
-        </div>
       </div>
-
-      <div className="text-right flex-shrink-0">
-        <div className={`font-medium text-xs tabular-nums ${isInflow ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
-          {isInflow ? '+' : ''}{formatCurrency(amount)}
-        </div>
+      <div className="text-xs font-medium tabular-nums text-[var(--color-fg)] flex-shrink-0">
+        {formatCurrency(amount)}
       </div>
     </div>
   );
@@ -150,62 +141,47 @@ export default function CalendarCard({ className = '', mockData }) {
     fetchRecurring();
   }, [authLoading, user?.id, liveIsPro, mockData]);
 
-  // Upcoming items: next 6 occurrences sorted by date. Split into bills
-  // (outflows) and income (inflows) so the two don't visually collide — a
-  // green "+$3,000" sitting beside a red bill confuses the hierarchy.
-  // Bills are the primary concern; income gets a smaller secondary section.
-  const { bills, income, allBillsSorted } = useMemo(() => {
-    const all = recurring
+  // Group upcoming bills (outflows only) by day for the next 7 days.
+  // weekTotal drives the headline; nextBeyond is the fallback when the week is empty.
+  const { dayGroups, weekTotal, nextBeyond } = useMemo(() => {
+    const bills = recurring
+      .filter((s) => s.stream_type !== 'inflow')
       .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
       .filter((item) => item.nextDate)
       .sort((a, b) => a.nextDate - b.nextDate);
 
-    const allBills = all.filter((u) => u.stream.stream_type !== "inflow");
-    const billItems = allBills.slice(0, 5);
-    const incomeItems = all.filter((u) => u.stream.stream_type === "inflow").slice(0, 2);
-    return { bills: billItems, income: incomeItems, allBillsSorted: allBills };
-  }, [recurring]);
-
-  // 7-day strip: today + next 6 days. For each day, list of bills due.
-  // Uses ALL bills (not just the top-5 in the list) so the strip is a
-  // complete week-at-a-glance view of bill density.
-  const weekStrip = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(today);
+    weekEnd.setDate(today.getDate() + 7);
+
+    const within = bills.filter(({ nextDate }) => nextDate >= today && nextDate < weekEnd);
+    const beyond = bills.filter(({ nextDate }) => nextDate >= weekEnd);
+
+    const total = within.reduce(
+      (acc, { stream }) => acc + Math.abs(stream.last_amount || 0),
+      0,
+    );
+
     const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const byKey = new Map();
-    for (const { stream, nextDate } of allBillsSorted) {
-      const d = new Date(nextDate);
+    const map = new Map();
+    for (const item of within) {
+      const d = new Date(item.nextDate);
       d.setHours(0, 0, 0, 0);
-      const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
-      if (diff < 0 || diff > 6) continue;
-      const key = dayKey(d);
-      if (!byKey.has(key)) byKey.set(key, []);
-      byKey.get(key).push(stream);
+      const k = dayKey(d);
+      if (!map.has(k)) map.set(k, { date: d, items: [] });
+      map.get(k).items.push(item);
     }
+    const groups = Array.from(map.values()).sort((a, b) => a.date - b.date);
 
-    const days = [];
-    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const streams = byKey.get(dayKey(d)) || [];
-      days.push({
-        date: d,
-        isToday: i === 0,
-        dayLabel: i === 0 ? "Today" : dayLabels[d.getDay()],
-        dateNum: d.getDate(),
-        streams,
-      });
-    }
-    return days;
-  }, [allBillsSorted]);
+    return {
+      dayGroups: groups,
+      weekTotal: total,
+      nextBeyond: beyond[0] || null,
+    };
+  }, [recurring]);
 
-  const weekHasAnyBills = weekStrip.some((d) => d.streams.length > 0);
-
-  const hasBills = bills.length > 0;
-  const hasIncome = income.length > 0;
-  const showSectionLabels = hasBills && hasIncome;
+  const hasBillsThisWeek = dayGroups.length > 0;
 
   if (loading) {
     return (
@@ -215,15 +191,17 @@ export default function CalendarCard({ className = '', mockData }) {
             <div className="h-4 bg-[var(--color-border)] rounded w-40" />
             <div className="h-4 bg-[var(--color-border)] rounded w-14" />
           </div>
+          <div className="h-7 bg-[var(--color-border)] rounded w-24 mb-1" />
+          <div className="h-2.5 bg-[var(--color-border)] rounded w-32 mb-5" />
           <div className="space-y-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-[var(--color-border)]" />
-                <div className="flex-1">
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-2/3 mb-1.5" />
-                  <div className="h-2 bg-[var(--color-border)] rounded w-1/3" />
+            {[...Array(3)].map((_, i) => (
+              <div key={i}>
+                <div className="h-2 bg-[var(--color-border)] rounded w-16 mb-2" />
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-border)]" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded flex-1" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
                 </div>
-                <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
               </div>
             ))}
           </div>
@@ -234,125 +212,69 @@ export default function CalendarCard({ className = '', mockData }) {
 
   return (
     <div className={`flex flex-col ${className}`}>
-      {/* Title Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="card-header">Upcoming</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="card-header">Upcoming bills</h3>
         <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
       </div>
 
-      {(hasBills || hasIncome) ? (
-        <div className="flex flex-col">
-          {/* Week-at-a-glance strip (bills only) */}
-          {hasBills && (
-            <div className="grid grid-cols-7 gap-0.5 mb-4">
-              {weekStrip.map((day, i) => {
-                const count = day.streams.length;
-                const hasBillsOnDay = count > 0;
-                const tooltip = hasBillsOnDay
-                  ? day.streams
-                      .map((s) => s.merchant_name || s.description || 'Recurring')
-                      .join(', ')
-                  : '';
-                return (
-                  <div
-                    key={i}
-                    title={tooltip}
-                    className={`flex flex-col items-center py-1.5 rounded-md ${
-                      day.isToday ? 'bg-[var(--color-surface-alt)]' : ''
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase tracking-wide text-[var(--color-muted)] leading-none">
-                      {day.dayLabel.slice(0, 3)}
-                    </span>
-                    <span
-                      className={`text-[11px] font-medium tabular-nums mt-1 leading-none ${
-                        day.isToday ? 'text-[var(--color-fg)]' : 'text-[var(--color-fg)]'
-                      }`}
-                    >
-                      {day.dateNum}
-                    </span>
-                    <div className="h-2 mt-1.5 flex items-center justify-center gap-0.5">
-                      {hasBillsOnDay && (
-                        <>
-                          {count === 1 && (
-                            <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
-                          )}
-                          {count === 2 && (
-                            <>
-                              <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
-                              <span className="w-1 h-1 rounded-full bg-[var(--color-fg)]" />
-                            </>
-                          )}
-                          {count >= 3 && (
-                            <span className="text-[8px] font-semibold text-[var(--color-fg)] leading-none tabular-nums">
-                              {count}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {!weekHasAnyBills && (
-                <div className="col-span-7 -mt-1 text-center text-[10px] text-[var(--color-muted)]">
-                  No bills due this week
-                </div>
-              )}
+      {!isPro ? (
+        <div className="text-center py-6 text-xs text-[var(--color-muted)]">
+          Upgrade to Pro to see recurring transactions
+        </div>
+      ) : hasBillsThisWeek ? (
+        <div>
+          <div className="mb-4">
+            <div className="text-2xl font-semibold text-[var(--color-fg)] tabular-nums leading-none">
+              {formatCurrencyWhole(weekTotal)}
             </div>
-          )}
+            <div className="text-[11px] text-[var(--color-muted)] mt-1.5">
+              Due in the next 7 days
+            </div>
+          </div>
 
-          {hasBills && (
-            <>
-              {showSectionLabels && (
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] px-2 mb-1">
-                  Bills
+          <div className="flex flex-col gap-3">
+            {dayGroups.map((group, i) => (
+              <div key={i}>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-0.5">
+                  {formatDayLabel(group.date)}
                 </div>
-              )}
-              <div className="flex flex-col -mx-2">
-                {bills.map(({ stream, nextDate }, idx) => (
-                  <UpcomingRow
-                    key={stream.id || `bill-${idx}`}
-                    stream={stream}
-                    nextDate={nextDate}
-                    disableLogos={DISABLE_LOGOS}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-
-          {hasIncome && (
-            <>
-              {showSectionLabels && (
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] px-2 mt-3 mb-1">
-                  Expected income
+                <div className="flex flex-col">
+                  {group.items.map(({ stream }, j) => (
+                    <BillRow
+                      key={stream.id || `${i}-${j}`}
+                      stream={stream}
+                      disableLogos={DISABLE_LOGOS}
+                    />
+                  ))}
                 </div>
-              )}
-              <div className="flex flex-col -mx-2">
-                {income.map(({ stream, nextDate }, idx) => (
-                  <UpcomingRow
-                    key={stream.id || `income-${idx}`}
-                    stream={stream}
-                    nextDate={nextDate}
-                    disableLogos={DISABLE_LOGOS}
-                  />
-                ))}
               </div>
-            </>
-          )}
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="text-center py-6 text-xs text-[var(--color-muted)]">
-          {isPro ? 'No upcoming recurring transactions' : 'Upgrade to Pro to see recurring transactions'}
+        <div className="py-2">
+          <div className="text-sm font-medium text-[var(--color-fg)]">
+            No bills due this week
+          </div>
+          {nextBeyond && (
+            <div className="text-xs text-[var(--color-muted)] mt-1.5">
+              Next:{' '}
+              <span className="text-[var(--color-fg)]">
+                {nextBeyond.stream.merchant_name || nextBeyond.stream.description || 'Recurring'}
+              </span>{' '}
+              on{' '}
+              {nextBeyond.nextDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {' — '}
+              {formatCurrency(Math.abs(nextBeyond.stream.last_amount || 0))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* View All Drawer */}
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title="Recurring Transactions"
+        title="Recurring transactions"
         width="md"
       >
         <div className="space-y-1">
