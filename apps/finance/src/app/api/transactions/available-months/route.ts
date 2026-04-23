@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 
-export const GET = withAuth('available-months', async (request, userId) => {
+export const GET = withAuth('available-months', async (_request, userId) => {
   // Get all transactions to extract unique months (only from 'transactions' source)
   const { data: transactions, error } = await supabaseAdmin
     .from('transactions')
@@ -20,12 +20,9 @@ export const GET = withAuth('available-months', async (request, userId) => {
     return Response.json({ months: [] });
   }
 
-  // Get unique months from transactions
-  const monthsSet = new Set();
-  transactions.forEach(transaction => {
+  const monthsSet = new Set<string>();
+  transactions.forEach((transaction) => {
     if (!transaction.date) return;
-
-    // Parse date (YYYY-MM-DD)
     const [yearStr, monthStr] = transaction.date.split('-');
     const monthKey = `${yearStr}-${monthStr}`;
     monthsSet.add(monthKey);
@@ -35,12 +32,12 @@ export const GET = withAuth('available-months', async (request, userId) => {
   const months = Array.from(monthsSet)
     .sort()
     .reverse()
-    .map(monthKey => {
+    .map((monthKey) => {
       const [year, month] = monthKey.split('-');
       const date = new Date(parseInt(year), parseInt(month) - 1);
       return {
         value: monthKey,
-        label: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        label: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
       };
     });
 

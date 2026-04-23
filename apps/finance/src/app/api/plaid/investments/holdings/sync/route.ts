@@ -15,9 +15,16 @@
 
 import { withAuth } from '../../../../../../lib/api/withAuth';
 import { syncHoldingsForItem } from '../../../../../../lib/plaid/holdingsSync';
+import { HoldingsSyncError } from '../../../../../../lib/plaid/holdingsSync/types';
+
+interface RequestBody {
+  plaidItemId?: string | null;
+  includeDebug?: boolean;
+  forceSync?: boolean;
+}
 
 export const POST = withAuth('plaid:holdings:sync', async (request, userId) => {
-  const body = await request.json();
+  const body = (await request.json()) as RequestBody;
   const plaidItemId = body.plaidItemId ?? null;
   const includeDebug = Boolean(body.includeDebug);
   const forceSync = Boolean(body.forceSync);
@@ -35,18 +42,19 @@ export const POST = withAuth('plaid:holdings:sync', async (request, userId) => {
     });
     return Response.json(result);
   } catch (error) {
-    // HoldingsSyncError carries an httpStatus; map it to the matching response.
-    if (error?.httpStatus === 403) {
-      return Response.json(
-        { error: error.message, code: error.code, feature: error.feature },
-        { status: 403 },
-      );
-    }
-    if (error?.httpStatus === 404) {
-      return Response.json(
-        { error: error.message || 'Plaid item not found' },
-        { status: 404 },
-      );
+    if (error instanceof HoldingsSyncError) {
+      if (error.httpStatus === 403) {
+        return Response.json(
+          { error: error.message, code: error.code, feature: error.feature },
+          { status: 403 },
+        );
+      }
+      if (error.httpStatus === 404) {
+        return Response.json(
+          { error: error.message || 'Plaid item not found' },
+          { status: 404 },
+        );
+      }
     }
     throw error;
   }

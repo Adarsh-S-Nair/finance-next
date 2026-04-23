@@ -14,8 +14,13 @@
 import { withAuth } from '../../../../../lib/api/withAuth';
 import { syncTransactionsForItem } from '../../../../../lib/plaid/transactionSync';
 
+interface RequestBody {
+  plaidItemId?: string | null;
+  forceSync?: boolean;
+}
+
 export const POST = withAuth('plaid:transactions:sync', async (request, userId) => {
-  const body = await request.json();
+  const body = (await request.json()) as RequestBody;
   const plaidItemId = body.plaidItemId ?? null;
   const forceSync = Boolean(body.forceSync);
 
@@ -27,8 +32,9 @@ export const POST = withAuth('plaid:transactions:sync', async (request, userId) 
     const result = await syncTransactionsForItem({ plaidItemId, userId, forceSync });
     return Response.json(result);
   } catch (error) {
-    if (error?.httpStatus === 404) {
-      return Response.json({ error: error.message || 'Plaid item not found' }, { status: 404 });
+    const err = error as { httpStatus?: number; message?: string };
+    if (err?.httpStatus === 404) {
+      return Response.json({ error: err.message || 'Plaid item not found' }, { status: 404 });
     }
     throw error;
   }

@@ -15,8 +15,12 @@ import {
   DisconnectError,
 } from '../../../../lib/plaid/disconnectAccount';
 
+interface RequestBody {
+  accountId?: string;
+}
+
 export const POST = withAuth('plaid:disconnect-account', async (request, userId) => {
-  const { accountId } = await request.json();
+  const { accountId } = (await request.json()) as RequestBody;
 
   if (!accountId) {
     return Response.json({ error: 'Account ID is required' }, { status: 400 });

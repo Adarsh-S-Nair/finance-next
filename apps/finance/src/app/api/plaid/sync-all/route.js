@@ -52,7 +52,7 @@ export const POST = withAuth('plaid:sync-all', async (request, userId) => {
         };
         const internalHeaders = new Headers({ 'x-user-id': userId });
         if (shouldRunTransactionsSync) {
-          const { POST: txSyncEndpoint } = await import('../transactions/sync/route.js');
+          const { POST: txSyncEndpoint } = await import('../transactions/sync/route');
           const txSyncRequest = {
             headers: internalHeaders,
             json: async () => ({
@@ -71,7 +71,7 @@ export const POST = withAuth('plaid:sync-all', async (request, userId) => {
           }
         }
         if (hasInvestmentsProduct) {
-          const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+          const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route');
           const holdingsSyncRequest = {
             headers: internalHeaders,
             json: async () => ({

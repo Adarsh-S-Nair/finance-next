@@ -57,7 +57,7 @@ export const POST = withAuth('plaid:manual-sync', async (request, userId) => {
     // pick it up through requireVerifiedUserId().
     const internalHeaders = new Headers({ 'x-user-id': userId });
     if (shouldRunTransactionsSync) {
-      const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+      const { POST: syncEndpoint } = await import('../transactions/sync/route');
       const syncRequest = {
         headers: internalHeaders,
         json: async () => ({
@@ -75,7 +75,7 @@ export const POST = withAuth('plaid:manual-sync', async (request, userId) => {
     }
 
     if (hasInvestmentsProduct) {
-      const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+      const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route');
       const holdingsSyncRequest = {
         headers: internalHeaders,
         json: async () => ({

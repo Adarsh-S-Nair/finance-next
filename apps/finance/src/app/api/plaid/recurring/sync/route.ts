@@ -18,21 +18,26 @@ import { withAuth } from '../../../../../lib/api/withAuth';
 import { canAccess } from '../../../../../lib/tierConfig';
 import { syncRecurringForUser } from '../../../../../lib/plaid/recurringSync';
 
+interface RequestBody {
+  forceReset?: boolean;
+  plaidItemId?: string | null;
+}
+
 export const POST = withAuth('plaid:recurring:sync', async (request, userId) => {
-    const body = await request.json();
-    const forceReset = Boolean(body.forceReset);
-    const plaidItemId = body.plaidItemId ?? null;
+  const body = (await request.json()) as RequestBody;
+  const forceReset = Boolean(body.forceReset);
+  const plaidItemId = body.plaidItemId ?? null;
 
-    // Tier gate: recurring is a Pro feature
-    const { data: userProfile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('subscription_tier')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!canAccess(userProfile?.subscription_tier || 'free', 'recurring')) {
-      return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
-    }
+  // Tier gate: recurring is a Pro feature
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!canAccess(userProfile?.subscription_tier || 'free', 'recurring')) {
+    return Response.json({ error: 'feature_locked', feature: 'recurring' }, { status: 403 });
+  }
 
-    const result = await syncRecurringForUser({ userId, forceReset, plaidItemId });
-    return Response.json(result);
+  const result = await syncRecurringForUser({ userId, forceReset, plaidItemId });
+  return Response.json(result);
 });

@@ -404,7 +404,7 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
       // Trigger transaction sync for depository/credit accounts
       if (hasTransactionAccounts && accountsData.length > 0) {
         try {
-          const { POST: syncEndpoint } = await import('../transactions/sync/route.js');
+          const { POST: syncEndpoint } = await import('../transactions/sync/route');
           const syncRequest = {
             headers: internalHeaders,
             json: async () => ({ plaidItemId: plaidItemData.id }),
@@ -434,7 +434,7 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
       if (hasInvestmentAccounts && accountsData.length > 0) {
         // Sync holdings
         try {
-          const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route.js');
+          const { POST: holdingsSyncEndpoint } = await import('../investments/holdings/sync/route');
           const holdingsSyncRequest = {
             headers: internalHeaders,
             json: async () => ({ plaidItemId: plaidItemData.id }),

@@ -14,6 +14,7 @@
     "start": "pnpm --filter @zervo/finance start",
     "start:admin": "pnpm --filter @zervo/admin start",
     "lint": "pnpm -r --parallel run lint",
+    "typecheck": "pnpm --filter @zervo/finance typecheck",
     "test": "pnpm --filter @zervo/finance test",
     "test:watch": "pnpm --filter @zervo/finance test:watch",
     "test:coverage": "pnpm --filter @zervo/finance test:coverage"

@@ -169,7 +169,7 @@ export async function GET(request) {
         );
         logger.info('Refreshing holdings before snapshotting', { count: uniqueItems.length });
 
-        const { POST: holdingsSyncEndpoint } = await import('../../plaid/investments/holdings/sync/route.js');
+        const { POST: holdingsSyncEndpoint } = await import('../../plaid/investments/holdings/sync/route');
         for (const item of uniqueItems) {
           try {
             const syncRequest = {
