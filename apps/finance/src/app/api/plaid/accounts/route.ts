@@ -17,7 +17,8 @@ export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
   // returns it because the column exists on the accounts table as well).
   const { data: accounts, error } = await supabaseAdmin
     .from('accounts')
-    .select(`
+    .select(
+      `
       *,
       institutions (
         id,
@@ -31,7 +32,8 @@ export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
         id,
         item_id
       )
-    `)
+    `
+    )
     .in('user_id', scope.userIds)
     .order('created_at', { ascending: false });
 
@@ -43,29 +45,33 @@ export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
   // Defense in depth: even if a future change re-adds access_token to the
   // nested select, strip it here before the response leaves the server.
   const sanitized = (accounts ?? []).map((row) => {
-    const { access_token: _stripAccessToken, plaid_items, ...rest } = row;
+    const rowAny = row as Record<string, unknown>;
+    const { access_token: _stripAccessToken, plaid_items, ...rest } = rowAny;
     void _stripAccessToken;
-    const cleanPlaidItems = plaid_items
-      ? (() => {
-          const { access_token: _stripNested, ...keep } = plaid_items;
-          void _stripNested;
-          return keep;
-        })()
-      : plaid_items;
+    let cleanPlaidItems: unknown = plaid_items;
+    if (plaid_items && typeof plaid_items === 'object') {
+      const piAny = plaid_items as Record<string, unknown>;
+      const { access_token: _stripNested, ...keep } = piAny;
+      void _stripNested;
+      cleanPlaidItems = keep;
+    }
     return { ...rest, plaid_items: cleanPlaidItems };
   });
 
   return Response.json({ accounts: sanitized });
 });
 
+interface DeleteBody {
+  accountId?: string;
+}
+
 export const DELETE = withAuth('plaid/accounts:delete', async (request, userId) => {
-  const { accountId } = await request.json();
+  const { accountId } = (await request.json()) as DeleteBody;
 
   if (!accountId) {
     return Response.json({ error: 'Account ID is required' }, { status: 400 });
   }
 
-  // Delete account (verify ownership via user_id)
   const { error } = await supabaseAdmin
     .from('accounts')
     .delete()

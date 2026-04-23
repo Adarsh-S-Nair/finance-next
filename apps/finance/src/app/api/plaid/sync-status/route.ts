@@ -13,23 +13,6 @@
  * because we'd rather show the user their data (or an error) than keep
  * them on a splash screen indefinitely.
  *
- * Response shape:
- *   {
- *     ready: boolean,              // true when ALL items are ready
- *     itemsTotal: number,
- *     itemsReady: number,
- *     itemsSyncing: number,
- *     itemsError: number,
- *     items: Array<{
- *       id: string,
- *       sync_status: 'idle' | 'syncing' | 'error' | null,
- *       last_transaction_sync: string | null,
- *       last_balance_sync: string | null,
- *       last_error: string | null,
- *       ready: boolean,
- *     }>
- *   }
- *
  * No items at all → { ready: true, itemsTotal: 0, ... } so clients can
  * short-circuit to dashboard (or wherever) without polling forever.
  */
@@ -37,7 +20,7 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 
-export const GET = withAuth('sync-status', async (request, userId) => {
+export const GET = withAuth('sync-status', async (_request, userId) => {
   const { data: items, error } = await supabaseAdmin
     .from('plaid_items')
     .select('id, sync_status, last_transaction_sync, last_balance_sync, last_error')
@@ -48,7 +31,7 @@ export const GET = withAuth('sync-status', async (request, userId) => {
     return Response.json({ error: 'Failed to fetch sync status' }, { status: 500 });
   }
 
-  const rows = items || [];
+  const rows = items ?? [];
 
   const enriched = rows.map((it) => {
     const hasCompletedOnce =

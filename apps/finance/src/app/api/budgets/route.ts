@@ -1,9 +1,16 @@
 import { supabaseAdmin } from '../../../lib/supabase/admin';
-import { getBudgetProgress, getMonthlyBurn, getBudgetHistory, upsertBudget, deleteBudget } from '../../../lib/spending';
+import {
+  getBudgetProgress,
+  getMonthlyBurn,
+  getBudgetHistory,
+  upsertBudget,
+  deleteBudget,
+} from '../../../lib/spending';
 import { withAuth } from '../../../lib/api/withAuth';
 import { canAccess } from '../../../lib/tierConfig';
+import type { TablesInsert } from '../../../types/database';
 
-async function requireTierAccess(userId, feature) {
+async function requireTierAccess(userId: string, feature: string): Promise<Response | null> {
   const { data: userProfile } = await supabaseAdmin
     .from('user_profiles')
     .select('subscription_tier')
@@ -30,11 +37,19 @@ export const GET = withAuth('budgets:list', async (request, userId) => {
   return Response.json({ data, burn, history });
 });
 
+interface SaveBudgetBody {
+  userId?: string;
+  monthly_income?: number | string | null;
+  // Remaining fields are passed through as the budget payload.
+  [key: string]: unknown;
+}
+
 export const POST = withAuth('budgets:save', async (request, userId) => {
   const tierError = await requireTierAccess(userId, 'budgets');
   if (tierError) return tierError;
-  const body = await request.json();
+  const body = (await request.json()) as SaveBudgetBody;
   const { userId: _ignoredUserId, monthly_income, ...budgetData } = body;
+  void _ignoredUserId;
 
   // If the client is sending the confirmed monthly income from the
   // creation flow's IncomeStep, persist it on user_profiles so the
@@ -47,8 +62,10 @@ export const POST = withAuth('budgets:save', async (request, userId) => {
       .eq('id', userId);
   }
 
-  // Ensure user_id is set in the data passed to upsert
-  const budget = await upsertBudget(supabaseAdmin, { ...budgetData, user_id: userId });
+  const budget = await upsertBudget(supabaseAdmin, {
+    ...(budgetData as Omit<TablesInsert<'budgets'>, 'user_id'>),
+    user_id: userId,
+  });
   return Response.json({ data: budget });
 });
 

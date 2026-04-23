@@ -19,13 +19,14 @@
  * See `docs/architectural_patterns.md`.
  */
 
+import type { NextRequest } from 'next/server';
 import { createLogger } from '../../../../lib/logger';
 import { processPlaidWebhook } from '../../../../lib/plaid/webhooks';
 
 const DISABLE_WEBHOOKS =
   process.env.NODE_ENV !== 'production' && process.env.DISABLE_WEBHOOKS === '1';
 
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<Response> {
   // Request-specific logger with a unique correlation ID so all child
   // handlers for this webhook thread through the same log trail.
   const logger = createLogger('plaid-webhook');
@@ -47,7 +48,7 @@ export async function POST(request) {
 
     const result = await processPlaidWebhook({ payload, signature }, { logger });
 
-    logger.endOperation(opId, result);
+    logger.endOperation(opId, result as unknown as Record<string, unknown>);
     await logger.flush();
 
     if (result.status === 'invalid_signature') {
@@ -62,7 +63,7 @@ export async function POST(request) {
 
     return Response.json({ received: true, disabled: result.status === 'disabled' });
   } catch (error) {
-    logger.error('Unexpected error in webhook route', error);
+    logger.error('Unexpected error in webhook route', error as Error);
     logger.endOperation(opId, { status: 'error' });
     await logger.flush();
     return Response.json({ error: 'Webhook processing failed' }, { status: 500 });
