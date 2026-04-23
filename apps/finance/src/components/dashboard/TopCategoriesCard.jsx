@@ -9,14 +9,12 @@ import { SegmentedTabs } from "@zervo/ui";
 
 const MAX_ROWS = 5;
 const DONUT_SIZE = 220;
-const DONUT_STROKE = 18;
-// Rounded caps extend past each dash endpoint by strokeWidth/2, so the gap
-// has to be wider than the full stroke to actually be visible between
-// adjacent slices. ~1.8x gives ~14px of clear separation.
-const SEGMENT_GAP_PX = DONUT_STROKE * 1.8;
-// Any slice thinner than the stroke width just renders as a pair of rounded
-// caps meeting — a "lollipop stub". Roll those into Other so every visible
-// segment has a real arc.
+const DONUT_STROKE = 16;
+// Butt caps draw flat ends, so the gap is exactly what we specify — no
+// need to oversize it to survive cap overhang.
+const SEGMENT_GAP_PX = 10;
+// Anything under this threshold rolls into Other so every visible slice
+// has enough arc to read as a real segment (not a sliver).
 const MIN_SEGMENT_PCT = 3;
 
 function getRangeFor(viewMode) {
@@ -119,7 +117,7 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
               strokeWidth={isHovered ? DONUT_STROKE + 4 : DONUT_STROKE}
               strokeDasharray={seg.dashArray}
               strokeDashoffset={seg.dashOffset}
-              strokeLinecap="round"
+              strokeLinecap="butt"
               style={{
                 opacity: dimmed ? 0.4 : 1,
                 cursor: seg.isOther ? "default" : "pointer",
