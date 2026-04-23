@@ -6,21 +6,41 @@
  * - 'component' matches the key in componentMap in DashboardPage
  */
 
-export const dashboardLayout = {
+interface DashboardCard {
+  id: string;
+  component: string;
+  height?: string;
+  mobileHeight?: string;
+  width?: string;
+}
+
+interface DashboardRow {
+  id: string;
+  type: 'row';
+  items: DashboardCard[];
+  height?: string;
+  className?: string;
+}
+
+type DashboardItem = DashboardCard | DashboardRow;
+
+interface DashboardLayout {
+  main: DashboardItem[];
+  sidebar: DashboardItem[];
+}
+
+export const dashboardLayout: DashboardLayout = {
   // Main content area (left side, wider)
   main: [
-    // Net Worth Banner (simple number + link to accounts)
     {
       id: 'net-worth-banner',
       component: 'NetWorthBanner',
     },
-    // Monthly Overview Chart (full width, hero card)
     {
       id: 'monthly-overview',
       component: 'MonthlyOverviewCard',
-      height: 'h-[400px]'
+      height: 'h-[400px]',
     },
-    // Cashflow + Top Categories (stacked on mobile, side-by-side on desktop)
     {
       id: 'cashflow-row',
       type: 'row',
@@ -29,17 +49,17 @@ export const dashboardLayout = {
           id: 'cashflow',
           component: 'SpendingVsEarningCard',
           width: 'lg:flex-1 lg:min-w-0',
-          mobileHeight: 'h-[380px] lg:h-full'
+          mobileHeight: 'h-[380px] lg:h-full',
         },
         {
           id: 'top-categories',
           component: 'TopCategoriesCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
-          mobileHeight: 'h-auto lg:h-full'
-        }
+          mobileHeight: 'h-auto lg:h-full',
+        },
       ],
-      height: 'lg:h-[380px]'
-    }
+      height: 'lg:h-[380px]',
+    },
   ],
 
   // Sidebar (right side, narrower)
@@ -55,17 +75,17 @@ export const dashboardLayout = {
       items: [
         {
           id: 'budgets',
-          component: 'BudgetsCard'
+          component: 'BudgetsCard',
         },
         {
           id: 'calendar',
-          component: 'CalendarCard'
-        }
-      ]
+          component: 'CalendarCard',
+        },
+      ],
     },
     {
       id: 'top-holdings',
-      component: 'TopHoldingsCard'
-    }
-  ]
+      component: 'TopHoldingsCard',
+    },
+  ],
 };

@@ -1,4 +1,6 @@
 import "./globals.css";
+import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { Outfit, Poppins, Instrument_Sans } from 'next/font/google';
 import { GeistSans } from 'geist/font/sans';
 import Topbar from "../components/layout/Topbar";
@@ -34,7 +36,7 @@ const instrumentSans = Instrument_Sans({
 });
 
 
-export const metadata = {
+export const metadata: Metadata = {
   title: {
     template: `${BRAND.name} | %s`,
     default: BRAND.name,
@@ -56,7 +58,7 @@ const oauthRedirectScript = `
 }catch(e){}})();
 `;
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${outfit.variable} ${poppins.variable} ${instrumentSans.variable} ${GeistSans.variable}`}>
       <head>

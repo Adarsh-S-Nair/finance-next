@@ -1,24 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import * as React from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { FiPlus, FiBell } from "react-icons/fi";
 import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuChevronsUpDown } from "react-icons/lu";
+import type { IconType } from "react-icons";
 import PublicRoute from "../components/PublicRoute";
 import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
 import { BRAND } from "../config/brand";
 
 // Real dashboard components — rendered with `mockData` so they skip
-// network fetches but still use their production render paths.
-import NetWorthBanner from "../components/dashboard/NetWorthBanner";
-import MonthlyOverviewCard from "../components/dashboard/MonthlyOverviewCard";
-import SpendingVsEarningCard from "../components/dashboard/SpendingVsEarningCard";
-import TopCategoriesCard from "../components/dashboard/TopCategoriesCard";
-import BudgetsCard from "../components/dashboard/BudgetsCard";
-import CalendarCard from "../components/dashboard/CalendarCard";
-import TopHoldingsCard from "../components/dashboard/TopHoldingsCard";
-import InsightsCarousel from "../components/dashboard/InsightsCarousel";
+// network fetches but still use their production render paths. The
+// dashboard components have a mix of typed/untyped props because they're
+// authored in JSX/TSX. The shapes the landing page passes here are
+// presentational mock data — match the in-file mock contract, not the
+// component's strict prop type. Cast each component to a loose alias so
+// the landing page doesn't have to chase every prop the production paths
+// require (initialMonth, onBack, etc.).
+import NetWorthBannerImport from "../components/dashboard/NetWorthBanner";
+import MonthlyOverviewCardImport from "../components/dashboard/MonthlyOverviewCard";
+import SpendingVsEarningCardImport from "../components/dashboard/SpendingVsEarningCard";
+import TopCategoriesCardImport from "../components/dashboard/TopCategoriesCard";
+import BudgetsCardImport from "../components/dashboard/BudgetsCard";
+import CalendarCardImport from "../components/dashboard/CalendarCard";
+import TopHoldingsCardImport from "../components/dashboard/TopHoldingsCard";
+import InsightsCarouselImport from "../components/dashboard/InsightsCarousel";
+
+type LooseProps = Record<string, unknown>;
+const NetWorthBanner = NetWorthBannerImport as unknown as React.ComponentType<LooseProps>;
+const MonthlyOverviewCard = MonthlyOverviewCardImport as unknown as React.ComponentType<LooseProps>;
+const SpendingVsEarningCard = SpendingVsEarningCardImport as unknown as React.ComponentType<LooseProps>;
+const TopCategoriesCard = TopCategoriesCardImport as unknown as React.ComponentType<LooseProps>;
+const BudgetsCard = BudgetsCardImport as unknown as React.ComponentType<LooseProps>;
+const CalendarCard = CalendarCardImport as unknown as React.ComponentType<LooseProps>;
+const TopHoldingsCard = TopHoldingsCardImport as unknown as React.ComponentType<LooseProps>;
+const InsightsCarousel = InsightsCarouselImport as unknown as React.ComponentType<LooseProps>;
 
 
 /* ============================================================
@@ -68,19 +87,23 @@ const INSIGHTS_MOCK = {
   ],
 };
 
+interface MonthlyOverviewMock {
+  availableMonths: { value: string; label: string }[];
+  selectedMonth: string;
+  previousMonthName: string;
+  chartData: { dateString: string; spending: number; previousSpending: number }[];
+}
+
 // Build a realistic monthly-overview chart for the current month vs. last.
-// Generates stepped cumulative spending — many days are flat (no transactions),
-// a few days jump up by large amounts (rent, groceries, etc.) — which is how
-// real transaction history looks.
-function buildMonthlyOverviewMock() {
+function buildMonthlyOverviewMock(): MonthlyOverviewMock {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // Deterministic PRNG so the chart is identical between renders.
-  function makeRand(seed) {
+  function makeRand(seed: number): () => number {
     let s = seed;
     return () => {
       s = (s * 9301 + 49297) % 233280;
@@ -88,17 +111,11 @@ function buildMonthlyOverviewMock() {
     };
   }
 
-  // Realistic daily spending pattern:
-  // - Day 1: rent-sized charge ($1100-1250)
-  // - ~35% of days: no spending
-  // - ~40% of days: small ($5-35, coffee/lunch)
-  // - ~17% of days: medium ($40-110, groceries/gas)
-  // - ~8% of days: large ($120-320, shopping/dinner out)
-  function genDaily(seed) {
+  function genDaily(seed: number): number[] {
     const rand = makeRand(seed);
-    const out = [];
+    const out: number[] = [];
     for (let i = 0; i < daysInMonth; i++) {
-      let amt;
+      let amt: number;
       if (i === 0) {
         amt = 1120 + Math.floor(rand() * 130);
       } else {
@@ -116,11 +133,10 @@ function buildMonthlyOverviewMock() {
   const curDaily = genDaily(7);
   const prevDaily = genDaily(13);
 
-  // Build cumulative series
   let curCum = 0;
   let prevCum = 0;
-  const rawCur = [];
-  const rawPrev = [];
+  const rawCur: number[] = [];
+  const rawPrev: number[] = [];
   for (let i = 0; i < daysInMonth; i++) {
     curCum += curDaily[i];
     prevCum += prevDaily[i];
@@ -128,7 +144,6 @@ function buildMonthlyOverviewMock() {
     rawPrev.push(prevCum);
   }
 
-  // Scale so final values match the target totals shown in the hero numbers.
   const curScale = rawCur[daysInMonth - 1] > 0 ? 2847 / rawCur[daysInMonth - 1] : 1;
   const prevScale = rawPrev[daysInMonth - 1] > 0 ? 3104 / rawPrev[daysInMonth - 1] : 1;
 
@@ -157,20 +172,18 @@ function buildMonthlyOverviewMock() {
 
 const MONTHLY_OVERVIEW_MOCK = buildMonthlyOverviewMock();
 
-// SpendingVsEarningCard expects externalData.data with earning+spending per month.
-// Includes one negative-cashflow month for visual variety.
 const CASHFLOW_DATA = {
   data: (() => {
-    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const now = new Date();
-    const months = [];
+    const months: { monthName: string; monthNumber: number; year: number; earning: number; spending: number }[] = [];
     const values = [
-      { earning: 4820, spending: 3210 },  // +1610
-      { earning: 4820, spending: 5380 },  // -560  negative month
-      { earning: 4820, spending: 2960 },  // +1860
-      { earning: 5200, spending: 3104 },  // +2096
-      { earning: 4820, spending: 2847 },  // +1973
-      { earning: 6250, spending: 2654 },  // +3596 bonus month
+      { earning: 4820, spending: 3210 },
+      { earning: 4820, spending: 5380 },
+      { earning: 4820, spending: 2960 },
+      { earning: 5200, spending: 3104 },
+      { earning: 4820, spending: 2847 },
+      { earning: 6250, spending: 2654 },
     ];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -228,8 +241,8 @@ const BUDGETS_MOCK = [
 
 function buildCalendarMock() {
   const today = new Date();
-  const isoDate = (d) => d.toISOString().slice(0, 10);
-  const inDays = (n) => {
+  const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+  const inDays = (n: number) => {
     const d = new Date(today);
     d.setDate(d.getDate() + n);
     return isoDate(d);
@@ -237,78 +250,12 @@ function buildCalendarMock() {
 
   return {
     recurring: [
-      {
-        id: "r1",
-        merchant_name: "Spotify",
-        last_amount: 11.99,
-        stream_type: "outflow",
-        frequency: "MONTHLY",
-        predicted_next_date: inDays(3),
-        last_date: inDays(-27),
-        category_hex_color: "#1db954",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiMusic",
-      },
-      {
-        id: "r2",
-        merchant_name: "Netflix",
-        last_amount: 15.49,
-        stream_type: "outflow",
-        frequency: "MONTHLY",
-        predicted_next_date: inDays(5),
-        last_date: inDays(-25),
-        category_hex_color: "#e50914",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiFilm",
-      },
-      {
-        id: "r3",
-        merchant_name: "Paycheck",
-        last_amount: 2410,
-        stream_type: "inflow",
-        frequency: "BIWEEKLY",
-        predicted_next_date: inDays(9),
-        last_date: inDays(-5),
-        category_hex_color: "#059669",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiDollarSign",
-      },
-      {
-        id: "r4",
-        merchant_name: "Gym Membership",
-        last_amount: 39.99,
-        stream_type: "outflow",
-        frequency: "MONTHLY",
-        predicted_next_date: inDays(11),
-        last_date: inDays(-19),
-        category_hex_color: "#6366f1",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiActivity",
-      },
-      {
-        id: "r5",
-        merchant_name: "Utilities",
-        last_amount: 87.2,
-        stream_type: "outflow",
-        frequency: "MONTHLY",
-        predicted_next_date: inDays(14),
-        last_date: inDays(-16),
-        category_hex_color: "#f59e0b",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiZap",
-      },
-      {
-        id: "r6",
-        merchant_name: "Internet",
-        last_amount: 64.99,
-        stream_type: "outflow",
-        frequency: "MONTHLY",
-        predicted_next_date: inDays(22),
-        last_date: inDays(-8),
-        category_hex_color: "#0ea5e9",
-        category_icon_lib: "Fi",
-        category_icon_name: "FiWifi",
-      },
+      { id: "r1", merchant_name: "Spotify", last_amount: 11.99, stream_type: "outflow", frequency: "MONTHLY", predicted_next_date: inDays(3), last_date: inDays(-27), category_hex_color: "#1db954", category_icon_lib: "Fi", category_icon_name: "FiMusic" },
+      { id: "r2", merchant_name: "Netflix", last_amount: 15.49, stream_type: "outflow", frequency: "MONTHLY", predicted_next_date: inDays(5), last_date: inDays(-25), category_hex_color: "#e50914", category_icon_lib: "Fi", category_icon_name: "FiFilm" },
+      { id: "r3", merchant_name: "Paycheck", last_amount: 2410, stream_type: "inflow", frequency: "BIWEEKLY", predicted_next_date: inDays(9), last_date: inDays(-5), category_hex_color: "#059669", category_icon_lib: "Fi", category_icon_name: "FiDollarSign" },
+      { id: "r4", merchant_name: "Gym Membership", last_amount: 39.99, stream_type: "outflow", frequency: "MONTHLY", predicted_next_date: inDays(11), last_date: inDays(-19), category_hex_color: "#6366f1", category_icon_lib: "Fi", category_icon_name: "FiActivity" },
+      { id: "r5", merchant_name: "Utilities", last_amount: 87.2, stream_type: "outflow", frequency: "MONTHLY", predicted_next_date: inDays(14), last_date: inDays(-16), category_hex_color: "#f59e0b", category_icon_lib: "Fi", category_icon_name: "FiZap" },
+      { id: "r6", merchant_name: "Internet", last_amount: 64.99, stream_type: "outflow", frequency: "MONTHLY", predicted_next_date: inDays(22), last_date: inDays(-8), category_hex_color: "#0ea5e9", category_icon_lib: "Fi", category_icon_name: "FiWifi" },
     ],
   };
 }
@@ -324,31 +271,11 @@ const HOLDINGS_MOCK = {
     { ticker: "TLT", shares: 30, avg_cost: 98, asset_type: "bond", marketValue: 2740 },
   ],
   tickerMeta: {
-    VOO: {
-      name: "Vanguard S&P 500 ETF",
-      assetType: "equity",
-      logo: "https://www.google.com/s2/favicons?domain=vanguard.com&sz=128",
-    },
-    AAPL: {
-      name: "Apple Inc.",
-      assetType: "equity",
-      logo: "https://www.google.com/s2/favicons?domain=apple.com&sz=128",
-    },
-    MSFT: {
-      name: "Microsoft Corp.",
-      assetType: "equity",
-      logo: "https://www.google.com/s2/favicons?domain=microsoft.com&sz=128",
-    },
-    NVDA: {
-      name: "NVIDIA Corp.",
-      assetType: "equity",
-      logo: "https://www.google.com/s2/favicons?domain=nvidia.com&sz=128",
-    },
-    TLT: {
-      name: "iShares 20+ Year Treasury",
-      assetType: "bond",
-      logo: "https://www.google.com/s2/favicons?domain=ishares.com&sz=128",
-    },
+    VOO: { name: "Vanguard S&P 500 ETF", assetType: "equity", logo: "https://www.google.com/s2/favicons?domain=vanguard.com&sz=128" },
+    AAPL: { name: "Apple Inc.", assetType: "equity", logo: "https://www.google.com/s2/favicons?domain=apple.com&sz=128" },
+    MSFT: { name: "Microsoft Corp.", assetType: "equity", logo: "https://www.google.com/s2/favicons?domain=microsoft.com&sz=128" },
+    NVDA: { name: "NVIDIA Corp.", assetType: "equity", logo: "https://www.google.com/s2/favicons?domain=nvidia.com&sz=128" },
+    TLT: { name: "iShares 20+ Year Treasury", assetType: "bond", logo: "https://www.google.com/s2/favicons?domain=ishares.com&sz=128" },
   },
   quotes: {
     VOO: { price: 487.13 },
@@ -370,7 +297,7 @@ const HOLDINGS_MOCK = {
    Landing Nav
    ============================================================ */
 
-export function LandingNav({ showLinks = true }) {
+export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -427,7 +354,7 @@ export function LandingNav({ showLinks = true }) {
    Mac window chrome
    ============================================================ */
 
-function MacWindow({ children, url = "zervo.app/dashboard" }) {
+function MacWindow({ children, url = "zervo.app/dashboard" }: { children: ReactNode; url?: string }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.18),0_12px_32px_-16px_rgba(0,0,0,0.12)]">
       <div className="relative flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface-alt)] px-4 py-3">
@@ -449,8 +376,19 @@ function MacWindow({ children, url = "zervo.app/dashboard" }) {
    Mock sidebar / topbar
    ============================================================ */
 
+interface MockSidebarItem {
+  label: string;
+  icon: IconType;
+  active?: boolean;
+}
+
+interface MockSidebarSection {
+  title: string;
+  items: MockSidebarItem[];
+}
+
 function MockSidebar() {
-  const sections = [
+  const sections: MockSidebarSection[] = [
     {
       title: "OVERVIEW",
       items: [{ label: "Dashboard", icon: LuLayoutDashboard, active: true }],
@@ -554,9 +492,6 @@ function MockTopbar() {
 
 /* ============================================================
    Hero dashboard scene — desktop version
-   Mirrors src/config/dashboardLayout.js. Each sidebar card is
-   wrapped in a plain div so BudgetsCard's internal `h-full`
-   doesn't stretch and swallow the whole column.
    ============================================================ */
 
 function HeroDashboard() {
@@ -597,15 +532,13 @@ function HeroDashboard() {
 }
 
 /* ============================================================
-   Phone mockup — shown on < lg screens. Narrower content, no
-   sidebar, simulates the iOS webapp view of Zervo.
+   Phone mockup
    ============================================================ */
 
-function PhoneFrame({ children }) {
+function PhoneFrame({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto w-[280px]">
       <div className="rounded-[2.25rem] border-[8px] border-zinc-900 bg-[var(--color-content-bg)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.35),0_10px_30px_-15px_rgba(0,0,0,0.2)]">
-        {/* Status bar with notch */}
         <div className="relative flex h-8 items-center justify-between rounded-t-[1.75rem] bg-[var(--color-content-bg)] px-5 text-[10px] font-semibold text-[var(--color-fg)] tabular-nums">
           <span>9:41</span>
           <span aria-hidden className="absolute left-1/2 top-1 h-4 w-20 -translate-x-1/2 rounded-full bg-zinc-900" />
@@ -623,7 +556,6 @@ function PhoneFrame({ children }) {
             </svg>
           </div>
         </div>
-        {/* Clipped scroll window — fades out at the bottom */}
         <div
           className="relative h-[480px] overflow-hidden rounded-b-[1.75rem]"
           style={{
@@ -641,7 +573,6 @@ function PhoneFrame({ children }) {
 function PhoneDashboard() {
   return (
     <div className="min-w-0 space-y-8">
-      {/* Mobile topbar */}
       <div className="flex items-center justify-between pt-2">
         <div className="flex items-center gap-2">
           <span
@@ -681,7 +612,6 @@ function PhoneDashboard() {
         </h2>
       </div>
 
-      {/* Cards — each in a min-w-0 wrapper so SVG charts respect container width */}
       <div className="min-w-0">
         <NetWorthBanner mockData={NET_WORTH_MOCK} />
       </div>
@@ -709,11 +639,25 @@ function PhoneDashboard() {
   );
 }
 
+// PhoneFrame and PhoneDashboard are kept for parity with the JS file but
+// not rendered in the current landing layout. Suppress unused warnings.
+void PhoneFrame;
+void PhoneDashboard;
+
 /* ============================================================
    Pricing
    ============================================================ */
 
-function PricingColumn({ price, tier, blurb, features, cta, highlighted = false }) {
+interface PricingColumnProps {
+  price: string;
+  tier: string;
+  blurb: string;
+  features: [boolean, string][];
+  cta: string;
+  highlighted?: boolean;
+}
+
+function PricingColumn({ price, tier, blurb, features, cta, highlighted = false }: PricingColumnProps) {
   return (
     <div className={highlighted ? "lg:border-l lg:border-[var(--color-border)] lg:pl-10" : "lg:pr-10"}>
       <div className="flex items-baseline gap-2">
@@ -768,12 +712,9 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
    ============================================================ */
 
 export default function Home() {
-  // OAuth sometimes redirects users to `/?code=...` (e.g. if Supabase's
-  // Site URL is used as the fallback). In that case, rendering the landing
-  // page for even a frame produces a jarring flash between Google and the
-  // auth loading screen. The inline script in RootLayout handles this
-  // synchronously during HTML parsing; this check is a React-side safety
-  // net in case the script is blocked or fails.
+  // OAuth sometimes redirects users to `/?code=...`. The inline script in
+  // RootLayout handles this synchronously during HTML parsing; this check
+  // is a React-side safety net in case the script is blocked or fails.
   const [isOAuthReturn] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).has("code");
@@ -782,6 +723,7 @@ export default function Home() {
   useEffect(() => {
     if (!isOAuthReturn) return;
     const code = new URLSearchParams(window.location.search).get("code");
+    if (!code) return;
     window.location.replace(
       `/auth/callback/exchange?code=${encodeURIComponent(code)}&next=/dashboard`
     );
@@ -796,15 +738,7 @@ export default function Home() {
       <main className="min-h-screen bg-[var(--color-content-bg)] text-[var(--color-fg)]">
         <LandingNav />
 
-        {/* Hero — single full-viewport scene. On lg+ it's fixed to the
-            viewport so subsequent sections slide up OVER it as the user
-            scrolls, instead of the hero scrolling away. A spacer div
-            below reserves the 100vh of flow the fixed hero would have
-            taken. */}
         <section className="relative overflow-hidden pt-28 pb-20 sm:pt-32 sm:pb-24 lg:fixed lg:inset-x-0 lg:top-0 lg:z-0 lg:h-screen lg:min-h-[820px] lg:pb-0">
-          {/* Left rock — sits BEHIND the dashboard, fades out at its bottom.
-              Tighter clamp + bigger left offset so it doesn't crowd the
-              dashboard on smaller desktop viewports. */}
           <motion.img
             src="/rock-left.png"
             alt=""
@@ -814,13 +748,12 @@ export default function Home() {
             transition={{ duration: 1.2, ease: "easeOut" }}
             className="pointer-events-none absolute -left-[55%] top-0 z-[2] h-[260px] w-auto max-w-none select-none opacity-70 sm:-left-[35%] sm:h-[520px] sm:opacity-80 lg:bottom-0 lg:-left-[3%] lg:top-auto lg:h-[var(--rock-h)] lg:opacity-95"
             style={{
-              "--rock-h": "clamp(380px, 60vh, 40vw)",
+              ['--rock-h' as string]: "clamp(380px, 60vh, 40vw)",
               maskImage: "linear-gradient(to bottom, black 55%, transparent 92%)",
               WebkitMaskImage: "linear-gradient(to bottom, black 55%, transparent 92%)",
-            }}
+            } as React.CSSProperties}
           />
 
-          {/* Right rock — sits OVER the right side of the dashboard (desktop only) */}
           <motion.img
             src="/rock-right.png"
             alt=""
@@ -829,10 +762,9 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
             className="pointer-events-none absolute bottom-0 -right-[20%] z-20 hidden h-[var(--rock-h)] w-auto max-w-none select-none opacity-95 lg:block"
-            style={{ "--rock-h": "clamp(380px, 60vh, 40vw)" }}
+            style={{ ['--rock-h' as string]: "clamp(380px, 60vh, 40vw)" } as React.CSSProperties}
           />
 
-          {/* Hero copy — centered */}
           <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
               <motion.h1
@@ -868,8 +800,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Desktop mac window mockup — viewport-relative width so
-              the rocks have room to frame it without eating content. */}
           <div
             className="relative z-10 mx-auto mt-14 hidden px-5 sm:mt-16 sm:px-6 lg:block lg:px-8"
             style={{ maxWidth: "min(92vw, 1400px)" }}
@@ -885,8 +815,6 @@ export default function Home() {
               }}
               className="relative"
             >
-              {/* Dashboard extends to the bottom of the hero section —
-                  section's overflow-hidden clips anything past the fold. */}
               <div className="relative overflow-hidden rounded-xl">
                 <MacWindow>
                   <HeroDashboard />
@@ -895,9 +823,6 @@ export default function Home() {
             </motion.div>
           </div>
 
-          {/* Creative pricing anchor — a subtle "pricing" scroll hint
-              anchored to the bottom of the viewport, only on desktop.
-              Disappears naturally when pricing slides up over the hero. */}
           <motion.a
             href="#pricing"
             initial={{ opacity: 0 }}
@@ -918,13 +843,8 @@ export default function Home() {
           </motion.a>
         </section>
 
-        {/* Spacer — reserves 100vh of flow on lg+ so the fixed hero
-            above has "space" to sit in. Subsequent sections naturally
-            flow below this, slide up over the hero on scroll. */}
         <div className="hidden lg:block lg:h-screen lg:min-h-[820px]" aria-hidden />
 
-        {/* Pricing — relative + z-10 + opaque bg so it slides UP over
-            the fixed hero on scroll. */}
         <section
           id="pricing"
           className="relative z-10 scroll-mt-20 border-t border-[var(--color-border)] bg-[var(--color-content-bg)] py-20 sm:py-24"
@@ -973,7 +893,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Footer */}
         <footer className="relative z-10 border-t border-[var(--color-border)] bg-[var(--color-content-bg)] py-8">
           <div className="mx-auto flex max-w-6xl flex-col-reverse items-center justify-between gap-4 px-5 text-xs text-[var(--color-muted)] sm:flex-row sm:px-6 lg:px-8">
             <p>© {new Date().getFullYear()} {BRAND.legalName}</p>

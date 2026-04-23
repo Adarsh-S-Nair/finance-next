@@ -12,22 +12,73 @@ import { formatCurrency } from '../../../lib/formatCurrency';
 import { Button, EmptyState } from "@zervo/ui";
 import { ConfirmOverlay, LineChart } from "@zervo/ui";
 
+// ─── Types ────────────────────────────────────────────────────────────
+
+interface BudgetRecord {
+  id: string;
+  amount: number | string;
+  spent?: number;
+  percentage?: number;
+  category_groups?: {
+    name?: string;
+    icon_name?: string | null;
+    icon_lib?: string | null;
+    hex_color?: string | null;
+  } | null;
+  system_categories?: {
+    label?: string;
+    icon_name?: string | null;
+    icon_lib?: string | null;
+    hex_color?: string | null;
+  } | null;
+  category_id?: string | null;
+  category_group_id?: string | null;
+}
+
+interface IncomeMonth {
+  earning?: number | string;
+  spending?: number | string;
+  isComplete?: boolean;
+  [key: string]: unknown;
+}
+
+interface CategoryStat {
+  id: string;
+  label: string;
+  hex_color?: string | null;
+  icon_name?: string | null;
+  icon_lib?: string | null;
+  total_spent?: number;
+  monthly_avg?: number;
+}
+
+interface BurnSeriesPoint {
+  day: number;
+  spent: number;
+  cumulative: number;
+}
+
+interface PaceInfo {
+  day: number;
+  daysInMonth: number;
+  fraction: number;
+}
+
 export default function BudgetsPage() {
   const { user, profile, isPro, refreshProfile } = useUser();
-  const [budgets, setBudgets] = useState([]);
+  const [budgets, setBudgets] = useState<BudgetRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [fallbackIncome, setFallbackIncome] = useState(0);
-  const [incomeMonths, setIncomeMonths] = useState([]);
-  const [incomeLoading, setIncomeLoading] = useState(true);
+  const [incomeMonths, setIncomeMonths] = useState<IncomeMonth[]>([]);
+  const [, setIncomeLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [categoryStats, setCategoryStats] = useState([]);
-  const [addingSuggestionId, setAddingSuggestionId] = useState(null);
-  const [burnSeries, setBurnSeries] = useState([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
+  const [addingSuggestionId, setAddingSuggestionId] = useState<string | null>(null);
+  const [burnSeries, setBurnSeries] = useState<BurnSeriesPoint[]>([]);
 
-  // Delete state (single-row, triggered by hover trash)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const fetchBudgets = async () => {
@@ -35,7 +86,7 @@ export default function BudgetsPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/budgets`);
-      const json = await res.json();
+      const json = (await res.json()) as { data?: BudgetRecord[]; burn?: BurnSeriesPoint[] };
       setBudgets(json.data || []);
       setBurnSeries(Array.isArray(json.burn) ? json.burn : []);
     } catch (e) {
@@ -45,21 +96,15 @@ export default function BudgetsPage() {
     }
   };
 
-  // Fallback income calc — only used if the profile has no saved value
-  // yet (e.g. legacy users who created budgets before we started
-  // persisting it). First-time users go through CreateBudgetOverlay which
-  // writes the confirmed income to user_profiles.
   const fetchIncome = async () => {
     if (!user?.id) return;
     setIncomeLoading(true);
     try {
       const res = await fetch(`/api/transactions/spending-earning?months=6`);
-      const json = await res.json();
+      const json = (await res.json()) as { data?: IncomeMonth[] };
       const months = Array.isArray(json?.data) ? json.data : [];
       const completed = months.filter((m) => m.isComplete);
       const sample = completed.length > 0 ? completed : months;
-      // Auto-exclude $0 months — they almost always mean the account
-      // wasn't connected yet, not a real zero-earning month.
       const nonZero = sample.filter((m) => Number(m.earning || 0) > 0);
       const source = nonZero.length > 0 ? nonZero : sample;
       const totalEarning = source.reduce(
@@ -78,18 +123,15 @@ export default function BudgetsPage() {
     }
   };
 
-  // Used for suggestion cards. Same endpoint CreateBudgetOverlay uses —
-  // gives us typical monthly spend per group so we can suggest budgets
-  // for the top unbudgeted categories.
   const fetchCategoryStats = async () => {
     if (!user?.id) return;
     try {
       const res = await fetch(
         '/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group'
       );
-      const json = await res.json();
+      const json = (await res.json()) as { categories?: CategoryStat[] };
       const cats = (json.categories || [])
-        .filter((c) => c.total_spent > 0 && c.label !== 'Account Transfer');
+        .filter((c) => (c.total_spent ?? 0) > 0 && c.label !== 'Account Transfer');
       setCategoryStats(cats);
     } catch (e) {
       console.error(e);
@@ -101,10 +143,9 @@ export default function BudgetsPage() {
     fetchBudgets();
     fetchIncome();
     fetchCategoryStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Profile-saved income is the source of truth. Fall back to computed
-  // average only while loading or for legacy users.
   const savedIncome = Number(profile?.monthly_income || 0);
   const income = savedIncome > 0 ? savedIncome : Number(fallbackIncome || 0);
 
@@ -122,12 +163,9 @@ export default function BudgetsPage() {
   );
 
   const hasIncome = income > 0;
-  const unallocated = Math.max(0, income - totalAllocated);
   const overAllocated = Math.max(0, totalAllocated - income);
-  const allocatedPct = hasIncome ? (totalAllocated / income) * 100 : 0;
 
-  // ─── Pacing: where we should be in the month ───────────────────────
-  const pace = useMemo(() => {
+  const pace: PaceInfo = useMemo(() => {
     const now = new Date();
     const day = now.getDate();
     const daysInMonth = new Date(
@@ -138,17 +176,14 @@ export default function BudgetsPage() {
     return {
       day,
       daysInMonth,
-      // Fraction of the month that's elapsed (0..1). Proportional pacing
-      // is fine for budgets — weekend spikes average out over the month.
       fraction: Math.min(1, day / daysInMonth),
     };
   }, []);
 
-  // ─── Suggestions: top unbudgeted categories worth a budget ─────────
-  const suggestions = useMemo(() => {
+  const suggestions = useMemo<CategoryStat[]>(() => {
     if (!categoryStats.length) return [];
     const budgetedGroupIds = new Set(
-      budgets.map((b) => b.category_group_id).filter(Boolean)
+      budgets.map((b) => b.category_group_id).filter((id): id is string => Boolean(id))
     );
     return categoryStats
       .filter((c) => !budgetedGroupIds.has(c.id))
@@ -157,7 +192,7 @@ export default function BudgetsPage() {
       .slice(0, 4);
   }, [categoryStats, budgets]);
 
-  const requestDelete = (id) => {
+  const requestDelete = (id: string) => {
     setPendingDeleteId(id);
     setConfirmOpen(true);
   };
@@ -185,7 +220,7 @@ export default function BudgetsPage() {
     ]);
   };
 
-  const handleQuickAddSuggestion = async (suggestion) => {
+  const handleQuickAddSuggestion = async (suggestion: CategoryStat) => {
     if (addingSuggestionId) return;
     setAddingSuggestionId(suggestion.id);
     try {
@@ -229,7 +264,6 @@ export default function BudgetsPage() {
 
   const hasBudgets = budgets.length > 0;
 
-  // ─── Empty state ───────────────────────────────────────────────────
   if (!loading && !hasBudgets) {
     return (
       <PageContainer title="Budgets">
@@ -255,30 +289,23 @@ export default function BudgetsPage() {
           onClose={() => setIsModalOpen(false)}
           onCreated={handleBudgetCreated}
           monthlyIncome={income}
-          incomeMonths={incomeMonths}
-          existingBudgets={budgets}
+          incomeMonths={incomeMonths as never}
+          existingBudgets={budgets as never}
         />
       </PageContainer>
     );
   }
 
-  // ─── Main content ──────────────────────────────────────────────────
   return (
     <PageContainer title="Budgets">
       {loading ? (
         <BudgetsSkeleton />
       ) : (
         <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-          {/* Main panel — burn-down chart + budgets list */}
           <div className="lg:w-2/3 flex flex-col gap-10">
             <BurnDownChart
               series={burnSeries}
               totalAllocated={totalAllocated}
-              income={income}
-              hasIncome={hasIncome}
-              allocatedPct={allocatedPct}
-              unallocated={unallocated}
-              overAllocated={overAllocated}
               pace={pace}
             />
 
@@ -323,7 +350,6 @@ export default function BudgetsPage() {
             </div>
           </div>
 
-          {/* Side panel — month progress + suggestions */}
           <div className="lg:w-1/3 flex flex-col gap-10">
             <MonthProgress
               pace={pace}
@@ -362,8 +388,8 @@ export default function BudgetsPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={handleBudgetCreated}
         monthlyIncome={income}
-        incomeMonths={incomeMonths}
-        existingBudgets={budgets}
+        incomeMonths={incomeMonths as never}
+        existingBudgets={budgets as never}
       />
       <UpgradeOverlay isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
@@ -387,23 +413,20 @@ export default function BudgetsPage() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getColor(b) {
+function getColor(b: BudgetRecord): string {
   const isGroup = !!b.category_groups;
   if (isGroup) return b.category_groups?.hex_color || '#71717a';
   return b.system_categories?.hex_color || '#71717a';
 }
 
-function getLabel(b) {
+function getLabel(b: BudgetRecord): string {
   const isGroup = !!b.category_groups;
   return isGroup
-    ? b.category_groups.name
+    ? b.category_groups?.name ?? 'Unknown'
     : b.system_categories?.label || 'Unknown';
 }
 
-function getIconMeta(b) {
-  // Pull icon metadata from whichever side the budget is attached to.
-  // The DB stores icons with a library key (e.g. "Fi") + a name
-  // (e.g. "FiCoffee") so we can resolve them via DynamicIcon.
+function getIconMeta(b: BudgetRecord): { iconName: string | null; iconLib: string | null } {
   const isGroup = !!b.category_groups;
   const src = isGroup ? b.category_groups : b.system_categories;
   return {
@@ -412,8 +435,14 @@ function getIconMeta(b) {
   };
 }
 
-// Reusable circular icon — solid color fill with a white icon on top.
-function CategoryIcon({ iconName, iconLib, color, size = 36 }) {
+interface CategoryIconProps {
+  iconName: string | null;
+  iconLib: string | null;
+  color: string;
+  size?: number;
+}
+
+function CategoryIcon({ iconName, iconLib, color, size = 36 }: CategoryIconProps) {
   return (
     <div
       className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
@@ -436,7 +465,16 @@ function CategoryIcon({ iconName, iconLib, color, size = 36 }) {
 
 // ─── Budget row ───────────────────────────────────────────────────────
 
-function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
+interface BudgetRowProps {
+  budget: BudgetRecord;
+  income: number;
+  hasIncome: boolean;
+  pace: PaceInfo;
+  onDelete: () => void;
+  isLast: boolean;
+}
+
+function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }: BudgetRowProps) {
   const { iconName, iconLib } = getIconMeta(budget);
   const color = getColor(budget);
   const label = getLabel(budget);
@@ -455,9 +493,6 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
     expectedPct != null && hasSpending && spendPct < expectedPct - 2;
   const overBudget = spendPct >= 100;
 
-  // Inline progress fill: category-colored bar behind the row that grows
-  // with spend. Flips to danger when over budget, amber when over pace.
-  // Opacity is bumped up from the original v1 pass for visibility.
   const fillPct = Math.min(100, Math.max(0, spendPct));
   const fillColor = overBudget
     ? 'var(--color-danger)'
@@ -474,7 +509,6 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
         hover:bg-[var(--color-card-highlight)]
       `}
     >
-      {/* Progress fill — sits behind content, grows with spend */}
       {hasSpending && fillPct > 0 && (
         <div
           aria-hidden
@@ -540,39 +574,34 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }) {
 }
 
 // ─── Burn-down chart ──────────────────────────────────────────────────
-// Cumulative spend across all budgeted categories this month, plotted
-// against an even-burn pace line. Uses the shared LineChart component
-// so it matches the look and feel of NetWorthCard / dashboard charts.
-// The header shows live numbers that update on hover, NetWorth-style.
 
-function BurnDownChart({
-  series,
-  totalAllocated,
-  income,
-  hasIncome,
-  allocatedPct,
-  unallocated,
-  overAllocated,
-  pace,
-}) {
-  const [activeIndex, setActiveIndex] = useState(null);
+interface BurnDownChartProps {
+  series: BurnSeriesPoint[];
+  totalAllocated: number;
+  pace: PaceInfo;
+}
+
+function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const daysInMonth = pace?.daysInMonth || 30;
   const today = pace?.day || daysInMonth;
 
-  // Build a full-month daily series: actual cumulative spend up to today,
-  // plus the even-burn pace line all the way to the end of the month.
-  // Future-day actuals are `null` so the line stops at today — but the
-  // pace line continues to totalAllocated on day `daysInMonth`, pinning
-  // the chart's max value and pushing the higher line to the top edge.
-  const chartData = useMemo(() => {
+  interface ChartPoint {
+    day: number;
+    dayLabel: string;
+    value: number | null;
+    pace: number;
+  }
+
+  const chartData = useMemo<ChartPoint[]>(() => {
     if (!totalAllocated || totalAllocated <= 0 || daysInMonth <= 0) return [];
-    const burnByDay = new Map();
+    const burnByDay = new Map<number, number>();
     series.forEach((p) => burnByDay.set(p.day, p.cumulative));
-    const out = [];
+    const out: ChartPoint[] = [];
     let running = 0;
     for (let day = 1; day <= daysInMonth; day++) {
-      if (burnByDay.has(day)) running = burnByDay.get(day);
+      if (burnByDay.has(day)) running = burnByDay.get(day) ?? running;
       out.push({
         day,
         dayLabel: `Day ${day}`,
@@ -583,15 +612,12 @@ function BurnDownChart({
     return out;
   }, [series, totalAllocated, daysInMonth, today]);
 
-  // "Current" (non-hover) state: spending as of today.
   const todayPoint = chartData.find((p) => p.day === today);
   const currentSpent = todayPoint?.value ?? 0;
 
   const hovered =
     activeIndex !== null && chartData[activeIndex] ? chartData[activeIndex] : null;
 
-  // When hovering past today, the actual value is null — keep showing the
-  // current total instead of jumping to 0.
   const displaySpent =
     hovered && hovered.value != null ? hovered.value : currentSpent;
   const displayPace = hovered?.pace ?? todayPoint?.pace ?? 0;
@@ -600,8 +626,6 @@ function BurnDownChart({
   const isOverPace = displayDelta > 0;
   const isOverBudget = currentSpent > totalAllocated;
 
-  // y-axis: clamp tight to the highest line so the visible max IS the
-  // top of the chart. Tiny 2% headroom so the line doesn't clip.
   const maxSpent = useMemo(
     () =>
       chartData.reduce((m, p) => (p.value != null && p.value > m ? p.value : m), 0),
@@ -615,7 +639,6 @@ function BurnDownChart({
       ? '#f59e0b'
       : 'var(--color-success)';
 
-  // Build a date label for the displayed day (e.g. "April 11, 2026").
   const monthLabel = useMemo(() => {
     const d = new Date();
     d.setDate(displayDay);
@@ -626,15 +649,9 @@ function BurnDownChart({
     });
   }, [displayDay]);
 
-  const formatYAxis = (v) => {
-    if (v >= 1000) return `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k`;
-    return `$${Math.round(v)}`;
-  };
-
-  const handleMouseMove = (_data, index) => setActiveIndex(index);
+  const handleMouseMove = (_data: unknown, index: number) => setActiveIndex(index);
   const handleMouseLeave = () => setActiveIndex(null);
 
-  // Empty state — no budgets yet
   if (!totalAllocated || totalAllocated <= 0) {
     return (
       <div onMouseLeave={handleMouseLeave}>
@@ -656,7 +673,6 @@ function BurnDownChart({
 
   return (
     <div onMouseLeave={handleMouseLeave}>
-      {/* Header — NetWorthCard pattern: title, big number, change line, date */}
       <div className="mb-4">
         <div className="flex justify-between items-start">
           <div>
@@ -693,7 +709,6 @@ function BurnDownChart({
         </div>
       </div>
 
-      {/* Chart — uses shared LineChart for consistency with NetWorthCard */}
       <div className="pt-4 pb-2">
         <div
           className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
@@ -701,7 +716,7 @@ function BurnDownChart({
           style={{ outline: 'none', height: '200px' }}
         >
           <LineChart
-            data={chartData}
+            data={chartData as never}
             width="100%"
             height={200}
             margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
@@ -736,16 +751,18 @@ function BurnDownChart({
   );
 }
 
-
 // ─── Month Progress (side-panel component) ────────────────────────────
-// Visual pace indicator: horizontal bar showing how much of the month has
-// elapsed vs. how much of the budget has been spent. Plus a compact stat
-// showing whether you're ahead or behind.
 
-function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
+interface MonthProgressProps {
+  pace: PaceInfo;
+  totalAllocated: number;
+  burnSeries: BurnSeriesPoint[];
+  budgets: BudgetRecord[];
+}
+
+function MonthProgress({ pace, totalAllocated, burnSeries, budgets }: MonthProgressProps) {
   if (!pace) return null;
 
-  // Cumulative spend to date (last point in burnSeries)
   const currentSpent =
     Array.isArray(burnSeries) && burnSeries.length > 0
       ? Number(burnSeries[burnSeries.length - 1]?.cumulative || 0)
@@ -759,7 +776,6 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
   const isOverPace = delta > 1;
   const isOverBudget = currentSpent > totalAllocated;
 
-  // Count budgets in trouble — over budget or meaningfully ahead of pace
   const trouble = budgets.reduce(
     (acc, b) => {
       const sp = Number(b.percentage || 0);
@@ -798,7 +814,6 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
         </span>
       </div>
 
-      {/* Stacked bars: month pace (reference) + actual spend */}
       <div className="space-y-2.5 mb-6">
         <div>
           <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
@@ -865,6 +880,16 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }) {
 
 // ─── Suggestion row (flat, no card border) ────────────────────────────
 
+interface SuggestionRowProps {
+  suggestion: CategoryStat;
+  income: number;
+  hasIncome: boolean;
+  adding: boolean;
+  disabled: boolean;
+  onAdd: () => void;
+  isLast: boolean;
+}
+
 function SuggestionRow({
   suggestion,
   income,
@@ -873,10 +898,10 @@ function SuggestionRow({
   disabled,
   onAdd,
   isLast,
-}) {
+}: SuggestionRowProps) {
   const color = suggestion.hex_color || '#71717a';
-  const iconName = suggestion.icon_name;
-  const iconLib = suggestion.icon_lib;
+  const iconName = suggestion.icon_name ?? null;
+  const iconLib = suggestion.icon_lib ?? null;
   const avg = Number(suggestion.monthly_avg || 0);
   const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
 
@@ -915,16 +940,12 @@ function SuggestionRow({
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────
-// Mirrors the real layout: burn-down chart + budgets list (2/3) on the
-// left, month-progress + suggestions (1/3) on the right.
 
 function BudgetsSkeleton() {
   const bar = "bg-[var(--color-border)] rounded";
   return (
     <section className="flex flex-col lg:flex-row gap-8 lg:gap-10 animate-pulse">
-      {/* Main panel */}
       <div className="lg:w-2/3 flex flex-col gap-10">
-        {/* Burn-down chart */}
         <div>
           <div className={`h-3 w-32 ${bar} mb-2`} />
           <div className={`h-8 w-44 ${bar} mb-2`} />
@@ -932,7 +953,6 @@ function BudgetsSkeleton() {
           <div className={`h-[200px] w-full ${bar}`} />
         </div>
 
-        {/* Budgets list */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <div className={`h-5 w-32 ${bar}`} />
@@ -956,9 +976,7 @@ function BudgetsSkeleton() {
         </div>
       </div>
 
-      {/* Side panel */}
       <div className="lg:w-1/3 flex flex-col gap-10">
-        {/* Month progress */}
         <div>
           <div className={`h-3 w-24 ${bar} mb-5`} />
           <div className="flex justify-between mb-3">
@@ -970,7 +988,6 @@ function BudgetsSkeleton() {
           <div className={`h-4 w-40 ${bar}`} />
         </div>
 
-        {/* Suggestions */}
         <div>
           <div className={`h-3 w-20 ${bar} mb-4`} />
           <div>
@@ -993,3 +1010,4 @@ function BudgetsSkeleton() {
     </section>
   );
 }
+
