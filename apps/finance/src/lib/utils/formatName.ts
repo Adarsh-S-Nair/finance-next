@@ -2,7 +2,7 @@
  * Capitalize first letter, lowercase the rest.
  * "zERVO" → "Zervo", "JOHN" → "John"
  */
-export function capitalizeFirstOnly(str) {
+export function capitalizeFirstOnly(str: string | null | undefined): string {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
@@ -11,7 +11,7 @@ export function capitalizeFirstOnly(str) {
  * Proper-case a full name: capitalize the first letter of each word, lowercase the rest.
  * "zERVO dEV" → "Zervo Dev", "JOHN DOE" → "John Doe"
  */
-export function formatDisplayName(str) {
+export function formatDisplayName(str: string | null | undefined): string {
   if (!str) return '';
   return str.trim().split(/\s+/).map(capitalizeFirstOnly).join(' ');
 }

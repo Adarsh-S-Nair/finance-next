@@ -8,11 +8,16 @@ const LIABILITY_TYPES = [
   'other',
 ];
 
+export interface AccountTypeShape {
+  subtype?: string | null;
+  type?: string | null;
+}
+
 /**
  * Determine if an account is a liability (credit card, loan, mortgage, etc.)
  * Checks both subtype and type fields for maximum coverage.
  */
-export function isLiabilityAccount(account) {
+export function isLiabilityAccount(account: AccountTypeShape): boolean {
   const accountType = (account.subtype || account.type || '').toLowerCase();
-  return LIABILITY_TYPES.some(type => accountType.includes(type));
+  return LIABILITY_TYPES.some((type) => accountType.includes(type));
 }

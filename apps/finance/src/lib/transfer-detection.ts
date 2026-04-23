@@ -3,20 +3,26 @@ import { supabaseAdmin } from './supabase/admin';
 /**
  * Detects unmatched transfers for a user within a specific date range.
  * Updates the `is_unmatched_transfer` column in the database.
- * 
- * @param {string} userId - The user ID
- * @param {string} startDate - ISO date string (YYYY-MM-DD)
- * @param {string} endDate - ISO date string (YYYY-MM-DD)
  */
-export async function detectUnmatchedTransfers(userId, startDate, endDate) {
-  try {
-    console.log(`🔄 Running unmatched transfer detection for user ${userId} from ${startDate} to ${endDate}`);
+export async function detectUnmatchedTransfers(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<void> {
+  if (!supabaseAdmin) {
+    console.error('Supabase admin client not initialised; skipping detection');
+    return;
+  }
 
-    // 1. Fetch potential transfer transactions in the range
-    // We look for specific categories that imply a transfer
+  try {
+    console.log(
+      `🔄 Running unmatched transfer detection for user ${userId} from ${startDate} to ${endDate}`
+    );
+
     const { data: transactions, error } = await supabaseAdmin
       .from('transactions')
-      .select(`
+      .select(
+        `
         id,
         date,
         amount,
@@ -33,7 +39,8 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
           user_id,
           name
         )
-      `)
+      `
+      )
       .eq('accounts.user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate)
@@ -49,30 +56,43 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
       return;
     }
 
-    // Filter to only transfer-type transactions in memory
-    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
-    const TRANSFER_LABELS = ['Credit Card Payment'];
-    const isTransfer = (tx) => {
-      const groupName = tx.system_categories?.category_groups?.name;
-      const label = tx.system_categories?.label;
-      return (groupName && TRANSFER_GROUPS.includes(groupName)) || (label && TRANSFER_LABELS.includes(label));
+    type DetectionRow = {
+      id: string;
+      date: string | null;
+      amount: number;
+      system_categories?: {
+        label?: string | null;
+        category_groups?: { name?: string | null } | null;
+      } | null;
     };
 
-    const transferTransactions = transactions.filter(isTransfer);
+    const TRANSFER_GROUPS = ['Transfer In', 'Transfer Out'];
+    const TRANSFER_LABELS = ['Credit Card Payment'];
+    const isTransfer = (tx: DetectionRow): boolean => {
+      const groupName = tx.system_categories?.category_groups?.name;
+      const label = tx.system_categories?.label;
+      return (
+        (!!groupName && TRANSFER_GROUPS.includes(groupName)) ||
+        (!!label && TRANSFER_LABELS.includes(label))
+      );
+    };
 
-    console.log(`Found ${transferTransactions.length} potential transfers to check (out of ${transactions.length} categorized transactions).`);
+    const transferTransactions = (transactions as unknown as DetectionRow[]).filter(
+      isTransfer
+    );
 
-    // 2. For each transaction, check for a match
-    const updates = [];
+    console.log(
+      `Found ${transferTransactions.length} potential transfers to check (out of ${transactions.length} categorized transactions).`
+    );
+
+    const updates: { id: string; is_unmatched_transfer: boolean }[] = [];
 
     for (const tx of transferTransactions) {
-      // Skip zero amount transactions
-      if (tx.amount === 0) continue;
+      if (tx.amount === 0 || !tx.date) continue;
 
-      const targetAmount = -tx.amount; // Look for opposite sign
+      const targetAmount = -tx.amount;
       const txDate = new Date(tx.date);
 
-      // Date window: +/- 3 days
       const windowStart = new Date(txDate);
       windowStart.setDate(windowStart.getDate() - 3);
       const windowStartStr = windowStart.toISOString().split('T')[0];
@@ -81,7 +101,6 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
       windowEnd.setDate(windowEnd.getDate() + 3);
       const windowEndStr = windowEnd.toISOString().split('T')[0];
 
-      // Query for a matching transaction
       const { data: matches, error: matchError } = await supabaseAdmin
         .from('transactions')
         .select('id, accounts!inner()')
@@ -89,7 +108,7 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
         .eq('amount', targetAmount)
         .gte('date', windowStartStr)
         .lte('date', windowEndStr)
-        .neq('id', tx.id) // Don't match self
+        .neq('id', tx.id)
         .limit(1);
 
       if (matchError) {
@@ -99,24 +118,15 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
 
       const isUnmatched = !matches || matches.length === 0;
 
-      // Only update if the status is different to save DB writes? 
-      // Or just update always to be safe. Let's batch update if possible, but for now loop is fine for safety.
-      // Actually, we should probably check if the current status is different before pushing to updates.
-      // But we didn't select `is_unmatched_transfer` in the first query.
-
       updates.push({
         id: tx.id,
-        is_unmatched_transfer: isUnmatched
+        is_unmatched_transfer: isUnmatched,
       });
     }
 
-    // 3. Perform updates
-    // We can do this in parallel or batch
     if (updates.length > 0) {
       console.log(`Updating ${updates.length} transactions with detection results...`);
 
-      // Upsert is not ideal here because we only want to update one column.
-      // We have to iterate and update.
       for (const update of updates) {
         await supabaseAdmin
           .from('transactions')
@@ -126,7 +136,6 @@ export async function detectUnmatchedTransfers(userId, startDate, endDate) {
 
       console.log('✅ Unmatched transfer detection completed.');
     }
-
   } catch (err) {
     console.error('Unexpected error in detectUnmatchedTransfers:', err);
   }
