@@ -5,9 +5,12 @@ import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
-import { SegmentedTabs, CustomDonut } from "@zervo/ui";
+import { SegmentedTabs } from "@zervo/ui";
 
 const MAX_ROWS = 5;
+const DONUT_SIZE = 220;
+const DONUT_STROKE = 18;
+const SEGMENT_GAP_DEG = 3;
 
 function getRangeFor(viewMode) {
   const today = new Date();
@@ -45,17 +48,97 @@ function Header({ viewMode, setViewMode }) {
 
 function Skeleton() {
   return (
-    <div className="animate-pulse flex flex-col items-center">
-      <div className="w-[140px] h-[140px] rounded-full bg-[var(--color-border)] mb-6" />
-      <div className="w-full space-y-2.5">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[var(--color-border)]" />
-            <div className="h-3 w-24 bg-[var(--color-border)] rounded" />
-            <div className="flex-1" />
-            <div className="h-3 w-14 bg-[var(--color-border)] rounded" />
+    <div className="animate-pulse flex flex-1 items-center justify-center">
+      <div
+        className="rounded-full bg-[var(--color-border)]"
+        style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
+      />
+    </div>
+  );
+}
+
+// Segmented donut with a small arc gap between slices. strokeLinecap="round"
+// gives each slice pill-shaped ends so the gap reads as a clean separation
+// rather than a sharp cut.
+function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onClick }) {
+  const radius = (DONUT_SIZE - DONUT_STROKE) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const gapArc = (SEGMENT_GAP_DEG / 360) * circumference;
+  // When there's only one segment, a gap would create a visible notch in
+  // what should look like a continuous ring — skip it.
+  const effectiveGap = segments.length > 1 ? gapArc : 0;
+
+  let cumulative = 0;
+  const rendered = segments.map((seg) => {
+    const pct = total > 0 ? seg.value / total : 0;
+    const arc = pct * circumference;
+    const dash = Math.max(0.001, arc - effectiveGap);
+    const dashArray = `${dash} ${circumference}`;
+    const dashOffset = -cumulative;
+    cumulative += arc;
+    return { ...seg, dashArray, dashOffset, pct };
+  });
+
+  const hovered = hoveredId
+    ? rendered.find((r) => r.id === hoveredId)
+    : null;
+
+  const centerAmount = hovered ? hovered.value : total;
+  const centerLabel = hovered ? hovered.label : rangeLabel;
+  const centerPct = hovered ? Math.round(hovered.pct * 100) : null;
+
+  return (
+    <div
+      className="relative"
+      style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
+      onMouseLeave={() => onHover(null)}
+    >
+      <svg
+        width={DONUT_SIZE}
+        height={DONUT_SIZE}
+        className="-rotate-90"
+        style={{ overflow: "visible" }}
+      >
+        {rendered.map((seg) => {
+          const isHovered = hoveredId === seg.id;
+          const dimmed = hoveredId && !isHovered;
+          return (
+            <circle
+              key={seg.id}
+              cx={DONUT_SIZE / 2}
+              cy={DONUT_SIZE / 2}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={isHovered ? DONUT_STROKE + 4 : DONUT_STROKE}
+              strokeDasharray={seg.dashArray}
+              strokeDashoffset={seg.dashOffset}
+              strokeLinecap="round"
+              style={{
+                opacity: dimmed ? 0.4 : 1,
+                cursor: seg.isOther ? "default" : "pointer",
+                transition:
+                  "opacity 0.15s ease, stroke-width 0.15s ease",
+              }}
+              onMouseEnter={() => onHover(seg.id)}
+              onClick={() => !seg.isOther && onClick?.(seg)}
+            />
+          );
+        })}
+      </svg>
+
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center">
+        <div className="text-[10px] font-medium text-[var(--color-muted)] uppercase tracking-wider truncate max-w-full">
+          {centerLabel}
+        </div>
+        <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums leading-tight mt-1">
+          <CurrencyAmount amount={centerAmount} />
+        </div>
+        {centerPct !== null && (
+          <div className="text-[11px] tabular-nums text-[var(--color-muted)] mt-0.5">
+            {centerPct}% of spending
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -66,13 +149,11 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
-  // `loading` is only surfaced on the initial mount. Subsequent tab switches
-  // keep the prior chart/legend visible so the skeleton doesn't flash in
-  // between fetches — that flicker made the header feel like it reloaded.
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("thisMonth");
+  const [hoveredId, setHoveredId] = useState(null);
 
   const range = useMemo(() => getRangeFor(viewMode), [viewMode]);
 
@@ -119,22 +200,21 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     hasLoaded,
   ]);
 
-  // Top N + collapsed "Other" tail so percentages actually sum to the total.
-  const rows = useMemo(() => {
+  const segments = useMemo(() => {
     if (!categories.length) return [];
     const named = categories.slice(0, MAX_ROWS).map((cat) => ({
       id: cat.id,
       label: cat.label,
-      amount: cat.total_spent,
+      value: cat.total_spent,
       color: cat.hex_color || "var(--color-muted)",
     }));
-    const namedSum = named.reduce((s, n) => s + (n.amount || 0), 0);
+    const namedSum = named.reduce((s, n) => s + (n.value || 0), 0);
     const otherTotal = Math.max(0, (totalSpending || 0) - namedSum);
     if (otherTotal > 0 && totalSpending > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
       named.push({
         id: "__other__",
         label: "Other",
-        amount: otherTotal,
+        value: otherTotal,
         color: "var(--color-muted)",
         isOther: true,
       });
@@ -142,22 +222,12 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     return named;
   }, [categories, totalSpending]);
 
-  const donutData = useMemo(
-    () =>
-      rows.map((r) => ({
-        label: r.label,
-        value: r.amount,
-        color: r.color,
-      })),
-    [rows],
-  );
-
-  const onRowClick = (row) => {
-    if (!row || row.isOther || !row.id) return;
-    router.push(`/transactions?categoryIds=${row.id}&dateRange=30days`);
+  const onSegmentClick = (seg) => {
+    if (!seg || seg.isOther || !seg.id) return;
+    router.push(`/transactions?categoryIds=${seg.id}&dateRange=30days`);
   };
 
-  const isEmpty = rows.length === 0 || totalSpending === 0;
+  const isEmpty = segments.length === 0 || totalSpending === 0;
   const showSkeleton = loading && !hasLoaded;
 
   return (
@@ -181,60 +251,20 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         </div>
       ) : (
         <div
-          className="flex flex-col items-center"
+          className="flex-1 flex items-center justify-center"
           style={{
             opacity: loading ? 0.55 : 1,
             transition: "opacity 0.2s ease",
           }}
         >
-          <div className="relative mb-5">
-            <CustomDonut
-              data={donutData}
-              size={140}
-              strokeWidth={16}
-              showTotal={false}
-            />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-xl font-medium text-[var(--color-fg)] tabular-nums leading-none">
-                <CurrencyAmount amount={totalSpending} />
-              </div>
-              <div className="text-[10px] font-medium text-[var(--color-muted)] uppercase tracking-wider mt-1.5">
-                {range.label}
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full space-y-2">
-            {rows.map((row) => {
-              const pct =
-                totalSpending > 0
-                  ? Math.round((row.amount / totalSpending) * 100)
-                  : 0;
-              return (
-                <div
-                  key={row.id}
-                  className={`flex items-center gap-2 py-0.5 ${
-                    row.isOther ? "" : "cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 rounded-md"
-                  } transition-colors`}
-                  onClick={() => onRowClick(row)}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: row.color }}
-                  />
-                  <span className="text-xs text-[var(--color-fg)] truncate flex-1">
-                    {row.label}
-                  </span>
-                  <span className="text-[10px] tabular-nums text-[var(--color-muted)] flex-shrink-0 w-8 text-right">
-                    {pct}%
-                  </span>
-                  <span className="text-xs font-medium text-[var(--color-fg)] tabular-nums flex-shrink-0">
-                    <CurrencyAmount amount={row.amount} />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <InteractiveDonut
+            segments={segments}
+            total={totalSpending}
+            rangeLabel={range.label}
+            hoveredId={hoveredId}
+            onHover={setHoveredId}
+            onClick={onSegmentClick}
+          />
         </div>
       )}
     </div>
