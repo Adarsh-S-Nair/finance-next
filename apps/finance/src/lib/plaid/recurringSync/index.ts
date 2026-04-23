@@ -30,6 +30,7 @@ import type {
   RecurringStreamRecord,
   RecurringSyncResult,
 } from './types';
+import type { TablesInsert } from '../../../types/database';
 
 const logger = createLogger('recurring-sync');
 
@@ -242,7 +243,10 @@ async function syncItems(
 async function upsertRecords(records: RecurringStreamRecord[]): Promise<void> {
   const { error: upsertError } = await supabaseAdmin
     .from('recurring_streams')
-    .upsert(records, { onConflict: 'stream_id', ignoreDuplicates: false });
+    .upsert(records as TablesInsert<'recurring_streams'>[], {
+      onConflict: 'stream_id',
+      ignoreDuplicates: false,
+    });
 
   if (upsertError) {
     throw new Error(`Failed to upsert streams: ${upsertError.message}`);
@@ -330,7 +334,9 @@ async function runGapFiller(
     .eq('is_custom_detected', false);
 
   const itemsWithPlaidStreams = new Set(
-    (existingStreams ?? []).map((s: { plaid_item_id: string }) => s.plaid_item_id)
+    (existingStreams ?? [])
+      .map((s) => s.plaid_item_id)
+      .filter((id): id is string => Boolean(id))
   );
   const existingMerchants = ((existingStreams ?? []) as Array<{ merchant_name: string | null }>)
     .map((s) => s.merchant_name)
@@ -366,7 +372,9 @@ async function runGapFiller(
 
       const { error: customUpsertError } = await supabaseAdmin
         .from('recurring_streams')
-        .upsert(customStreams, { onConflict: 'stream_id' });
+        .upsert(customStreams as TablesInsert<'recurring_streams'>[], {
+          onConflict: 'stream_id',
+        });
 
       if (customUpsertError) {
         logger.error('Error upserting custom streams', null, {

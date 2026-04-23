@@ -10,7 +10,7 @@ export const TRANSFER_LABELS = ['Credit Card Payment'] as const;
 export interface TransferShape {
   id: string;
   amount: number | string;
-  date: string;
+  date: string | null;
   system_categories?: {
     label?: string | null;
     category_groups?: {
@@ -50,12 +50,14 @@ export function identifyTransfers(transactions: TransferShape[]): {
     if (matchedIds.has(tx.id)) continue;
 
     if (isTransfer(tx)) {
+      if (!tx.date) continue;
       const txDate = new Date(tx.date);
       const targetAmount = -parseFloat(String(tx.amount));
 
       for (let j = i + 1; j < transactions.length; j++) {
         const candidate = transactions[j];
         if (matchedIds.has(candidate.id)) continue;
+        if (!candidate.date) continue;
 
         const candidateDate = new Date(candidate.date);
         const diffDays =

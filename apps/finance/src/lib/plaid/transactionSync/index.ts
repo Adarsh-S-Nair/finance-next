@@ -45,6 +45,7 @@ import type {
   SystemCategoryRow,
   TransactionUpsertRow,
 } from './types';
+import type { TablesInsert, TablesUpdate } from '../../../types/database';
 
 const logger = createLogger('transaction-sync');
 
@@ -125,7 +126,10 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
       try {
         const userRules = await fetchUserRules(userId);
         if (userRules.length > 0) {
-          const count = applyRulesToTransactions(rows, userRules);
+          const count = applyRulesToTransactions(
+            rows as unknown as Parameters<typeof applyRulesToTransactions>[0],
+            userRules
+          );
           logger.info('Applied user category rules', { count });
         }
       } catch (ruleError) {
@@ -138,7 +142,9 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     if (rows.length > 0) {
       const { error } = await supabaseAdmin
         .from('transactions')
-        .upsert(rows, { onConflict: 'plaid_transaction_id' });
+        .upsert(rows as TablesInsert<'transactions'>[], {
+          onConflict: 'plaid_transaction_id',
+        });
       if (error) {
         throw new Error(`Failed to upsert transactions: ${error.message}`);
       }
@@ -162,7 +168,7 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     }
     const { error: finalUpdateError } = await supabaseAdmin
       .from('plaid_items')
-      .update(itemUpdate)
+      .update(itemUpdate as TablesUpdate<'plaid_items'>)
       .eq('id', plaidItemId);
     if (finalUpdateError) {
       throw new Error(`Failed to update plaid item: ${finalUpdateError.message}`);
@@ -245,7 +251,10 @@ async function markPlaidItemStatus(
   plaidItemId: string,
   patch: Record<string, unknown>
 ): Promise<void> {
-  await supabaseAdmin.from('plaid_items').update(patch).eq('id', plaidItemId);
+  await supabaseAdmin
+    .from('plaid_items')
+    .update(patch as TablesUpdate<'plaid_items'>)
+    .eq('id', plaidItemId);
 }
 
 /**
@@ -481,7 +490,10 @@ async function updateAccountBalances(
 
     const { error: updateError } = await supabaseAdmin
       .from('accounts')
-      .update({ balances: plaidAccount.balances, updated_at: new Date().toISOString() })
+      .update({
+        balances: plaidAccount.balances as unknown as TablesUpdate<'accounts'>['balances'],
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', dbAccountId);
 
     if (updateError) {

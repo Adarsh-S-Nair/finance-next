@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import Stripe from 'stripe';
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import type { TablesUpdate } from '../../../../types/database';
 
 /**
  * POST /api/stripe/webhook
@@ -356,7 +357,7 @@ async function updateUserSubscription(params: UpdateParams): Promise<void> {
     return;
   }
 
-  const update: Record<string, unknown> = {
+  const update: TablesUpdate<'user_profiles'> = {
     subscription_tier: params.tier,
     subscription_status: params.subscriptionStatus,
   };

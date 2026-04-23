@@ -20,6 +20,7 @@ import type {
   PlaidItemContext,
   WebhookLogger,
 } from './types';
+import type { TablesInsert } from '../../../types/database';
 
 interface PlaidAccountLite {
   account_id: string;
@@ -154,7 +155,7 @@ async function handleNewAccountsAvailable(
           .upsert(
             {
               institution_id: institution.institution_id,
-              name: institution.name,
+              name: institution.name ?? 'Unknown',
               logo: institution.logo,
               primary_color: institution.primary_color,
               url: institution.url,
@@ -214,7 +215,9 @@ async function handleNewAccountsAvailable(
       if (batch.length === 0) continue;
       const { data: accountsData, error: accountsError } = await supabaseAdmin
         .from('accounts')
-        .upsert(batch, { onConflict: 'plaid_item_id,account_id' })
+        .upsert(batch as TablesInsert<'accounts'>[], {
+          onConflict: 'plaid_item_id,account_id',
+        })
         .select();
       if (accountsError) {
         itemLogger.error('Error upserting new accounts', null, { error: accountsError });

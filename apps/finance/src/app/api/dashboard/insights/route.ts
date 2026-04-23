@@ -88,14 +88,15 @@ export const GET = withAuth('dashboard:insights', async (_request, userId) => {
       const year = parseInt(yStr);
       const month = parseInt(mStr) - 1;
       const day = parseInt(dStr);
-      const amount = parseFloat(tx.amount);
+      const amount = Number(tx.amount);
       if (amount >= 0) continue; // only spending (negative amounts)
 
-      const settledReimbursement = tx.transaction_splits?.reduce(
-        (sum: number, split: { is_settled: boolean; amount: string }) =>
-          split.is_settled ? sum + (parseFloat(split.amount) || 0) : sum,
-        0
-      ) || 0;
+      const settledReimbursement =
+        tx.transaction_splits?.reduce(
+          (sum: number, split: { is_settled: boolean | null; amount: number }) =>
+            split.is_settled ? sum + (Number(split.amount) || 0) : sum,
+          0
+        ) || 0;
       const spending = Math.max(0, Math.abs(amount) - settledReimbursement);
 
       // MoM comparison
