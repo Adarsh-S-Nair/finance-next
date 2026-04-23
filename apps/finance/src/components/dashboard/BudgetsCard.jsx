@@ -5,15 +5,80 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
-import * as Icons from "lucide-react";
+import DynamicIcon from "../DynamicIcon";
+import { FiTag } from "react-icons/fi";
 import { ViewAllLink } from "@zervo/ui";
+
+const MAX_ROWS = 4;
+
+// Color the per-budget bar by how close it is to the cap. Under 85% uses the
+// category's own color; past that we shift to amber/rose so the user notices
+// without having to read percentages.
+const barColorFor = (percentage, hex) => {
+  if (percentage >= 100) return "#f43f5e"; // rose-500
+  if (percentage >= 85) return "#f59e0b"; // amber-500
+  return hex || "var(--color-accent)";
+};
+
+function BudgetRow({ budget }) {
+  const iconLib = budget.category_groups?.icon_lib;
+  const iconName = budget.category_groups?.icon_name;
+  const hex =
+    budget.category_groups?.hex_color ||
+    budget.system_categories?.hex_color ||
+    null;
+  const label =
+    budget.category_groups?.name ||
+    budget.system_categories?.label ||
+    "Unknown";
+
+  const total = Number(budget.amount) || 0;
+  const spent = Number(budget.spent) || 0;
+  const percentage = Number(budget.percentage) || 0;
+  const widthPct = Math.min(100, percentage);
+  const barColor = barColorFor(percentage, hex);
+
+  return (
+    <div className="group">
+      <div className="flex items-center gap-2.5 mb-1.5">
+        <div
+          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: hex || "var(--color-accent)" }}
+        >
+          <DynamicIcon
+            iconLib={iconLib}
+            iconName={iconName}
+            className="h-3 w-3 text-white"
+            style={{ strokeWidth: 2.5 }}
+            fallback={FiTag}
+          />
+        </div>
+        <span className="text-xs font-medium text-[var(--color-fg)] truncate flex-1">
+          {label}
+        </span>
+        <span className="text-[11px] tabular-nums text-[var(--color-muted)] flex-shrink-0">
+          <span className="text-[var(--color-fg)] font-medium">
+            {formatCurrency(spent)}
+          </span>
+          <span className="mx-1">/</span>
+          {formatCurrency(total)}
+        </span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${widthPct}%`, backgroundColor: barColor }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp }) {
   const { user, loading: authLoading } = useUser();
   const [budgetsState, setBudgetsState] = useState([]);
   const [loadingState, setLoadingState] = useState(true);
 
-  // If parent provides budgets, use them; otherwise fetch internally
   const controlled = budgetsProp !== undefined;
   const budgets = controlled ? budgetsProp : budgetsState;
   const loading = controlled ? !!loadingProp : loadingState;
@@ -37,34 +102,42 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
     fetchBudgets();
   }, [controlled, authLoading, user?.id]);
 
-  // Calculate aggregate totals
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
-  const percentage = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0;
+  const overallPct = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+  const overallBarColor = barColorFor(overallPct, null);
 
-  const formatCurrencyWithCents = (amount) => formatCurrency(amount, true);
-
-  // Loading state
   if (loading) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Budgets</h3>
         </div>
-        <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-[var(--color-border)] rounded w-24" />
-          <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
-          <div className="space-y-3 mt-6">
-            <div className="h-8 bg-[var(--color-border)] rounded" />
-            <div className="h-8 bg-[var(--color-border)] rounded" />
+        <div className="animate-pulse">
+          <div className="h-10 bg-[var(--color-border)] rounded w-24 mb-3" />
+          <div className="h-1.5 bg-[var(--color-border)] rounded-full mb-2" />
+          <div className="flex justify-between mb-6">
+            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+          </div>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-[var(--color-border)]" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded flex-1" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+                </div>
+                <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
+              </div>
+            ))}
           </div>
         </div>
       </div>
     );
   }
 
-  // Empty state - clean with prominent CTA
   if (budgets.length === 0) {
     return (
       <div className="h-full flex flex-col">
@@ -92,28 +165,14 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
     );
   }
 
-  // Get icon component for a budget
-  const getIcon = (budget) => {
-    const iconName = budget.category_groups?.icon_name;
-    const IconComponent = iconName && Icons[iconName] ? Icons[iconName] : Icons.Wallet;
-    return <IconComponent size={16} />;
-  };
-
-  // Get label for a budget
-  const getLabel = (budget) => {
-    return budget.category_groups?.name || budget.system_categories?.label || "Unknown";
-  };
-
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="card-header">Budgets</h3>
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero Section - Focus on Remaining */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex flex-col gap-1 mb-4">
           <span className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
             <CurrencyAmount amount={remaining} />
@@ -123,35 +182,25 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
           </span>
         </div>
 
-        {/* Minimal Progress Bar */}
         <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
           <div
-            className={`h-full rounded-full transition-all duration-500 ease-out ${percentage >= 100 ? 'bg-rose-500' : percentage > 85 ? 'bg-amber-500' : 'bg-[var(--color-accent)]'
-              }`}
-            style={{ width: `${percentage}%` }}
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: `${Math.min(100, overallPct)}%`,
+              backgroundColor: overallBarColor,
+            }}
           />
         </div>
 
-        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)] mt-2">
+        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
           <span>{formatCurrency(totalSpent)} spent</span>
           <span>{formatCurrency(totalBudget)} total</span>
         </div>
       </div>
 
-      {/* Budget List */}
-      <div className="mt-auto space-y-4">
-        {budgets.slice(0, 3).map((budget) => (
-          <div key={budget.id} className="flex items-center justify-between group cursor-pointer hover:bg-[var(--color-surface-alt)] -mx-2 px-2 py-1.5 rounded-lg transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-                {getIcon(budget)}
-              </div>
-              <span className="text-sm font-medium text-[var(--color-fg)]">{getLabel(budget)}</span>
-            </div>
-            <span className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
-              {formatCurrencyWithCents(budget.remaining || 0)} left
-            </span>
-          </div>
+      <div className="mt-auto space-y-3.5">
+        {budgets.slice(0, MAX_ROWS).map((budget) => (
+          <BudgetRow key={budget.id} budget={budget} />
         ))}
       </div>
     </div>
