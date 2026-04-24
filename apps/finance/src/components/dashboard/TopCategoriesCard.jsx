@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
@@ -71,6 +71,25 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   // When there's only one segment, a gap would create a visible notch in
   // what should look like a continuous ring — skip it.
   const effectiveGap = segments.length > 1 ? SEGMENT_GAP_PX : 0;
+  const containerRef = useRef(null);
+  // Track the most recent pointer type so we can distinguish a real mouse
+  // click from a touch tap. On touch, a single tap should reveal the
+  // segment's info (like a desktop hover); a second tap on the same
+  // segment then navigates.
+  const lastPointerTypeRef = useRef("mouse");
+
+  // Dismiss the touch-revealed tooltip when the user taps outside the donut.
+  useEffect(() => {
+    if (!hoveredId) return;
+    const handleOutside = (e) => {
+      if (e.pointerType !== "touch") return;
+      if (!containerRef.current?.contains(e.target)) {
+        onHover(null);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutside);
+    return () => document.removeEventListener("pointerdown", handleOutside);
+  }, [hoveredId, onHover]);
 
   let cumulative = 0;
   const rendered = segments.map((seg) => {
@@ -91,11 +110,25 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   const centerLabel = hovered ? hovered.label : rangeLabel;
   const centerPct = hovered ? Math.round(hovered.pct * 100) : null;
 
+  const handleSegmentClick = (seg) => {
+    const isTouch = lastPointerTypeRef.current === "touch";
+    // On touch, first tap only reveals info. A subsequent tap on the
+    // already-revealed segment navigates.
+    if (isTouch && hoveredId !== seg.id) {
+      onHover(seg.id);
+      return;
+    }
+    onClick?.(seg);
+  };
+
   return (
     <div
+      ref={containerRef}
       className="relative"
       style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
-      onMouseLeave={() => onHover(null)}
+      onMouseLeave={() => {
+        if (lastPointerTypeRef.current !== "touch") onHover(null);
+      }}
     >
       <svg
         width={DONUT_SIZE}
@@ -120,12 +153,17 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
               strokeLinecap="butt"
               style={{
                 opacity: dimmed ? 0.4 : 1,
-                cursor: seg.isOther ? "default" : "pointer",
+                cursor: "pointer",
                 transition:
                   "opacity 0.15s ease, stroke-width 0.15s ease",
               }}
-              onMouseEnter={() => onHover(seg.id)}
-              onClick={() => !seg.isOther && onClick?.(seg)}
+              onPointerDown={(e) => {
+                lastPointerTypeRef.current = e.pointerType || "mouse";
+              }}
+              onMouseEnter={() => {
+                if (lastPointerTypeRef.current !== "touch") onHover(seg.id);
+              }}
+              onClick={() => handleSegmentClick(seg)}
             />
           );
         })}
@@ -220,6 +258,10 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         color: cat.hex_color || "var(--color-muted)",
       }));
 
+    const namedIds = new Set(named.map((n) => n.id));
+    const otherIds = categories
+      .map((c) => c.id)
+      .filter((id) => !namedIds.has(id));
     const namedSum = named.reduce((s, n) => s + (n.value || 0), 0);
     const otherTotal = Math.max(0, totalSpending - namedSum);
     if (otherTotal > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
@@ -229,13 +271,22 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         value: otherTotal,
         color: "var(--color-muted)",
         isOther: true,
+        otherIds,
       });
     }
     return named;
   }, [categories, totalSpending]);
 
   const onSegmentClick = (seg) => {
-    if (!seg || seg.isOther || !seg.id) return;
+    if (!seg) return;
+    if (seg.isOther) {
+      if (!seg.otherIds?.length) return;
+      router.push(
+        `/transactions?categoryIds=${seg.otherIds.join(",")}&dateRange=30days`
+      );
+      return;
+    }
+    if (!seg.id) return;
     router.push(`/transactions?categoryIds=${seg.id}&dateRange=30days`);
   };
 
