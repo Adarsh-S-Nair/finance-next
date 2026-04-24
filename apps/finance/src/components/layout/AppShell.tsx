@@ -283,7 +283,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 : "mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10"
             }
           >
-            {children}
+            {/* Quick cross-fade between routes. Now that the data lives
+                in react-query the new page paints instantly, so the
+                transition is just a soft handoff (140ms opacity)
+                rather than the heavier slide we had before. */}
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
           </div>
         </main>
       </div>

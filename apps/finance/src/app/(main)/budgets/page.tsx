@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '../../../components/providers/UserProvider';
+import { useAuthedQuery } from '../../../lib/api/useAuthedQuery';
 import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import DynamicIcon from '../../../components/DynamicIcon';
@@ -66,85 +68,61 @@ interface PaceInfo {
 
 export default function BudgetsPage() {
   const { user, profile, isPro, refreshProfile } = useUser();
-  const [budgets, setBudgets] = useState<BudgetRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fallbackIncome, setFallbackIncome] = useState(0);
-  const [incomeMonths, setIncomeMonths] = useState<IncomeMonth[]>([]);
-  const [, setIncomeLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
   const [addingSuggestionId, setAddingSuggestionId] = useState<string | null>(null);
-  const [burnSeries, setBurnSeries] = useState<BurnSeriesPoint[]>([]);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchBudgets = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/budgets`);
-      const json = (await res.json()) as { data?: BudgetRecord[]; burn?: BurnSeriesPoint[] };
-      setBudgets(json.data || []);
-      setBurnSeries(Array.isArray(json.burn) ? json.burn : []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // All three of the page's fetches now live in react-query, so
+  // navigating away and back paints the page from cache instead of
+  // showing the skeleton on every visit.
+  const { data: budgetsPayload, isLoading: budgetsLoading } = useAuthedQuery<{
+    data?: BudgetRecord[];
+    burn?: BurnSeriesPoint[];
+  }>(['budgets:list', user?.id], user?.id ? '/api/budgets' : null);
+  const budgets = budgetsPayload?.data ?? [];
+  const burnSeries = Array.isArray(budgetsPayload?.burn) ? budgetsPayload.burn : [];
+  const loading = !!user?.id && budgetsLoading && !budgetsPayload;
 
-  const fetchIncome = async () => {
-    if (!user?.id) return;
-    setIncomeLoading(true);
-    try {
-      const res = await fetch(`/api/transactions/spending-earning?months=6`);
-      const json = (await res.json()) as { data?: IncomeMonth[] };
-      const months = Array.isArray(json?.data) ? json.data : [];
-      const completed = months.filter((m) => m.isComplete);
-      const sample = completed.length > 0 ? completed : months;
-      const nonZero = sample.filter((m) => Number(m.earning || 0) > 0);
-      const source = nonZero.length > 0 ? nonZero : sample;
-      const totalEarning = source.reduce(
-        (sum, m) => sum + Number(m.earning || 0),
-        0
-      );
-      const avg = source.length > 0 ? totalEarning / source.length : 0;
-      setFallbackIncome(avg);
-      setIncomeMonths(sample);
-    } catch (e) {
-      console.error(e);
-      setFallbackIncome(0);
-      setIncomeMonths([]);
-    } finally {
-      setIncomeLoading(false);
-    }
-  };
+  const { data: incomePayload } = useAuthedQuery<{ data?: IncomeMonth[] }>(
+    ['budgets:income', user?.id],
+    user?.id ? '/api/transactions/spending-earning?months=6' : null,
+  );
+  const { fallbackIncome, incomeMonths } = useMemo(() => {
+    const months = Array.isArray(incomePayload?.data) ? (incomePayload!.data as IncomeMonth[]) : [];
+    const completed = months.filter((m) => m.isComplete);
+    const sample = completed.length > 0 ? completed : months;
+    const nonZero = sample.filter((m) => Number(m.earning || 0) > 0);
+    const source = nonZero.length > 0 ? nonZero : sample;
+    const totalEarning = source.reduce((sum, m) => sum + Number(m.earning || 0), 0);
+    const avg = source.length > 0 ? totalEarning / source.length : 0;
+    return { fallbackIncome: avg, incomeMonths: sample };
+  }, [incomePayload]);
 
-  const fetchCategoryStats = async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(
-        '/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group'
-      );
-      const json = (await res.json()) as { categories?: CategoryStat[] };
-      const cats = (json.categories || [])
-        .filter((c) => (c.total_spent ?? 0) > 0 && c.label !== 'Account Transfer');
-      setCategoryStats(cats);
-    } catch (e) {
-      console.error(e);
-      setCategoryStats([]);
-    }
-  };
+  const { data: categoryStatsPayload } = useAuthedQuery<{ categories?: CategoryStat[] }>(
+    ['budgets:category-stats', user?.id],
+    user?.id ? '/api/transactions/spending-by-category?days=120&forBudget=true&groupBy=group' : null,
+  );
+  const categoryStats = useMemo(
+    () =>
+      (categoryStatsPayload?.categories ?? []).filter(
+        (c) => (c.total_spent ?? 0) > 0 && c.label !== 'Account Transfer',
+      ),
+    [categoryStatsPayload],
+  );
 
-  useEffect(() => {
-    fetchBudgets();
-    fetchIncome();
-    fetchCategoryStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // Helpers callers below still expect — refresh from cache after
+  // mutating budgets, recompute income, etc.
+  const refetchBudgets = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['budgets:list', user?.id] });
+  }, [queryClient, user?.id]);
+  const refetchCategoryStats = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['budgets:category-stats', user?.id] });
+  }, [queryClient, user?.id]);
 
   const savedIncome = Number(profile?.monthly_income || 0);
   const income = savedIncome > 0 ? savedIncome : Number(fallbackIncome || 0);
@@ -202,7 +180,7 @@ export default function BudgetsPage() {
     setDeleting(true);
     try {
       await fetch(`/api/budgets?id=${pendingDeleteId}`, { method: 'DELETE' });
-      await fetchBudgets();
+      refetchBudgets();
       setConfirmOpen(false);
       setPendingDeleteId(null);
     } catch (e) {
@@ -213,11 +191,9 @@ export default function BudgetsPage() {
   };
 
   const handleBudgetCreated = async () => {
-    await Promise.all([
-      fetchBudgets(),
-      fetchCategoryStats(),
-      refreshProfile?.(),
-    ]);
+    refetchBudgets();
+    refetchCategoryStats();
+    await refreshProfile?.();
   };
 
   const handleQuickAddSuggestion = async (suggestion: CategoryStat) => {
@@ -234,7 +210,8 @@ export default function BudgetsPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to add budget');
-      await Promise.all([fetchBudgets(), fetchCategoryStats()]);
+      refetchBudgets();
+      refetchCategoryStats();
     } catch (e) {
       console.error(e);
     } finally {

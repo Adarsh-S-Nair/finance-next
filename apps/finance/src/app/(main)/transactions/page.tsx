@@ -10,6 +10,7 @@ import SelectCategoryView from "../../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { HouseholdRailInlineTrigger } from "../../../components/households/HouseholdRailExpander";
@@ -758,6 +759,7 @@ function TransactionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -898,6 +900,44 @@ function TransactionsContent() {
   const [nextCursor, setNextCursor] = useState(null);
   const [prevCursor, setPrevCursor] = useState(null);
 
+  // Cache the most recent successful fetch in react-query, keyed by
+  // the active filter combo. On remount (e.g. navigating away from
+  // /transactions and back) we hydrate from this stash before kicking
+  // off any network request, so the user sees the previous page of
+  // rows instantly instead of a skeleton flash. Background refetch
+  // still runs to pick up new transactions.
+  const transactionsCacheKey = useMemo(
+    () => [
+      'transactions:list',
+      user?.id,
+      debouncedSearchQuery,
+      transactionType,
+      transactionStatus,
+      amountRange.min,
+      amountRange.max,
+      dateRange,
+      customDateRange.start,
+      customDateRange.end,
+      selectedGroupIds.join(','),
+      selectedCategoryIds.join(','),
+      selectedAccountId,
+    ],
+    [
+      user?.id,
+      debouncedSearchQuery,
+      transactionType,
+      transactionStatus,
+      amountRange.min,
+      amountRange.max,
+      dateRange,
+      customDateRange.start,
+      customDateRange.end,
+      selectedGroupIds,
+      selectedCategoryIds,
+      selectedAccountId,
+    ],
+  );
+
   const PAGE_LIMIT = 20;
   // Windowing threshold — DOM stays capped at this count. Higher means
   // fewer trim operations (each trim can cause a visible jump on mobile
@@ -1000,7 +1040,9 @@ function TransactionsContent() {
     return await response.json();
   };
 
-  // Initial fetch
+  // Initial fetch — also stashes the result in the react-query
+  // cache so the next time this filter combo mounts we can paint
+  // immediately without a skeleton flash.
   const fetchInitialTransactions = async () => {
     if (!user?.id) return;
 
@@ -1010,9 +1052,15 @@ function TransactionsContent() {
       if (initialAbortRef.current) initialAbortRef.current.abort();
 
       const data = await fetchTransactionsData();
-      setTransactions(data.transactions || []);
+      const txs = data.transactions || [];
+      setTransactions(txs);
       setNextCursor(data.nextCursor);
       setPrevCursor(data.prevCursor); // Usually null for initial fetch unless we started in middle
+      queryClient.setQueryData(transactionsCacheKey, {
+        transactions: txs,
+        nextCursor: data.nextCursor,
+        prevCursor: data.prevCursor,
+      });
       return data.transactions;
     } catch (err) {
       console.error('Error fetching transactions:', err);
@@ -1021,6 +1069,23 @@ function TransactionsContent() {
       setLoading(false);
     }
   };
+
+  // Hydrate from cache before the initial fetch runs. Suppresses the
+  // skeleton when we already know what to show; background refetch
+  // still happens via the existing fetchInitialTransactions effect.
+  const cacheKeyFingerprint = transactionsCacheKey.join('|');
+  useLayoutEffect(() => {
+    const cached = queryClient.getQueryData(transactionsCacheKey);
+    if (cached && Array.isArray(cached.transactions)) {
+      setTransactions(cached.transactions);
+      setNextCursor(cached.nextCursor ?? null);
+      setPrevCursor(cached.prevCursor ?? null);
+      // Render the cached data instantly. The fetchInitialTransactions
+      // effect below will still run and refresh in the background.
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKeyFingerprint]);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -1731,7 +1796,14 @@ function TransactionsContent() {
   // Show loading state with smooth transition
   const isSearchLoading = isPending || loading;
 
-  if ((loading && !debouncedSearchQuery) || !user?.id) {
+  // Only show the full-page skeleton when we genuinely have nothing
+  // to render yet. Cache hydration above populates `transactions`
+  // synchronously on remount, which means the skeleton is skipped
+  // entirely on every revisit within the gcTime window.
+  const showInitialSkeleton =
+    !user?.id || (loading && !debouncedSearchQuery && transactions.length === 0);
+
+  if (showInitialSkeleton) {
     return (
       <PageContainer padding="pt-2 pb-10" showHeader={false}>
         <SearchToolbar

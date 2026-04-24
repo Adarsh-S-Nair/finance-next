@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LuTrendingUp } from "react-icons/lu";
 import { supabase } from "../../../lib/supabase/client";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -95,138 +96,132 @@ function HoldingLogo({ ticker, logo, metaLoaded = true, assetType, size = 40 }) 
 
 /* ── Main page ───────────────────────────────────────────── */
 
+// Single batch fetch for the investments page — accounts + holdings +
+// quotes + ticker metadata + 30-day sparklines, returned as one
+// blob. Lives outside the component so react-query can cache the
+// whole thing under one query key.
+async function fetchInvestmentsData(userId) {
+  const { data: accountsData, error: accountsError } = await supabase
+    .from("accounts")
+    .select(
+      "id, name, subtype, mask, balances, institution_id, institutions(id, name, logo, primary_color)",
+    )
+    .eq("user_id", userId)
+    .eq("type", "investment")
+    .order("name", { ascending: true });
+
+  if (accountsError) throw accountsError;
+  const accounts = accountsData || [];
+  if (accounts.length === 0) {
+    return { accounts, holdings: [], tickerMeta: {}, quotes: {}, sparklines: {} };
+  }
+
+  const accountIds = accounts.map((a) => a.id);
+  const { data: holdingsData, error: holdingsError } = await supabase
+    .from("holdings")
+    .select("id, account_id, ticker, shares, avg_cost, asset_type")
+    .in("account_id", accountIds);
+
+  if (holdingsError) throw holdingsError;
+  const holdings = holdingsData || [];
+
+  const uniqueTickers = Array.from(
+    new Set(holdings.map((h) => h.ticker).filter(Boolean)),
+  );
+
+  let tickerMeta = {};
+  let quotes = {};
+  let sparklines = {};
+  if (uniqueTickers.length > 0) {
+    const [tickerResult, quoteResult] = await Promise.allSettled([
+      supabase
+        .from("tickers")
+        .select("symbol, name, logo, asset_type, sector")
+        .in("symbol", uniqueTickers),
+      fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
+        r.ok ? r.json() : null,
+      ),
+    ]);
+
+    if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
+      const map = {};
+      for (const row of tickerResult.value.data) {
+        map[row.symbol] = {
+          logo: row.logo || null,
+          name: row.name || null,
+          assetType: row.asset_type || null,
+          sector: row.sector || null,
+        };
+      }
+      tickerMeta = map;
+    }
+
+    if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
+      quotes = quoteResult.value.quotes;
+    }
+
+    // Sparklines (per-ticker fan-out to Yahoo/CoinGecko) — fetched
+    // serially with the main payload so they're cached together.
+    const spTickers = uniqueTickers.filter(
+      (t) =>
+        !t.startsWith("CUR:") &&
+        holdings.find((h) => h.ticker === t)?.asset_type !== "cash",
+    );
+    if (spTickers.length > 0) {
+      const endTs = Math.floor(Date.now() / 1000);
+      const startTs = endTs - 30 * 24 * 60 * 60;
+      const sparkResults = await Promise.allSettled(
+        spTickers.map((ticker) =>
+          fetch(
+            `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`,
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((json) => ({ ticker, prices: json?.prices || [] })),
+        ),
+      );
+
+      const spMap = {};
+      for (const result of sparkResults) {
+        if (result.status === "fulfilled" && result.value) {
+          const { ticker, prices } = result.value;
+          const series = (prices || [])
+            .map((p) => Number(p?.price))
+            .filter((n) => Number.isFinite(n));
+          if (series.length >= 2) spMap[ticker] = series;
+        }
+      }
+      sparklines = spMap;
+    }
+  }
+
+  return { accounts, holdings, tickerMeta, quotes, sparklines };
+}
+
 export default function InvestmentsPage() {
   const { user } = useUser();
   const { setHeaderActions } = useInvestmentsHeader();
-  const [accounts, setAccounts] = useState([]);
-  const [holdings, setHoldings] = useState([]);
-  const [quotes, setQuotes] = useState({});
-  const [tickerMeta, setTickerMeta] = useState({}); // symbol → { logo, name, asset_type }
-  const [sparklines, setSparklines] = useState({}); // symbol → number[] (30-day close prices)
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
-  const load = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      const { data: accountsData, error: accountsError } = await supabase
-        .from("accounts")
-        .select(
-          "id, name, subtype, mask, balances, institution_id, institutions(id, name, logo, primary_color)"
-        )
-        .eq("user_id", user.id)
-        .eq("type", "investment")
-        .order("name", { ascending: true });
+  // Whole investments payload cached together. Re-mounting the page
+  // (e.g. tabbing back from /accounts) hits the cache and renders
+  // accounts + holdings + quotes + sparklines instantly.
+  const investmentsKey = ["investments:overview", user?.id];
+  const { data, isLoading } = useQuery({
+    queryKey: investmentsKey,
+    queryFn: () => fetchInvestmentsData(user.id),
+    enabled: !!user?.id,
+  });
 
-      if (accountsError) throw accountsError;
-      setAccounts(accountsData || []);
-
-      if (!accountsData || accountsData.length === 0) {
-        setHoldings([]);
-        setQuotes({});
-        setLoading(false);
-        return;
-      }
-
-      const accountIds = accountsData.map((a) => a.id);
-      const { data: holdingsData, error: holdingsError } = await supabase
-        .from("holdings")
-        .select("id, account_id, ticker, shares, avg_cost, asset_type")
-        .in("account_id", accountIds);
-
-      if (holdingsError) throw holdingsError;
-      setHoldings(holdingsData || []);
-
-      const uniqueTickers = Array.from(
-        new Set((holdingsData || []).map((h) => h.ticker).filter(Boolean))
-      );
-
-      if (uniqueTickers.length > 0) {
-        // Block render on tickers + quotes (both are fast) so holding rows
-        // have their logos ready on first paint and we don't see the
-        // "BTC" text fallback flash.
-        const [tickerResult, quoteResult] = await Promise.allSettled([
-          supabase
-            .from("tickers")
-            .select("symbol, name, logo, asset_type, sector")
-            .in("symbol", uniqueTickers),
-          fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
-            r.ok ? r.json() : null
-          ),
-        ]);
-
-        if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
-          const map = {};
-          for (const row of tickerResult.value.data) {
-            map[row.symbol] = {
-              logo: row.logo || null,
-              name: row.name || null,
-              assetType: row.asset_type || null,
-              sector: row.sector || null,
-            };
-          }
-          setTickerMeta(map);
-        }
-
-        if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
-          setQuotes(quoteResult.value.quotes);
-        }
-
-        // Sparklines are slower (per-ticker fan-out to Yahoo/CoinGecko),
-        // so kick them off in the background AFTER the main load resolves.
-        // Rows reserve the space and the lines pop in when ready.
-        const spTickers = uniqueTickers.filter(
-          (t) => !t.startsWith("CUR:") && (holdingsData || []).find((h) => h.ticker === t)?.asset_type !== "cash"
-        );
-        if (spTickers.length > 0) {
-          (async () => {
-            const endTs = Math.floor(Date.now() / 1000);
-            const startTs = endTs - 30 * 24 * 60 * 60;
-            const sparkResults = await Promise.allSettled(
-              spTickers.map((ticker) =>
-                fetch(
-                  `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`
-                )
-                  .then((r) => (r.ok ? r.json() : null))
-                  .then((json) => ({ ticker, prices: json?.prices || [] }))
-              )
-            );
-
-            const spMap = {};
-            for (const result of sparkResults) {
-              if (result.status === "fulfilled" && result.value) {
-                const { ticker, prices } = result.value;
-                const series = (prices || [])
-                  .map((p) => Number(p?.price))
-                  .filter((n) => Number.isFinite(n));
-                if (series.length >= 2) spMap[ticker] = series;
-              }
-            }
-            setSparklines(spMap);
-          })();
-        } else {
-          setSparklines({});
-        }
-      } else {
-        setTickerMeta({});
-        setQuotes({});
-        setSparklines({});
-      }
-    } catch (err) {
-      console.error("Error loading investments:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  const accounts = data?.accounts ?? [];
+  const holdings = data?.holdings ?? [];
+  const quotes = data?.quotes ?? {};
+  const tickerMeta = data?.tickerMeta ?? {};
+  const sparklines = data?.sparklines ?? {};
+  const loading = !!user?.id && isLoading && !data;
 
   const handleSync = async () => {
-    if (syncing) return;
+    if (syncing || !user?.id) return;
     setSyncing(true);
     try {
       const { data: items } = await supabase
@@ -243,10 +238,10 @@ export default function InvestmentsPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ plaidItemId }),
-          }).catch((err) => console.warn("sync failed", err))
-        )
+          }).catch((err) => console.warn("sync failed", err)),
+        ),
       );
-      await load();
+      await queryClient.invalidateQueries({ queryKey: investmentsKey });
     } finally {
       setSyncing(false);
     }
