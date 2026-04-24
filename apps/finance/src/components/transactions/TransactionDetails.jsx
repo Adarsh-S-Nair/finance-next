@@ -77,10 +77,10 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         className="flex flex-col"
       >
         {/* Header — stacks so long merchant names + fat amounts don't
-            fight for the same horizontal slot. On narrow viewports the
-            amount wrapping against the name and the date breaking
-            mid-word made the whole block hard to read. */}
-        <div className="px-5 pt-6 pb-5">
+            fight for the same horizontal slot. No horizontal padding
+            here; the Drawer's own px-5 wrapper handles inset, and
+            stacking px-5 on top of it was squeezing content. */}
+        <div className="pt-6 pb-5">
           <div className="flex items-start gap-3">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
@@ -144,7 +144,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             so the visual language is consistent; no tinted background
             so the banner sits quietly above the detail rows. */}
         {needsReview && onMarkReviewed && (
-          <div className="relative mx-5 mb-4 py-2 pl-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="relative mb-4 py-2 pl-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <span
               aria-hidden
               className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-danger)]"
@@ -168,7 +168,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         )}
 
         {/* Detail Rows */}
-        <div className="px-5 space-y-8">
+        <div className="space-y-8">
           <div className="divide-y divide-[var(--color-border)]/40">
 
             {/* Status Row */}

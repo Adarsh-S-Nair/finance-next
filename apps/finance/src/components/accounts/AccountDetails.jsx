@@ -1,6 +1,7 @@
 import { PiBankFill } from "react-icons/pi";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
+import { Button } from "@zervo/ui";
 import { formatAccountSubtype } from "../../lib/accountSubtype";
 import { isLiabilityAccount } from "../../lib/accountUtils";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
@@ -100,45 +101,50 @@ export default function AccountDetails({ account, institution, onViewTransaction
         transition={{ duration: 0.25, ease: "circOut" }}
         className="flex flex-col"
       >
-        {/* Header */}
-        <div className="flex items-center gap-4 px-5 py-6">
-          <div className="w-11 h-11 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
-            {institution?.logo ? (
-              <img
-                src={institution.logo}
-                alt={institution.name || ""}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                  if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
-                }}
-              />
-            ) : null}
-            <div
-              className={`w-full h-full flex items-center justify-center ${institution?.logo ? "hidden" : "flex"}`}
-            >
-              <PiBankFill className="w-5 h-5 text-[var(--color-muted)]" />
+        {/* Header — stacked layout so long institution names + big
+            balances don't fight for horizontal space on narrow
+            viewports. Matches the transaction details header. No
+            horizontal padding here; the Drawer's own px-5 handles it. */}
+        <div className="pt-6 pb-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+              {institution?.logo ? (
+                <img
+                  src={institution.logo}
+                  alt={institution.name || ""}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                    if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-full h-full flex items-center justify-center ${institution?.logo ? "hidden" : "flex"}`}
+              >
+                <PiBankFill className="w-5 h-5 text-[var(--color-muted)]" />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
+                {account.name}
+              </h2>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                {subtypeLabel && <span>{subtypeLabel}</span>}
+                {subtypeLabel && account.mask && (
+                  <span className="opacity-40 mx-1.5">&middot;</span>
+                )}
+                {account.mask && <span className="font-mono">&bull;&bull;&bull;&bull; {account.mask}</span>}
+              </div>
             </div>
           </div>
-
-          <div className="flex flex-col min-w-0 flex-1">
-            <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
-              {account.name}
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5">
-              {subtypeLabel && <span className="truncate">{subtypeLabel}</span>}
-              {subtypeLabel && account.mask && <span className="opacity-40">·</span>}
-              {account.mask && <span className="font-mono">•••• {account.mask}</span>}
-            </div>
-          </div>
-
-          <div className="text-lg font-medium tracking-tight tabular-nums whitespace-nowrap text-[var(--color-fg)]">
+          <div className="mt-4 text-2xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
             {formatCurrency(account.balance, currency)}
           </div>
         </div>
 
         {/* Body */}
-        <div className="px-5 space-y-6 pb-6">
+        <div className="space-y-6 pb-6">
           {/* Credit utilization visual */}
           {hasCreditVisual && (
             <div>
@@ -169,11 +175,11 @@ export default function AccountDetails({ account, institution, onViewTransaction
                   <span className="card-header">Institution</span>
                   <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
                     {institution.logo && (
-                      <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
+                      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                         <img
                           src={institution.logo}
                           alt=""
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                     )}
@@ -193,17 +199,14 @@ export default function AccountDetails({ account, institution, onViewTransaction
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions — primary CTA in the same pill shape as the
+              transaction-details Split/Request button so the two
+              drawers feel like the same family. */}
           {onViewTransactions && (
-            <div>
-              <button
-                type="button"
-                onClick={onViewTransactions}
-                className="group inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-              >
-                <span>View all transactions</span>
-                <span className="text-xs leading-none transition-transform group-hover:translate-x-0.5">&rsaquo;</span>
-              </button>
+            <div className="pt-2">
+              <Button variant="primary" size="md" fullWidth onClick={onViewTransactions}>
+                View all transactions
+              </Button>
             </div>
           )}
         </div>
