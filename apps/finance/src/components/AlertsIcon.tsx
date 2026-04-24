@@ -39,12 +39,15 @@ function inviterName(profile: InviterProfile | null) {
   return parts.length > 0 ? parts.join(" ") : "Someone";
 }
 
-function Dot({ color }: { color?: string }) {
+// Small red dot used to mark alert rows as unseen. Everything in the
+// tray is treated as unseen right now — there's no server-side
+// read-state, so the dot disappears only when the user acts on the
+// alert (accepting an invite, navigating to /transactions, etc).
+function UnseenDot() {
   return (
     <span
       aria-hidden
-      className="block h-2 w-2 rounded-full flex-shrink-0"
-      style={{ backgroundColor: color ?? "var(--color-accent)" }}
+      className="block h-2 w-2 rounded-full flex-shrink-0 bg-[var(--color-danger)]"
     />
   );
 }
@@ -61,7 +64,9 @@ export default function AlertsIcon() {
   const [actingId, setActingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const totalCount = counts.count + invitations.length;
+  // Badge + dropdown count excludes unmatched transfers on purpose —
+  // those live in the dashboard Insights carousel now, not here.
+  const totalCount = counts.unknownAccountCount + invitations.length;
 
   const loadInvitations = useCallback(async () => {
     try {
@@ -181,17 +186,19 @@ export default function AlertsIcon() {
             transition={{ duration: 0.14, ease: [0.25, 0.1, 0.25, 1] }}
             className={`absolute top-full right-0 mt-2 w-80 z-50 overflow-hidden ${TOOLTIP_SURFACE_CLASSES}`}
           >
-            <div className="px-5 py-3">
+            <div className="px-5 pt-4 pb-2">
               <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto">
+            <div className="max-h-[420px] overflow-y-auto pb-2">
               {invitations.length > 0 && (
-                <div className="py-1">
+                <div>
                   {invitations.map((invite) => (
                     <div key={invite.id} className="px-5 py-3">
                       <div className="flex items-start gap-2.5">
-                        <Dot color={invite.household?.color} />
+                        <span className="pt-1.5">
+                          <UnseenDot />
+                        </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[var(--color-floating-fg)]">
                             <span className="font-medium">{inviterName(invite.invited_by)}</span>{" "}
@@ -225,39 +232,21 @@ export default function AlertsIcon() {
                 </div>
               )}
 
-              {(counts.unmatchedTransferCount > 0 || counts.unknownAccountCount > 0) && (
-                <div className="py-1 border-t border-[var(--color-floating-fg)]/[0.06]">
-                  {counts.unmatchedTransferCount > 0 && (
-                    <Link
-                      href="/transactions?status=attention"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
-                    >
-                      <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unmatched transfers</p>
-                        <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
-                          {counts.unmatchedTransferCount} transfer{counts.unmatchedTransferCount !== 1 ? "s" : ""} need review
-                        </p>
-                      </div>
-                      <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
-                    </Link>
-                  )}
-                  {counts.unknownAccountCount > 0 && (
-                    <Link
-                      href="/transactions?status=attention"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
-                    >
-                      <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unknown accounts</p>
-                        <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
-                          {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
-                        </p>
-                      </div>
-                      <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
-                    </Link>
-                  )}
-                </div>
+              {counts.unknownAccountCount > 0 && (
+                <Link
+                  href="/transactions?status=attention"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
+                >
+                  <UnseenDot />
+                  <div className="flex-1 min-w-0 mr-3">
+                    <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unknown accounts</p>
+                    <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
+                      {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
+                    </p>
+                  </div>
+                  <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
+                </Link>
               )}
 
               {totalCount === 0 && (

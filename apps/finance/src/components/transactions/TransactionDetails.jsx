@@ -166,7 +166,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               <div className="flex items-center justify-between py-4">
                 <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">Account</span>
                 <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
-                  <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-white border border-[var(--color-border)]/50 flex items-center justify-center">
+                  <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                     {institutionLogo ? (
                       <img
                         src={institutionLogo}
@@ -174,7 +174,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+                      <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
                     )}
                   </div>
                   <span className="text-sm text-[var(--color-fg)] truncate text-right">

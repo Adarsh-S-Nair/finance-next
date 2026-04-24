@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { LuPlus, LuChevronDown } from "react-icons/lu";
 import { FiUserPlus, FiLogOut } from "react-icons/fi";
-import { ConfirmOverlay } from "@zervo/ui";
+import { ConfirmOverlay, TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import {
   useHouseholds,
@@ -223,7 +223,7 @@ function HouseholdContextMenuView({
       exit={{ opacity: 0, scale: 0.97 }}
       transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
       style={{ top: menu.y + MENU_MARGIN, left: clampedX, width: MENU_WIDTH }}
-      className="fixed z-[70] p-1 rounded-md bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)]"
+      className={clsx("fixed z-[70] p-1", TOOLTIP_SURFACE_CLASSES)}
     >
       <button
         type="button"

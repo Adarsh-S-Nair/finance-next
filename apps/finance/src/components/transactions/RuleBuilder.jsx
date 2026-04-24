@@ -58,7 +58,7 @@ function InlinePicker({ value, options, onChange, minWidth }) {
       {open && (
         <div
           role="listbox"
-          className="absolute left-0 top-full mt-1 min-w-[9rem] rounded-md bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-lg py-1 z-20"
+          className="absolute left-0 top-full mt-1 min-w-[9rem] rounded-md bg-[var(--color-floating-bg)] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] py-1 z-20"
         >
           {options.map((opt) => (
             <button

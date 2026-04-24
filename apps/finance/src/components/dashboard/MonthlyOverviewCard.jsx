@@ -362,7 +362,7 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
                   transition: 'opacity 0.25s ease, scale 0.35s cubic-bezier(0.34, 1.8, 0.64, 1), translate 0.35s cubic-bezier(0.34, 1.8, 0.64, 1)',
                 }}
               >
-                <div className="rounded-md bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
+                <div className="rounded-md bg-[var(--color-floating-bg)] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] px-3 py-2.5 min-w-[180px] max-w-[260px]">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-floating-muted)] mb-2">
                     {tooltipData.date}
                   </p>

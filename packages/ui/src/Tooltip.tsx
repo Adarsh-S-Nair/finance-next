@@ -11,8 +11,13 @@ import clsx from "clsx";
  * inverted from the app theme (dark in light mode, light in dark mode) so
  * overlays read as a distinct layer above the page.
  */
+// Shared surface for every floating overlay in the app: tooltips,
+// chart popovers, the alerts dropdown, the household context menu,
+// etc. Drops the ring border on purpose — the soft drop shadow alone
+// gives enough separation from the page behind it and keeps the
+// surface from looking like it's bordered in.
 export const TOOLTIP_SURFACE_CLASSES =
-  "rounded-lg bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.25)]";
+  "rounded-lg bg-[var(--color-floating-bg)] shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)]";
 
 type Side = "top" | "bottom" | "left" | "right";
 

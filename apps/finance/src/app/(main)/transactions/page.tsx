@@ -821,6 +821,20 @@ function TransactionsContent() {
     return map;
   }, [institutions]);
 
+  // Sync URL → state when the URL changes while the user is already
+  // on /transactions. Without this, clicking the "Unmatched transfers"
+  // link from the bell or an insight card just updates the query
+  // string but leaves the filter state untouched, so the list doesn't
+  // actually narrow. Only react to *incoming* URL changes — the
+  // state → URL effect below is what handles the other direction.
+  const statusParam = searchParams.get('status') || 'all';
+  useEffect(() => {
+    if (statusParam !== transactionStatus) {
+      setTransactionStatus(statusParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusParam]);
+
   // Sync state changes to URL
   useEffect(() => {
     const params = new URLSearchParams();

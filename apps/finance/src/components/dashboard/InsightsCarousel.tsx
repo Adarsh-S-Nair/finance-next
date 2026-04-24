@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
@@ -40,7 +41,35 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
     ["dashboard-insights", user?.id],
     user?.id && !mockData ? "/api/dashboard/insights" : null,
   );
-  const insights: Insight[] = mockData?.insights ?? data?.insights ?? [];
+
+  // Unmatched transfers used to live in the notifications bell, but
+  // they're more of a "here's something worth looking at" than a
+  // time-critical notification. Fetched here so we can prepend a
+  // synthetic insight pointing the user at the filtered transactions
+  // list when there's anything to review.
+  const { data: countsData } = useAuthedQuery<{ unmatchedTransferCount: number }>(
+    ["transactions-attention-count", user?.id],
+    user?.id && !mockData ? "/api/plaid/transactions/unknown-count" : null,
+  );
+
+  const insights = useMemo<Insight[]>(() => {
+    const base = mockData?.insights ?? data?.insights ?? [];
+    const unmatched = countsData?.unmatchedTransferCount ?? 0;
+    if (mockData || unmatched <= 0) return base;
+    const synthetic: Insight = {
+      id: "unmatched-transfers",
+      title: "Worth a look",
+      priority: 900,
+      tone: "negative",
+      message:
+        unmatched === 1
+          ? "There's 1 unmatched transfer waiting for review."
+          : `There are ${unmatched} unmatched transfers waiting for review.`,
+      action: { label: "Review", href: "/transactions?status=attention" },
+    };
+    // Put it at the front so the user sees it first on load.
+    return [synthetic, ...base];
+  }, [mockData, data?.insights, countsData?.unmatchedTransferCount]);
   const loading = mockData ? false : isLoading;
 
   const resetTimer = useCallback(() => {
@@ -146,20 +175,31 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
             )}
           </div>
 
-          {/* Insight message */}
+          {/* Insight message — animate message + optional CTA as one
+              unit so they slide in together. */}
           <div className="relative overflow-hidden min-h-[44px]">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
-              <motion.p
+              <motion.div
                 key={current.id + activeIndex}
                 custom={direction}
                 initial={{ opacity: 0, x: direction * 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: direction * -24 }}
                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                className="text-sm font-medium leading-relaxed text-[var(--color-fg)]"
+                className="flex items-start justify-between gap-3"
               >
-                {current.message}
-              </motion.p>
+                <p className="text-sm font-medium leading-relaxed text-[var(--color-fg)] flex-1 min-w-0">
+                  {current.message}
+                </p>
+                {current.action && (
+                  <Link
+                    href={current.action.href}
+                    className="inline-flex items-center h-7 px-3 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-90 flex-shrink-0"
+                  >
+                    {current.action.label}
+                  </Link>
+                )}
+              </motion.div>
             </AnimatePresence>
           </div>
 
