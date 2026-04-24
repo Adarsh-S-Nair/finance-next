@@ -265,7 +265,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => refreshAccounts(true)}
-            className="mt-6 inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-fg)] transition-colors hover:bg-[var(--color-surface-alt)]"
+            className="mt-6 inline-flex items-center gap-1 rounded-full ring-1 ring-inset ring-[var(--color-border)] hover:ring-[var(--color-fg)] px-5 h-9 text-sm text-[var(--color-fg)] transition-[box-shadow,color]"
           >
             Try again
           </button>

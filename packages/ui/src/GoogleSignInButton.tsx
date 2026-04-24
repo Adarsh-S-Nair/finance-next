@@ -42,7 +42,7 @@ export default function GoogleSignInButton({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className={`flex h-11 w-full items-center justify-center gap-3 rounded-lg px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`flex h-11 w-full items-center justify-center gap-3 rounded-full px-5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         dark
           ? "bg-white/10 text-white hover:bg-white/15"
           : "bg-zinc-200 text-zinc-900 hover:bg-zinc-300"

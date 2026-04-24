@@ -23,22 +23,25 @@ type DrawerProps = {
   size?: "sm" | "md" | "lg" | "xl";
   footer?: ReactNode;
   className?: string;
-  // New navigation props
   views?: DrawerView[];
   currentViewId?: string;
   onViewChange?: (viewId: string) => void;
   onBack?: () => void;
-  /**
-   * Mobile layout. Defaults to "sheet" (bottom sheet with drag
-   * handle, swipe-to-dismiss). Use "fullscreen" for flows where the
-   * drawer should fully take over the viewport (covering the bottom
-   * nav) and slide in from the right like on desktop — e.g.
-   * transaction details, which are long enough that a bottom sheet
-   * forces the user to scroll the content AND the sheet.
-   */
-  mobileLayout?: "sheet" | "fullscreen";
 };
 
+/**
+ * Slide-in drawer used for detail views (transaction, account, budget,
+ * calendar event, ...). On desktop it docks to the right edge at a
+ * capped width; on mobile it takes over the full viewport (above the
+ * bottom nav) and slides in from the right so the motion reads as
+ * "pushing a new screen onto the stack" — the iOS-navigation feel
+ * rather than a bottom-sheet rise.
+ *
+ * There used to be a `mobileLayout` prop that toggled between this
+ * fullscreen style and a bottom-sheet variant. The sheet was removed
+ * because it made long detail pages force the user to scroll the sheet
+ * AND the content, which on mobile was genuinely awful.
+ */
 export default function Drawer({
   isOpen,
   onClose,
@@ -52,9 +55,7 @@ export default function Drawer({
   currentViewId,
   onViewChange,
   onBack,
-  mobileLayout = "sheet",
 }: DrawerProps) {
-  const mobileFullscreen = mobileLayout === "fullscreen";
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   // Detect viewport before paint to avoid initial layout pop/glitch
@@ -124,38 +125,26 @@ export default function Drawer({
   const displayDescription = currentView?.description || description;
   const displayContent = currentView?.content || children;
   const showBackButton = currentView?.showBackButton && onBack;
-
-  // Whether to use the mobile-fullscreen layout right now. On desktop
-  // we always keep the right-side drawer regardless of the prop.
-  const useFullscreenOnMobile = mobileFullscreen && isMobile === true;
-  // On mobile-fullscreen, always show a close affordance in the header.
-  const showCloseButton = useFullscreenOnMobile && !showBackButton;
+  // On mobile we always need an explicit dismiss affordance because the
+  // backdrop isn't tappable (the dialog covers the whole viewport).
+  // Desktop has the backdrop + Escape, so we don't duplicate it there.
+  const showCloseButton = isMobile === true && !showBackButton;
 
   const drawerContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className={clsx(
-            "fixed inset-0 z-[80] flex overflow-hidden overscroll-contain",
-            useFullscreenOnMobile
-              ? // Full viewport on mobile, right-drawer on desktop
-                "items-stretch justify-stretch sm:items-stretch sm:justify-end"
-              : // Bottom sheet on mobile, right-drawer on desktop
-                "items-end p-0 sm:items-stretch sm:justify-end"
-          )}
+          className="fixed inset-0 z-[80] flex overflow-hidden overscroll-contain items-stretch justify-stretch sm:justify-end"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
           <motion.button
             aria-label="Close"
-            className={clsx(
-              "absolute inset-0 bg-black/40",
-              // On mobile-fullscreen the dialog covers the whole viewport, so
-              // the backdrop button is never actually visible. Drop it so it
-              // can't intercept taps if the dialog animates in late.
-              useFullscreenOnMobile && "hidden sm:block",
-            )}
+            // The dialog covers the whole viewport on mobile, so the
+            // backdrop is invisible there — hide it so it can't
+            // intercept taps before the dialog mounts.
+            className="absolute inset-0 bg-black/40 hidden sm:block"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -166,75 +155,26 @@ export default function Drawer({
             role="dialog"
             aria-modal="true"
             className={clsx(
-              "relative z-10 w-full bg-[var(--color-content-bg)] flex flex-col",
-              useFullscreenOnMobile
-                ? // Full viewport — no rounding on mobile, still flush to
-                  // right on desktop.
-                  "rounded-none"
-                : // Mobile bottom sheet look (rounded top), desktop flush.
-                  "rounded-t-lg rounded-b-none sm:rounded-none",
-              // Width constraints only from small screens and up
+              "relative z-10 w-full h-full bg-[var(--color-content-bg)] flex flex-col rounded-none overflow-hidden",
+              // Width constraints only apply from small screens up.
               size === "sm" && "sm:max-w-sm",
               size === "md" && "sm:max-w-md",
               size === "lg" && "sm:max-w-lg",
               size === "xl" && "sm:max-w-xl",
-              // Height constraints
-              useFullscreenOnMobile ? "h-full sm:h-full" : "h-[75vh] sm:h-full",
-              "overflow-hidden",
-              className
+              className,
             )}
-            // Mobile-fullscreen slides in from the right on mobile too so the
-            // motion reads as "pushing a new screen onto the stack" (iOS
-            // navigation feel) rather than a bottom-sheet rise.
-            initial={
-              isMobile
-                ? useFullscreenOnMobile
-                  ? { x: "100%", opacity: 1 }
-                  : { y: "100%", opacity: 1 }
-                : { x: "100%", opacity: 1 }
-            }
-            animate={
-              isMobile
-                ? useFullscreenOnMobile
-                  ? { x: 0, opacity: 1 }
-                  : { y: 0, opacity: 1 }
-                : { x: 0, opacity: 1 }
-            }
-            exit={
-              isMobile
-                ? useFullscreenOnMobile
-                  ? { x: "100%", opacity: 1 }
-                  : { y: "100%", opacity: 1 }
-                : { x: "100%", opacity: 1 }
-            }
+            initial={{ x: "100%", opacity: 1 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 1 }}
             transition={{ type: "tween", duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-            // Swipe-to-dismiss only for bottom-sheet mobile. Fullscreen mode
-            // relies on the explicit close button instead.
-            drag={isMobile && !useFullscreenOnMobile ? "y" : false}
-            dragConstraints={isMobile && !useFullscreenOnMobile ? { top: 0, bottom: 0 } : undefined}
-            dragElastic={0.1}
-            dragMomentum={false}
-            onDragEnd={(event, info) => {
-              if (!isMobile || useFullscreenOnMobile) return;
-              const draggedFarEnough = info.offset.y > 90;
-              const fastEnough = info.velocity.y > 800;
-              if (draggedFarEnough || fastEnough) onClose();
-            }}
           >
-            {/* Mobile drag handle — sheet mode only */}
-            {!useFullscreenOnMobile && (
-              <div className="sm:hidden flex items-center justify-center pt-3 pb-1 flex-none z-30">
-                <div className="h-1.5 w-12 rounded-full bg-[var(--color-border)]" />
-              </div>
-            )}
-
             {/* Header */}
             <div className="px-5 py-4 flex-none z-20">
               <div className="flex items-center gap-3">
                 {showBackButton && (
                   <button
                     onClick={onBack}
-                    className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
                     aria-label="Go back"
                   >
                     <span className="text-lg leading-none">&#8249;</span>
@@ -243,7 +183,7 @@ export default function Drawer({
                 {showCloseButton && (
                   <button
                     onClick={onClose}
-                    className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
                     aria-label="Close"
                   >
                     <span className="text-lg leading-none">&#8249;</span>

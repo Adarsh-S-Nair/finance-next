@@ -60,14 +60,14 @@ export default function Topbar() {
         <nav className="flex items-center gap-3">
           {/* Theme / Accent controls removed on landing/auth pages */}
           {!isAuth && !user && (
-            <Link className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]" href="/auth">Log in / Sign up</Link>
+            <Link className="inline-flex rounded-full px-4 py-1.5 text-sm font-medium text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]" href="/auth">Log in / Sign up</Link>
           )}
           {user && (
             <>
               <span className="text-sm text-[var(--color-muted)] hidden sm:inline">{user.email}</span>
               <button
                 onClick={() => setShowLogout(true)}
-                className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
+                className="inline-flex rounded-full px-4 py-1.5 text-sm font-medium text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
               >
                 Sign out
               </button>

@@ -695,10 +695,10 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
 
       <Link
         href="/auth?mode=signup"
-        className={`mt-8 inline-flex h-10 w-full items-center justify-center rounded-md px-5 text-sm font-medium transition-colors ${
+        className={`mt-8 inline-flex h-10 w-full items-center justify-center rounded-full px-5 text-sm font-medium transition-opacity ${
           highlighted
-            ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]"
-            : "border border-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]"
+            ? "bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90"
+            : "ring-1 ring-inset ring-[var(--color-border)] text-[var(--color-fg)] hover:ring-[var(--color-fg)]"
         }`}
       >
         {cta}
@@ -792,7 +792,7 @@ export default function Home() {
               >
                 <Link
                   href="/auth?mode=signup"
-                  className="inline-flex h-11 items-center justify-center rounded-md bg-[var(--color-accent)] px-6 text-sm font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-accent-hover)]"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90"
                 >
                   Get started — it&apos;s free
                 </Link>

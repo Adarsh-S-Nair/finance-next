@@ -104,14 +104,14 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
         onClick={onRefresh}
         disabled={loading}
         aria-label="Refresh"
-        className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
+        className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
       >
         <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
       </button>
       <button
         onClick={onOpenFilters}
         aria-label="Filter"
-        className="relative w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+        className="relative w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
       >
         <FiFilter className="h-4 w-4" />
         {activeFilterCount > 0 && (
@@ -152,7 +152,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
         <button
           onClick={() => setMobileSearchOpen(true)}
           aria-label="Search"
-          className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
         >
           <FiSearch className="h-5 w-5" />
         </button>,
@@ -164,7 +164,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
         <div className="fixed inset-x-0 top-0 z-50 h-16 bg-[var(--color-content-bg)] flex items-center px-4 gap-3 md:hidden">
           <button
             onClick={() => setMobileSearchOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-[var(--color-muted)] hover:text-[var(--color-fg)] flex-shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] flex-shrink-0"
             aria-label="Close search"
           >
             <span className="text-lg leading-none">&#8249;</span>
@@ -1741,7 +1741,6 @@ function TransactionsContent() {
         onClose={handleDrawerClose}
         title="Transaction Details"
         size="md"
-        mobileLayout="fullscreen"
         views={[
           {
             id: 'transaction-details',
