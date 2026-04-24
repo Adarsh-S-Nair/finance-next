@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { FiX, FiCopy, FiRefreshCw, FiUserCheck } from "react-icons/fi";
 import { authFetch } from "../../lib/api/fetch";
 import { useToast } from "../providers/ToastProvider";
-import { OverlayButton } from "@zervo/ui";
+import { Button } from "@zervo/ui";
 type Invitation = {
   id: string;
   code: string;
@@ -347,9 +347,9 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
                         >
-                          <OverlayButton onClick={handleSendEmail} loading={adding}>
+                          <Button onClick={handleSendEmail} loading={adding}>
                             Invite {lookup.user.first_name ?? "member"}
-                          </OverlayButton>
+                          </Button>
                         </motion.div>
                       )}
                     </div>

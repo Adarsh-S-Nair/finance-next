@@ -75,11 +75,10 @@ export default function InvestmentsLayout({ children }) {
             <div className="flex items-center gap-2">
               {!isDetailPage && headerActions.onSyncHoldingsClick && (
                 <Button
-                  size="sm"
+                  size="iconSm"
                   variant="ghost"
                   onClick={headerActions.onSyncHoldingsClick}
                   disabled={headerActions.isSyncingHoldings}
-                  className="!rounded-full !px-2"
                   title="Refresh holdings"
                   aria-label="Refresh holdings"
                 >

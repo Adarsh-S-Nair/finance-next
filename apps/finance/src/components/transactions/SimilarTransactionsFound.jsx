@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TransactionRow from './TransactionRow';
 import RuleBuilder from './RuleBuilder';
-import { OverlayButton } from "@zervo/ui";
+import { Button } from "@zervo/ui";
 
 export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose, onCategorizeOnly }) {
   const [currentRules, setCurrentRules] = useState([]);
@@ -91,18 +91,18 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
       </div>
 
       <div className="sticky bottom-0 px-5 py-4 border-t border-[var(--color-border)]/40 bg-[var(--color-bg)] flex items-center justify-end gap-3 z-10">
-        <OverlayButton
+        <Button
           variant="secondary"
           onClick={onCategorizeOnly}
         >
           Just this one
-        </OverlayButton>
-        <OverlayButton
+        </Button>
+        <Button
           onClick={handleConfirm}
           disabled={selectedIds.size === 0}
         >
           Confirm
-        </OverlayButton>
+        </Button>
       </div>
     </div>
   );

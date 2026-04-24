@@ -15,7 +15,7 @@ import {
 import { authFetch } from "../../lib/api/fetch";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
-import { OverlayButton } from "@zervo/ui";
+import { Button } from "@zervo/ui";
 type Mode = "menu" | "create" | "join";
 
 type JoinPreview = {
@@ -348,9 +348,9 @@ export default function HouseholdSwitcherModal({
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
                         >
-                          <OverlayButton onClick={handleCreate} loading={busy}>
+                          <Button onClick={handleCreate} loading={busy}>
                             Create household
-                          </OverlayButton>
+                          </Button>
                         </motion.div>
                       )}
                     </div>
@@ -440,9 +440,9 @@ export default function HouseholdSwitcherModal({
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.15 }}
                         >
-                          <OverlayButton onClick={handleJoin} loading={busy}>
+                          <Button onClick={handleJoin} loading={busy}>
                             Join {preview.household.name}
-                          </OverlayButton>
+                          </Button>
                         </motion.div>
                       )}
                     </div>

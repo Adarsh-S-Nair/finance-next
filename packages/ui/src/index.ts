@@ -8,7 +8,6 @@ export { default as Drawer } from "./Drawer";
 export { default as Input } from "./Input";
 export { default as LineChart } from "./LineChart";
 export { default as Modal } from "./Modal";
-export { default as OverlayButton } from "./OverlayButton";
 export { default as Pill } from "./Pill";
 export { default as Skeleton, CardSkeleton, PortfolioCardSkeleton, ChartSkeleton, HoldingsTableSkeleton, ListSkeleton } from "./Skeleton";
 export { default as Tabs } from "./Tabs";

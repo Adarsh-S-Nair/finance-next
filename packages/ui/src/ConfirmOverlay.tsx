@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX } from "react-icons/fi";
-import OverlayButton from "./OverlayButton";
+import Button from "./Button";
 
 type Variant = "primary" | "danger";
 
@@ -16,7 +16,7 @@ type ConfirmOverlayProps = {
   cancelLabel?: string;
   variant?: Variant;
   busy?: boolean;
-  /** @deprecated — OverlayButton handles the loading spinner. Kept optional for compat. */
+  /** @deprecated — the confirm Button handles the loading spinner. Kept optional for compat. */
   busyLabel?: string;
   /** If set, the user has to type this string before the confirm button enables. */
   requiredText?: string;
@@ -152,14 +152,14 @@ export default function ConfirmOverlay({
                   >
                     {cancelLabel}
                   </button>
-                  <OverlayButton
+                  <Button
                     onClick={handleConfirm}
                     loading={busy || submitting}
                     disabled={!requiredOk}
                     variant={variant}
                   >
                     {confirmLabel}
-                  </OverlayButton>
+                  </Button>
                 </div>
               </motion.div>
             </div>

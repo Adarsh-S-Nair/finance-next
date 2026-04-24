@@ -292,10 +292,11 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               !transaction.is_repayment && (
                 <Button
                   variant="primary"
+                  size="lg"
+                  fullWidth
                   onClick={onRepaymentClick}
-                  className="w-full justify-center py-2.5"
                 >
-                  <span className="text-sm font-medium">Mark as Repayment</span>
+                  Mark as Repayment
                 </Button>
               )
             ) : (
@@ -304,10 +305,11 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               ) && (
                 <Button
                   variant="primary"
+                  size="lg"
+                  fullWidth
                   onClick={onSplitClick}
-                  className="w-full justify-center py-2.5"
                 >
-                  <span className="text-sm font-medium">Split / Request</span>
+                  Split / Request
                 </Button>
               )
             )}
