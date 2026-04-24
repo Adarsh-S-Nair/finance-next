@@ -147,11 +147,25 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
 
   const headerBlock = (
     <>
-      {/* Header row */}
+      {/* Header row — the label gets an underline that grows from
+          left-to-right on hover (group-hover) and the chevron slides
+          right. Subtle, no scaling, signals "click me" without
+          shifting layout. */}
       <div className="flex items-center justify-between mb-2">
-        <div className="card-header">Net Worth</div>
+        <div className="card-header relative inline-block">
+          <span>Net Worth</span>
+          {!mockData && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-[var(--color-fg)]/40 transition-transform duration-300 ease-out group-hover:scale-x-100"
+            />
+          )}
+        </div>
         {!mockData && (
-          <span className="text-[var(--color-muted)] text-lg leading-none">
+          <span
+            aria-hidden
+            className="text-[var(--color-muted)] text-lg leading-none transition-[transform,color] duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-[var(--color-fg)]"
+          >
             &#8250;
           </span>
         )}
@@ -180,7 +194,7 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
       ) : (
         <Link
           href="/accounts"
-          className="block cursor-pointer transition-transform duration-200 ease-out hover:scale-[1.015] active:scale-[0.995]"
+          className="group block cursor-pointer"
         >
           {headerBlock}
         </Link>
