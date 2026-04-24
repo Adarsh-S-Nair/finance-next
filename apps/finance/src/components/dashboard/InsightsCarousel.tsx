@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../providers/UserProvider";
-import { authFetch } from "../../lib/api/fetch";
+import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import type { Insight } from "../../lib/insights/types";
 
 const ROTATE_INTERVAL = 8000;
@@ -30,38 +30,18 @@ interface InsightsCarouselProps {
 
 export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {}) {
   const { user } = useUser();
-  const [insights, setInsights] = useState<Insight[]>(mockData?.insights ?? []);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [loading, setLoading] = useState(!mockData);
   const [direction, setDirection] = useState(1);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    if (mockData) {
-      setInsights(mockData.insights);
-      setLoading(false);
-      return;
-    }
-    if (!user?.id) return;
-    let cancelled = false;
-
-    authFetch("/api/dashboard/insights")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        setInsights(data?.insights || []);
-      })
-      .catch((err) => {
-        if (!cancelled) console.error("[insights] fetch error:", err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, mockData]);
+  // Cached via react-query so navigating away and back to the
+  // dashboard paints the insights from cache instead of re-fetching.
+  const { data, isLoading } = useAuthedQuery<{ insights: Insight[] }>(
+    ["dashboard-insights", user?.id],
+    user?.id && !mockData ? "/api/dashboard/insights" : null,
+  );
+  const insights: Insight[] = mockData?.insights ?? data?.insights ?? [];
+  const loading = mockData ? false : isLoading;
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

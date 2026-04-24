@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
 import { ViewAllLink } from "@zervo/ui";
@@ -72,168 +72,136 @@ function HoldingLogo({ ticker, logo, assetType, size = 32 }) {
 
 const MAX_DISPLAY = 5;
 
+async function fetchTopHoldings(userId) {
+  const { data: accounts } = await supabase
+    .from("accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", "investment");
+
+  if (!accounts || accounts.length === 0) {
+    return { holdings: [], tickerMeta: {}, quotes: {}, sparklines: {} };
+  }
+
+  const accountIds = accounts.map((a) => a.id);
+
+  const { data: holdingsData } = await supabase
+    .from("holdings")
+    .select("ticker, shares, avg_cost, asset_type")
+    .in("account_id", accountIds);
+
+  if (!holdingsData || holdingsData.length === 0) {
+    return { holdings: [], tickerMeta: {}, quotes: {}, sparklines: {} };
+  }
+
+  // Aggregate by ticker
+  const byTicker = new Map();
+  for (const h of holdingsData) {
+    const key = h.ticker;
+    const existing = byTicker.get(key);
+    if (existing) {
+      const totalShares = existing.shares + Number(h.shares || 0);
+      const totalCost =
+        existing.avg_cost * existing.shares + Number(h.avg_cost || 0) * Number(h.shares || 0);
+      byTicker.set(key, {
+        ticker: key,
+        shares: totalShares,
+        avg_cost: totalShares > 0 ? totalCost / totalShares : 0,
+        asset_type: h.asset_type || existing.asset_type,
+      });
+    } else {
+      byTicker.set(key, {
+        ticker: key,
+        shares: Number(h.shares || 0),
+        avg_cost: Number(h.avg_cost || 0),
+        asset_type: h.asset_type,
+      });
+    }
+  }
+
+  const aggregated = Array.from(byTicker.values());
+  const uniqueTickers = aggregated
+    .map((h) => h.ticker)
+    .filter((t) => t && !t.startsWith("CUR:"));
+
+  const [tickerResult, quoteResult] = await Promise.allSettled([
+    supabase
+      .from("tickers")
+      .select("symbol, name, logo, asset_type")
+      .in("symbol", uniqueTickers),
+    fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
+      r.ok ? r.json() : null,
+    ),
+  ]);
+
+  const tickerMeta = {};
+  if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
+    for (const row of tickerResult.value.data) {
+      tickerMeta[row.symbol] = { logo: row.logo, name: row.name, assetType: row.asset_type };
+    }
+  }
+
+  const quotes = {};
+  if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
+    Object.assign(quotes, quoteResult.value.quotes);
+  }
+
+  // Sort by market value descending, take top N (skip cash)
+  const enriched = aggregated
+    .filter((h) => h.asset_type !== "cash" && !h.ticker.startsWith("CUR:"))
+    .map((h) => {
+      const price = quotes[h.ticker]?.price;
+      const marketValue = price != null ? h.shares * price : h.shares * h.avg_cost;
+      return { ...h, marketValue };
+    })
+    .sort((a, b) => b.marketValue - a.marketValue)
+    .slice(0, MAX_DISPLAY);
+
+  // Sparklines in parallel
+  const spTickers = enriched.map((h) => h.ticker);
+  const sparklines = {};
+  if (spTickers.length > 0) {
+    const endTs = Math.floor(Date.now() / 1000);
+    const startTs = endTs - 30 * 24 * 60 * 60;
+    const sparkResults = await Promise.allSettled(
+      spTickers.map((ticker) =>
+        fetch(
+          `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((json) => ({ ticker, prices: json?.prices || [] })),
+      ),
+    );
+    for (const result of sparkResults) {
+      if (result.status === "fulfilled" && result.value) {
+        const { ticker, prices } = result.value;
+        const series = (prices || []).map((p) => Number(p?.price)).filter((n) => Number.isFinite(n));
+        if (series.length >= 2) sparklines[ticker] = series;
+      }
+    }
+  }
+
+  return { holdings: enriched, tickerMeta, quotes, sparklines };
+}
+
 export default function TopHoldingsCard({ mockData } = {}) {
   const { user, isPro } = useUser();
-  const [holdings, setHoldings] = useState(mockData?.holdings || []);
-  const [tickerMeta, setTickerMeta] = useState(mockData?.tickerMeta || {});
-  const [quotes, setQuotes] = useState(mockData?.quotes || {});
-  const [sparklines, setSparklines] = useState(mockData?.sparklines || {});
-  const [loading, setLoading] = useState(!mockData);
 
-  useEffect(() => {
-    if (mockData) {
-      setHoldings(mockData.holdings || []);
-      setTickerMeta(mockData.tickerMeta || {});
-      setQuotes(mockData.quotes || {});
-      setSparklines(mockData.sparklines || {});
-      setLoading(false);
-      return;
-    }
-    if (!user?.id) return;
-    let cancelled = false;
+  // Top holdings is a multi-source query (Supabase + two REST
+  // endpoints + sparkline fetches) so it's the prime candidate for
+  // react-query caching — without this the user waits on all of
+  // that every time they click back onto the dashboard.
+  const { data, isLoading } = useQuery({
+    queryKey: ["top-holdings", user?.id],
+    queryFn: () => fetchTopHoldings(user.id),
+    enabled: !mockData && !!user?.id,
+  });
 
-    (async () => {
-      setLoading(true);
-      try {
-        // Investment accounts
-        const { data: accounts } = await supabase
-          .from("accounts")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("type", "investment");
-
-        if (!accounts || accounts.length === 0) {
-          if (!cancelled) {
-            setHoldings([]);
-            setLoading(false);
-          }
-          return;
-        }
-
-        const accountIds = accounts.map((a) => a.id);
-
-        // All holdings
-        const { data: holdingsData } = await supabase
-          .from("holdings")
-          .select("ticker, shares, avg_cost, asset_type")
-          .in("account_id", accountIds);
-
-        if (!holdingsData || holdingsData.length === 0) {
-          if (!cancelled) {
-            setHoldings([]);
-            setLoading(false);
-          }
-          return;
-        }
-
-        // Aggregate by ticker
-        const byTicker = new Map();
-        for (const h of holdingsData) {
-          const key = h.ticker;
-          const existing = byTicker.get(key);
-          if (existing) {
-            const totalShares = existing.shares + Number(h.shares || 0);
-            const totalCost =
-              existing.avg_cost * existing.shares + Number(h.avg_cost || 0) * Number(h.shares || 0);
-            byTicker.set(key, {
-              ticker: key,
-              shares: totalShares,
-              avg_cost: totalShares > 0 ? totalCost / totalShares : 0,
-              asset_type: h.asset_type || existing.asset_type,
-            });
-          } else {
-            byTicker.set(key, {
-              ticker: key,
-              shares: Number(h.shares || 0),
-              avg_cost: Number(h.avg_cost || 0),
-              asset_type: h.asset_type,
-            });
-          }
-        }
-
-        const aggregated = Array.from(byTicker.values());
-        const uniqueTickers = aggregated
-          .map((h) => h.ticker)
-          .filter((t) => t && !t.startsWith("CUR:"));
-
-        // Fetch ticker meta + quotes in parallel
-        const [tickerResult, quoteResult] = await Promise.allSettled([
-          supabase
-            .from("tickers")
-            .select("symbol, name, logo, asset_type")
-            .in("symbol", uniqueTickers),
-          fetch(`/api/market-data/quotes?tickers=${uniqueTickers.join(",")}`).then((r) =>
-            r.ok ? r.json() : null
-          ),
-        ]);
-
-        if (cancelled) return;
-
-        const metaMap = {};
-        if (tickerResult.status === "fulfilled" && tickerResult.value?.data) {
-          for (const row of tickerResult.value.data) {
-            metaMap[row.symbol] = { logo: row.logo, name: row.name, assetType: row.asset_type };
-          }
-        }
-        setTickerMeta(metaMap);
-
-        const quotesMap = {};
-        if (quoteResult.status === "fulfilled" && quoteResult.value?.quotes) {
-          Object.assign(quotesMap, quoteResult.value.quotes);
-        }
-        setQuotes(quotesMap);
-
-        // Sort by market value descending, take top N (skip cash)
-        const enriched = aggregated
-          .filter((h) => h.asset_type !== "cash" && !h.ticker.startsWith("CUR:"))
-          .map((h) => {
-            const price = quotesMap[h.ticker]?.price;
-            const marketValue = price != null ? h.shares * price : h.shares * h.avg_cost;
-            return { ...h, marketValue };
-          })
-          .sort((a, b) => b.marketValue - a.marketValue)
-          .slice(0, MAX_DISPLAY);
-
-        setHoldings(enriched);
-        setLoading(false);
-
-        // Sparklines in background
-        const spTickers = enriched.map((h) => h.ticker);
-        if (spTickers.length > 0) {
-          const endTs = Math.floor(Date.now() / 1000);
-          const startTs = endTs - 30 * 24 * 60 * 60;
-          const sparkResults = await Promise.allSettled(
-            spTickers.map((ticker) =>
-              fetch(
-                `/api/market-data/historical-range?ticker=${encodeURIComponent(ticker)}&start=${startTs}&end=${endTs}&interval=1d`
-              )
-                .then((r) => (r.ok ? r.json() : null))
-                .then((json) => ({ ticker, prices: json?.prices || [] }))
-            )
-          );
-          if (cancelled) return;
-          const spMap = {};
-          for (const result of sparkResults) {
-            if (result.status === "fulfilled" && result.value) {
-              const { ticker, prices } = result.value;
-              const series = (prices || [])
-                .map((p) => Number(p?.price))
-                .filter((n) => Number.isFinite(n));
-              if (series.length >= 2) spMap[ticker] = series;
-            }
-          }
-          setSparklines(spMap);
-        }
-      } catch (err) {
-        console.error("Error loading top holdings:", err);
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, mockData]);
+  const holdings = mockData?.holdings ?? data?.holdings ?? [];
+  const tickerMeta = mockData?.tickerMeta ?? data?.tickerMeta ?? {};
+  const quotes = mockData?.quotes ?? data?.quotes ?? {};
+  const sparklines = mockData?.sparklines ?? data?.sparklines ?? {};
+  const loading = mockData ? false : isLoading && !data;
 
   // Don't show the card for users without investments
   if (!loading && holdings.length === 0) return null;

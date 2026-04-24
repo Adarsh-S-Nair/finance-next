@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { authFetch } from '../../lib/api/fetch';
+import { useAuthedQuery } from '../../lib/api/useAuthedQuery';
 import { useUser } from '../providers/UserProvider';
 import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
@@ -107,39 +107,20 @@ function BillRow({ stream, disableLogos }) {
 export default function CalendarCard({ className = '', mockData }) {
   const { user, isPro: liveIsPro, loading: authLoading } = useUser();
   const isPro = mockData ? true : liveIsPro;
-  const [recurring, setRecurring] = useState(mockData?.recurring || []);
-  const [loading, setLoading] = useState(!mockData);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-  useEffect(() => {
-    if (mockData) {
-      setRecurring(mockData.recurring || []);
-      setLoading(false);
-      return;
-    }
-    if (authLoading) return;
-    if (!user?.id) { setLoading(false); return; }
-    const fetchRecurring = async () => {
-      if (!liveIsPro) {
-        setRecurring([]);
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        const response = await authFetch(`/api/recurring/get`);
-        if (!response.ok) throw new Error('Failed to fetch');
-        const result = await response.json();
-        setRecurring(result.recurring || []);
-      } catch (err) {
-        console.error('Error fetching recurring:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRecurring();
-  }, [authLoading, user?.id, liveIsPro, mockData]);
+  // Cached across navigations via react-query. Recurring streams only
+  // change when Plaid refreshes them, so a 30s stale window is fine
+  // and means re-visiting the dashboard shows the upcoming-bills list
+  // instantly instead of flashing a loader.
+  const queryEnabled = !mockData && !authLoading && !!user?.id && liveIsPro;
+  const { data, isLoading } = useAuthedQuery(
+    ['dashboard-recurring', user?.id],
+    queryEnabled ? '/api/recurring/get' : null,
+  );
+  const recurring = mockData?.recurring ?? data?.recurring ?? [];
+  const loading = mockData ? false : queryEnabled ? isLoading : false;
 
   // Group upcoming bills (outflows only) by day for the next 7 days.
   // weekTotal drives the headline; nextBeyond is the fallback when the week is empty.

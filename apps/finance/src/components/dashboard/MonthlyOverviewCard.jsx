@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { authFetch } from "../../lib/api/fetch";
+import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
 import DynamicIcon from "../DynamicIcon";
@@ -31,12 +31,9 @@ function SkeletonLoader() {
 
 export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) {
   const [activeIndex, setActiveIndex] = useState(null);
-  const [chartData, setChartData] = useState(mockData?.chartData || []);
-  const [availableMonths, setAvailableMonths] = useState(mockData?.availableMonths || []);
   const [selectedMonth, setSelectedMonth] = useState(
-    mockData?.selectedMonth || initialMonth || null
+    mockData?.selectedMonth || initialMonth || null,
   );
-  const [previousMonthName, setPreviousMonthName] = useState(mockData?.previousMonthName || "");
 
   const { user, loading: authLoading } = useUser();
 
@@ -46,8 +43,6 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
       setSelectedMonth(initialMonth);
     }
   }, [initialMonth, mockData]);
-
-  const [isFetching, setIsFetching] = useState(!mockData);
 
   const generatePlaceholderChartData = () => {
     const now = new Date();
@@ -61,82 +56,63 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     }));
   };
 
+  // Available months — cached so the month dropdown is instant on
+  // re-visit. Queries are disabled when mock data is provided so the
+  // storybook preview doesn't fire real network calls.
+  const useQueries = !mockData && !authLoading && !!user?.id;
+  const { data: monthsData } = useAuthedQuery(
+    ['monthly-overview:available-months', user?.id],
+    useQueries ? '/api/transactions/available-months' : null,
+  );
+  const availableMonths = mockData?.availableMonths ?? monthsData?.months ?? [];
+
+  // Pick the newest month once the list arrives (unless an explicit
+  // initialMonth was passed in).
   useEffect(() => {
-    if (mockData) {
-      setAvailableMonths(mockData.availableMonths || []);
-      setSelectedMonth(mockData.selectedMonth || null);
-      setIsFetching(false);
-      return;
+    if (mockData || initialMonth || selectedMonth) return;
+    if (availableMonths.length > 0) {
+      setSelectedMonth(availableMonths[0].value);
     }
-    if (authLoading) return;
-    if (!user?.id) { setIsFetching(false); return; }
-    let cancelled = false;
-    const fetchAvailableMonths = async (retries = 2) => {
-      setIsFetching(true);
-      try {
-        const response = await authFetch(`/api/transactions/available-months`);
-        if (!response.ok) throw new Error('Failed to fetch available months');
-        if (cancelled) return;
-        const result = await response.json();
-        const months = result.months || [];
-        setAvailableMonths(months);
+  }, [availableMonths, initialMonth, mockData, selectedMonth]);
 
-        if (!initialMonth && months.length > 0) {
-          setSelectedMonth(months[0].value);
-        }
-        if (months.length === 0) {
-          setChartData(generatePlaceholderChartData());
-          setIsFetching(false);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Error fetching available months:", error);
-        if (retries > 0) {
-          setTimeout(() => { if (!cancelled) fetchAvailableMonths(retries - 1); }, 1500);
-          return;
-        }
-        setIsFetching(false);
-      }
-    };
+  // Monthly chart data for the selected month. Each month gets its
+  // own cache key so switching months still lands instantly once
+  // seen.
+  const [selectedYear, selectedMonthIdx] = useMemo(() => {
+    if (!selectedMonth) return [null, null];
+    const [y, m] = selectedMonth.split('-');
+    return [y, parseInt(m, 10) - 1];
+  }, [selectedMonth]);
 
-    fetchAvailableMonths();
-    return () => { cancelled = true; };
-  }, [authLoading, user?.id, initialMonth, mockData]);
+  const { data: monthlyData, isFetching: isMonthlyFetching } = useAuthedQuery(
+    ['monthly-overview:month', user?.id, selectedMonth],
+    useQueries && selectedMonth
+      ? `/api/transactions/monthly-overview?month=${selectedMonthIdx}&year=${selectedYear}`
+      : null,
+  );
+  const rawChartData = mockData?.chartData ?? monthlyData?.data ?? [];
+  const previousMonthName =
+    mockData?.previousMonthName ?? monthlyData?.previousMonthName ?? '';
 
-  useEffect(() => {
-    if (mockData) {
-      setChartData(mockData.chartData || []);
-      setPreviousMonthName(mockData.previousMonthName || "");
-      setIsFetching(false);
-      return;
-    }
-    if (authLoading) return;
-    if (!user?.id) { setIsFetching(false); return; }
-    const fetchMonthlyData = async () => {
-      if (!selectedMonth) return;
+  // If the user has no transactions yet the months endpoint returns
+  // an empty list; fall back to a pace-only placeholder chart so the
+  // card still has something to render.
+  const placeholderChart = useMemo(() => {
+    if (availableMonths.length > 0 || !useQueries) return null;
+    return generatePlaceholderChartData();
+  }, [availableMonths.length, useQueries]);
+  const chartData =
+    rawChartData.length > 0 ? rawChartData : placeholderChart ?? rawChartData;
 
-      setIsFetching(true);
-      try {
-        const [year, month] = selectedMonth.split('-');
-        const monthIndex = parseInt(month) - 1;
-
-        const response = await authFetch(
-          `/api/transactions/monthly-overview?month=${monthIndex}&year=${year}`
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch monthly overview data');
-        const result = await response.json();
-        setChartData(result.data);
-        setPreviousMonthName(result.previousMonthName || "");
-      } catch (error) {
-        console.error("Error fetching monthly overview:", error);
-      } finally {
-        setIsFetching(false);
-      }
-    };
-
-    fetchMonthlyData();
-  }, [authLoading, user?.id, selectedMonth, mockData]);
+  // Show the skeleton only while we genuinely haven't painted
+  // anything yet. Once we have chart data (or a placeholder) we stay
+  // on the rendered chart even during background refetches.
+  const isFetching =
+    mockData
+      ? false
+      : selectedMonth
+        ? isMonthlyFetching && rawChartData.length === 0
+        : availableMonths.length === 0 && !placeholderChart;
 
   const chartContainerRef = useRef(null);
 

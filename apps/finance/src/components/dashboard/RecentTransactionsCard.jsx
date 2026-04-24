@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { authFetch } from '../../lib/api/fetch';
+import React, { useState } from 'react';
+import { useAuthedQuery } from '../../lib/api/useAuthedQuery';
 import { useUser } from '../providers/UserProvider';
 import DynamicIcon from '../DynamicIcon';
 import { FiTag } from 'react-icons/fi';
@@ -92,58 +92,16 @@ function TransactionIconCircle({ transaction }) {
 
 export default function RecentTransactionsCard() {
   const { user } = useUser();
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const abortRef = useRef(null);
-
-  // Fetch recent transactions with retry on failure
-  const retryTimerRef = useRef(null);
-  useEffect(() => {
-    const fetchTransactions = async (retries = 2) => {
-      if (!user?.id) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Abort any in-flight request
-        if (abortRef.current) {
-          abortRef.current.abort();
-        }
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        const response = await authFetch(`/api/plaid/transactions/get?limit=8&minimal=1`, {
-          signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch transactions');
-        }
-
-        const result = await response.json();
-        setTransactions((result.transactions || []).slice(0, 5));
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-        console.error('Error fetching transactions:', err);
-        if (retries > 0) {
-          retryTimerRef.current = setTimeout(() => fetchTransactions(retries - 1), 1500);
-          return;
-        }
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransactions();
-    return () => {
-      if (abortRef.current) abortRef.current.abort();
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    };
-  }, [user?.id]);
+  // Cached across navigations via react-query. Stays within 30s
+  // stale window by default so bouncing back to the dashboard paints
+  // the same 5 rows instantly — no skeleton flash.
+  const { data, isLoading, error: queryError } = useAuthedQuery(
+    ['dashboard-recent-transactions', user?.id],
+    user?.id ? '/api/plaid/transactions/get?limit=8&minimal=1' : null,
+  );
+  const transactions = (data?.transactions || []).slice(0, 5);
+  const loading = !!user?.id && isLoading;
+  const error = queryError?.message ?? null;
 
   if (loading) {
     return (
