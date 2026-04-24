@@ -49,7 +49,16 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
     }).format(new Date(dateToFormat))
     : 'Unknown Date';
 
-  const formattedTime = transaction.datetime
+  // Hide the time when we don't have a real one. We treat exactly
+  // midnight UTC as "no time" because that's how the legacy Plaid
+  // sync used to fabricate a datetime from a date-only field — bank
+  // transactions effectively never post at 00:00:00.000Z, so this
+  // collapses both `null` and old fake values into the same "no
+  // time" branch without needing every browser to see the backfill.
+  const hasRealTime =
+    !!transaction.datetime &&
+    new Date(transaction.datetime).getTime() % 86_400_000 !== 0;
+  const formattedTime = hasRealTime
     ? new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       minute: 'numeric',

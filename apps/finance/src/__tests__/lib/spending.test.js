@@ -463,7 +463,7 @@ describe('getBudgetProgress', () => {
       expect(eqCalls).toContainEqual({ method: 'eq', args: ['user_id', USER_ID] });
     });
 
-    test('queries transactions with a datetime range matching the requested month', async () => {
+    test('queries transactions with a date range matching the requested month', async () => {
       const supabase = makeMockSupabase({
         budgets: {
           data: [{ id: 'b1', category_id: 'cat-food', category_group_id: null, amount: 100 }],
@@ -481,13 +481,13 @@ describe('getBudgetProgress', () => {
 
       expect(gte).toBeDefined();
       expect(lte).toBeDefined();
-      expect(gte.args[0]).toBe('datetime');
-      expect(lte.args[0]).toBe('datetime');
-      // start-of-month and end-of-month are produced by date-fns in the host
-      // timezone, then serialized to ISO. We don't assert the exact timezone-
-      // dependent value — just that the range brackets the 15th.
-      expect(new Date(gte.args[1]).getTime()).toBeLessThan(new Date('2026-03-15T12:00:00Z').getTime());
-      expect(new Date(lte.args[1]).getTime()).toBeGreaterThan(new Date('2026-03-15T12:00:00Z').getTime());
+      // We filter on the `date` column (yyyy-MM-dd) rather than `datetime`,
+      // because Plaid omits `datetime` for many transactions and we no
+      // longer fabricate one.
+      expect(gte.args[0]).toBe('date');
+      expect(lte.args[0]).toBe('date');
+      expect(gte.args[1]).toBe('2026-03-01');
+      expect(lte.args[1]).toBe('2026-03-31');
     });
 
     test('preserves the full budget object in the result', async () => {

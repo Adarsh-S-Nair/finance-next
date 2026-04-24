@@ -136,6 +136,28 @@ describe('mapTransactionToRow', () => {
     expect('payment_channel' in serialized).toBe(false);
   });
 
+  it('passes through datetime when Plaid provides one', () => {
+    const row = mapTransactionToRow(
+      makeTx({ datetime: '2026-04-11T16:04:00Z' }),
+      ACCOUNT_MAP
+    );
+    expect(row!.datetime).toBe('2026-04-11T16:04:00Z');
+  });
+
+  it('stores datetime as null when Plaid omits it (no fake midnight UTC)', () => {
+    // Regression: we used to fabricate `<date>T00:00:00.000Z` from the
+    // `date` column when Plaid didn't return a real datetime, which
+    // made the UI render every such tx as "12:00 AM". Datetime should
+    // now be null when there's no real time-of-day from Plaid.
+    const row = mapTransactionToRow(
+      makeTx({ datetime: undefined, date: '2026-04-10' }),
+      ACCOUNT_MAP
+    );
+    expect(row!.datetime).toBeNull();
+    // The explicit `date` column still gets populated.
+    expect(row!.date).toBe('2026-04-10');
+  });
+
   it('falls back to counterparty logo when logo_url is an empty string', () => {
     // Legacy behavior uses `||` rather than `??` for icon_url, so empty
     // strings also fall through to the counterparty logo.

@@ -86,7 +86,13 @@ export function mapTransactionToRow(
     pending_plaid_transaction_id: tx.pending_transaction_id,
     // Fields where legacy code explicitly fell back to null.
     icon_url: iconUrl,
-    datetime: tx.datetime || (effectiveDate ? new Date(effectiveDate).toISOString() : null),
+    // Only store a real time-of-day. Plaid's transactions/sync omits
+    // `datetime` for most institutions (it's a "sometimes" field), and
+    // fabricating a midnight-UTC fallback from the date column made the
+    // UI render every such tx as "12:00 AM". We have an explicit `date`
+    // column for calendar-day filtering — that's the right column for
+    // anything that isn't actual time-of-day display.
+    datetime: tx.datetime || null,
     date: effectiveDate || null,
     authorized_date: tx.authorized_date || null,
     authorized_datetime: tx.authorized_datetime || null,

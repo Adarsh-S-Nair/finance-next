@@ -1055,11 +1055,17 @@ function TransactionsContent() {
       const txs = data.transactions || [];
       setTransactions(txs);
       setNextCursor(data.nextCursor);
-      setPrevCursor(data.prevCursor); // Usually null for initial fetch unless we started in middle
+      // Initial fetch starts at the newest transaction, so there's
+      // nothing newer to load. Leaving prevCursor null prevents the
+      // top sentinel + observer from immediately firing a no-op
+      // loadPrev that flashes a spinner and shifts the list. The
+      // windowing path inside loadMore will populate prevCursor
+      // properly once we trim from the top.
+      setPrevCursor(null);
       queryClient.setQueryData(transactionsCacheKey, {
         transactions: txs,
         nextCursor: data.nextCursor,
-        prevCursor: data.prevCursor,
+        prevCursor: null,
       });
       return data.transactions;
     } catch (err) {

@@ -30,7 +30,10 @@ interface TransactionRow {
   merchant_name: string | null;
   description: string | null;
   amount: number;
-  datetime: string | null;
+  // `date` is the calendar day (yyyy-MM-dd). We use it instead of
+  // `datetime` because Plaid omits `datetime` for many transactions and
+  // we don't fabricate one anymore.
+  date: string | null;
   personal_finance_category: { primary?: string | null } | null;
   account_id: string;
 }
@@ -64,6 +67,7 @@ export async function detectMissedRecurring(
 
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const twelveMonthsAgoYmd = twelveMonthsAgo.toISOString().slice(0, 10);
 
   const { data: transactions, error } = await supabaseAdmin
     .from('transactions')
@@ -74,7 +78,7 @@ export async function detectMissedRecurring(
       merchant_name,
       description,
       amount,
-      datetime,
+      date,
       personal_finance_category,
       account_id,
       accounts!inner(plaid_item_id)
@@ -82,8 +86,8 @@ export async function detectMissedRecurring(
     )
     .eq('accounts.plaid_item_id', plaidItemId)
     .lt('amount', -MIN_AMOUNT)
-    .gte('datetime', twelveMonthsAgo.toISOString())
-    .order('datetime', { ascending: false });
+    .gte('date', twelveMonthsAgoYmd)
+    .order('date', { ascending: false });
 
   if (error) {
     console.error('Error fetching transactions for gap detection:', error);
@@ -159,7 +163,7 @@ function detectMonthlyPattern(transactions: TransactionRow[]): DetectedPattern |
   if (transactions.length < MIN_OCCURRENCES) return null;
 
   const sorted = [...transactions].sort(
-    (a, b) => new Date(b.datetime ?? 0).getTime() - new Date(a.datetime ?? 0).getTime()
+    (a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime()
   );
 
   let monthlyCount = 0;
@@ -167,8 +171,8 @@ function detectMonthlyPattern(transactions: TransactionRow[]): DetectedPattern |
   const dates: string[] = [];
 
   for (let i = 0; i < sorted.length - 1; i++) {
-    const current = new Date(sorted[i].datetime ?? 0);
-    const next = new Date(sorted[i + 1].datetime ?? 0);
+    const current = new Date(sorted[i].date ?? 0);
+    const next = new Date(sorted[i + 1].date ?? 0);
 
     const daysDiff = Math.round((current.getTime() - next.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -177,10 +181,10 @@ function detectMonthlyPattern(transactions: TransactionRow[]): DetectedPattern |
     }
 
     amounts.push(Math.abs(Number(sorted[i].amount)));
-    dates.push(sorted[i].datetime ?? '');
+    dates.push(sorted[i].date ?? '');
   }
   amounts.push(Math.abs(Number(sorted[sorted.length - 1].amount)));
-  dates.push(sorted[sorted.length - 1].datetime ?? '');
+  dates.push(sorted[sorted.length - 1].date ?? '');
 
   if (monthlyCount < MIN_OCCURRENCES - 1) return null;
 
@@ -190,7 +194,7 @@ function detectMonthlyPattern(transactions: TransactionRow[]): DetectedPattern |
 
   if (!isConsistent) return null;
 
-  const lastDateStr = sorted[0].datetime ?? '';
+  const lastDateStr = sorted[0].date ?? '';
   const lastDate = new Date(lastDateStr);
   const predictedNext = new Date(lastDate);
   predictedNext.setMonth(predictedNext.getMonth() + 1);
@@ -218,10 +222,11 @@ function convertToStreamRecord(
   const accountId = transactions[0]?.account_id || 'unknown';
 
   const sortedTxns = [...transactions].sort(
-    (a, b) => new Date(a.datetime ?? 0).getTime() - new Date(b.datetime ?? 0).getTime()
+    (a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime()
   );
-  const firstDate = sortedTxns[0]?.datetime?.split('T')[0] || pattern.lastDate;
-  const lastDate = pattern.lastDate?.split('T')[0] || pattern.lastDate;
+  // `date` is already yyyy-MM-dd, so no further slicing needed.
+  const firstDate = sortedTxns[0]?.date || pattern.lastDate;
+  const lastDate = pattern.lastDate || pattern.lastDate;
 
   return {
     user_id: userId,

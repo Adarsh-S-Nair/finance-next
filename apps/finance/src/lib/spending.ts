@@ -1,4 +1,4 @@
-import { startOfMonth, endOfMonth, subMonths, isValid } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isValid, format } from 'date-fns';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Tables, TablesInsert } from '../types/database';
 
@@ -50,8 +50,11 @@ export async function getBudgetProgress(
   const date = monthDate ? new Date(monthDate) : new Date();
   if (!isValid(date)) throw new Error('Invalid date provided');
 
-  const start = startOfMonth(date).toISOString();
-  const end = endOfMonth(date).toISOString();
+  // Filter on the `date` column (calendar day, yyyy-MM-dd). Plaid omits
+  // `datetime` for many transactions, so filtering on it would silently
+  // drop rows from budget math.
+  const start = format(startOfMonth(date), 'yyyy-MM-dd');
+  const end = format(endOfMonth(date), 'yyyy-MM-dd');
 
   const { data: budgets, error: budgetError } = await supabase
     .from('budgets')
@@ -73,10 +76,10 @@ export async function getBudgetProgress(
 
   const { data: transactions, error: txError } = await supabase
     .from('transactions')
-    .select('amount, category_id, datetime, accounts!inner(user_id)')
+    .select('amount, category_id, date, accounts!inner(user_id)')
     .eq('accounts.user_id', userId)
-    .gte('datetime', start)
-    .lte('datetime', end);
+    .gte('date', start)
+    .lte('date', end);
 
   if (txError) {
     console.error('Error fetching transactions:', txError);
@@ -159,8 +162,8 @@ export async function getMonthlyBurn(
   const date = monthDate ? new Date(monthDate) : new Date();
   if (!isValid(date)) throw new Error('Invalid date provided');
 
-  const start = startOfMonth(date).toISOString();
-  const end = endOfMonth(date).toISOString();
+  const start = format(startOfMonth(date), 'yyyy-MM-dd');
+  const end = format(endOfMonth(date), 'yyyy-MM-dd');
 
   const { data: budgets, error: budgetError } = await supabase
     .from('budgets')
@@ -200,8 +203,8 @@ export async function getMonthlyBurn(
     .from('transactions')
     .select('amount, category_id, date, accounts!inner(user_id)')
     .eq('accounts.user_id', userId)
-    .gte('datetime', start)
-    .lte('datetime', end);
+    .gte('date', start)
+    .lte('date', end);
   if (txError) throw txError;
 
   // Aggregate negative-amount transactions by day-of-month, but only when
@@ -300,15 +303,15 @@ export async function getBudgetHistory(
   // Determine date range: start of (months-1) months ago through end of
   // current month. months=6 gives 5 complete past months + current.
   const now = new Date();
-  const rangeStart = startOfMonth(subMonths(now, months - 1)).toISOString();
-  const rangeEnd = endOfMonth(now).toISOString();
+  const rangeStart = format(startOfMonth(subMonths(now, months - 1)), 'yyyy-MM-dd');
+  const rangeEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
   const { data: transactions, error: txError } = await supabase
     .from('transactions')
     .select('amount, category_id, date, accounts!inner(user_id)')
     .eq('accounts.user_id', userId)
-    .gte('datetime', rangeStart)
-    .lte('datetime', rangeEnd);
+    .gte('date', rangeStart)
+    .lte('date', rangeEnd);
   if (txError) throw txError;
 
   const currentMonth = now.getMonth() + 1;
