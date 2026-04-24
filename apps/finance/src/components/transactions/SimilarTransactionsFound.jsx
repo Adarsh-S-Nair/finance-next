@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FiAlertCircle } from 'react-icons/fi';
 import TransactionRow from './TransactionRow';
 import RuleBuilder from './RuleBuilder';
-import { Button, Card } from "@zervo/ui";
+import { Button } from "@zervo/ui";
 
 export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose, onCategorizeOnly }) {
   const [currentRules, setCurrentRules] = useState([]);
@@ -58,25 +57,23 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
       <div className="flex-1 p-4 space-y-6">
 
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider px-1">
+          <h4 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
             Transactions ({selectedIds.size} selected)
           </h4>
-          <Card variant="default" padding="none" className="overflow-hidden">
-            <div className="divide-y divide-[var(--color-border)]/40">
-              {transactions && transactions.map((transaction, index) => (
-                <TransactionRow
-                  key={transaction.id || index}
-                  transaction={transaction}
-                  selectable={true}
-                  selected={selectedIds.has(transaction.id)}
-                  onSelect={() => toggleSelection(transaction.id)}
-                  onTransactionClick={() => { }} // No-op for now
-                  compact={true}
-                  showDate={true}
-                />
-              ))}
-            </div>
-          </Card>
+          <div className="divide-y divide-[var(--color-border)]/40">
+            {transactions && transactions.map((transaction, index) => (
+              <TransactionRow
+                key={transaction.id || index}
+                transaction={transaction}
+                selectable={true}
+                selected={selectedIds.has(transaction.id)}
+                onSelect={() => toggleSelection(transaction.id)}
+                onTransactionClick={() => { }} // No-op for now
+                compact={true}
+                showDate={true}
+              />
+            ))}
+          </div>
         </div>
 
         <RuleBuilder

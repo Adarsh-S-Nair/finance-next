@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
-import { Card, Dropdown, Input } from "@zervo/ui";
+import React, { useState, useEffect, useRef } from 'react';
+import { FiPlus, FiTrash2, FiChevronDown } from 'react-icons/fi';
+
 const FIELD_OPTIONS = [
   { value: 'merchant_name', label: 'Merchant Name', type: 'string' },
   { value: 'description', label: 'Description', type: 'string' },
@@ -18,6 +18,72 @@ const NUMBER_OPERATORS = [
   { value: 'is_greater_than', label: 'is greater than' },
   { value: 'is_less_than', label: 'is less than' }
 ];
+
+// Compact inline picker used for field and operator chips. Renders as a
+// text-only control with a small chevron so it blends into the sentence
+// instead of looking like a dropdown button.
+function InlinePicker({ value, options, onChange, minWidth }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (!ref.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const current = options.find((o) => o.value === value);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-fg)] underline decoration-dotted decoration-[var(--color-muted)] underline-offset-4 hover:decoration-[var(--color-fg)] transition-colors"
+        style={minWidth ? { minWidth } : undefined}
+      >
+        <span>{current?.label ?? value}</span>
+        <FiChevronDown className="w-3 h-3 text-[var(--color-muted)]" />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-full mt-1 min-w-[9rem] rounded-md bg-[var(--color-floating-bg)] ring-1 ring-[var(--color-floating-border)] shadow-lg py-1 z-20"
+        >
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="option"
+              aria-selected={opt.value === value}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`block w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                opt.value === value
+                  ? 'text-[var(--color-fg)] bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]'
+                  : 'text-[var(--color-floating-fg)] hover:bg-[color-mix(in_oklab,var(--color-floating-fg),transparent_92%)]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
 
 export default function RuleBuilder({ criteria, initialConditions, categoryName, onRuleChange, onEditCategory }) {
   const [conditions, setConditions] = useState([{
@@ -57,7 +123,6 @@ export default function RuleBuilder({ criteria, initialConditions, categoryName,
         const currentFieldType = FIELD_OPTIONS.find(f => f.value === condition.field)?.type;
 
         if (fieldType !== currentFieldType) {
-          // Reset to appropriate default operator for the new field type
           newCondition.operator = fieldType === 'number' ? 'equals' : 'is';
         }
       }
@@ -91,102 +156,83 @@ export default function RuleBuilder({ criteria, initialConditions, categoryName,
   if (!criteria) return null;
 
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/30 overflow-hidden">
-      <div className="px-4 py-3 border-b border-[var(--color-border)]/50 bg-[var(--color-surface)]/50">
-        <h4 className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">
-          Category Rule
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between">
+        <h4 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
+          Rule
         </h4>
+        <span className="text-[11px] text-[var(--color-muted)]">
+          Auto-categorise future matches
+        </span>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Conditions */}
-        <div className="space-y-3">
-          {conditions.map((condition, index) => {
-            const currentFieldOption = FIELD_OPTIONS.find(o => o.value === condition.field);
-            const currentFieldLabel = currentFieldOption?.label || condition.field;
+      <div className="divide-y divide-[var(--color-border)]/40">
+        {conditions.map((condition, index) => {
+          const fieldOption = FIELD_OPTIONS.find((o) => o.value === condition.field);
+          const operatorOptions = fieldOption?.type === 'number' ? NUMBER_OPERATORS : STRING_OPERATORS;
+          const conjunction = index === 0 ? 'If' : 'and';
 
-            const availableOperators = currentFieldOption?.type === 'number' ? NUMBER_OPERATORS : STRING_OPERATORS;
-            const currentOperatorLabel = availableOperators.find(o => o.value === condition.operator)?.label || condition.operator;
-
-            return (
-              <div key={condition.id} className={`flex flex-col gap-2 ${index > 0 ? 'pt-3 border-t border-dashed border-[var(--color-border)]' : ''}`}>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-[var(--color-muted)] mr-1 w-8 text-right">
-                    {index === 0 ? 'If' : 'and'}
-                  </span>
-                  <Dropdown
-                    label={currentFieldLabel}
-                    items={FIELD_OPTIONS.map(option => ({
-                      label: option.label,
-                      onClick: () => handleConditionChange(condition.id, 'field', option.value)
-                    }))}
-                    size="sm"
-                    align="left"
-                    className="bg-[var(--color-bg)] border-[var(--color-border)]"
-                  />
-
-                  <Dropdown
-                    label={currentOperatorLabel}
-                    items={availableOperators.map(option => ({
-                      label: option.label,
-                      onClick: () => handleConditionChange(condition.id, 'operator', option.value)
-                    }))}
-                    size="sm"
-                    align="left"
-                    className="bg-[var(--color-bg)] border-[var(--color-border)]"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pl-11">
-                  <div className="flex-1">
-                    <Input
-                      value={condition.value}
-                      onChange={(e) => handleConditionChange(condition.id, 'value', e.target.value)}
-                      className="w-full bg-[var(--color-bg)] border-[var(--color-border)] focus:border-[var(--color-accent)] h-9 text-base"
-                      placeholder="Value..."
-                      type={currentFieldOption?.type === 'number' ? 'number' : 'text'}
-                    />
-                  </div>
-
-                  {conditions.length > 1 && (
-                    <button
-                      onClick={() => removeCondition(condition.id)}
-                      className="p-2 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] transition-colors"
-                      title="Remove condition"
-                    >
-                      <FiTrash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+          return (
+            <div key={condition.id} className="py-3 first:pt-0 last:pb-0 flex items-start gap-3">
+              <span className="text-sm font-medium text-[var(--color-muted)] w-8 mt-1.5 text-right flex-shrink-0">
+                {conjunction}
+              </span>
+              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-2">
+                <InlinePicker
+                  value={condition.field}
+                  options={FIELD_OPTIONS}
+                  onChange={(v) => handleConditionChange(condition.id, 'field', v)}
+                />
+                <InlinePicker
+                  value={condition.operator}
+                  options={operatorOptions}
+                  onChange={(v) => handleConditionChange(condition.id, 'operator', v)}
+                />
+                <input
+                  type={fieldOption?.type === 'number' ? 'number' : 'text'}
+                  value={condition.value}
+                  onChange={(e) => handleConditionChange(condition.id, 'value', e.target.value)}
+                  placeholder={fieldOption?.type === 'number' ? '0.00' : 'value'}
+                  className="flex-1 min-w-[8rem] bg-transparent text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)]/70 border-0 border-b border-[var(--color-border)] focus:border-[var(--color-fg)] outline-none px-0 py-1 transition-colors"
+                />
               </div>
-            );
-          })}
-        </div>
+              {conditions.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeCondition(condition.id)}
+                  className="p-1.5 rounded-md text-[var(--color-muted)] hover:text-[var(--color-danger)] transition-colors flex-shrink-0"
+                  aria-label="Remove condition"
+                  title="Remove condition"
+                >
+                  <FiTrash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Add Condition Button */}
-        <div className="pl-11">
-          <button
-            onClick={addCondition}
-            className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 transition-colors"
-          >
-            <FiPlus className="w-3.5 h-3.5" />
-            Add condition
-          </button>
-        </div>
+      <div className="pl-11">
+        <button
+          type="button"
+          onClick={addCondition}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+        >
+          <FiPlus className="w-3.5 h-3.5" />
+          Add condition
+        </button>
+      </div>
 
-        {/* Action Row */}
-        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[var(--color-border)]/30">
-          <span className="text-sm font-medium text-[var(--color-muted)] mr-1">Then set category to</span>
-          <button
-            onClick={onEditCategory}
-            className="group flex items-center gap-2 px-3 h-8 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] hover:border-[var(--color-accent)] transition-all cursor-pointer"
-          >
-            <span className="text-xs font-medium text-[var(--color-fg)]">
-              {categoryName || "Select Category"}
-            </span>
-            <FiEdit2 className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-accent)] transition-colors" />
-          </button>
-        </div>
+      <div className="flex items-baseline gap-2 flex-wrap pt-3 border-t border-[var(--color-border)]/40">
+        <span className="text-sm text-[var(--color-muted)]">Then set category to</span>
+        <button
+          type="button"
+          onClick={onEditCategory}
+          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-fg)] underline decoration-dotted decoration-[var(--color-muted)] underline-offset-4 hover:decoration-[var(--color-fg)] transition-colors"
+        >
+          <span>{categoryName || 'Select category'}</span>
+          <FiChevronDown className="w-3 h-3 text-[var(--color-muted)]" />
+        </button>
       </div>
     </div>
   );

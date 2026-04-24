@@ -1,15 +1,33 @@
 import { FiTag, FiUser } from "react-icons/fi";
+import { PiBankFill } from "react-icons/pi";
 import { motion, AnimatePresence } from "framer-motion";
 import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
 import { Button } from "@zervo/ui";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import { useAccounts } from "../providers/AccountsProvider";
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
+// Look up the institution that owns a given account id from the
+// AccountsProvider. The minimal transactions query doesn't embed
+// institution metadata, so we resolve it client-side rather than paying
+// the bandwidth cost of including every logo in the list response.
+function useInstitutionForAccount(accountId) {
+  const { accounts } = useAccounts();
+  if (!accountId || !accounts) return null;
+  for (const institution of accounts) {
+    const match = institution.accounts?.find((a) => a.id === accountId);
+    if (match) return institution;
+  }
+  return null;
+}
+
 export default function TransactionDetails({ transaction, onCategoryClick, onSplitClick, onRepaymentClick, onDeleteSplit, onTransactionLinkClick }) {
+  const institution = useInstitutionForAccount(transaction?.accounts?.id);
+
   if (!transaction) return null;
 
   const isIncome = transaction.amount > 0;
@@ -33,8 +51,14 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
     }).format(new Date(transaction.datetime))
     : null;
 
-  // Institution Logo
-  const institutionLogo = transaction.accounts?.institutions?.logo;
+  // Institution logo — prefer the one inlined on the transaction (full
+  // query), fall back to the AccountsProvider lookup (minimal query).
+  const inlineLogo = transaction.accounts?.institutions?.logo;
+  const institutionLogo = inlineLogo
+    ? `data:image/png;base64,${inlineLogo}`
+    : institution?.logo
+      ? (institution.logo.startsWith('data:') ? institution.logo : `data:image/png;base64,${institution.logo}`)
+      : null;
 
   return (
     <AnimatePresence mode="popLayout" initial={false}>
@@ -50,7 +74,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         <div className="flex items-center gap-4 px-5 py-6">
           {/* Logo / Icon */}
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+            className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
             style={{
               backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
                 ? 'transparent'
@@ -107,47 +131,56 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         </div>
 
         {/* Detail Rows */}
-        <div className="px-5 space-y-6">
-          <div>
+        <div className="px-5 space-y-8">
+          <div className="divide-y divide-[var(--color-border)]/40">
 
             {/* Status Row */}
-            <div className="flex items-center justify-between py-2">
-              <span className="card-header">Status</span>
+            <div className="flex items-center justify-between py-4">
+              <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">Status</span>
               <span className="text-sm text-[var(--color-fg)]">
                 {transaction.pending ? 'Pending' : 'Posted'}
               </span>
             </div>
 
-            {/* Category Row */}
-            <div
+            {/* Category Row — always shows the chevron so the tap affordance
+                is obvious, and the name sits in a pill so it reads as a
+                selectable control rather than a static label. */}
+            <button
+              type="button"
               onClick={onCategoryClick}
-              className="group flex items-center justify-between py-2 -mx-2 px-2 rounded-lg cursor-pointer hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+              className="group flex items-center justify-between w-full py-4 cursor-pointer text-left"
             >
-              <span className="card-header flex-shrink-0">Category</span>
+              <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider flex-shrink-0">Category</span>
               <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
                 <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
-                />
-                <span className="text-sm text-[var(--color-fg)] truncate text-right">{transaction.category_name}</span>
-                <span className="text-[var(--color-muted)] text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">&#8250;</span>
+                  className="inline-flex items-center gap-2 px-3 h-8 rounded-full bg-[var(--color-surface-alt)] group-hover:bg-[color-mix(in_oklab,var(--color-accent),transparent_88%)] transition-colors min-w-0"
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
+                  />
+                  <span className="text-sm text-[var(--color-fg)] truncate">{transaction.category_name}</span>
+                </div>
+                <span className="text-[var(--color-muted)] text-sm leading-none flex-shrink-0">&#8250;</span>
               </div>
-            </div>
+            </button>
 
             {/* Account Row */}
             {transaction.account_name && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Account</span>
+              <div className="flex items-center justify-between py-4">
+                <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">Account</span>
                 <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
-                  {institutionLogo && (
-                    <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 bg-white">
+                  <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-white border border-[var(--color-border)]/50 flex items-center justify-center">
+                    {institutionLogo ? (
                       <img
-                        src={`data:image/png;base64,${institutionLogo}`}
+                        src={institutionLogo}
                         alt=""
                         className="w-full h-full object-contain"
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <PiBankFill className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+                    )}
+                  </div>
                   <span className="text-sm text-[var(--color-fg)] truncate text-right">
                     {transaction.account_name}
                     {transaction.accounts?.mask && <span className="text-[var(--color-muted)] ml-1">··{transaction.accounts.mask}</span>}
@@ -158,8 +191,8 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
 
             {/* Location Row */}
             {transaction.location && (
-              <div className="flex items-center justify-between py-2">
-                <span className="card-header">Location</span>
+              <div className="flex items-center justify-between py-4">
+                <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">Location</span>
                 <span className="text-sm text-[var(--color-fg)] truncate max-w-[60%] text-right">
                   {typeof transaction.location === 'string'
                     ? transaction.location
@@ -172,7 +205,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
           {/* Reimbursement Requests (Splits) */}
           {transaction.transaction_splits && transaction.transaction_splits.length > 0 && (
             <div>
-              <div className="card-header mb-3">Reimbursement Requests</div>
+              <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">Reimbursement Requests</div>
               <div>
                 {transaction.transaction_splits.map((split, idx) => (
                   <div key={idx} className="group flex items-center justify-between py-3.5 -mx-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors">
@@ -225,7 +258,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
           {/* Repayment For (Original Transactions) */}
           {transaction.is_repayment && transaction.transaction_repayments && (
             <div>
-              <div className="card-header mb-3">Repayment For</div>
+              <div className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">Repayment For</div>
               <div>
                 {transaction.transaction_repayments.map((repayment, idx) => {
                   const originalTx = repayment.transaction_splits?.transactions;

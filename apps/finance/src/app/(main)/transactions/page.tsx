@@ -1727,6 +1727,7 @@ function TransactionsContent() {
         onClose={handleDrawerClose}
         title="Transaction Details"
         size="md"
+        mobileLayout="fullscreen"
         views={[
           {
             id: 'transaction-details',
