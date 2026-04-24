@@ -20,6 +20,7 @@ import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
 import { Button, Drawer } from "@zervo/ui";
 
+import SearchInput from "../../../components/ui/SearchInput";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
 import TransactionRow from "../../../components/transactions/TransactionRow";
@@ -125,15 +126,13 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
   // Desktop topbar content — search on left, tools right-aligned
   const desktopContent = (
     <div className="flex items-center w-full">
-      <div className="max-w-sm w-full flex items-center gap-2 pb-1 input-focus-bar">
-        <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
-        <input
-          placeholder="Search transactions..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
-        />
-      </div>
+      <SearchInput
+        size="sm"
+        wrapperClassName="max-w-sm w-full"
+        placeholder="Search transactions"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
       <div className="ml-auto">
         {toolButtons}
       </div>
@@ -170,17 +169,15 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
           >
             <span className="text-lg leading-none">&#8249;</span>
           </button>
-          <div className="flex-1 h-8 flex items-center gap-2 input-focus-bar">
-            <FiSearch className="pointer-events-none h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
-            <input
-              ref={mobileInputRef}
-              placeholder="Search transactions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onBlur={handleMobileBlur}
-              className="flex-1 bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
-            />
-          </div>
+          <SearchInput
+            size="sm"
+            ref={mobileInputRef}
+            wrapperClassName="flex-1"
+            placeholder="Search transactions"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onBlur={handleMobileBlur}
+          />
           {toolButtons}
         </div>
       )}
@@ -523,16 +520,11 @@ const CategoryPickerView = ({
     <div>
       {/* Search */}
       <div className="pb-1">
-        <div className="relative">
-          <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
-          <input
-            type="text"
-            placeholder="Search categories"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search categories"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       {/* List */}
@@ -597,16 +589,11 @@ const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
     <div>
       {accounts.length > 6 && (
         <div className="pb-1">
-          <div className="relative">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
-            <input
-              type="text"
-              placeholder="Search accounts"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search accounts"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       )}
 
@@ -1420,14 +1407,18 @@ function TransactionsContent() {
     // Find the group for this category to get the color/icon
     const group = categoryGroups.find(g => g.system_categories.some(c => c.id === category.id));
 
-    // Optimistic update
+    // Optimistic update. Also clear is_unmatched_transfer here so the
+    // warning icon disappears immediately — the DB update below is the
+    // source of truth but the UI shouldn't wait on it.
     const updatedTransaction = {
       ...selectedTransaction,
       category_id: category.id,
       category_name: category.label,
       category_hex_color: group?.hex_color,
       category_icon_lib: group?.icon_lib,
-      category_icon_name: group?.icon_name
+      category_icon_name: group?.icon_name,
+      is_unmatched_transfer: false,
+      is_unmatched_payment: false,
     };
 
     setSelectedTransaction(updatedTransaction);
@@ -1436,12 +1427,22 @@ function TransactionsContent() {
     setPendingCategory(null); // Clear pending
 
     try {
-      // is_user_categorized flags the row so the Plaid sync preserves this
-      // choice — otherwise the next DEFAULT_UPDATE webhook would reset the
-      // category back to the PFC Plaid returns.
+      // - is_user_categorized flags the row so the Plaid sync preserves
+      //   this choice — otherwise the next DEFAULT_UPDATE webhook would
+      //   reset the category back to the PFC Plaid returns.
+      // - is_unmatched_transfer is cleared because the transfer-detection
+      //   pass only *sets* the flag on rows it classifies as transfers;
+      //   moving a row out of a transfer category leaves the flag stale
+      //   and the alert icon sticks around. Clearing it here is always
+      //   safe — if the user later picks a transfer category, the next
+      //   detection run will recompute.
       const { error } = await supabase
         .from('transactions')
-        .update({ category_id: category.id, is_user_categorized: true })
+        .update({
+          category_id: category.id,
+          is_user_categorized: true,
+          is_unmatched_transfer: false,
+        })
         .eq('id', selectedTransaction.id);
 
       if (error) throw error;
@@ -1471,16 +1472,24 @@ function TransactionsContent() {
                 category_name: pendingCategory.label,
                 category_hex_color: group?.hex_color,
                 category_icon_lib: group?.icon_lib,
-                category_icon_name: group?.icon_name
+                category_icon_name: group?.icon_name,
+                is_unmatched_transfer: false,
+                is_unmatched_payment: false,
               }
               : t
           ));
 
-          // Same flag-setting rationale as the single-transaction update:
-          // these rows get pinned so future syncs preserve the choice.
+          // Same rationale as the single-transaction update: pin these
+          // rows so future syncs preserve the choice, and clear the
+          // unmatched-transfer flag in case any of them were stale
+          // transfers that the user is re-classifying.
           const { error } = await supabase
             .from('transactions')
-            .update({ category_id: pendingCategory.id, is_user_categorized: true })
+            .update({
+              category_id: pendingCategory.id,
+              is_user_categorized: true,
+              is_unmatched_transfer: false,
+            })
             .in('id', selectedIds);
 
           if (error) throw error;
