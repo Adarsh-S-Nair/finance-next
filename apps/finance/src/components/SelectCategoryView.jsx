@@ -43,7 +43,6 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
             placeholder="Search categories..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
             className="w-full bg-transparent text-base text-[var(--color-fg)] placeholder:text-[var(--color-muted)] outline-none"
           />
         </div>

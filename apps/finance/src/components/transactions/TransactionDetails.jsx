@@ -142,26 +142,22 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               </span>
             </div>
 
-            {/* Category Row — always shows the chevron so the tap affordance
-                is obvious, and the name sits in a pill so it reads as a
-                selectable control rather than a static label. */}
+            {/* Category Row — whole row is tappable and lights up on hover
+                so the affordance is obvious without a visual pill that
+                competes with the rest of the detail rows. */}
             <button
               type="button"
               onClick={onCategoryClick}
-              className="group flex items-center justify-between w-full py-4 cursor-pointer text-left"
+              className="group flex items-center justify-between w-full py-4 -mx-2 px-2 rounded-lg cursor-pointer text-left transition-colors hover:bg-[var(--color-surface-alt)]/60"
             >
               <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider flex-shrink-0">Category</span>
               <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
                 <div
-                  className="inline-flex items-center gap-2 px-3 h-8 rounded-full bg-[var(--color-surface-alt)] group-hover:bg-[color-mix(in_oklab,var(--color-accent),transparent_88%)] transition-colors min-w-0"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
-                  />
-                  <span className="text-sm text-[var(--color-fg)] truncate">{transaction.category_name}</span>
-                </div>
-                <span className="text-[var(--color-muted)] text-sm leading-none flex-shrink-0">&#8250;</span>
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: (transaction.category_hex_color || 'var(--color-accent)') }}
+                />
+                <span className="text-sm text-[var(--color-fg)] truncate">{transaction.category_name}</span>
+                <span className="text-[var(--color-muted)] text-sm leading-none flex-shrink-0 transition-transform group-hover:translate-x-0.5">&#8250;</span>
               </div>
             </button>
 

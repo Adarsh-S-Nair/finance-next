@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TransactionRow from './TransactionRow';
 import RuleBuilder from './RuleBuilder';
-import { Button } from "@zervo/ui";
+import { OverlayButton } from "@zervo/ui";
 
 export default function SimilarTransactionsFound({ count, transactions, criteria, categoryName, categoryGroups, onEditCategory, onConfirm, onClose, onCategorizeOnly }) {
   const [currentRules, setCurrentRules] = useState([]);
@@ -17,13 +17,12 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
         value: criteria.value || '',
       }];
 
-      // If matchType is 'exact', also add an amount condition
       if (criteria.matchType === 'exact' && criteria.amount !== null) {
         initialRules.push({
           id: Date.now() + 1,
           field: 'amount',
           operator: 'equals',
-          value: String(Math.abs(criteria.amount)), // Use absolute value for display
+          value: String(Math.abs(criteria.amount)),
         });
       }
 
@@ -54,13 +53,18 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
 
   return (
     <div className="min-h-full flex flex-col bg-[var(--color-bg)]">
-      <div className="flex-1 p-4 space-y-6">
+      <div className="flex-1 px-5 pt-2 pb-6 space-y-8">
 
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
-            Transactions ({selectedIds.size} selected)
-          </h4>
-          <div className="divide-y divide-[var(--color-border)]/40">
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h4 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider">
+              Transactions
+            </h4>
+            <span className="text-[11px] text-[var(--color-muted)] tabular-nums">
+              {selectedIds.size} selected
+            </span>
+          </div>
+          <div className="space-y-1 -mx-2">
             {transactions && transactions.map((transaction, index) => (
               <TransactionRow
                 key={transaction.id || index}
@@ -68,7 +72,7 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
                 selectable={true}
                 selected={selectedIds.has(transaction.id)}
                 onSelect={() => toggleSelection(transaction.id)}
-                onTransactionClick={() => { }} // No-op for now
+                onTransactionClick={() => { }}
                 compact={true}
                 showDate={true}
               />
@@ -86,23 +90,19 @@ export default function SimilarTransactionsFound({ count, transactions, criteria
         />
       </div>
 
-      <div className="sticky bottom-0 p-4 border-t border-[var(--color-border)]/50 bg-[var(--color-bg)] grid grid-cols-2 gap-3 z-10">
-        <Button
+      <div className="sticky bottom-0 px-5 py-4 border-t border-[var(--color-border)]/40 bg-[var(--color-bg)] flex items-center justify-end gap-3 z-10">
+        <OverlayButton
+          variant="secondary"
           onClick={onCategorizeOnly}
-          variant="outline"
-          className="w-full justify-center"
-          size="lg"
         >
-          Categorize Only This
-        </Button>
-        <Button
+          Just this one
+        </OverlayButton>
+        <OverlayButton
           onClick={handleConfirm}
-          className="w-full justify-center"
-          size="lg"
           disabled={selectedIds.size === 0}
         >
-          Confirm & Update
-        </Button>
+          Confirm
+        </OverlayButton>
       </div>
     </div>
   );

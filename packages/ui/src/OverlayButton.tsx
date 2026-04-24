@@ -3,7 +3,7 @@
 import { ButtonHTMLAttributes, forwardRef } from "react";
 import clsx from "clsx";
 
-type Variant = "primary" | "danger";
+type Variant = "primary" | "danger" | "secondary";
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "disabled"> & {
   loading?: boolean;
@@ -12,10 +12,12 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "disabled"> & {
 };
 
 /**
- * Primary action button used across every overlay modal (sign-out confirm,
- * household invite, switcher create/join). Pill-shaped, bg-fg/text-bg in
- * primary, bg-danger/white in danger. Loading state swaps the label for a
- * spinner and makes the button non-interactive + muted.
+ * Pill-shaped action button used across every overlay modal (sign-out
+ * confirm, household invite, switcher create/join). Primary is the fg
+ * fill on bg text; danger fills with the danger color; secondary is the
+ * outlined sibling for when a dialog needs two buttons of comparable
+ * weight (e.g. "Cancel this" / "Confirm this"). Loading state swaps the
+ * label for a spinner and makes the button non-interactive.
  */
 const OverlayButton = forwardRef<HTMLButtonElement, Props>(function OverlayButton(
   { loading = false, disabled = false, variant = "primary", className, children, ...rest },
@@ -30,11 +32,12 @@ const OverlayButton = forwardRef<HTMLButtonElement, Props>(function OverlayButto
       disabled={isInactive}
       aria-busy={loading || undefined}
       className={clsx(
-        "inline-flex h-9 min-w-[7rem] items-center justify-center gap-1.5 rounded-full px-5 text-sm font-medium transition-opacity cursor-pointer",
-        variant === "danger"
-          ? "bg-[var(--color-danger)] text-white"
-          : "bg-[var(--color-fg)] text-[var(--color-bg)]",
-        !isInactive && "hover:opacity-90",
+        "inline-flex h-9 min-w-[7rem] items-center justify-center gap-1.5 rounded-full px-5 text-sm font-medium transition-[opacity,background-color,border-color,color] cursor-pointer",
+        variant === "danger" && "bg-[var(--color-danger)] text-white",
+        variant === "primary" && "bg-[var(--color-fg)] text-[var(--color-bg)]",
+        variant === "secondary" &&
+          "bg-transparent text-[var(--color-fg)] ring-1 ring-inset ring-[var(--color-border)] hover:ring-[var(--color-fg)]",
+        variant !== "secondary" && !isInactive && "hover:opacity-90",
         isInactive && "opacity-50 pointer-events-none",
         className,
       )}
