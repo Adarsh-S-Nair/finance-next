@@ -109,6 +109,16 @@ export default function LineChart({
 }: LineChartProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
+  // Per-touch gesture state. We track the starting point and whether
+  // the gesture has resolved into a horizontal scrub so we can bail out
+  // cleanly when the user is actually trying to scroll the page
+  // vertically. Kept in a ref so updates don't re-render.
+  const touchStateRef = React.useRef<{
+    startX: number;
+    startY: number;
+    scrubbing: boolean;
+    abandoned: boolean;
+  } | null>(null);
 
   // Normalize lines configuration
   const chartLines = React.useMemo(() => {
@@ -140,12 +150,12 @@ export default function LineChart({
     }];
   }, [lines, dataKey, strokeColor, strokeWidth, strokeOpacity, gradientId, showArea, areaOpacity]);
 
-  // Handle Mouse Move on Overlay
-  const handleOverlayMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current || !data.length) return;
+  // Shared index calculation used by both pointer and touch paths.
+  const indexFromClientX = (clientX: number): number | null => {
+    if (!containerRef.current || !data.length) return null;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = clientX - rect.left;
     const chartWidth = rect.width;
 
     // Account for margins in the calculation
@@ -155,33 +165,27 @@ export default function LineChart({
     const effectiveWidth = Math.max(1, effectiveRight - effectiveLeft);
     const relativeX = Math.max(0, Math.min(effectiveWidth, x - effectiveLeft));
 
-    // For better UX, create hover zones for each data point
-    let index: number;
-
-    if (data.length === 1) {
-      index = 0;
-    } else if (data.length === 2) {
-      // Split chart into two halves for easier hovering
+    if (data.length === 1) return 0;
+    if (data.length === 2) {
       const midpoint = effectiveWidth / 2;
-      index = relativeX < midpoint ? 0 : 1;
-    } else {
-      // For more points, use proportional calculation
-      // Each data point gets an equal-width zone
-      const normalizedX = relativeX / effectiveWidth;
-      const rawIndex = normalizedX * (data.length - 1);
-
-      // Round to nearest index, clamped to valid range
-      index = Math.min(
-        Math.max(0, Math.round(rawIndex)),
-        data.length - 1
-      );
+      return relativeX < midpoint ? 0 : 1;
     }
 
+    const normalizedX = relativeX / effectiveWidth;
+    const rawIndex = normalizedX * (data.length - 1);
+    return Math.min(Math.max(0, Math.round(rawIndex)), data.length - 1);
+  };
+
+  const setActiveFromClientX = (clientX: number) => {
+    const index = indexFromClientX(clientX);
+    if (index === null) return;
     setActiveIndex(index);
+    onMouseMove?.(data[index], index);
+  };
 
-    if (onMouseMove) {
-      onMouseMove(data[index], index);
-    }
+  // Handle Mouse Move on Overlay
+  const handleOverlayMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    setActiveFromClientX(e.clientX);
   };
 
   // Handle Mouse Leave on Overlay
@@ -190,6 +194,53 @@ export default function LineChart({
     if (onMouseLeave) {
       onMouseLeave();
     }
+  };
+
+  // Touch scrubbing. On mobile/tablet, pressing and dragging across the
+  // chart acts like a desktop hover — the scrubber follows the finger.
+  // We start tracking on touchstart but don't commit to "scrubbing" until
+  // the gesture is clearly horizontal (or the user has held still for a
+  // few frames) so vertical scrolls still pass through to the page.
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStateRef.current = {
+      startX: t.clientX,
+      startY: t.clientY,
+      scrubbing: false,
+      abandoned: false,
+    };
+    setActiveFromClientX(t.clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const state = touchStateRef.current;
+    if (!state || state.abandoned) return;
+    const t = e.touches[0];
+    if (!t) return;
+
+    if (!state.scrubbing) {
+      const dx = Math.abs(t.clientX - state.startX);
+      const dy = Math.abs(t.clientY - state.startY);
+      // If the gesture is clearly vertical, bail and let the page
+      // scroll. Clear the scrubber so a vertical swipe doesn't leave a
+      // stale dot behind on the chart.
+      if (dy > dx && dy > 8) {
+        state.abandoned = true;
+        setActiveIndex(null);
+        onMouseLeave?.();
+        return;
+      }
+      if (dx > 4 || dy > 4) state.scrubbing = true;
+    }
+
+    setActiveFromClientX(t.clientX);
+  };
+
+  const handleTouchEnd = () => {
+    touchStateRef.current = null;
+    setActiveIndex(null);
+    onMouseLeave?.();
   };
 
   // Global mouse move listener to handle fast exits
@@ -375,12 +426,19 @@ export default function LineChart({
         </AreaChart>
       </ResponsiveContainer>
 
-      {/* Invisible overlay to capture mouse events */}
+      {/* Invisible overlay to capture mouse and touch events. We set
+          touch-action: pan-y so vertical page scrolls still work — the
+          browser reserves vertical pans for itself and hands horizontal
+          motion to our scrub handlers. */}
       <div
         className="absolute inset-0"
-        style={{ pointerEvents: 'auto', cursor: 'default' }}
+        style={{ pointerEvents: 'auto', cursor: 'default', touchAction: 'pan-y' }}
         onMouseMove={handleOverlayMouseMove}
         onMouseLeave={handleOverlayMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       />
 
     </div>
