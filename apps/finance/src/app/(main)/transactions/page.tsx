@@ -822,18 +822,35 @@ function TransactionsContent() {
   }, [institutions]);
 
   // Sync URL → state when the URL changes while the user is already
-  // on /transactions. Without this, clicking the "Unmatched transfers"
-  // link from the bell or an insight card just updates the query
-  // string but leaves the filter state untouched, so the list doesn't
-  // actually narrow. Only react to *incoming* URL changes — the
-  // state → URL effect below is what handles the other direction.
+  // on /transactions. Without this, clicking a link that deep-links
+  // into the transactions page (e.g. the "Unmatched transfers"
+  // insight or a slice of the top-spending donut) just updates the
+  // query string but leaves the filter state untouched, so the list
+  // doesn't actually narrow. Only react to *incoming* URL changes —
+  // the state → URL effect below handles the other direction.
   const statusParam = searchParams.get('status') || 'all';
+  const dateRangeParam = (() => {
+    const raw = searchParams.get('dateRange');
+    if (raw) return raw;
+    if (searchParams.get('startDate') || searchParams.get('endDate')) return 'custom';
+    return 'all';
+  })();
+  const categoryIdsParam = searchParams.get('categoryIds') || '';
+  const groupIdsParam = searchParams.get('groupIds') || '';
+
   useEffect(() => {
-    if (statusParam !== transactionStatus) {
-      setTransactionStatus(statusParam);
+    if (statusParam !== transactionStatus) setTransactionStatus(statusParam);
+    if (dateRangeParam !== dateRange) setDateRange(dateRangeParam);
+    const nextCategoryIds = categoryIdsParam ? categoryIdsParam.split(',').filter(Boolean) : [];
+    if (nextCategoryIds.join(',') !== selectedCategoryIds.join(',')) {
+      setSelectedCategoryIds(nextCategoryIds);
+    }
+    const nextGroupIds = groupIdsParam ? groupIdsParam.split(',').filter(Boolean) : [];
+    if (nextGroupIds.join(',') !== selectedGroupIds.join(',')) {
+      setSelectedGroupIds(nextGroupIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusParam]);
+  }, [statusParam, dateRangeParam, categoryIdsParam, groupIdsParam]);
 
   // Sync state changes to URL
   useEffect(() => {

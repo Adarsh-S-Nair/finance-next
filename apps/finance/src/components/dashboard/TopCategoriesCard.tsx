@@ -349,17 +349,25 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
     return named;
   }, [categories, totalSpending]);
 
+  // Map the donut's view-mode toggle onto the transactions page's
+  // date-range filter so clicking a slice lands you on the exact same
+  // window you were looking at. thisMonth → the "this month" preset,
+  // last30 → the "last 30 days" preset.
+  const transactionsDateRange = viewMode === "thisMonth" ? "month" : "30days";
+
   const onSegmentClick = (seg: Segment) => {
     if (!seg) return;
     if (seg.isOther) {
       if (!seg.otherIds?.length) return;
       router.push(
-        `/transactions?categoryIds=${seg.otherIds.join(",")}&dateRange=30days`
+        `/transactions?categoryIds=${seg.otherIds.join(",")}&dateRange=${transactionsDateRange}`,
       );
       return;
     }
     if (!seg.id) return;
-    router.push(`/transactions?categoryIds=${seg.id}&dateRange=30days`);
+    router.push(
+      `/transactions?categoryIds=${seg.id}&dateRange=${transactionsDateRange}`,
+    );
   };
 
   const isEmpty = segments.length === 0 || totalSpending === 0;
