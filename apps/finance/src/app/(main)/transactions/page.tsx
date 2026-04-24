@@ -9,7 +9,7 @@ import PageContainer from "../../../components/layout/PageContainer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
-import { useState, useEffect, useCallback, useRef, useMemo, useTransition, memo, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { HouseholdRailInlineTrigger } from "../../../components/households/HouseholdRailExpander";
@@ -100,6 +100,28 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
   const searchOpen = explicitlyOpen || searchQuery.length > 0;
   const mobileInputRef = useRef(null);
 
+  // Measure the mobile topbar row so we can animate the search pill's
+  // width between the closed "just the magnifier" footprint (36px) and
+  // the open "full row minus the filter button" footprint in actual
+  // pixel values — the browser can't interpolate between 36px and a
+  // percentage, but it can between two px numbers.
+  const mobileRowRef = useRef(null);
+  const FILTER_BTN_SIZE = 36;
+  const FILTER_GAP = 4;
+  const [pillOpenWidth, setPillOpenWidth] = useState(280);
+  useLayoutEffect(() => {
+    const el = mobileRowRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const total = el.offsetWidth;
+      setPillOpenWidth(Math.max(120, total - FILTER_BTN_SIZE - FILTER_GAP));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Focus the field when it first opens. Delayed a frame so the
   // slide-in animation has actually started before the keyboard
   // triggers — on iOS the keyboard pushing up can otherwise interrupt
@@ -163,86 +185,90 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
   );
 
   const mobileContent = (
-    <div className="flex items-center w-full h-full gap-1">
-      {/* Left: magnifier button — only when closed. Tapping it opens
-          the input. Pointer-events stays on so taps register, but we
-          fade/scale for a quick polish. */}
-      <motion.button
-        type="button"
-        onClick={() => setExplicitlyOpen(true)}
-        aria-label="Search"
-        animate={{
+    <div ref={mobileRowRef} className="flex items-center w-full h-full relative">
+      {/* Search pill. When closed, it's just the magnifier footprint
+          (36px square). When open, it grows to the full row width
+          minus the filter button. The magnifier doesn't disappear —
+          it becomes the leading icon of the input. */}
+      <motion.div
+        animate={{ width: searchOpen ? pillOpenWidth : FILTER_BTN_SIZE }}
+        transition={{ duration: 0.24, ease: [0.25, 0.1, 0.25, 1] }}
+        className="h-9 rounded-md overflow-hidden relative flex-shrink-0 transition-colors duration-150"
+        style={{
+          backgroundColor: searchOpen
+            ? 'var(--color-surface-alt)'
+            : 'transparent',
+        }}
+      >
+        {/* Magnifier — always at the left edge. Doubles as the
+            "open the search" button when the pill is collapsed; once
+            open it's just a static leading icon on the input. */}
+        <button
+          type="button"
+          onClick={() => { if (!searchOpen) setExplicitlyOpen(true); }}
+          aria-label={searchOpen ? 'Search' : 'Open search'}
+          tabIndex={searchOpen ? -1 : 0}
+          className="absolute left-0 top-0 h-9 w-9 flex items-center justify-center text-[var(--color-muted)] flex-shrink-0"
+        >
+          <FiSearch className={searchOpen ? 'h-4 w-4' : 'h-5 w-5'} />
+        </button>
+
+        {/* Input — transparent background on top of the pill's own
+            surface-alt fill. Fades in when opened so the text doesn't
+            flash on the closed 36px footprint. */}
+        <input
+          ref={mobileInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="Search transactions"
+          aria-hidden={!searchOpen}
+          className="absolute left-0 top-0 w-full h-9 pl-9 pr-9 text-sm bg-transparent border-0 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+          style={{
+            opacity: searchOpen ? 1 : 0,
+            pointerEvents: searchOpen ? 'auto' : 'none',
+            transition: 'opacity 0.18s ease-out',
+            transitionDelay: searchOpen ? '0.08s' : '0s',
+          }}
+        />
+
+        {/* Clear button — inside the pill, only when there's text. */}
+        <AnimatePresence>
+          {searchQuery && searchOpen && (
+            <motion.button
+              type="button"
+              onClick={handleClear}
+              aria-label="Clear search"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.12 }}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)]"
+            >
+              <FiX className="h-3.5 w-3.5" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Logo — absolute-centered, fades out when the pill expands
+          over it. pointer-events-none while faded so taps go through
+          to whatever else might be underneath. */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-150"
+        style={{
           opacity: searchOpen ? 0 : 1,
           pointerEvents: searchOpen ? 'none' : 'auto',
         }}
-        transition={{ duration: 0.15 }}
-        className="w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] flex-shrink-0"
       >
-        <FiSearch className="h-5 w-5" />
-      </motion.button>
-
-      {/* Middle — holds either the centered logo or the growing input.
-          The two are stacked so neither pushes the layout as they
-          swap. */}
-      <div className="flex-1 relative h-full">
-        {/* Logo — absolute-centered, fades with the search state. */}
-        <motion.div
-          animate={{ opacity: searchOpen ? 0 : 1 }}
-          transition={{ duration: 0.15 }}
-          style={{ pointerEvents: searchOpen ? 'none' : 'auto' }}
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-        >
-          <HouseholdRailInlineTrigger />
-        </motion.div>
-
-        {/* Input — animates its max-width from 0 so it reveals
-            left-to-right as the logo fades. max-width animates
-            cleanly from 0 to a concrete length (100vw is larger than
-            any phone's content column, so clamping is via the
-            parent's flex-1). */}
-        <div
-          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 overflow-hidden transition-[max-width,opacity] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
-          style={{
-            maxWidth: searchOpen ? '100vw' : '0px',
-            opacity: searchOpen ? 1 : 0,
-            pointerEvents: searchOpen ? 'auto' : 'none',
-          }}
-        >
-          <div className="relative">
-            <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted)]" />
-            <input
-              ref={mobileInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onBlur={handleBlur}
-              placeholder="Search transactions"
-              className="w-full h-9 pl-9 pr-9 text-sm bg-[var(--color-surface-alt)] border-0 rounded-md text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-fg)]/20"
-            />
-            <AnimatePresence>
-              {searchQuery && (
-                <motion.button
-                  type="button"
-                  onClick={handleClear}
-                  aria-label="Clear search"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.12 }}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)]"
-                >
-                  <FiX className="h-3.5 w-3.5" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+        <HouseholdRailInlineTrigger />
       </div>
 
-      {/* Right: filter button — always visible on mobile, no alerts
-          or add-account here (those are intentionally hidden on the
-          transactions page per the user's request). */}
-      {filterButton}
+      {/* Filter button — always at the right edge. */}
+      <div className="ml-auto relative z-10 flex-shrink-0">
+        {filterButton}
+      </div>
     </div>
   );
 
