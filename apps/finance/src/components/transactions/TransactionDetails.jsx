@@ -25,10 +25,16 @@ function useInstitutionForAccount(accountId) {
   return null;
 }
 
-export default function TransactionDetails({ transaction, onCategoryClick, onSplitClick, onRepaymentClick, onDeleteSplit, onTransactionLinkClick }) {
+export default function TransactionDetails({ transaction, onCategoryClick, onSplitClick, onRepaymentClick, onDeleteSplit, onTransactionLinkClick, onMarkReviewed }) {
   const institution = useInstitutionForAccount(transaction?.accounts?.id);
 
   if (!transaction) return null;
+
+  const needsReview =
+    !transaction.is_repayment &&
+    (transaction.is_unmatched_transfer ||
+      transaction.is_unmatched_payment ||
+      transaction.account_name === 'Unknown Account');
 
   const isIncome = transaction.amount > 0;
 
@@ -129,6 +135,36 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             {isIncome ? '+' : ''}{formatCurrency(transaction.amount)}
           </div>
         </div>
+
+        {/* Needs-review banner — visible whenever the transfer-detection
+            pass flagged this transaction or it's sitting on an unknown
+            account. Gives the user an out if they don't want to
+            recategorise but want the row to stop being flagged. */}
+        {needsReview && onMarkReviewed && (
+          <div className="mx-5 mb-4 flex items-center justify-between gap-3 rounded-md px-4 py-3 bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)]">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span
+                aria-hidden
+                className="mt-1.5 block h-2 w-2 flex-shrink-0 rounded-full bg-[var(--color-danger)]"
+              />
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-[var(--color-fg)]">Needs review</div>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                  {transaction.account_name === 'Unknown Account'
+                    ? 'This transaction is on an account we couldn\u2019t identify.'
+                    : 'We couldn\u2019t match this transfer to another account.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onMarkReviewed}
+              className="inline-flex items-center h-7 px-3 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-90 flex-shrink-0"
+            >
+              Mark as reviewed
+            </button>
+          </div>
+        )}
 
         {/* Detail Rows */}
         <div className="px-5 space-y-8">

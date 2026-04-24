@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { FiTag, FiAlertCircle } from 'react-icons/fi';
+import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 
@@ -63,11 +63,17 @@ const TransactionRow = memo(function TransactionRow({
 
   const showLogo = !DISABLE_LOGOS && !!transaction.icon_url && !logoFailed;
 
+  const needsReview =
+    !transaction.is_repayment &&
+    (transaction.is_unmatched_transfer ||
+      transaction.is_unmatched_payment ||
+      transaction.account_name === 'Unknown Account');
+
   return (
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 -mx-2 px-2 md:-mx-3 md:px-3'} hover:bg-[var(--color-surface-alt)]/40 rounded-lg transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
+      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 -mx-2 px-2 md:-mx-3 md:px-3'} hover:bg-[var(--color-surface-alt)]/40 rounded-lg transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''} ${needsReview ? 'pl-4 md:pl-5' : ''}`}
       onClick={() => {
         if (selectable && onSelect) {
           onSelect(!selected);
@@ -76,6 +82,16 @@ const TransactionRow = memo(function TransactionRow({
         }
       }}
     >
+      {/* Left-edge accent bar — signals the row needs the user's
+          attention (unmatched transfer, unknown account, etc.).
+          Replaces the old inline yellow alert circle, which was noisy
+          and competed with the category text. */}
+      {needsReview && (
+        <span
+          aria-hidden
+          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--color-danger)]"
+        />
+      )}
 
       <div className="flex items-center gap-4 min-w-0 flex-1">
         <div className="relative">
@@ -119,13 +135,8 @@ const TransactionRow = memo(function TransactionRow({
             {transaction.merchant_name || transaction.description || 'Transaction'}
           </div>
           {transaction.category_name && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5 truncate">
-              <span className="truncate">{transaction.category_name}</span>
-              {(!transaction.is_repayment && (transaction.is_unmatched_transfer || transaction.is_unmatched_payment || transaction.account_name === 'Unknown Account')) && (
-                <div className="text-yellow-500 flex-shrink-0" title={transaction.account_name === 'Unknown Account' ? 'Unknown Account' : 'Unmatched Transfer / Payment'}>
-                  <FiAlertCircle className="w-3.5 h-3.5" />
-                </div>
-              )}
+            <div className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+              {transaction.category_name}
             </div>
           )}
         </div>

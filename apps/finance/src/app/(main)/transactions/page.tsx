@@ -1513,6 +1513,43 @@ function TransactionsContent() {
     await updateTransactionCategory(category);
   };
 
+  // Returns true when the transaction still matches the active filter.
+  // Used to drop rows from the list optimistically after a category
+  // change or mark-as-reviewed so the user doesn't see stale
+  // "needs-attention" rows sitting around until the next fetch.
+  const matchesCurrentFilters = useCallback(
+    (tx) => {
+      if (transactionStatus === 'attention') {
+        if (tx.is_unmatched_transfer) return true;
+        if (tx.is_unmatched_payment) return true;
+        if (tx.account_name === 'Unknown Account') return true;
+        return false;
+      }
+      if (transactionStatus === 'pending') return !!tx.pending;
+      if (transactionStatus === 'completed') return !tx.pending;
+      return true;
+    },
+    [transactionStatus],
+  );
+
+  // Apply a per-row optimistic update to whichever local collections
+  // hold that transaction (the main list + the currently-selected
+  // detail row). If the updated tx no longer matches the active
+  // filter, drop it from the list instead of stranding a stale row.
+  const applyTransactionUpdate = useCallback(
+    (id, patch) => {
+      setTransactions((prev) =>
+        prev
+          .map((t) => (t.id === id ? { ...t, ...patch } : t))
+          .filter((t) => (t.id === id ? matchesCurrentFilters(t) : true)),
+      );
+      setSelectedTransaction((prev) =>
+        prev && prev.id === id ? { ...prev, ...patch } : prev,
+      );
+    },
+    [matchesCurrentFilters],
+  );
+
   const updateTransactionCategory = async (category) => {
     // Find the group for this category to get the color/icon
     const group = categoryGroups.find(g => g.system_categories.some(c => c.id === category.id));
@@ -1520,8 +1557,7 @@ function TransactionsContent() {
     // Optimistic update. Also clear is_unmatched_transfer here so the
     // warning icon disappears immediately — the DB update below is the
     // source of truth but the UI shouldn't wait on it.
-    const updatedTransaction = {
-      ...selectedTransaction,
+    applyTransactionUpdate(selectedTransaction.id, {
       category_id: category.id,
       category_name: category.label,
       category_hex_color: group?.hex_color,
@@ -1529,10 +1565,7 @@ function TransactionsContent() {
       category_icon_name: group?.icon_name,
       is_unmatched_transfer: false,
       is_unmatched_payment: false,
-    };
-
-    setSelectedTransaction(updatedTransaction);
-    setTransactions(prev => prev.map(t => t.id === selectedTransaction.id ? updatedTransaction : t));
+    });
     setCurrentDrawerView('transaction-details');
     setPendingCategory(null); // Clear pending
 
@@ -1573,21 +1606,24 @@ function TransactionsContent() {
           // Find the group for this category to get the color/icon
           const group = categoryGroups.find(g => g.system_categories.some(c => c.id === pendingCategory.id));
 
-          // Optimistic update for similar transactions in the list
-          setTransactions(prev => prev.map(t =>
-            selectedIds.includes(t.id)
-              ? {
-                ...t,
-                category_id: pendingCategory.id,
-                category_name: pendingCategory.label,
-                category_hex_color: group?.hex_color,
-                category_icon_lib: group?.icon_lib,
-                category_icon_name: group?.icon_name,
-                is_unmatched_transfer: false,
-                is_unmatched_payment: false,
-              }
-              : t
-          ));
+          // Optimistic update for similar transactions in the list.
+          // Rows that no longer match the active filter (e.g. the
+          // "attention" filter) get dropped automatically.
+          const patch = {
+            category_id: pendingCategory.id,
+            category_name: pendingCategory.label,
+            category_hex_color: group?.hex_color,
+            category_icon_lib: group?.icon_lib,
+            category_icon_name: group?.icon_name,
+            is_unmatched_transfer: false,
+            is_unmatched_payment: false,
+          };
+          const selectedSet = new Set(selectedIds);
+          setTransactions((prev) =>
+            prev
+              .map((t) => (selectedSet.has(t.id) ? { ...t, ...patch } : t))
+              .filter((t) => (selectedSet.has(t.id) ? matchesCurrentFilters(t) : true)),
+          );
 
           // Same rationale as the single-transaction update: pin these
           // rows so future syncs preserve the choice, and clear the
@@ -1646,6 +1682,31 @@ function TransactionsContent() {
   const handleEditCategory = () => {
     setCurrentDrawerView('select-category');
   };
+
+  // User chose "Mark as reviewed" — dismiss the needs-attention flag
+  // without changing the category. Same optimistic+supabase-update
+  // path as a category change, minus the category bits.
+  const handleMarkReviewed = useCallback(async () => {
+    if (!selectedTransaction?.id) return;
+    applyTransactionUpdate(selectedTransaction.id, {
+      is_unmatched_transfer: false,
+      is_unmatched_payment: false,
+    });
+    // Close the drawer if the row was dropped from the filtered list,
+    // since its "selected" state no longer points at anything visible.
+    if (transactionStatus === 'attention') {
+      setIsDrawerOpen(false);
+    }
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ is_unmatched_transfer: false })
+        .eq('id', selectedTransaction.id);
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error marking transaction as reviewed:', err);
+    }
+  }, [selectedTransaction?.id, applyTransactionUpdate, transactionStatus]);
 
   // Use transactions directly since they are now server-filtered
   const filteredTransactions = transactions;
@@ -1872,6 +1933,7 @@ function TransactionsContent() {
               onRepaymentClick={handleRepaymentClick}
               onDeleteSplit={handleDeleteSplit}
               onTransactionLinkClick={handleTransactionLinkClick}
+              onMarkReviewed={handleMarkReviewed}
             />
           },
           {
