@@ -1084,6 +1084,33 @@ function TransactionsContent() {
     return () => observer.disconnect();
   }, []);
 
+  // IntersectionObserver only fires on *transitions*. On mount the
+  // bottom sentinel is already in view (there are no transactions yet),
+  // so the observer fires once with no cursor and then goes quiet. Once
+  // nextCursor/prevCursor become available, manually check if the
+  // corresponding sentinel is still in view and trigger the load. This
+  // also lets short lists that don't overflow the viewport keep
+  // fetching until the sentinel is pushed out of view.
+  useEffect(() => {
+    if (!nextCursor || loadingMore) return;
+    const el = bottomSentinelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight + 200) {
+      loadMoreRef.current?.();
+    }
+  }, [nextCursor, loadingMore]);
+
+  useEffect(() => {
+    if (!prevCursor || loadingPrev) return;
+    const el = topSentinelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.bottom > -200) {
+      loadPrevRef.current?.();
+    }
+  }, [prevCursor, loadingPrev]);
+
   useEffect(() => {
     fetchInitialTransactions();
     return () => {
