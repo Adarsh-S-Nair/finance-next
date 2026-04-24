@@ -78,49 +78,40 @@ function TransactionSkeleton() {
   );
 }
 
-// SearchToolbar — portals into topbar on all screen sizes
+// SearchToolbar — portals into the topbar. On desktop it takes the
+// title slot (search on the left, refresh/filter on the right). On
+// mobile it takes over the entire topbar row via the mobile portal —
+// the default add/alerts buttons are out of the way so the search
+// field gets the space it needs and the filter button sits right next
+// to it.
 function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpenFilters, activeFilterCount }) {
   const [mounted, setMounted] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const mobileInputRef = useRef(null);
-
   useEffect(() => { setMounted(true); }, []);
 
-  useEffect(() => {
-    if (mobileSearchOpen && mobileInputRef.current) {
-      mobileInputRef.current.focus();
-    }
-  }, [mobileSearchOpen]);
+  const filterButton = (
+    <button
+      onClick={onOpenFilters}
+      aria-label="Filter"
+      className="relative w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors flex-shrink-0"
+    >
+      <FiFilter className="h-4 w-4" />
+      {activeFilterCount > 0 && (
+        <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+          {activeFilterCount}
+        </span>
+      )}
+    </button>
+  );
 
-  const handleMobileBlur = () => {
-    if (!searchQuery.trim()) {
-      setMobileSearchOpen(false);
-    }
-  };
-
-  const toolButtons = (
-    <div className="flex items-center gap-1 flex-shrink-0">
-      <button
-        onClick={onRefresh}
-        disabled={loading}
-        aria-label="Refresh"
-        className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50"
-      >
-        <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-      </button>
-      <button
-        onClick={onOpenFilters}
-        aria-label="Filter"
-        className="relative w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-      >
-        <FiFilter className="h-4 w-4" />
-        {activeFilterCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
-            {activeFilterCount}
-          </span>
-        )}
-      </button>
-    </div>
+  const refreshButton = (
+    <button
+      onClick={onRefresh}
+      disabled={loading}
+      aria-label="Refresh"
+      className="w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors disabled:opacity-50 flex-shrink-0"
+    >
+      <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+    </button>
   );
 
   // Desktop topbar content — search on left, tools right-aligned
@@ -133,54 +124,37 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
       />
-      <div className="ml-auto">
-        {toolButtons}
+      <div className="ml-auto flex items-center gap-1">
+        {refreshButton}
+        {filterButton}
       </div>
     </div>
   );
 
-  const portalRoot = mounted ? document.getElementById("page-title-portal") : null;
-  const mobilePortalRoot = mounted ? document.getElementById("page-mobile-start-portal") : null;
+  // Mobile: search fills the row, filter sits to the right. No
+  // refresh button on mobile — the user said they'd rather have the
+  // space, and pull-to-refresh / the desktop button cover the use
+  // case well enough.
+  const mobileContent = (
+    <>
+      <SearchInput
+        size="sm"
+        wrapperClassName="flex-1"
+        placeholder="Search transactions"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
+      {filterButton}
+    </>
+  );
+
+  const desktopPortal = mounted ? document.getElementById("page-title-portal") : null;
+  const mobilePortal = mounted ? document.getElementById("page-mobile-topbar-portal") : null;
 
   return (
     <>
-      {/* Desktop: portal into topbar title area */}
-      {portalRoot && createPortal(desktopContent, portalRoot)}
-
-      {/* Mobile: search icon portaled into topbar */}
-      {mobilePortalRoot && createPortal(
-        <button
-          onClick={() => setMobileSearchOpen(true)}
-          aria-label="Search"
-          className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-        >
-          <FiSearch className="h-5 w-5" />
-        </button>,
-        mobilePortalRoot
-      )}
-
-      {/* Mobile: expanded search overlay — covers the topbar */}
-      {mobileSearchOpen && (
-        <div className="fixed inset-x-0 top-0 z-50 h-16 bg-[var(--color-content-bg)] flex items-center px-4 gap-3 md:hidden">
-          <button
-            onClick={() => setMobileSearchOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] flex-shrink-0"
-            aria-label="Close search"
-          >
-            <span className="text-lg leading-none">&#8249;</span>
-          </button>
-          <SearchInput
-            size="sm"
-            ref={mobileInputRef}
-            wrapperClassName="flex-1"
-            placeholder="Search transactions"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onBlur={handleMobileBlur}
-          />
-          {toolButtons}
-        </div>
-      )}
+      {desktopPortal && createPortal(desktopContent, desktopPortal)}
+      {mobilePortal && createPortal(mobileContent, mobilePortal)}
     </>
   );
 }
@@ -273,11 +247,9 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
       {sortedDates.map((dateKey, groupIndex) => (
         <div key={dateKey} className="relative">
           <div className="sticky top-16 z-20 py-4 pointer-events-none">
-            <div className="px-2 md:px-5">
-              <span className="text-sm font-medium text-[var(--color-muted)]">
-                {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
-              </span>
-            </div>
+            <span className="text-sm font-medium text-[var(--color-muted)]">
+              {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
+            </span>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -1657,11 +1629,20 @@ function TransactionsContent() {
         onOpenFilters={() => setIsFiltersOpen(true)}
         activeFilterCount={getActiveFilterCount()}
       />
-      <div className="space-y-0" ref={containerRef}>
-        {/* Top Sentinel for scrolling up */}
-        <div ref={topSentinelRef} className="h-4 w-full flex justify-center items-center">
-          {loadingPrev && <FiLoader className="animate-spin text-[var(--color-muted)]" />}
-        </div>
+      <div className="space-y-0 relative" ref={containerRef}>
+        {/* Top sentinel — just a marker for the IntersectionObserver that
+            triggers loadPrev. Zero height / absolutely positioned so it
+            doesn't show up as an empty strip under the topbar. */}
+        <div
+          ref={topSentinelRef}
+          aria-hidden
+          className="absolute left-0 right-0 top-0 h-px pointer-events-none"
+        />
+        {loadingPrev && (
+          <div className="flex justify-center py-2">
+            <FiLoader className="animate-spin text-[var(--color-muted)] h-4 w-4" />
+          </div>
+        )}
 
         {/* Show empty state if no transactions */}
         {filteredTransactions.length === 0 && !isSearchLoading ? (
