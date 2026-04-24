@@ -138,6 +138,21 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
       }
     }
 
+    // --- Preserve user-chosen categories ---
+    // Any existing row the user has manually categorised
+    // (is_user_categorized = true) must keep its category_id, regardless
+    // of what Plaid returned or what the rule engine produced above. We
+    // overwrite the batch row's category_id with the DB value right
+    // before the upsert so the ON CONFLICT UPDATE doesn't clobber it.
+    if (rows.length > 0) {
+      const preservedCount = await preserveUserCategories(rows);
+      if (preservedCount > 0) {
+        logger.info('Preserved user-chosen categories across sync', {
+          preserved: preservedCount,
+        });
+      }
+    }
+
     // --- Upsert transactions ---
     if (rows.length > 0) {
       const { error } = await supabaseAdmin
@@ -523,6 +538,61 @@ async function updateAccountBalances(
   }
 
   return { updatedAccountsCount, snapshotsCreatedCount };
+}
+
+/**
+ * For every row about to be upserted, look up whether its
+ * plaid_transaction_id already exists in the DB with
+ * is_user_categorized = true. If so, copy the stored category_id back
+ * onto the row. This is the only thing preventing the Plaid PFC (or a
+ * rule match) from overwriting a category the user set by hand.
+ *
+ * Returns the number of rows whose category_id was preserved.
+ */
+async function preserveUserCategories(rows: TransactionUpsertRow[]): Promise<number> {
+  const plaidIds = rows
+    .map((r) => r.plaid_transaction_id)
+    .filter((id): id is string => Boolean(id));
+  if (plaidIds.length === 0) return 0;
+
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select('plaid_transaction_id, category_id')
+    .in('plaid_transaction_id', plaidIds)
+    .eq('is_user_categorized', true);
+
+  if (error) {
+    // Non-fatal — better to let the sync proceed and potentially
+    // overwrite than to fail the whole batch. The user can always
+    // recategorise again.
+    logger.warn('Failed to look up user-categorized transactions; sync will not preserve them', {
+      error: error.message,
+    });
+    return 0;
+  }
+
+  const preserved = (data ?? []) as Array<{
+    plaid_transaction_id: string | null;
+    category_id: string | null;
+  }>;
+  if (preserved.length === 0) return 0;
+
+  const preserveMap = new Map<string, string | null>();
+  for (const row of preserved) {
+    if (row.plaid_transaction_id) {
+      preserveMap.set(row.plaid_transaction_id, row.category_id);
+    }
+  }
+
+  let count = 0;
+  for (const row of rows) {
+    if (!row.plaid_transaction_id) continue;
+    if (preserveMap.has(row.plaid_transaction_id)) {
+      row.category_id = preserveMap.get(row.plaid_transaction_id) ?? null;
+      count++;
+    }
+  }
+  return count;
 }
 
 async function runTransferDetectionSafe(

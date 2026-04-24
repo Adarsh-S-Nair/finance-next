@@ -1436,9 +1436,12 @@ function TransactionsContent() {
     setPendingCategory(null); // Clear pending
 
     try {
+      // is_user_categorized flags the row so the Plaid sync preserves this
+      // choice — otherwise the next DEFAULT_UPDATE webhook would reset the
+      // category back to the PFC Plaid returns.
       const { error } = await supabase
         .from('transactions')
-        .update({ category_id: category.id })
+        .update({ category_id: category.id, is_user_categorized: true })
         .eq('id', selectedTransaction.id);
 
       if (error) throw error;
@@ -1473,9 +1476,11 @@ function TransactionsContent() {
               : t
           ));
 
+          // Same flag-setting rationale as the single-transaction update:
+          // these rows get pinned so future syncs preserve the choice.
           const { error } = await supabase
             .from('transactions')
-            .update({ category_id: pendingCategory.id })
+            .update({ category_id: pendingCategory.id, is_user_categorized: true })
             .in('id', selectedIds);
 
           if (error) throw error;

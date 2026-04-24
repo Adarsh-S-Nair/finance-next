@@ -844,6 +844,7 @@ export type Database = {
           id: string
           investment_details: Json | null
           is_unmatched_transfer: boolean | null
+          is_user_categorized: boolean
           location: Json | null
           merchant_name: string | null
           payment_channel: string | null
@@ -870,6 +871,7 @@ export type Database = {
           id?: string
           investment_details?: Json | null
           is_unmatched_transfer?: boolean | null
+          is_user_categorized?: boolean
           location?: Json | null
           merchant_name?: string | null
           payment_channel?: string | null
@@ -896,6 +898,7 @@ export type Database = {
           id?: string
           investment_details?: Json | null
           is_unmatched_transfer?: boolean | null
+          is_user_categorized?: boolean
           location?: Json | null
           merchant_name?: string | null
           payment_channel?: string | null
