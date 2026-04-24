@@ -283,23 +283,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 : "mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10"
             }
           >
-            {/* Soft handoff between routes — old page fades + slides
-                up briefly, new one slides in from below. Wrapped in
-                AnimatePresence so the OUT animation actually fires
-                (without it, key change just unmounts the old subtree
-                instantly). Total ~300ms, which is enough to register
-                as motion without feeling slow. */}
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={pathname}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.16, ease: [0.25, 0.1, 0.25, 1] }}
-              >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+            {/* No page transition wrapper. AnimatePresence mode="wait"
+                fought with Next's App Router behaviour — the new
+                cached page would paint, then disappear during the
+                old page's exit, then reappear. Polish lives in the
+                sidebar's animated active indicator instead, which
+                doesn't gate page rendering. */}
+            {children}
           </div>
         </main>
       </div>

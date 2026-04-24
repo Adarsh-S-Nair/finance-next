@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import clsx from "clsx";
+import { motion } from "framer-motion";
 import { IconType } from "react-icons";
 import { FaLock } from "react-icons/fa";
 import Tooltip from "./Tooltip";
@@ -40,26 +41,41 @@ export default function SidebarItem({
         }}
         aria-disabled={disabled || undefined}
         className={clsx(
-          "group relative flex items-center text-[13px]",
+          "group relative flex items-center text-[13px] rounded-md",
           isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
           active
-            ? "text-[var(--color-fg)] font-medium bg-[var(--color-fg)]/[0.08]"
-            : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]"
+            ? "text-[var(--color-fg)] font-medium"
+            : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
         )}
       >
-        {/* Active accent bar — foreground color (black in light, white in dark) */}
+        {/* Shared-layout active highlight + accent bar. Both elements
+            carry a layoutId so framer-motion animates them between
+            sidebar items as the user navigates — the highlight
+            "slides" from the previously-active row to the new one
+            (Discord-style), instead of disappearing/reappearing. */}
         {active && (
-          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[var(--color-fg)]" />
+          <>
+            <motion.span
+              layoutId="sidebar-active-bg"
+              className="absolute inset-0 rounded-md bg-[var(--color-fg)]/[0.08]"
+              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            />
+            <motion.span
+              layoutId="sidebar-active-bar"
+              className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r-full bg-[var(--color-fg)]"
+              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            />
+          </>
         )}
 
         {/* Icon */}
         {Icon && (
-          <span className="relative flex-shrink-0 flex items-center justify-center">
+          <span className="relative flex-shrink-0 flex items-center justify-center z-[1]">
             <Icon
               className={clsx(
                 "h-[18px] w-[18px]",
-                active && "text-[var(--color-fg)]"
+                active && "text-[var(--color-fg)]",
               )}
             />
             {notification && (
@@ -71,9 +87,9 @@ export default function SidebarItem({
         {/* Label */}
         {!isCollapsed && (
           <>
-            <span className="flex-1 truncate">{label}</span>
+            <span className="flex-1 truncate relative z-[1]">{label}</span>
             {disabled && (
-              <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60 flex-shrink-0" />
+              <FaLock className="h-3 w-3 text-[var(--color-muted)] opacity-60 flex-shrink-0 relative z-[1]" />
             )}
           </>
         )}
