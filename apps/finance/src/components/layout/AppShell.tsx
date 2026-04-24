@@ -27,6 +27,15 @@ function SetupShell({ children }: { children: React.ReactNode }) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // FTUX is always rendered light, regardless of user theme preference. The
+  // inner AccountSetupFlow uses CSS variables (--color-fg, --color-muted, ...)
+  // which resolve to dark values in light mode — pair that with a dark shell
+  // and text vanishes into the background. UserProvider's pathname effect
+  // re-applies the stored theme on navigation away.
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setIsAuthenticated(Boolean(data?.user));
@@ -38,13 +47,13 @@ function SetupShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="h-screen overflow-hidden bg-zinc-950 text-white relative">
+    <div className="h-screen overflow-hidden bg-zinc-50 text-zinc-900 relative">
       {/* Top-left logo */}
       <div className="absolute top-6 left-6 sm:left-8 flex items-center gap-3 z-10">
         <Link href="/" className="inline-flex items-center gap-3">
           <span
             aria-hidden
-            className="block h-8 w-8 bg-white"
+            className="block h-8 w-8 bg-zinc-900"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
@@ -56,7 +65,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
               maskPosition: "center",
             }}
           />
-          <span className="text-sm font-semibold tracking-[0.18em] text-white">ZERVO</span>
+          <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZERVO</span>
         </Link>
       </div>
 
@@ -70,7 +79,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
         <div className="absolute bottom-6 left-6 sm:left-8 z-10">
           <button
             onClick={() => setShowLogout(true)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-300"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-900/5 hover:text-zinc-900"
             aria-label="Log out"
           >
             <LuLogOut className="h-4 w-4" />
@@ -110,6 +119,12 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // See SetupShell for the reasoning — FTUX is always light so the inner
+  // AccountSetupFlow's CSS-variable text reads correctly against the light bg.
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
