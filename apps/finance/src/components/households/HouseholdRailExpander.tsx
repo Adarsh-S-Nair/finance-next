@@ -8,6 +8,7 @@ import clsx from "clsx";
 import { LuChevronDown, LuPlus } from "react-icons/lu";
 import { useHouseholds } from "../providers/HouseholdsProvider";
 import HouseholdSwitcherModal from "./HouseholdSwitcherModal";
+import { HouseholdAvatarStack } from "./HouseholdAvatarStack";
 
 /**
  * Height of the open rail, in pixels. The same value is used for the panel's
@@ -27,13 +28,6 @@ const HouseholdRailContext = createContext<Ctx>({
   toggle: () => { },
   close: () => { },
 });
-
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function ZervoMark({ inverted, className = "" }: { inverted?: boolean; className?: string }) {
   return (
@@ -188,15 +182,25 @@ export function HouseholdRailBubbleTrigger() {
     >
       <span
         className={clsx(
-          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold rounded-xl",
-          activeHousehold
-            ? "text-white"
-            : "bg-[var(--color-accent)] text-[var(--color-on-accent,white)]",
+          "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl",
+          !activeHousehold && "bg-[var(--color-accent)]",
         )}
-        style={activeHousehold ? { backgroundColor: activeHousehold.color } : undefined}
+        style={
+          activeHousehold
+            ? {
+                backgroundColor: `color-mix(in oklab, ${activeHousehold.color}, transparent 80%)`,
+              }
+            : undefined
+        }
       >
         {activeHousehold ? (
-          <span>{initialsFor(activeHousehold.name)}</span>
+          <HouseholdAvatarStack
+            members={activeHousehold.members}
+            totalMembers={activeHousehold.member_count}
+            size={40}
+            fallbackName={activeHousehold.name}
+            fallbackColor={activeHousehold.color}
+          />
         ) : (
           <ZervoMark inverted className="h-7 w-7" />
         )}
@@ -292,12 +296,24 @@ export function HouseholdRailPanel() {
                   >
                     <span
                       className={clsx(
-                        "flex h-12 w-12 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-[border-radius] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
-                        active ? "rounded-xl" : "rounded-[24px] group-hover:rounded-xl",
+                        "flex h-12 w-12 items-center justify-center overflow-hidden transition-[border-radius,background-color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+                        active
+                          ? "rounded-xl"
+                          : "rounded-[24px] group-hover:rounded-xl",
                       )}
-                      style={{ backgroundColor: h.color }}
+                      style={{
+                        backgroundColor: active
+                          ? `color-mix(in oklab, ${h.color}, transparent 80%)`
+                          : "transparent",
+                      }}
                     >
-                      {initialsFor(h.name)}
+                      <HouseholdAvatarStack
+                        members={h.members}
+                        totalMembers={h.member_count}
+                        size={44}
+                        fallbackName={h.name}
+                        fallbackColor={h.color}
+                      />
                     </span>
                     <span
                       className={clsx(

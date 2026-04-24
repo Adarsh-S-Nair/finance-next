@@ -18,6 +18,13 @@ type ProfileRow = {
 
 export type HouseholdRole = "owner" | "member";
 
+export type HouseholdMemberPreview = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+};
+
 export type HouseholdSummary = {
   id: string;
   name: string;
@@ -27,7 +34,16 @@ export type HouseholdSummary = {
   updated_at: string;
   role: HouseholdRole;
   member_count: number;
+  /**
+   * Up to MEMBER_PREVIEW_LIMIT profiles for rendering the household's
+   * avatar stack in the rail. Ordered by join date (oldest first) so
+   * the creator is stable across refetches. Fewer than `member_count`
+   * entries when the household has too many members to preview.
+   */
+  members: HouseholdMemberPreview[];
 };
+
+export const MEMBER_PREVIEW_LIMIT = 3;
 
 export type HouseholdMember = {
   user_id: string;
@@ -120,15 +136,43 @@ export async function listHouseholdsForUser(userId: string): Promise<HouseholdSu
     .in("id", householdIds);
   if (householdErr) throw householdErr;
 
-  const { data: memberCounts, error: countErr } = await supabaseAdmin
+  // Fetch every membership for these households in join-date order so we
+  // can derive both a member count AND a stable preview slice (first N
+  // joiners) in one pass. The preview powers the avatar stack in the
+  // rail so we don't need a separate per-household lookup.
+  const { data: memberRows, error: countErr } = await supabaseAdmin
     .from("household_members")
-    .select("household_id")
-    .in("household_id", householdIds);
+    .select("household_id, user_id, joined_at")
+    .in("household_id", householdIds)
+    .order("joined_at", { ascending: true });
   if (countErr) throw countErr;
 
   const counts = new Map<string, number>();
-  for (const row of (memberCounts ?? []) as Array<{ household_id: string }>) {
+  const previewUserIds = new Map<string, string[]>();
+  for (const row of (memberRows ?? []) as Array<{
+    household_id: string;
+    user_id: string;
+    joined_at: string;
+  }>) {
     counts.set(row.household_id, (counts.get(row.household_id) ?? 0) + 1);
+    const preview = previewUserIds.get(row.household_id) ?? [];
+    if (preview.length < MEMBER_PREVIEW_LIMIT) {
+      preview.push(row.user_id);
+      previewUserIds.set(row.household_id, preview);
+    }
+  }
+
+  const allPreviewIds = Array.from(new Set(Array.from(previewUserIds.values()).flat()));
+  const profileById = new Map<string, ProfileRow>();
+  if (allPreviewIds.length > 0) {
+    const { data: profiles, error: profilesErr } = await supabaseAdmin
+      .from("user_profiles")
+      .select("id, first_name, last_name, avatar_url")
+      .in("id", allPreviewIds);
+    if (profilesErr) throw profilesErr;
+    for (const p of (profiles ?? []) as ProfileRow[]) {
+      profileById.set(p.id, p);
+    }
   }
 
   const householdRows = (households ?? []) as HouseholdRow[];
@@ -137,6 +181,16 @@ export async function listHouseholdsForUser(userId: string): Promise<HouseholdSu
     .map((m) => {
       const h = householdsById.get(m.household_id);
       if (!h) return null;
+      const previewIds = previewUserIds.get(h.id) ?? [];
+      const members: HouseholdMemberPreview[] = previewIds.map((id) => {
+        const p = profileById.get(id);
+        return {
+          user_id: id,
+          first_name: p?.first_name ?? null,
+          last_name: p?.last_name ?? null,
+          avatar_url: p?.avatar_url ?? null,
+        };
+      });
       return {
         id: h.id,
         name: h.name,
@@ -146,6 +200,7 @@ export async function listHouseholdsForUser(userId: string): Promise<HouseholdSu
         updated_at: h.updated_at,
         role: m.role as HouseholdRole,
         member_count: counts.get(h.id) ?? 1,
+        members,
       } satisfies HouseholdSummary;
     })
     .filter((h): h is HouseholdSummary => h !== null);

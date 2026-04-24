@@ -13,6 +13,7 @@ import { useHouseholds } from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
 import HouseholdSwitcherModal from "../households/HouseholdSwitcherModal";
 import HouseholdInviteModal from "../households/HouseholdInviteModal";
+import { HouseholdAvatarStack } from "../households/HouseholdAvatarStack";
 import { Tooltip } from "@zervo/ui";
 import { ConfirmOverlay } from "@zervo/ui";
 
@@ -22,13 +23,6 @@ type HouseholdContextMenu = {
   x: number;
   y: number;
 };
-
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 /**
  * The Discord-style active indicator: a short vertical bar on the left edge
@@ -76,7 +70,6 @@ function ZervoMark({ active }: { active: boolean }) {
 
 type BubbleProps = {
   active?: boolean;
-  color?: string;
   children: React.ReactNode;
 };
 
@@ -88,26 +81,8 @@ const BUBBLE_SHAPE_TRANSITION =
   "transition-[border-radius,background-color,color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 const BUBBLE_CIRCLE_RADIUS = "rounded-[22px]";
 
-function Bubble({ active = false, color, children }: BubbleProps) {
-  const inlineStyle = color
-    ? ({ ["--bubble-color" as string]: color } as React.CSSProperties)
-    : undefined;
-
-  if (color) {
-    return (
-      <span
-        style={inlineStyle}
-        className={clsx(
-          "flex h-11 w-11 items-center justify-center overflow-hidden text-sm font-semibold text-white bg-[var(--bubble-color)]",
-          BUBBLE_SHAPE_TRANSITION,
-          active ? "rounded-xl" : clsx(BUBBLE_CIRCLE_RADIUS, "group-hover:rounded-xl"),
-        )}
-      >
-        {children}
-      </span>
-    );
-  }
-
+// Personal/Zervo bubble only — households now use HouseholdAvatarStack.
+function Bubble({ active = false, children }: BubbleProps) {
   return (
     <span
       className={clsx(
@@ -118,6 +93,38 @@ function Bubble({ active = false, color, children }: BubbleProps) {
           : clsx(
               BUBBLE_CIRCLE_RADIUS,
               "bg-[var(--color-surface-alt)] text-[var(--color-fg)] group-hover:rounded-xl group-hover:bg-[var(--color-accent)] group-hover:text-[var(--color-on-accent,white)]",
+            ),
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Framing wrapper used for the household scope in the rail. The active
+// state is signalled with a rounded-xl squircle backdrop and a subtle
+// ring using the household's accent color, since the inner avatar
+// stack no longer carries the household color itself.
+function HouseholdFrame({
+  active,
+  color,
+  children,
+}: {
+  active: boolean;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      style={{ ["--bubble-color" as string]: color } as React.CSSProperties}
+      className={clsx(
+        "relative flex h-11 w-11 items-center justify-center",
+        BUBBLE_SHAPE_TRANSITION,
+        active
+          ? "rounded-xl bg-[color-mix(in_oklab,var(--bubble-color),transparent_80%)]"
+          : clsx(
+              BUBBLE_CIRCLE_RADIUS,
+              "group-hover:rounded-xl group-hover:bg-[color-mix(in_oklab,var(--bubble-color),transparent_85%)]",
             ),
       )}
     >
@@ -310,9 +317,15 @@ export default function HouseholdRail() {
                       aria-label={h.name}
                     >
                       <ActiveIndicator active={active} />
-                      <Bubble active={active} color={h.color}>
-                        <span>{initialsFor(h.name)}</span>
-                      </Bubble>
+                      <HouseholdFrame active={active} color={h.color}>
+                        <HouseholdAvatarStack
+                          members={h.members}
+                          totalMembers={h.member_count}
+                          size={40}
+                          fallbackName={h.name}
+                          fallbackColor={h.color}
+                        />
+                      </HouseholdFrame>
                     </Link>
                   </Tooltip>
                 </motion.div>

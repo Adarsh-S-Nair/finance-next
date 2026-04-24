@@ -1,5 +1,12 @@
 export type HouseholdRole = "owner" | "member";
 
+export type HouseholdMemberPreview = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+};
+
 export type HouseholdSummary = {
   id: string;
   name: string;
@@ -9,6 +16,7 @@ export type HouseholdSummary = {
   updated_at: string;
   role: HouseholdRole;
   member_count: number;
+  members: HouseholdMemberPreview[];
 };
 
 export type HouseholdsContextValue = {
