@@ -139,11 +139,16 @@
   --color-surface-alt: #181818;
   --color-dropdown-bg: var(--color-surface-alt);
 
-  /* Floating overlays — inverted from dark theme */
-  --color-floating-bg: #fafafa;
-  --color-floating-fg: #18181b;
-  --color-floating-muted: #52525b;
-  --color-floating-border: color-mix(in oklab, #000000, transparent 88%);
+  /* Floating overlays — slight lift above content bg, matches dark theme.
+     (Light mode keeps the inverted look; dark mode reads better when the
+     overlay stays dark instead of flipping to a glaring light panel.) */
+  --color-floating-bg: #27272a;
+  /* Zinc 800 — one step lifted from content/surfaces */
+  --color-floating-fg: #e4e4e7;
+  /* Matches --color-fg */
+  --color-floating-muted: #a1a1aa;
+  /* Matches --color-muted */
+  --color-floating-border: color-mix(in oklab, #ffffff, transparent 88%);
 
   --color-content-bg: #0d0d0d;
   --color-sidebar-bg: var(--color-content-bg);
@@ -185,6 +190,19 @@ body {
   padding: 0;
   width: 100%;
   min-width: 100%;
+}
+
+/* Text selection — auto-inverts per theme via --color-fg/--color-bg.
+   Light mode: near-black bg + white text. Dark mode: near-white bg +
+   near-black text. The browser default (blue) disappears against our
+   dark surfaces, which is why this is worth overriding. */
+::selection {
+  background-color: var(--color-fg);
+  color: var(--color-bg);
+}
+::-moz-selection {
+  background-color: var(--color-fg);
+  color: var(--color-bg);
 }
 
 /* Focus outline for interactive elements (buttons, links) */

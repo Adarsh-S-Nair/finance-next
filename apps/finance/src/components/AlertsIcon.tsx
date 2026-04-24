@@ -182,7 +182,7 @@ export default function AlertsIcon() {
             className={`absolute top-full right-0 mt-2 w-80 z-50 overflow-hidden ${TOOLTIP_SURFACE_CLASSES}`}
           >
             <div className="px-5 py-3">
-              <h3 className="text-sm font-medium text-[var(--color-fg)]">Notifications</h3>
+              <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
             </div>
 
             <div className="max-h-[420px] overflow-y-auto">
@@ -193,7 +193,7 @@ export default function AlertsIcon() {
                       <div className="flex items-start gap-2.5">
                         <Dot color={invite.household?.color} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[var(--color-fg)]">
+                          <p className="text-sm text-[var(--color-floating-fg)]">
                             <span className="font-medium">{inviterName(invite.invited_by)}</span>{" "}
                             invited you to{" "}
                             <span className="font-medium">
@@ -205,7 +205,7 @@ export default function AlertsIcon() {
                               type="button"
                               disabled={actingId === invite.id}
                               onClick={() => acceptInvite(invite)}
-                              className="inline-flex items-center rounded-full bg-[var(--color-fg)] px-3 py-1 text-xs font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                              className="inline-flex items-center rounded-full bg-[var(--color-floating-fg)] px-3 py-1 text-xs font-medium text-[var(--color-floating-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
                             >
                               Accept
                             </button>
@@ -213,7 +213,7 @@ export default function AlertsIcon() {
                               type="button"
                               disabled={actingId === invite.id}
                               onClick={() => declineInvite(invite)}
-                              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors cursor-pointer"
+                              className="text-xs text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors cursor-pointer"
                             >
                               Decline
                             </button>
@@ -226,35 +226,35 @@ export default function AlertsIcon() {
               )}
 
               {(counts.unmatchedTransferCount > 0 || counts.unknownAccountCount > 0) && (
-                <div className="py-1 border-t border-[var(--color-fg)]/[0.06]">
+                <div className="py-1 border-t border-[var(--color-floating-fg)]/[0.06]">
                   {counts.unmatchedTransferCount > 0 && (
                     <Link
                       href="/transactions?status=attention"
                       onClick={() => setIsOpen(false)}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-fg)]/[0.04] transition-colors"
+                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
                     >
                       <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-sm font-medium text-[var(--color-fg)] truncate">Unmatched transfers</p>
-                        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                        <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unmatched transfers</p>
+                        <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
                           {counts.unmatchedTransferCount} transfer{counts.unmatchedTransferCount !== 1 ? "s" : ""} need review
                         </p>
                       </div>
-                      <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+                      <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
                     </Link>
                   )}
                   {counts.unknownAccountCount > 0 && (
                     <Link
                       href="/transactions?status=attention"
                       onClick={() => setIsOpen(false)}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-fg)]/[0.04] transition-colors"
+                      className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
                     >
                       <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-sm font-medium text-[var(--color-fg)] truncate">Unknown accounts</p>
-                        <p className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
+                        <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unknown accounts</p>
+                        <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
                           {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
                         </p>
                       </div>
-                      <span className="text-[var(--color-muted)] text-base leading-none">&#8250;</span>
+                      <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
                     </Link>
                   )}
                 </div>
@@ -262,7 +262,7 @@ export default function AlertsIcon() {
 
               {totalCount === 0 && (
                 <div className="px-5 py-10 text-center">
-                  <p className="text-sm text-[var(--color-muted)]">You&apos;re all caught up</p>
+                  <p className="text-sm text-[var(--color-floating-muted)]">You&apos;re all caught up</p>
                 </div>
               )}
             </div>
