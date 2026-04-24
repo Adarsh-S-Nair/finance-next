@@ -367,7 +367,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
   }, [transactions]);
 
   return (
-    <div className="space-y-6 pb-24 animate-fade-in">
+    <div className="space-y-6 pb-24">
       {sortedDates.map((dateKey, groupIndex) => (
         <div key={dateKey} className="relative">
           <div className="sticky top-16 z-20 py-4 pointer-events-none">

@@ -18,6 +18,7 @@
   "dependencies": {
     "@sentry/nextjs": "^10.49.0",
     "@supabase/supabase-js": "^2.57.2",
+    "@tanstack/react-query": "^5.56.2",
     "@zervo/ui": "workspace:*",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

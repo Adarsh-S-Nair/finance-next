@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { authFetch } from "../../../lib/api/fetch";
+import { useAuthedQuery } from "../../../lib/api/useAuthedQuery";
 import { supabase } from "../../../lib/supabase/client";
 import PageContainer from "../../../components/layout/PageContainer";
 import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarningCard.jsx";
@@ -42,10 +44,31 @@ export default function DashboardPage() {
     error: accountsError,
     refreshAccounts,
   } = useAccounts();
+  const queryClient = useQueryClient();
   const [greeting, setGreeting] = useState("Dashboard");
-  const [summaryData, setSummaryData] = useState(null);
-  const [budgets, setBudgets] = useState([]);
-  const [budgetsLoading, setBudgetsLoading] = useState(true);
+
+  // Dashboard summary — single batched endpoint that feeds the
+  // SpendingVsEarning and TopCategories cards. Lives in react-query
+  // so returning to /dashboard after navigating away shows the cached
+  // data instantly (stale-while-revalidate) instead of flashing
+  // skeletons every time. Realtime updates below invalidate this key.
+  const {
+    data: summaryData,
+  } = useAuthedQuery(
+    ["dashboard-summary", user?.id],
+    user?.id ? "/api/dashboard/summary?months=6&categoryPeriod=thisMonth" : null,
+  );
+
+  // Budgets — fed into BudgetsCard + used to decide whether the card
+  // even renders. Same caching rationale as the summary above.
+  const {
+    data: budgetsPayload,
+    isLoading: budgetsLoading,
+  } = useAuthedQuery(
+    ["dashboard-budgets", user?.id],
+    user?.id ? "/api/budgets" : null,
+  );
+  const budgets = budgetsPayload?.data ?? [];
 
   // Handle return from Stripe Checkout (?upgraded=1)
   useEffect(() => {
@@ -91,34 +114,12 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Fetch consolidated dashboard summary (single DB round-trip for both chart cards)
-  // Fetches once when the user is ready; the cleanup function prevents stale responses.
-  const summaryFetchedRef = useRef(false);
-  const fetchSummary = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/dashboard/summary?months=6&categoryPeriod=thisMonth');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data) {
-        setSummaryData(data);
-        summaryFetchedRef.current = true;
-      }
-    } catch (err) {
-      console.error('[dashboard] summary fetch error:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (authLoading || !user?.id) return;
-    summaryFetchedRef.current = false;
-    fetchSummary();
-  }, [authLoading, user?.id, fetchSummary]);
-
-  // Realtime: refetch dashboard summary whenever plaid_items changes for
-  // this user — catches the post-FTUX case where the dashboard renders
-  // with an empty summary (no transactions yet) and transactions land a
-  // few seconds later via webhook. Debounced so burst writes collapse
-  // into one refetch.
+  // Realtime: invalidate the cached summary whenever plaid_items
+  // changes for this user — catches the post-FTUX case where the
+  // dashboard renders with an empty summary (no transactions yet)
+  // and transactions land a few seconds later via webhook. Debounced
+  // so burst writes collapse into one refetch. react-query handles
+  // the actual refetch via invalidateQueries.
   const summaryDebounceRef = useRef(null);
   useEffect(() => {
     if (!user?.id) return;
@@ -136,7 +137,8 @@ export default function DashboardPage() {
           if (summaryDebounceRef.current) clearTimeout(summaryDebounceRef.current);
           summaryDebounceRef.current = setTimeout(() => {
             summaryDebounceRef.current = null;
-            fetchSummary();
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary', user.id] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-budgets', user.id] });
           }, 800);
         }
       )
@@ -148,27 +150,7 @@ export default function DashboardPage() {
       }
       supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchSummary]);
-
-  // Fetch budgets at dashboard level so we can hide the card when empty
-  useEffect(() => {
-    if (authLoading || !user?.id) return;
-    let cancelled = false;
-    setBudgetsLoading(true);
-    authFetch('/api/budgets')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (cancelled) return;
-        setBudgets(json?.data || []);
-      })
-      .catch((err) => {
-        if (!cancelled) console.error('[dashboard] budgets fetch error:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setBudgetsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [authLoading, user?.id]);
+  }, [user?.id, queryClient]);
 
   const hasBudgets = budgets.length > 0;
 

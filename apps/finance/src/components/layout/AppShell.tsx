@@ -207,21 +207,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { accounts, loading, initialized } = useAccounts();
 
-  // Track navigation direction for page transition
-  const PAGE_ORDER = ['/dashboard', '/transactions', '/accounts', '/budgets', '/investments', '/settings'];
-  const prevPathRef = useRef(pathname);
-  const [direction, setDirection] = useState(0);
-
-  useEffect(() => {
-    const prevIndex = PAGE_ORDER.findIndex(p => prevPathRef.current?.startsWith(p));
-    const nextIndex = PAGE_ORDER.findIndex(p => pathname?.startsWith(p));
-    if (prevIndex !== -1 && nextIndex !== -1 && prevIndex !== nextIndex) {
-      setDirection(nextIndex > prevIndex ? 1 : -1);
-    } else {
-      setDirection(1); // default: down
-    }
-    prevPathRef.current = pathname;
-  }, [pathname]);
+  // Previously this tracked nav direction and slid pages in from the
+  // top/bottom. The slide stacked on top of per-card skeleton flashes
+  // and made every navigation feel laggy. With react-query caching
+  // the page content now paints instantly on remount, so a single
+  // quick opacity fade is enough — no direction-aware slide needed.
 
   const isSetupRoute = pathname === "/setup";
   // /setup/syncing is the post-FTUX sync splash — same minimal chrome as
@@ -295,9 +285,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, y: direction * 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
             >
               {children}
             </motion.div>

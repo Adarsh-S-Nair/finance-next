@@ -11,6 +11,7 @@ import UserProvider from "../components/providers/UserProvider";
 import { AccountsProvider } from "../components/providers/AccountsProvider";
 import HouseholdsProvider from "../components/providers/HouseholdsProvider";
 import { NetWorthProvider } from "../components/providers/NetWorthProvider";
+import QueryProvider from "../components/providers/QueryProvider";
 import DebugFetchMonitor from "../components/DebugFetchMonitor";
 import DynamicFavicon from "../components/DynamicFavicon";
 import { BRAND } from "../config/brand";
@@ -66,23 +67,25 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="font-normal selection:bg-zinc-900 selection:text-white">
         <DynamicFavicon />
-        <ToastProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <UserProvider>
-                <AccountsProvider>
-              <NetWorthProvider>
-                <HouseholdsProvider>
-                <Topbar />
-                {children}
-                {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' ? <DebugFetchMonitor /> : null}
-                </HouseholdsProvider>
-              </NetWorthProvider>
-                </AccountsProvider>
-              </UserProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </ToastProvider>
+        <QueryProvider>
+          <ToastProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <UserProvider>
+                  <AccountsProvider>
+                <NetWorthProvider>
+                  <HouseholdsProvider>
+                  <Topbar />
+                  {children}
+                  {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' ? <DebugFetchMonitor /> : null}
+                  </HouseholdsProvider>
+                </NetWorthProvider>
+                  </AccountsProvider>
+                </UserProvider>
+              </AuthProvider>
+            </ThemeProvider>
+          </ToastProvider>
+        </QueryProvider>
       </body>
     </html>
   );
