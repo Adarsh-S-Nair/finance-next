@@ -76,62 +76,64 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
         transition={{ duration: 0.25, ease: "circOut" }}
         className="flex flex-col"
       >
-        {/* Header */}
-        <div className="flex items-center gap-4 px-5 py-6">
-          {/* Logo / Icon */}
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-            style={{
-              backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
-                ? 'transparent'
-                : (transaction.category_hex_color || 'var(--color-accent)')
-            }}
-          >
-            {(!DISABLE_LOGOS && transaction.icon_url) ? (
-              <img
-                src={transaction.icon_url}
-                alt={transaction.merchant_name || transaction.description}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  const fallbackIcon = e.target.nextSibling;
-                  if (fallbackIcon) fallbackIcon.style.display = 'block';
+        {/* Header — stacks so long merchant names + fat amounts don't
+            fight for the same horizontal slot. On narrow viewports the
+            amount wrapping against the name and the date breaking
+            mid-word made the whole block hard to read. */}
+        <div className="px-5 pt-6 pb-5">
+          <div className="flex items-start gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+              style={{
+                backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
+                  ? 'transparent'
+                  : (transaction.category_hex_color || 'var(--color-accent)'),
+              }}
+            >
+              {(!DISABLE_LOGOS && transaction.icon_url) ? (
+                <img
+                  src={transaction.icon_url}
+                  alt={transaction.merchant_name || transaction.description}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    const fallbackIcon = e.target.nextSibling;
+                    if (fallbackIcon) fallbackIcon.style.display = 'block';
+                  }}
+                />
+              ) : null}
+              <DynamicIcon
+                iconLib={transaction.category_icon_lib}
+                iconName={transaction.category_icon_name}
+                className="h-5 w-5 text-white"
+                fallback={FiTag}
+                style={{
+                  display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block',
+                  strokeWidth: 2.5,
                 }}
               />
-            ) : null}
-            <DynamicIcon
-              iconLib={transaction.category_icon_lib}
-              iconName={transaction.category_icon_name}
-              className="h-5 w-5 text-white"
-              fallback={FiTag}
-              style={{
-                display: (!DISABLE_LOGOS && transaction.icon_url) ? 'none' : 'block',
-                strokeWidth: 2.5,
-              }}
-            />
-          </div>
-
-          {/* Merchant Name & Date */}
-          <div className="flex flex-col min-w-0 flex-1">
-            <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
-              {transaction.merchant_name || transaction.description || 'Transaction'}
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] mt-0.5">
-              <span>{formattedDate}</span>
-              {formattedTime && (
-                <>
-                  <span className="opacity-40">·</span>
-                  <span>{formattedTime}</span>
-                </>
-              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
+                {transaction.merchant_name || transaction.description || 'Transaction'}
+              </h2>
+              <div className="text-xs text-[var(--color-muted)] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                <span>{formattedDate}</span>
+                {formattedTime && (
+                  <>
+                    <span className="opacity-40 mx-1.5">&middot;</span>
+                    <span>{formattedTime}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-
-          {/* Amount */}
-          <div className={clsx(
-            "text-lg font-medium tracking-tight tabular-nums whitespace-nowrap",
-            isIncome ? "text-emerald-500" : "text-[var(--color-fg)]"
-          )}>
+          <div
+            className={clsx(
+              'mt-4 text-2xl font-medium tracking-tight tabular-nums',
+              isIncome ? 'text-emerald-500' : 'text-[var(--color-fg)]',
+            )}
+          >
             {isIncome ? '+' : ''}{formatCurrency(transaction.amount)}
           </div>
         </div>
@@ -142,7 +144,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             so the visual language is consistent; no tinted background
             so the banner sits quietly above the detail rows. */}
         {needsReview && onMarkReviewed && (
-          <div className="relative mx-5 mb-4 flex items-center justify-between gap-3 py-2 pl-4">
+          <div className="relative mx-5 mb-4 py-2 pl-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <span
               aria-hidden
               className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-danger)]"
@@ -158,7 +160,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             <button
               type="button"
               onClick={onMarkReviewed}
-              className="inline-flex items-center h-7 px-3 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-90 flex-shrink-0"
+              className="self-start sm:self-auto inline-flex items-center h-7 px-3 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-90 flex-shrink-0"
             >
               Mark as reviewed
             </button>
@@ -321,13 +323,16 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions — md size (h-9) instead of lg so the CTA doesn't
+              dominate the drawer footer. fullWidth keeps it as a
+              clear row-level primary, but the shorter height matches
+              the rest of the app's pill buttons. */}
           <div className="pt-2 pb-6">
             {isIncome ? (
               !transaction.is_repayment && (
                 <Button
                   variant="primary"
-                  size="lg"
+                  size="md"
                   fullWidth
                   onClick={onRepaymentClick}
                 >
@@ -340,7 +345,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               ) && (
                 <Button
                   variant="primary"
-                  size="lg"
+                  size="md"
                   fullWidth
                   onClick={onSplitClick}
                 >
