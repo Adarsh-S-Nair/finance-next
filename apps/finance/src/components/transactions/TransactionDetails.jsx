@@ -138,23 +138,22 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
 
         {/* Needs-review banner — visible whenever the transfer-detection
             pass flagged this transaction or it's sitting on an unknown
-            account. Gives the user an out if they don't want to
-            recategorise but want the row to stop being flagged. */}
+            account. Same left-edge red accent as the transaction row
+            so the visual language is consistent; no tinted background
+            so the banner sits quietly above the detail rows. */}
         {needsReview && onMarkReviewed && (
-          <div className="mx-5 mb-4 flex items-center justify-between gap-3 rounded-md px-4 py-3 bg-[color-mix(in_oklab,var(--color-danger),transparent_92%)]">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <span
-                aria-hidden
-                className="mt-1.5 block h-2 w-2 flex-shrink-0 rounded-full bg-[var(--color-danger)]"
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-[var(--color-fg)]">Needs review</div>
-                <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                  {transaction.account_name === 'Unknown Account'
-                    ? 'This transaction is on an account we couldn\u2019t identify.'
-                    : 'We couldn\u2019t match this transfer to another account.'}
-                </p>
-              </div>
+          <div className="relative mx-5 mb-4 flex items-center justify-between gap-3 py-2 pl-4">
+            <span
+              aria-hidden
+              className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-danger)]"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-[var(--color-fg)]">Needs review</div>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                {transaction.account_name === 'Unknown Account'
+                  ? 'This transaction is on an account we couldn\u2019t identify.'
+                  : 'We couldn\u2019t match this transfer to another account.'}
+              </p>
             </div>
             <button
               type="button"
