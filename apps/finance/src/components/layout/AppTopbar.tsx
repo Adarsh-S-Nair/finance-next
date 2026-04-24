@@ -17,7 +17,7 @@ export default function AppTopbar() {
     <header
       id="app-topbar"
       style={{ transform: "translateY(var(--rail-offset, 0px))", transition: "transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1), left 0.3s ease", willChange: "transform" }}
-      className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col left-0 md:left-20 xl:left-80"
+      className="fixed top-0 right-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] border-transparent flex flex-col left-0 md:left-20 xl:left-60"
     >
       <div
         className={`mx-auto ${

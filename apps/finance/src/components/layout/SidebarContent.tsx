@@ -9,6 +9,7 @@ import { NAV_GROUPS, type NavItem } from "../nav";
 import { isFeatureEnabled } from "../../lib/tierConfig";
 import { SidebarSection, SidebarItem } from "@zervo/ui";
 import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
+import ScopeSwitcher from "../households/ScopeSwitcher";
 
 /** Subset of personal nav items that are meaningful in household scope. */
 const HOUSEHOLD_ALLOWED_HREFS = new Set(["/accounts", "/investments"]);
@@ -71,11 +72,17 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-sidebar-bg)]">
-      {/* Tablet-only trigger — desktop has the full rail, mobile has the
-          topbar picker. */}
-      <div className="xl:hidden flex justify-center pt-4 pb-2">
-        <HouseholdRailBubbleTrigger />
-      </div>
+      {/* Collapsed (tablet) mode keeps the old bubble trigger — there's
+          no room for a labelled list at 80px wide. Expanded mode (xl+)
+          renders the inline scope switcher at the top of the sidebar
+          instead of relying on a separate left rail. */}
+      {isCollapsed ? (
+        <div className="flex justify-center pt-4 pb-2">
+          <HouseholdRailBubbleTrigger />
+        </div>
+      ) : (
+        <ScopeSwitcher />
+      )}
       <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin pt-3", isCollapsed ? "px-2" : "px-3")}>
         {groups.map((g, i) => (
           <React.Fragment key={g.title ?? `group-${i}`}>
