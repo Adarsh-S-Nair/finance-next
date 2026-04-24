@@ -6,25 +6,24 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { LuPlus } from "react-icons/lu";
+import { LuPlus, LuChevronDown } from "react-icons/lu";
 import { FiUserPlus, FiLogOut } from "react-icons/fi";
 import { ConfirmOverlay } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
-import { useHouseholds } from "../providers/HouseholdsProvider";
+import {
+  useHouseholds,
+  type HouseholdSummary,
+} from "../providers/HouseholdsProvider";
 import { useToast } from "../providers/ToastProvider";
 import HouseholdSwitcherModal from "./HouseholdSwitcherModal";
 import HouseholdInviteModal from "./HouseholdInviteModal";
 import { HouseholdAvatarStack } from "./HouseholdAvatarStack";
 
 /**
- * The "scope switcher" that lives at the top of the desktop sidebar.
- * Replaces the old Discord-style left-edge rail, which gave 80px of
- * vertical real estate to a feature most users only touch 1–3 times.
- *
- * Each row is a regular-looking sidebar link: a small avatar/logo on
- * the left and the scope's name next to it, with an active-state
- * background matching the rest of the nav. Right-click any household
- * for the invite / leave menu that the rail used to carry.
+ * The "scope switcher" at the top of the desktop sidebar. Replaces the
+ * old Discord-style rail. Shows just the current scope by default —
+ * large avatar + name + a down-chevron — and reveals the other scopes
+ * (plus an "add household" affordance) inline when expanded.
  */
 
 type HouseholdContextMenu = {
@@ -37,21 +36,51 @@ type HouseholdContextMenu = {
 const MENU_WIDTH = 208;
 const MENU_MARGIN = 6;
 
-function ZervoMark({ className = "" }: { className?: string }) {
+// Round "Personal" avatar — a subtle surface-alt disc with the Zervo
+// mark set into it. Matches the shape + presence of the household
+// avatar stacks used for other scopes.
+function ScopeZervo({ size }: { size: number }) {
+  const inner = Math.round(size * 0.6);
   return (
     <span
-      aria-hidden
-      className={clsx("block bg-[var(--color-fg)]", className)}
-      style={{
-        maskImage: "url(/logo.svg)",
-        maskSize: "contain",
-        maskRepeat: "no-repeat",
-        maskPosition: "center",
-        WebkitMaskImage: "url(/logo.svg)",
-        WebkitMaskSize: "contain",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-      }}
+      className="rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <span
+        aria-hidden
+        className="block bg-[var(--color-fg)]"
+        style={{
+          width: inner,
+          height: inner,
+          maskImage: "url(/logo.svg)",
+          maskSize: "contain",
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          WebkitMaskImage: "url(/logo.svg)",
+          WebkitMaskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+        }}
+      />
+    </span>
+  );
+}
+
+function ScopeAvatar({
+  household,
+  size,
+}: {
+  household: HouseholdSummary | null;
+  size: number;
+}) {
+  if (!household) return <ScopeZervo size={size} />;
+  return (
+    <HouseholdAvatarStack
+      members={household.members}
+      totalMembers={household.member_count}
+      size={size}
+      fallbackName={household.name}
+      fallbackColor={household.color}
     />
   );
 }
@@ -59,32 +88,70 @@ function ZervoMark({ className = "" }: { className?: string }) {
 function ScopeRow({
   href,
   label,
-  icon,
+  size,
   active,
+  showChevron,
+  expanded,
+  onClick,
   onContextMenu,
+  children,
 }: {
-  href: string;
+  href?: string;
   label: string;
-  icon: React.ReactNode;
-  active: boolean;
+  size: "md" | "lg";
+  active?: boolean;
+  showChevron?: boolean;
+  expanded?: boolean;
+  onClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  children: React.ReactNode; // the avatar
 }) {
-  return (
-    <Link
-      href={href}
-      onContextMenu={onContextMenu}
-      className={clsx(
-        "group flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors",
-        active
-          ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)] font-medium"
-          : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
-      )}
-    >
-      <span className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-        {icon}
+  const rowClass = clsx(
+    "group w-full flex items-center gap-3 px-2.5 rounded-md transition-colors text-left",
+    size === "lg" ? "py-2" : "py-1.5",
+    active
+      ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)]"
+      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
+  );
+  const content = (
+    <>
+      <span className="flex items-center justify-center flex-shrink-0">
+        {children}
       </span>
-      <span className="truncate">{label}</span>
-    </Link>
+      <span
+        className={clsx(
+          "flex-1 min-w-0 truncate",
+          size === "lg" ? "text-sm font-medium" : "text-[13px]",
+        )}
+      >
+        {label}
+      </span>
+      {showChevron && (
+        <LuChevronDown
+          className={clsx(
+            "h-4 w-4 text-[var(--color-muted)] transition-transform",
+            expanded && "rotate-180",
+          )}
+        />
+      )}
+    </>
+  );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        className={rowClass}
+      >
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={clsx(rowClass, "cursor-pointer")}>
+      {content}
+    </button>
   );
 }
 
@@ -162,15 +229,22 @@ export default function ScopeSwitcher() {
   const pathname = usePathname();
   const { households, refresh } = useHouseholds();
   const { setToast } = useToast();
+  const [expanded, setExpanded] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [menu, setMenu] = useState<HouseholdContextMenu | null>(null);
   const [inviteId, setInviteId] = useState<string | null>(null);
   const [leaveTarget, setLeaveTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const isOnHousehold = pathname.startsWith("/households/");
-  const activeHouseholdId = isOnHousehold
-    ? pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null
-    : null;
+  const activeHouseholdId = pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null;
+  const activeHousehold =
+    households.find((h) => h.id === activeHouseholdId) ?? null;
+  const isOnPersonal = !activeHouseholdId;
+
+  // Collapse the dropdown when the user actually navigates to a new
+  // scope — the current-scope row at the top will update to match.
+  useEffect(() => {
+    setExpanded(false);
+  }, [pathname]);
 
   const handleContextMenu = (e: React.MouseEvent, h: { id: string; name: string }) => {
     e.preventDefault();
@@ -221,52 +295,84 @@ export default function ScopeSwitcher() {
     }
   };
 
+  // Scopes that go into the expanded dropdown (everything except the
+  // currently-active one). Personal shows up here whenever we're on a
+  // household, and vice versa.
+  const otherHouseholds = activeHouseholdId
+    ? households.filter((h) => h.id !== activeHouseholdId)
+    : households;
+
   return (
     <>
-      <div className="px-3 pt-3 pb-2 space-y-0.5">
+      <div className="px-3 pt-3 pb-2">
+        {/* Current scope — always visible, triggers the dropdown. Use a
+            button rather than a Link so tapping it doesn't navigate
+            (the user's already here); it just toggles the list. */}
         <ScopeRow
-          href="/dashboard"
-          label="Personal"
-          active={!isOnHousehold}
-          icon={<ZervoMark className="h-4 w-4" />}
-        />
-        <AnimatePresence initial={false}>
-          {households.map((h) => (
-            <motion.div
-              key={h.id}
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -6 }}
-              transition={{ duration: 0.15 }}
-            >
-              <ScopeRow
-                href={`/households/${h.id}/accounts`}
-                label={h.name}
-                active={h.id === activeHouseholdId}
-                onContextMenu={(e) => handleContextMenu(e, h)}
-                icon={
-                  <HouseholdAvatarStack
-                    members={h.members}
-                    totalMembers={h.member_count}
-                    size={22}
-                    fallbackName={h.name}
-                    fallbackColor={h.color}
-                  />
-                }
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        <button
-          type="button"
-          onClick={() => setShowSwitcher(true)}
-          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer"
+          size="lg"
+          label={activeHousehold ? activeHousehold.name : "Personal"}
+          showChevron
+          expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
         >
-          <span className="w-6 h-6 flex items-center justify-center flex-shrink-0 rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-muted)]">
-            <LuPlus className="h-3 w-3" />
-          </span>
-          <span>Add household</span>
-        </button>
+          <ScopeAvatar household={activeHousehold} size={32} />
+        </ScopeRow>
+
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="pt-1 space-y-0.5">
+                {!isOnPersonal && (
+                  <ScopeRow
+                    size="md"
+                    href="/dashboard"
+                    label="Personal"
+                    onClick={() => setExpanded(false)}
+                  >
+                    <ScopeZervo size={22} />
+                  </ScopeRow>
+                )}
+                {otherHouseholds.map((h) => (
+                  <ScopeRow
+                    key={h.id}
+                    size="md"
+                    href={`/households/${h.id}/accounts`}
+                    label={h.name}
+                    onClick={() => setExpanded(false)}
+                    onContextMenu={(e) => handleContextMenu(e, h)}
+                  >
+                    <HouseholdAvatarStack
+                      members={h.members}
+                      totalMembers={h.member_count}
+                      size={22}
+                      fallbackName={h.name}
+                      fallbackColor={h.color}
+                    />
+                  </ScopeRow>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpanded(false);
+                    setShowSwitcher(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-md text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer"
+                >
+                  <span className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0 rounded-full border border-dashed border-[var(--color-border)]">
+                    <LuPlus className="h-3 w-3" />
+                  </span>
+                  <span>Add household</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Divider between scope switcher and the rest of the nav. */}
