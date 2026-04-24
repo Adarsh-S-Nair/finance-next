@@ -17,10 +17,39 @@ const SEGMENT_GAP_PX = 10;
 // has enough arc to read as a real segment (not a sliver).
 const MIN_SEGMENT_PCT = 3;
 
-function getRangeFor(viewMode) {
+type ViewMode = "thisMonth" | "last30";
+
+type CategoryData = {
+  id: string;
+  label: string;
+  total_spent: number;
+  hex_color?: string | null;
+};
+
+type Segment = {
+  id: string;
+  label: string;
+  value: number;
+  color: string;
+  isOther?: boolean;
+  otherIds?: string[];
+};
+
+type RenderedSegment = Segment & {
+  dashArray: string;
+  dashOffset: number;
+  pct: number;
+};
+
+type ExternalData = {
+  categories?: CategoryData[];
+  totalSpending?: number;
+};
+
+function getRangeFor(viewMode: ViewMode) {
   const today = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   if (viewMode === "last30") {
     const start = new Date(today);
@@ -37,14 +66,20 @@ const viewOptions = [
   { label: "Last 30 Days", value: "last30" },
 ];
 
-function Header({ viewMode, setViewMode }) {
+function Header({
+  viewMode,
+  setViewMode,
+}: {
+  viewMode: ViewMode;
+  setViewMode: (value: ViewMode) => void;
+}) {
   return (
     <div className="flex items-center justify-between mb-5">
       <div className="card-header">Top Spending</div>
       <SegmentedTabs
         options={viewOptions}
         value={viewMode}
-        onChange={setViewMode}
+        onChange={(v: string) => setViewMode(v as ViewMode)}
         size="sm"
       />
     </div>
@@ -62,28 +97,58 @@ function Skeleton() {
   );
 }
 
+type DonutProps = {
+  segments: Segment[];
+  total: number;
+  rangeLabel: string;
+  hoveredId: string | null;
+  onHover: (id: string | null) => void;
+  onClick?: (seg: Segment) => void;
+};
+
 // Segmented donut with a small arc gap between slices. strokeLinecap="round"
 // gives each slice pill-shaped ends so the gap reads as a clean separation
 // rather than a sharp cut.
-function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onClick }) {
+function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onClick }: DonutProps) {
   const radius = (DONUT_SIZE - DONUT_STROKE) / 2;
   const circumference = 2 * Math.PI * radius;
   // When there's only one segment, a gap would create a visible notch in
   // what should look like a continuous ring — skip it.
   const effectiveGap = segments.length > 1 ? SEGMENT_GAP_PX : 0;
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   // Track the most recent pointer type so we can distinguish a real mouse
   // click from a touch tap. On touch, a single tap should reveal the
   // segment's info (like a desktop hover); a second tap on the same
   // segment then navigates.
-  const lastPointerTypeRef = useRef("mouse");
+  const lastPointerTypeRef = useRef<string>("mouse");
+  // Defer clearing hover by a frame so moving between adjacent slices
+  // doesn't cause a flicker — the incoming slice's mouseenter cancels
+  // the pending clear.
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClear = () => {
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+  };
+  const scheduleClear = () => {
+    if (clearTimerRef.current) return;
+    clearTimerRef.current = setTimeout(() => {
+      clearTimerRef.current = null;
+      onHover(null);
+    }, 30);
+  };
+
+  useEffect(() => () => cancelClear(), []);
 
   // Dismiss the touch-revealed tooltip when the user taps outside the donut.
   useEffect(() => {
     if (!hoveredId) return;
-    const handleOutside = (e) => {
+    const handleOutside = (e: PointerEvent) => {
       if (e.pointerType !== "touch") return;
-      if (!containerRef.current?.contains(e.target)) {
+      const target = e.target as Node | null;
+      if (!target || !containerRef.current?.contains(target)) {
         onHover(null);
       }
     };
@@ -92,7 +157,7 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   }, [hoveredId, onHover]);
 
   let cumulative = 0;
-  const rendered = segments.map((seg) => {
+  const rendered: RenderedSegment[] = segments.map((seg) => {
     const pct = total > 0 ? seg.value / total : 0;
     const arc = pct * circumference;
     const dash = Math.max(0.001, arc - effectiveGap);
@@ -103,14 +168,14 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   });
 
   const hovered = hoveredId
-    ? rendered.find((r) => r.id === hoveredId)
+    ? rendered.find((r) => r.id === hoveredId) ?? null
     : null;
 
   const centerAmount = hovered ? hovered.value : total;
   const centerLabel = hovered ? hovered.label : rangeLabel;
   const centerPct = hovered ? Math.round(hovered.pct * 100) : null;
 
-  const handleSegmentClick = (seg) => {
+  const handleSegmentClick = (seg: RenderedSegment) => {
     const isTouch = lastPointerTypeRef.current === "touch";
     // On touch, first tap only reveals info. A subsequent tap on the
     // already-revealed segment navigates.
@@ -126,9 +191,6 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
       ref={containerRef}
       className="relative"
       style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
-      onMouseLeave={() => {
-        if (lastPointerTypeRef.current !== "touch") onHover(null);
-      }}
     >
       <svg
         width={DONUT_SIZE}
@@ -161,7 +223,13 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
                 lastPointerTypeRef.current = e.pointerType || "mouse";
               }}
               onMouseEnter={() => {
-                if (lastPointerTypeRef.current !== "touch") onHover(seg.id);
+                if (lastPointerTypeRef.current === "touch") return;
+                cancelClear();
+                onHover(seg.id);
+              }}
+              onMouseLeave={() => {
+                if (lastPointerTypeRef.current === "touch") return;
+                scheduleClear();
               }}
               onClick={() => handleSegmentClick(seg)}
             />
@@ -186,16 +254,20 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   );
 }
 
-export default function TopCategoriesCard({ data: externalData } = {}) {
+type Props = {
+  data?: ExternalData;
+};
+
+export default function TopCategoriesCard({ data: externalData }: Props = {}) {
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<CategoryData[]>([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("thisMonth");
-  const [hoveredId, setHoveredId] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("thisMonth");
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const range = useMemo(() => getRangeFor(viewMode), [viewMode]);
 
@@ -225,7 +297,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
         setTotalSpending(data.totalSpending || 0);
       } catch (err) {
         console.error(err);
-        setError(err.message);
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
         setLoading(false);
         setHasLoaded(true);
@@ -242,14 +314,14 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     hasLoaded,
   ]);
 
-  const segments = useMemo(() => {
+  const segments = useMemo<Segment[]>(() => {
     if (!categories.length || !totalSpending) return [];
 
     // Keep categories that are both in the top N AND at least MIN_SEGMENT_PCT
     // of total spending; everything else rolls into "Other". That avoids
     // lollipop-stub slices and ensures the donut always reads cleanly.
     const top = categories.slice(0, MAX_ROWS);
-    const named = top
+    const named: Segment[] = top
       .filter((cat) => (cat.total_spent / totalSpending) * 100 >= MIN_SEGMENT_PCT)
       .map((cat) => ({
         id: cat.id,
@@ -277,7 +349,7 @@ export default function TopCategoriesCard({ data: externalData } = {}) {
     return named;
   }, [categories, totalSpending]);
 
-  const onSegmentClick = (seg) => {
+  const onSegmentClick = (seg: Segment) => {
     if (!seg) return;
     if (seg.isOther) {
       if (!seg.otherIds?.length) return;

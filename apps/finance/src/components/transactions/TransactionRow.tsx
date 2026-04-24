@@ -5,21 +5,69 @@ import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
-const formatCurrency = (amount) => formatCurrencyBase(amount, true);
+const formatCurrency = (amount: number) => formatCurrencyBase(amount, true);
 
-const TransactionRow = memo(function TransactionRow({ transaction, onTransactionClick, selectable, selected, onSelect, compact, showDate = false }) {
+type TransactionSplit = {
+  is_settled?: boolean | null;
+};
+
+// Loose shape — this component accepts rows from multiple callers
+// (transactions list, account drilldown, search results) whose exact
+// projections vary. Typing every optional field would be more churn than
+// signal; we keep the fields we actually read explicit.
+export type TransactionRowData = {
+  id: string | number;
+  amount: number;
+  date?: string | null;
+  description?: string | null;
+  merchant_name?: string | null;
+  icon_url?: string | null;
+  category_name?: string | null;
+  category_hex_color?: string | null;
+  category_icon_lib?: string | null;
+  category_icon_name?: string | null;
+  account_name?: string | null;
+  pending?: boolean | null;
+  is_repayment?: boolean | null;
+  is_unmatched_transfer?: boolean | null;
+  is_unmatched_payment?: boolean | null;
+  transaction_splits?: TransactionSplit[] | null;
+};
+
+type Props = {
+  transaction: TransactionRowData;
+  onTransactionClick: (transaction: TransactionRowData) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (selected: boolean) => void;
+  compact?: boolean;
+  showDate?: boolean;
+  index?: number;
+  groupIndex?: number;
+};
+
+const TransactionRow = memo(function TransactionRow({
+  transaction,
+  onTransactionClick,
+  selectable,
+  selected,
+  onSelect,
+  compact,
+  showDate = false,
+}: Props) {
   const [logoFailed, setLogoFailed] = React.useState(false);
-  const hasSplits = (transaction.transaction_splits?.length || 0) > 0;
-  const hasSettledSplit = hasSplits && transaction.transaction_splits.some(s => s.is_settled);
-  const hasUnsettledSplit = hasSplits && transaction.transaction_splits.some(s => !s.is_settled);
+  const splits = transaction.transaction_splits ?? [];
+  const hasSplits = splits.length > 0;
+  const hasSettledSplit = hasSplits && splits.some((s) => s.is_settled);
+  const hasUnsettledSplit = hasSplits && splits.some((s) => !s.is_settled);
 
-  const showLogo = !DISABLE_LOGOS && transaction.icon_url && !logoFailed;
+  const showLogo = !DISABLE_LOGOS && !!transaction.icon_url && !logoFailed;
 
   return (
     <div
       data-transaction-item
       data-transaction-id={transaction.id}
-      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 px-4 md:px-6'} hover:bg-[var(--color-surface-alt)]/40 transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
+      className={`group relative flex items-center justify-between ${compact ? 'py-2 px-3' : 'py-4 px-2 md:px-6'} hover:bg-[var(--color-surface-alt)]/40 transition-all duration-200 cursor-pointer ${selected ? 'bg-[var(--color-surface)]/30' : ''}`}
       onClick={() => {
         if (selectable && onSelect) {
           onSelect(!selected);
@@ -41,7 +89,7 @@ const TransactionRow = memo(function TransactionRow({ transaction, onTransaction
           >
             {showLogo ? (
               <img
-                src={transaction.icon_url}
+                src={transaction.icon_url as string}
                 alt={transaction.merchant_name || transaction.description || 'Transaction'}
                 className="w-full h-full object-cover rounded-full"
                 loading="lazy"

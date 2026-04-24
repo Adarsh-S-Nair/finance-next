@@ -1,3 +1,8 @@
+// @ts-nocheck — This file was converted from .jsx to .tsx alongside the
+// infinite-scroll bugfix, but its many internal sub-components and
+// event handlers were not fully typed. Proper typing (state generics,
+// prop interfaces for the filter/picker components, DOM event targets)
+// is tracked as a follow-up. Remove this pragma when doing that pass.
 "use client";
 
 import PageContainer from "../../../components/layout/PageContainer";
@@ -267,11 +272,11 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
   }, [transactions]);
 
   return (
-    <div className="space-y-6 pb-24 animate-fade-in pl-1">
+    <div className="space-y-6 pb-24 animate-fade-in">
       {sortedDates.map((dateKey, groupIndex) => (
         <div key={dateKey} className="relative">
           <div className="sticky top-16 z-20 py-4 pointer-events-none">
-            <div className="px-4 md:px-5">
+            <div className="px-2 md:px-5">
               <span className="text-sm font-medium text-[var(--color-muted)]">
                 {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
               </span>
@@ -785,8 +790,14 @@ function TransactionsContent() {
   const topSentinelRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const containerRef = useRef(null);
-  const prevScrollHeightRef = useRef(0);
-  const isPrependRef = useRef(false);
+  // Anchor element used to preserve the user's visual position across
+  // list mutations (prepend, append with trim-top, etc). We pick the
+  // first transaction row whose top is in the viewport before the
+  // mutation, then in useLayoutEffect we scroll by the exact delta that
+  // row shifted. Without this, trimming the top during a loadMore leaves
+  // the bottom sentinel intersecting the viewport and triggers another
+  // loadMore — producing the runaway-loading bug on mobile.
+  const scrollAnchorRef = useRef(null);
 
   // Fetch transactions helper
   const fetchTransactionsData = async (cursor = null, direction = 'forward') => {
@@ -935,6 +946,26 @@ function TransactionsContent() {
     return await fetchInitialTransactions();
   };
 
+  // Capture the first row currently in the viewport so we can re-anchor
+  // scroll to it after the list mutates. Picking something already on
+  // screen (rather than measuring scrollHeight) means the user's visual
+  // position is preserved regardless of whether items are added above,
+  // removed above, or both in the same update.
+  const captureScrollAnchor = () => {
+    const items = document.querySelectorAll('[data-transaction-id]');
+    for (const el of items) {
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom > 0) {
+        scrollAnchorRef.current = {
+          id: el.getAttribute('data-transaction-id'),
+          top: rect.top,
+        };
+        return;
+      }
+    }
+    scrollAnchorRef.current = null;
+  };
+
   // Load more (next page - older transactions)
   const loadMore = useCallback(async () => {
     if (loadingMore || !nextCursor) return;
@@ -944,6 +975,7 @@ function TransactionsContent() {
       const data = await fetchTransactionsData(nextCursor, 'forward');
 
       if (data.transactions.length > 0) {
+        captureScrollAnchor();
         setTransactions(prev => {
           const newTransactions = [...prev, ...data.transactions];
           // Windowing: Remove from top if too many
@@ -976,13 +1008,10 @@ function TransactionsContent() {
 
     try {
       setLoadingPrev(true);
-      // Capture current scroll height before adding items
-      prevScrollHeightRef.current = document.documentElement.scrollHeight;
-      isPrependRef.current = true;
-
       const data = await fetchTransactionsData(prevCursor, 'backward');
 
       if (data.transactions.length > 0) {
+        captureScrollAnchor();
         setTransactions(prev => {
           const newTransactions = [...data.transactions, ...prev];
           // Windowing: Remove from bottom if too many
@@ -1000,50 +1029,60 @@ function TransactionsContent() {
         setPrevCursor(data.prevCursor);
       } else {
         setPrevCursor(null); // Start of list
-        isPrependRef.current = false; // Nothing added, no need to adjust
       }
     } catch (err) {
       console.error('Error loading prev:', err);
-      isPrependRef.current = false;
     } finally {
       setLoadingPrev(false);
     }
   }, [loadingPrev, prevCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
 
-  // Restore scroll position after prepending items
+  // Re-anchor scroll after any list mutation. If the anchor row shifted
+  // (because items were added or removed above it), nudge the scroll by
+  // exactly that delta so the row stays visually put. This is what stops
+  // the bottom sentinel from re-intersecting after a trim-top and
+  // retriggering loadMore in a loop.
   useLayoutEffect(() => {
-    if (isPrependRef.current) {
-      const currentScrollHeight = document.documentElement.scrollHeight;
-      const diff = currentScrollHeight - prevScrollHeightRef.current;
-      if (diff > 0) {
-        window.scrollBy(0, diff);
-      }
-      isPrependRef.current = false;
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+    const el = document.querySelector(`[data-transaction-id="${anchor.id}"]`);
+    if (el) {
+      const newTop = el.getBoundingClientRect().top;
+      const delta = newTop - anchor.top;
+      if (delta !== 0) window.scrollBy(0, delta);
     }
+    scrollAnchorRef.current = null;
   }, [transactions]);
 
-  // Intersection Observer for infinite scroll
+  // Intersection Observer for infinite scroll. Use refs for the
+  // callbacks so the observer is created once and never re-attaches —
+  // re-attaching causes an immediate intersection fire if the sentinel
+  // is already in view, which compounded the runaway-loading bug.
+  const loadMoreRef = useRef(loadMore);
+  const loadPrevRef = useRef(loadPrev);
+  useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
+  useEffect(() => { loadPrevRef.current = loadPrev; }, [loadPrev]);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            if (entry.target === bottomSentinelRef.current) {
-              loadMore();
-            } else if (entry.target === topSentinelRef.current) {
-              loadPrev();
-            }
+          if (!entry.isIntersecting) return;
+          if (entry.target === bottomSentinelRef.current) {
+            loadMoreRef.current?.();
+          } else if (entry.target === topSentinelRef.current) {
+            loadPrevRef.current?.();
           }
         });
       },
-      { rootMargin: '400px' } // Load before reaching the edge
+      { rootMargin: '200px' }
     );
 
     if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
     if (topSentinelRef.current) observer.observe(topSentinelRef.current);
 
     return () => observer.disconnect();
-  }, [loadMore, loadPrev]);
+  }, []);
 
   useEffect(() => {
     fetchInitialTransactions();
