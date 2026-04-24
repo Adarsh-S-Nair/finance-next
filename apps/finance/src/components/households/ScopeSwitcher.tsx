@@ -36,19 +36,22 @@ type HouseholdContextMenu = {
 const MENU_WIDTH = 208;
 const MENU_MARGIN = 6;
 
-// Round "Personal" avatar — a subtle surface-alt disc with the Zervo
-// mark set into it. Matches the shape + presence of the household
-// avatar stacks used for other scopes.
-function ScopeZervo({ size }: { size: number }) {
-  const inner = Math.round(size * 0.6);
+// Rounded-square Personal tile — fg-on-bg inversion so it reads as
+// black-on-white in light mode and white-on-black in dark mode,
+// matching the tablet bubble's visual weight. Border radius is
+// relative to the tile size so both 40px and 28px tiles look like
+// the same family of shape.
+function PersonalTile({ size }: { size: number }) {
+  const inner = Math.round(size * 0.55);
+  const radius = Math.max(6, Math.round(size * 0.28));
   return (
     <span
-      className="rounded-full bg-[var(--color-surface-alt)] flex items-center justify-center flex-shrink-0"
-      style={{ width: size, height: size }}
+      className="flex items-center justify-center flex-shrink-0 bg-[var(--color-fg)]"
+      style={{ width: size, height: size, borderRadius: radius }}
     >
       <span
         aria-hidden
-        className="block bg-[var(--color-fg)]"
+        className="block bg-[var(--color-bg)]"
         style={{
           width: inner,
           height: inner,
@@ -66,6 +69,35 @@ function ScopeZervo({ size }: { size: number }) {
   );
 }
 
+// Rounded-square household tile — matches PersonalTile's shape but
+// uses a subtle surface-alt backdrop so the avatar stack inside
+// doesn't float unanchored on the sidebar background.
+function HouseholdTile({
+  household,
+  size,
+}: {
+  household: HouseholdSummary;
+  size: number;
+}) {
+  const inset = Math.max(2, Math.round(size * 0.08));
+  const radius = Math.max(6, Math.round(size * 0.28));
+  const stackSize = size - inset * 2;
+  return (
+    <span
+      className="flex items-center justify-center flex-shrink-0 bg-[var(--color-surface-alt)] overflow-hidden"
+      style={{ width: size, height: size, borderRadius: radius }}
+    >
+      <HouseholdAvatarStack
+        members={household.members}
+        totalMembers={household.member_count}
+        size={stackSize}
+        fallbackName={household.name}
+        fallbackColor={household.color}
+      />
+    </span>
+  );
+}
+
 function ScopeAvatar({
   household,
   size,
@@ -73,16 +105,8 @@ function ScopeAvatar({
   household: HouseholdSummary | null;
   size: number;
 }) {
-  if (!household) return <ScopeZervo size={size} />;
-  return (
-    <HouseholdAvatarStack
-      members={household.members}
-      totalMembers={household.member_count}
-      size={size}
-      fallbackName={household.name}
-      fallbackColor={household.color}
-    />
-  );
+  if (!household) return <PersonalTile size={size} />;
+  return <HouseholdTile household={household} size={size} />;
 }
 
 function ScopeRow({
@@ -315,7 +339,7 @@ export default function ScopeSwitcher() {
           expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
-          <ScopeAvatar household={activeHousehold} size={32} />
+          <ScopeAvatar household={activeHousehold} size={40} />
         </ScopeRow>
 
         <AnimatePresence initial={false}>
@@ -335,7 +359,7 @@ export default function ScopeSwitcher() {
                     label="Personal"
                     onClick={() => setExpanded(false)}
                   >
-                    <ScopeZervo size={22} />
+                    <PersonalTile size={28} />
                   </ScopeRow>
                 )}
                 {otherHouseholds.map((h) => (
@@ -347,13 +371,7 @@ export default function ScopeSwitcher() {
                     onClick={() => setExpanded(false)}
                     onContextMenu={(e) => handleContextMenu(e, h)}
                   >
-                    <HouseholdAvatarStack
-                      members={h.members}
-                      totalMembers={h.member_count}
-                      size={22}
-                      fallbackName={h.name}
-                      fallbackColor={h.color}
-                    />
+                    <HouseholdTile household={h} size={28} />
                   </ScopeRow>
                 ))}
                 <button
@@ -364,8 +382,8 @@ export default function ScopeSwitcher() {
                   }}
                   className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-md text-[13px] text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer"
                 >
-                  <span className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0 rounded-full border border-dashed border-[var(--color-border)]">
-                    <LuPlus className="h-3 w-3" />
+                  <span className="w-7 h-7 flex items-center justify-center flex-shrink-0 rounded-lg border border-dashed border-[var(--color-border)]">
+                    <LuPlus className="h-3.5 w-3.5" />
                   </span>
                   <span>Add household</span>
                 </button>
