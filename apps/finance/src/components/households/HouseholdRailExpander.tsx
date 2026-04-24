@@ -183,21 +183,16 @@ export function HouseholdRailBubbleTrigger() {
       <span
         className={clsx(
           "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl",
-          !activeHousehold && "bg-[var(--color-accent)]",
-        )}
-        style={
           activeHousehold
-            ? {
-                backgroundColor: `color-mix(in oklab, ${activeHousehold.color}, transparent 80%)`,
-              }
-            : undefined
-        }
+            ? "bg-[var(--color-surface-alt)]"
+            : "bg-[var(--color-accent)]",
+        )}
       >
         {activeHousehold ? (
           <HouseholdAvatarStack
             members={activeHousehold.members}
             totalMembers={activeHousehold.member_count}
-            size={40}
+            size={44}
             fallbackName={activeHousehold.name}
             fallbackColor={activeHousehold.color}
           />
@@ -298,19 +293,14 @@ export function HouseholdRailPanel() {
                       className={clsx(
                         "flex h-12 w-12 items-center justify-center overflow-hidden transition-[border-radius,background-color] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
                         active
-                          ? "rounded-xl"
+                          ? "rounded-xl bg-[var(--color-surface-alt)]"
                           : "rounded-[24px] group-hover:rounded-xl",
                       )}
-                      style={{
-                        backgroundColor: active
-                          ? `color-mix(in oklab, ${h.color}, transparent 80%)`
-                          : "transparent",
-                      }}
                     >
                       <HouseholdAvatarStack
                         members={h.members}
                         totalMembers={h.member_count}
-                        size={44}
+                        size={48}
                         fallbackName={h.name}
                         fallbackColor={h.color}
                       />

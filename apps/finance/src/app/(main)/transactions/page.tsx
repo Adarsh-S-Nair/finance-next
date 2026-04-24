@@ -9,7 +9,7 @@ import PageContainer from "../../../components/layout/PageContainer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
 import { FiRefreshCw, FiFilter, FiSearch, FiLoader } from "react-icons/fi";
 import { LuReceipt } from "react-icons/lu";
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, useTransition, memo, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
@@ -286,7 +286,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
           <div className="flex flex-col gap-1">
             {grouped[dateKey].map((transaction, index) => (
               <TransactionRow
-                key={`${transaction.id}-${dateKey}-${index}`}
+                key={transaction.id}
                 transaction={transaction}
                 onTransactionClick={onTransactionClick}
                 index={index}
@@ -785,19 +785,19 @@ function TransactionsContent() {
   const [prevCursor, setPrevCursor] = useState(null);
 
   const PAGE_LIMIT = 20;
-  const MAX_ITEMS = 50; // Maximum number of items to keep in DOM
+  // Windowing threshold — DOM stays capped at this count. Higher means
+  // fewer trim operations (each trim can cause a visible jump on mobile
+  // momentum scroll), but more memory for users who scroll far back.
+  const MAX_ITEMS = 200;
   const initialAbortRef = useRef(null);
   const topSentinelRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const containerRef = useRef(null);
-  // Anchor element used to preserve the user's visual position across
-  // list mutations (prepend, append with trim-top, etc). We pick the
-  // first transaction row whose top is in the viewport before the
-  // mutation, then in useLayoutEffect we scroll by the exact delta that
-  // row shifted. Without this, trimming the top during a loadMore leaves
-  // the bottom sentinel intersecting the viewport and triggers another
-  // loadMore — producing the runaway-loading bug on mobile.
-  const scrollAnchorRef = useRef(null);
+  // We rely on the browser's native scroll anchoring (overflow-anchor:
+  // auto, default) to preserve the user's visual position when items
+  // are added/removed above the viewport. A manual scrollBy in a
+  // useLayoutEffect fought with iOS momentum scroll and caused a
+  // visible snap/flash, so it was removed.
 
   // Fetch transactions helper
   const fetchTransactionsData = async (cursor = null, direction = 'forward') => {
@@ -946,26 +946,6 @@ function TransactionsContent() {
     return await fetchInitialTransactions();
   };
 
-  // Capture the first row currently in the viewport so we can re-anchor
-  // scroll to it after the list mutates. Picking something already on
-  // screen (rather than measuring scrollHeight) means the user's visual
-  // position is preserved regardless of whether items are added above,
-  // removed above, or both in the same update.
-  const captureScrollAnchor = () => {
-    const items = document.querySelectorAll('[data-transaction-id]');
-    for (const el of items) {
-      const rect = el.getBoundingClientRect();
-      if (rect.bottom > 0) {
-        scrollAnchorRef.current = {
-          id: el.getAttribute('data-transaction-id'),
-          top: rect.top,
-        };
-        return;
-      }
-    }
-    scrollAnchorRef.current = null;
-  };
-
   // Load more (next page - older transactions)
   const loadMore = useCallback(async () => {
     if (loadingMore || !nextCursor) return;
@@ -975,7 +955,6 @@ function TransactionsContent() {
       const data = await fetchTransactionsData(nextCursor, 'forward');
 
       if (data.transactions.length > 0) {
-        captureScrollAnchor();
         setTransactions(prev => {
           const newTransactions = [...prev, ...data.transactions];
           // Windowing: Remove from top if too many
@@ -1011,7 +990,6 @@ function TransactionsContent() {
       const data = await fetchTransactionsData(prevCursor, 'backward');
 
       if (data.transactions.length > 0) {
-        captureScrollAnchor();
         setTransactions(prev => {
           const newTransactions = [...data.transactions, ...prev];
           // Windowing: Remove from bottom if too many
@@ -1036,23 +1014,6 @@ function TransactionsContent() {
       setLoadingPrev(false);
     }
   }, [loadingPrev, prevCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
-
-  // Re-anchor scroll after any list mutation. If the anchor row shifted
-  // (because items were added or removed above it), nudge the scroll by
-  // exactly that delta so the row stays visually put. This is what stops
-  // the bottom sentinel from re-intersecting after a trim-top and
-  // retriggering loadMore in a loop.
-  useLayoutEffect(() => {
-    const anchor = scrollAnchorRef.current;
-    if (!anchor) return;
-    const el = document.querySelector(`[data-transaction-id="${anchor.id}"]`);
-    if (el) {
-      const newTop = el.getBoundingClientRect().top;
-      const delta = newTop - anchor.top;
-      if (delta !== 0) window.scrollBy(0, delta);
-    }
-    scrollAnchorRef.current = null;
-  }, [transactions]);
 
   // Intersection Observer for infinite scroll. Use refs for the
   // callbacks so the observer is created once and never re-attaches —

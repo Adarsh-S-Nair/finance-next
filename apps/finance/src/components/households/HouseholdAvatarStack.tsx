@@ -160,9 +160,10 @@ export function HouseholdAvatarStack({
   }
 
   if (slotCount === 2) {
-    // 66% each, overlapping corner-to-corner so both avatars are still
-    // recognizable but the stack fits the bubble footprint.
-    const s = Math.round(size * 0.66);
+    // Each avatar is sized so two overlap diagonally with a generous
+    // intersection — the top-left sits flush with the top-left corner
+    // and the bottom-right sits flush with the bottom-right corner.
+    const s = Math.round(size * 0.78);
     return (
       <div
         style={{ width: size, height: size }}
@@ -182,16 +183,18 @@ export function HouseholdAvatarStack({
     );
   }
 
-  // Triangle (3 slots)
-  const s = Math.round(size * 0.58);
+  // Triangle (3 slots). Bigger than a naive 1/√3 packing so the avatars
+  // feel substantive — overlap between neighbours is expected.
+  const s = Math.round(size * 0.68);
+  const hOffset = Math.round((size - s) / 2);
   return (
     <div
       style={{ width: size, height: size }}
       className={clsx("relative", className)}
     >
       <div
-        className="absolute top-0 left-1/2"
-        style={{ transform: "translateX(-50%)" }}
+        className="absolute top-0"
+        style={{ left: hOffset }}
       >
         <Avatar size={s} member={shown[0]} border={border} />
       </div>

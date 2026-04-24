@@ -102,29 +102,25 @@ function Bubble({ active = false, children }: BubbleProps) {
 }
 
 // Framing wrapper used for the household scope in the rail. The active
-// state is signalled with a rounded-xl squircle backdrop and a subtle
-// ring using the household's accent color, since the inner avatar
-// stack no longer carries the household color itself.
+// state uses a neutral surface tint + shape change; household color no
+// longer appears here since the avatar stack is the content.
 function HouseholdFrame({
   active,
-  color,
   children,
 }: {
   active: boolean;
-  color: string;
   children: React.ReactNode;
 }) {
   return (
     <span
-      style={{ ["--bubble-color" as string]: color } as React.CSSProperties}
       className={clsx(
         "relative flex h-11 w-11 items-center justify-center",
         BUBBLE_SHAPE_TRANSITION,
         active
-          ? "rounded-xl bg-[color-mix(in_oklab,var(--bubble-color),transparent_80%)]"
+          ? "rounded-xl bg-[var(--color-surface-alt)]"
           : clsx(
               BUBBLE_CIRCLE_RADIUS,
-              "group-hover:rounded-xl group-hover:bg-[color-mix(in_oklab,var(--bubble-color),transparent_85%)]",
+              "group-hover:rounded-xl group-hover:bg-[var(--color-surface-alt)]",
             ),
       )}
     >
@@ -317,11 +313,11 @@ export default function HouseholdRail() {
                       aria-label={h.name}
                     >
                       <ActiveIndicator active={active} />
-                      <HouseholdFrame active={active} color={h.color}>
+                      <HouseholdFrame active={active}>
                         <HouseholdAvatarStack
                           members={h.members}
                           totalMembers={h.member_count}
-                          size={40}
+                          size={44}
                           fallbackName={h.name}
                           fallbackColor={h.color}
                         />
