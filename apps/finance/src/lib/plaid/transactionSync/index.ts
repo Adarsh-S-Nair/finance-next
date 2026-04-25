@@ -36,6 +36,7 @@ import {
   getDefaultIconForGroup,
   linkRowsToCategories,
 } from './categories';
+import { isCheckpointChange, projectCurrent } from './projectBalance';
 import type {
   AccountMap,
   CategoryGroupRow,
@@ -466,6 +467,30 @@ async function fetchAllSystemCategories(): Promise<SystemCategoryRow[]> {
   return (data ?? []) as SystemCategoryRow[];
 }
 
+/**
+ * Reconcile each account's stored balance with what Plaid just returned.
+ *
+ * Plaid's /accounts/get response is cached at the institution and only
+ * refreshes ~once a day. Naively writing the cached value over our own
+ * displayed balance means new transactions we *just* synced have no
+ * visible effect on the headline number until Plaid's next refresh.
+ *
+ * Two-layer model:
+ *
+ *   - **Checkpoint** (`plaid_balance_*` columns): the last value Plaid
+ *     itself confirmed. Only moves when Plaid returns a different
+ *     number, at which point we accept it as the new baseline and
+ *     reset `plaid_balance_as_of`.
+ *
+ *   - **Displayed** (`balances` JSON, what every UI reader already
+ *     consumes): the checkpoint + every posted transaction with
+ *     `date > checkpoint_as_of::date`, sign-flipped for credit-style
+ *     accounts. Recomputed every sync.
+ *
+ * Snapshots are created on checkpoint changes only, not on projection
+ * deltas — otherwise the balance-history chart fills with transient
+ * wobbles that disappear at the next Plaid refresh.
+ */
 async function updateAccountBalances(
   plaidAccounts: PlaidAccount[],
   accountMap: AccountMap
@@ -474,24 +499,35 @@ async function updateAccountBalances(
     return { updatedAccountsCount: 0, snapshotsCreatedCount: 0 };
   }
 
-  // Investment accounts have their balances owned by the holdings sync (which
-  // derives the total from live-priced holdings). Don't let transaction sync
-  // overwrite those with Plaid's /accounts/get values.
+  // Pull every account row we might touch in one shot — type (for
+  // investment exclusion + sign multiplier) and the existing
+  // checkpoint columns.
   const dbAccountIds = Array.from(new Set(Object.values(accountMap)));
-  const investmentAccountIds = new Set<string>();
+  interface AccountStateRow {
+    id: string;
+    type: string | null;
+    plaid_balance_current: number | null;
+    plaid_balance_available: number | null;
+    plaid_balance_as_of: string | null;
+  }
+  const accountStateById = new Map<string, AccountStateRow>();
   if (dbAccountIds.length > 0) {
-    const { data: typeRows, error: typeError } = await supabaseAdmin
+    const { data: stateRows, error: stateError } = await supabaseAdmin
       .from('accounts')
-      .select('id, type')
+      .select(
+        'id, type, plaid_balance_current, plaid_balance_available, plaid_balance_as_of'
+      )
       .in('id', dbAccountIds);
-    if (typeError) {
-      logger.warn('Failed to fetch account types for balance update, proceeding without filter', {
-        error: typeError.message,
+    if (stateError) {
+      // Without checkpoint state we can't safely project. Bail rather
+      // than risk corrupting balances; the next sync will retry.
+      logger.error('Failed to fetch account state for balance update', null, {
+        error: stateError,
       });
-    } else {
-      for (const row of (typeRows ?? []) as Array<{ id: string; type: string | null }>) {
-        if (row.type === 'investment') investmentAccountIds.add(row.id);
-      }
+      return { updatedAccountsCount: 0, snapshotsCreatedCount: 0 };
+    }
+    for (const row of (stateRows ?? []) as AccountStateRow[]) {
+      accountStateById.set(row.id, row);
     }
   }
 
@@ -501,14 +537,91 @@ async function updateAccountBalances(
   for (const plaidAccount of plaidAccounts) {
     const dbAccountId = accountMap[plaidAccount.account_id];
     if (!dbAccountId || !plaidAccount.balances) continue;
-    if (investmentAccountIds.has(dbAccountId)) continue;
+
+    const acct = accountStateById.get(dbAccountId);
+    if (!acct) continue;
+    // Investment accounts: holdings sync owns the balance. Don't touch.
+    if (acct.type === 'investment') continue;
+
+    const incomingCurrent =
+      typeof plaidAccount.balances.current === 'number'
+        ? plaidAccount.balances.current
+        : null;
+    const incomingAvailable =
+      typeof plaidAccount.balances.available === 'number'
+        ? plaidAccount.balances.available
+        : null;
+
+    // Did Plaid's cache refresh? If so, accept the new value as the
+    // canonical checkpoint; otherwise hold the previous one steady so
+    // already-projected transactions don't get baked in twice.
+    const checkpointChanged = isCheckpointChange(
+      incomingCurrent,
+      acct.plaid_balance_current
+    );
+    const checkpointCurrent = checkpointChanged
+      ? incomingCurrent
+      : acct.plaid_balance_current;
+    const checkpointAvailable = checkpointChanged
+      ? incomingAvailable
+      : acct.plaid_balance_available;
+    const checkpointAsOf =
+      checkpointChanged || !acct.plaid_balance_as_of
+        ? new Date().toISOString()
+        : acct.plaid_balance_as_of;
+
+    // Sum posted transactions ingested AFTER the checkpoint — those are
+    // the ones Plaid hadn't reflected yet when it last gave us a balance.
+    // We use `created_at` (when we received the tx from Plaid) rather
+    // than the calendar `date` column because the date column has a
+    // boundary-day ambiguity: a tx with the same calendar day as the
+    // checkpoint may or may not be in Plaid's cached balance, and we
+    // can't tell. `created_at` is unambiguous — anything we ingested
+    // after Plaid's last confirmed balance is by definition newer.
+    let deltaSum = 0;
+    if (checkpointCurrent !== null) {
+      const { data: txDeltas, error: txError } = await supabaseAdmin
+        .from('transactions')
+        .select('amount')
+        .eq('account_id', dbAccountId)
+        .eq('pending', false)
+        .gt('created_at', checkpointAsOf);
+      if (txError) {
+        logger.warn('Failed to sum tx deltas for projection — using checkpoint as displayed', {
+          account_id: plaidAccount.account_id,
+          error: txError.message,
+        });
+      } else {
+        for (const row of (txDeltas ?? []) as Array<{ amount: number | null }>) {
+          deltaSum += Number(row.amount ?? 0);
+        }
+      }
+    }
+
+    const projectedCurrent = projectCurrent(checkpointCurrent, deltaSum, acct.type);
+
+    // Build the displayed balance JSON. Take Plaid's incoming object as
+    // the base (preserves currency_code + limit), then override `current`
+    // with the projection. `available` stays as Plaid's value for now —
+    // projecting it correctly requires modeling pending tx differently.
+    const projectedBalances = {
+      ...plaidAccount.balances,
+      current: projectedCurrent,
+    };
+
+    const updates: TablesUpdate<'accounts'> = {
+      balances: projectedBalances as unknown as TablesUpdate<'accounts'>['balances'],
+      updated_at: new Date().toISOString(),
+    };
+    if (checkpointChanged) {
+      updates.plaid_balance_current = checkpointCurrent;
+      updates.plaid_balance_available = checkpointAvailable;
+      updates.plaid_balance_as_of = checkpointAsOf;
+    }
 
     const { error: updateError } = await supabaseAdmin
       .from('accounts')
-      .update({
-        balances: plaidAccount.balances as unknown as TablesUpdate<'accounts'>['balances'],
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', dbAccountId);
 
     if (updateError) {
@@ -521,19 +634,30 @@ async function updateAccountBalances(
 
     updatedAccountsCount++;
 
-    try {
-      const snapshotResult = (await createAccountSnapshotConditional(
-        plaidAccount,
-        dbAccountId
-      )) as { success?: boolean; skipped?: boolean; reason?: string } | undefined;
-      if (snapshotResult?.success && !snapshotResult.skipped) {
-        snapshotsCreatedCount++;
+    // Snapshot only on real Plaid checkpoint moves so the balance-history
+    // chart records vetted values, not transient projections. Snapshot
+    // the checkpoint, not the projection.
+    if (checkpointChanged) {
+      try {
+        const snapshotResult = (await createAccountSnapshotConditional(
+          {
+            balances: {
+              ...plaidAccount.balances,
+              current: checkpointCurrent,
+              available: checkpointAvailable,
+            },
+          },
+          dbAccountId
+        )) as { success?: boolean; skipped?: boolean; reason?: string } | undefined;
+        if (snapshotResult?.success && !snapshotResult.skipped) {
+          snapshotsCreatedCount++;
+        }
+      } catch (snapshotError) {
+        logger.warn('Error creating account snapshot', {
+          account_id: plaidAccount.account_id,
+          error: (snapshotError as Error).message,
+        });
       }
-    } catch (snapshotError) {
-      logger.warn('Error creating account snapshot', {
-        account_id: plaidAccount.account_id,
-        error: (snapshotError as Error).message,
-      });
     }
   }
 
