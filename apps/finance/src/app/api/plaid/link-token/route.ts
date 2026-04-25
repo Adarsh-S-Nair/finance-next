@@ -1,4 +1,5 @@
 import { createLinkToken } from '../../../../lib/plaid/client';
+import { decryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
@@ -36,7 +37,7 @@ export const POST = withAuth('plaid:link-token', async (request, userId) => {
     if (itemError || !plaidItem) {
       return Response.json({ error: 'Plaid item not found' }, { status: 404 });
     }
-    const accessToken = plaidItem.access_token;
+    const accessToken = decryptPlaidToken(plaidItem.access_token);
     // For update mode, request the additional products (default to investments for upgrade flow)
     const products = additionalProducts || ['investments'];
     const linkTokenResponse = await createLinkToken(userId, products, null, accessToken);

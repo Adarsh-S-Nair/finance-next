@@ -1771,12 +1771,14 @@ function TransactionsContent() {
     setCurrentDrawerView('select-category');
   };
 
+  const selectedTransactionId = selectedTransaction?.id;
+
   // User chose "Mark as reviewed" — dismiss the needs-attention flag
   // without changing the category. Same optimistic+supabase-update
   // path as a category change, minus the category bits.
   const handleMarkReviewed = useCallback(async () => {
-    if (!selectedTransaction?.id) return;
-    applyTransactionUpdate(selectedTransaction.id, {
+    if (!selectedTransactionId) return;
+    applyTransactionUpdate(selectedTransactionId, {
       is_unmatched_transfer: false,
       is_unmatched_payment: false,
     });
@@ -1789,12 +1791,12 @@ function TransactionsContent() {
       const { error } = await supabase
         .from('transactions')
         .update({ is_unmatched_transfer: false })
-        .eq('id', selectedTransaction.id);
+        .eq('id', selectedTransactionId);
       if (error) throw error;
     } catch (err) {
       console.error('Error marking transaction as reviewed:', err);
     }
-  }, [selectedTransaction?.id, applyTransactionUpdate, transactionStatus]);
+  }, [selectedTransactionId, applyTransactionUpdate, transactionStatus]);
 
   // Use transactions directly since they are now server-filtered
   const filteredTransactions = transactions;

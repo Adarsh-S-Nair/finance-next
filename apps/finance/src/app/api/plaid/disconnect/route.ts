@@ -1,4 +1,5 @@
 import { removeItem } from '../../../../lib/plaid/client';
+import { decryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 
@@ -34,7 +35,7 @@ export const POST = withAuth('plaid:disconnect', async (request, userId) => {
   // Step 1: Call Plaid's item/remove API
   console.log('Calling Plaid item/remove API...');
   try {
-    await removeItem(plaidItem.access_token);
+    await removeItem(decryptPlaidToken(plaidItem.access_token));
     console.log('Plaid item/remove API call successful');
   } catch (plaidError) {
     const err = plaidError as {
