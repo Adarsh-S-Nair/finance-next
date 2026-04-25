@@ -622,38 +622,49 @@ async function updateAccountBalances(
     const checkpointAvailable = checkpointChanged
       ? incomingAvailable
       : acct.plaid_balance_available;
-    // `as_of` is "the last time we observed Plaid's `current` value",
-    // not "the last time it changed". Plaid's transactions endpoint and
-    // /accounts/get are independent — a tx can post via /transactions/sync
-    // before *or* after Plaid's institution-level balance cache reflects
-    // it. By bumping as_of on every successful fetch, we guarantee that
-    // anything ingested after the most recent Plaid observation is what
-    // projects on top, and we never double-count a tx that was already
-    // baked into a returned `current` (even if that value didn't move
-    // versus our previous checkpoint).
-    const checkpointAsOf = new Date().toISOString();
+    // `as_of` is the calendar date Plaid's `current` was last vetted
+    // *at the value we currently hold*. It only advances when the
+    // checkpoint actually moves; on no-change syncs we hold the date
+    // steady so transactions posted since then continue to project.
+    //
+    // Why a date and not a timestamp: Plaid's institution-cached
+    // balance is structurally a daily number — banks roll books at
+    // end-of-business, and Plaid's /accounts/get reflects that. So
+    // "txs posted after the date Plaid last vetted this number" is
+    // the cleanest predicate for "txs not yet baked into the cache".
+    //
+    // Why bump only on change: when Plaid's cache is stale (the
+    // *whole reason* projection exists), `current` doesn't move
+    // between syncs. If we advanced `as_of` on every sync, we'd
+    // stop projecting fresh txs the moment they were ingested —
+    // even though Plaid still hasn't seen them — which is exactly
+    // how yesterday's tax refund vanished from the displayed
+    // savings balance.
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const checkpointAsOf = checkpointChanged
+      ? todayDate
+      : acct.plaid_balance_as_of ?? todayDate;
 
     // Compute the delta to project on top of the checkpoint. Two
     // contributors:
     //
-    //   - Posted transactions ingested AFTER the checkpoint — Plaid's
-    //     `current` includes posted but its cache lags, so anything
-    //     posted that we ingested after `as_of` is by definition not
-    //     in the checkpoint yet.
+    //   - Posted transactions with `tx.date > as_of` — anything
+    //     posted on a calendar day later than Plaid's last vetted
+    //     date is by definition not yet in the checkpoint.
     //
-    //   - Pending transactions, regardless of `as_of` — Plaid's
+    //   - Pending transactions, regardless of date — Plaid's
     //     `current` excludes pending entirely, so they're never in
-    //     the checkpoint. We project them so things like a fresh
-    //     refund show up in the headline number immediately. Bounded
-    //     to the last 14 days as a safety net against any orphaned
-    //     pending rows that escape the `removed` array (Plaid drops
-    //     real pending holds within ~7 days).
+    //     the checkpoint. Bounded to the last 14 days as a safety
+    //     net against any orphaned rows that escape the `removed`
+    //     array (Plaid drops real pending holds within ~7 days).
     //
-    // We use `created_at` (when we ingested) rather than the calendar
-    // `date` column because date has a boundary-day ambiguity: a tx
-    // with the same calendar day as the checkpoint may or may not be
-    // in Plaid's cached balance and we can't tell. created_at is
-    // unambiguous.
+    // The strict `>` on date means same-day boundary txs (a tx
+    // posted on the same calendar day Plaid last refreshed the
+    // checkpoint) lag by ~1 day in the worst case. The alternative
+    // (`>=`) would flip-flop daily and risk double-counting; the
+    // alternative (`created_at` comparison) silently dropped real
+    // transactions when Plaid's cache lagged. A 1-day worst-case
+    // lag is the least-bad option.
     const PENDING_PROJECTION_MAX_AGE_DAYS = 14;
     const pendingFloorMs =
       Date.now() - PENDING_PROJECTION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
@@ -661,13 +672,15 @@ async function updateAccountBalances(
 
     let deltaSum = 0;
     if (checkpointCurrent !== null) {
-      // Posted, ingested after the checkpoint.
-      const { data: postedDeltas, error: postedErr } = await supabaseAdmin
+      // Posted, with calendar date strictly after `as_of`.
+      const postedQuery = supabaseAdmin
         .from('transactions')
         .select('amount')
         .eq('account_id', dbAccountId)
-        .eq('pending', false)
-        .gt('created_at', checkpointAsOf);
+        .eq('pending', false);
+      const { data: postedDeltas, error: postedErr } = checkpointAsOf
+        ? await postedQuery.gt('date', checkpointAsOf)
+        : await postedQuery;
       if (postedErr) {
         logger.warn('Failed to sum posted-tx deltas for projection', {
           account_id: plaidAccount.account_id,
@@ -712,14 +725,11 @@ async function updateAccountBalances(
     const updates: TablesUpdate<'accounts'> = {
       balances: projectedBalances as unknown as TablesUpdate<'accounts'>['balances'],
       updated_at: new Date().toISOString(),
-      // Always bump as_of: this is "when we last observed Plaid's
-      // `current`", which advances every sync regardless of whether the
-      // value moved.
-      plaid_balance_as_of: checkpointAsOf,
     };
     if (checkpointChanged) {
       updates.plaid_balance_current = checkpointCurrent;
       updates.plaid_balance_available = checkpointAvailable;
+      updates.plaid_balance_as_of = checkpointAsOf;
     }
 
     const { error: updateError } = await supabaseAdmin
