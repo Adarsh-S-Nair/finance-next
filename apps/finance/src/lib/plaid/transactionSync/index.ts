@@ -92,7 +92,11 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     await markPlaidItemStatus(plaidItemId, { sync_status: 'syncing', last_error: null });
 
     // --- Fetch from Plaid ---
-    const { transactions: rawTransactions, nextCursor } = await fetchFromPlaid(plaidItem);
+    const {
+      transactions: rawTransactions,
+      removedTransactionIds,
+      nextCursor,
+    } = await fetchFromPlaid(plaidItem);
 
     // Production: also fetch fresh account balances in the same pass.
     // plaidItem.access_token is encrypted at rest; decrypt for the outbound
@@ -108,6 +112,15 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
 
     // --- Delete pending transactions that have just been posted ---
     await deletePendingReplacements(pendingReplacements);
+
+    // --- Delete transactions Plaid removed (cancelled holds, corrections) ---
+    // We project pending transactions onto the displayed balance, so a
+    // pending hold that gets released has to actually leave the DB or
+    // it'll project against the balance forever.
+    const removedCount = await deleteRemovedTransactions(removedTransactionIds);
+    if (removedCount > 0) {
+      logger.info('Deleted transactions removed by Plaid', { removedCount });
+    }
 
     // --- Ensure category groups + system categories exist ---
     if (rows.length > 0) {
@@ -277,10 +290,20 @@ async function markPlaidItemStatus(
  * Fetch transactions from Plaid. Sandbox uses the legacy /transactions/get
  * endpoint with a fixed lookback window; production uses /transactions/sync
  * with cursor-based pagination.
+ *
+ * The sync endpoint returns three buckets — `added`, `modified`, `removed`.
+ * `added` + `modified` flow into the upsert pipeline as-is. `removed`
+ * carries `transaction_id`s that Plaid no longer considers valid (cancelled
+ * pending holds, duplicates, corrections); we surface those so the
+ * orchestrator can delete the matching rows from our DB.
  */
 async function fetchFromPlaid(
   plaidItem: PlaidItemRow
-): Promise<{ transactions: PlaidTransaction[]; nextCursor: string | null }> {
+): Promise<{
+  transactions: PlaidTransaction[];
+  removedTransactionIds: string[];
+  nextCursor: string | null;
+}> {
   if (PLAID_ENV === 'sandbox') {
     const endDate = new Date();
     const startDate = new Date();
@@ -292,7 +315,11 @@ async function fetchFromPlaid(
         startDate.toISOString().split('T')[0],
         endDate.toISOString().split('T')[0]
       );
-      return { transactions: (res.transactions ?? []) as unknown as PlaidTransaction[], nextCursor: null };
+      return {
+        transactions: (res.transactions ?? []) as unknown as PlaidTransaction[],
+        removedTransactionIds: [],
+        nextCursor: null,
+      };
     } catch (error) {
       const e = error as { response?: { data?: { error_message?: string } }; message?: string };
       throw new Error(`Plaid API error: ${e.response?.data?.error_message ?? e.message}`);
@@ -303,13 +330,18 @@ async function fetchFromPlaid(
   let cursor: string | null = plaidItem.transaction_cursor ?? null;
   let hasMore = true;
   const collected: PlaidTransaction[] = [];
+  const removed: string[] = [];
 
   while (hasMore) {
     try {
       const res = await syncTransactions(decryptPlaidToken(plaidItem.access_token), cursor);
       const added = (res.added ?? []) as unknown as PlaidTransaction[];
       const modified = (res.modified ?? []) as unknown as PlaidTransaction[];
+      const removedBatch = (res.removed ?? []) as Array<{ transaction_id?: string | null }>;
       collected.push(...added, ...modified);
+      for (const r of removedBatch) {
+        if (r?.transaction_id) removed.push(r.transaction_id);
+      }
       cursor = res.next_cursor ?? null;
       hasMore = Boolean(res.has_more);
 
@@ -325,7 +357,7 @@ async function fetchFromPlaid(
     }
   }
 
-  return { transactions: collected, nextCursor: cursor };
+  return { transactions: collected, removedTransactionIds: removed, nextCursor: cursor };
 }
 
 async function fetchAccountsSafe(accessToken: string): Promise<PlaidAccount[]> {
@@ -363,6 +395,31 @@ async function deletePendingReplacements(
       .eq('pending_plaid_transaction_id', r.pending_plaid_transaction_id)
       .eq('account_id', r.account_uuid);
   }
+}
+
+/**
+ * Drop transactions Plaid told us to remove (cancelled holds, duplicates,
+ * institution-side corrections). Returns the count actually deleted.
+ *
+ * Without this, pending holds that get released would stay in our DB and
+ * project against the displayed balance forever.
+ */
+async function deleteRemovedTransactions(
+  removedPlaidTransactionIds: string[]
+): Promise<number> {
+  if (removedPlaidTransactionIds.length === 0) return 0;
+  const { error, count } = await supabaseAdmin
+    .from('transactions')
+    .delete({ count: 'exact' })
+    .in('plaid_transaction_id', removedPlaidTransactionIds);
+  if (error) {
+    logger.error('Failed to delete removed transactions', null, {
+      error,
+      ids_count: removedPlaidTransactionIds.length,
+    });
+    return 0;
+  }
+  return count ?? 0;
 }
 
 async function ensureCategoryGroups(rows: TransactionUpsertRow[]): Promise<void> {
@@ -570,29 +627,66 @@ async function updateAccountBalances(
         ? new Date().toISOString()
         : acct.plaid_balance_as_of;
 
-    // Sum posted transactions ingested AFTER the checkpoint — those are
-    // the ones Plaid hadn't reflected yet when it last gave us a balance.
-    // We use `created_at` (when we received the tx from Plaid) rather
-    // than the calendar `date` column because the date column has a
-    // boundary-day ambiguity: a tx with the same calendar day as the
-    // checkpoint may or may not be in Plaid's cached balance, and we
-    // can't tell. `created_at` is unambiguous — anything we ingested
-    // after Plaid's last confirmed balance is by definition newer.
+    // Compute the delta to project on top of the checkpoint. Two
+    // contributors:
+    //
+    //   - Posted transactions ingested AFTER the checkpoint — Plaid's
+    //     `current` includes posted but its cache lags, so anything
+    //     posted that we ingested after `as_of` is by definition not
+    //     in the checkpoint yet.
+    //
+    //   - Pending transactions, regardless of `as_of` — Plaid's
+    //     `current` excludes pending entirely, so they're never in
+    //     the checkpoint. We project them so things like a fresh
+    //     refund show up in the headline number immediately. Bounded
+    //     to the last 14 days as a safety net against any orphaned
+    //     pending rows that escape the `removed` array (Plaid drops
+    //     real pending holds within ~7 days).
+    //
+    // We use `created_at` (when we ingested) rather than the calendar
+    // `date` column because date has a boundary-day ambiguity: a tx
+    // with the same calendar day as the checkpoint may or may not be
+    // in Plaid's cached balance and we can't tell. created_at is
+    // unambiguous.
+    const PENDING_PROJECTION_MAX_AGE_DAYS = 14;
+    const pendingFloorMs =
+      Date.now() - PENDING_PROJECTION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    const pendingFloorIso = new Date(pendingFloorMs).toISOString();
+
     let deltaSum = 0;
     if (checkpointCurrent !== null) {
-      const { data: txDeltas, error: txError } = await supabaseAdmin
+      // Posted, ingested after the checkpoint.
+      const { data: postedDeltas, error: postedErr } = await supabaseAdmin
         .from('transactions')
         .select('amount')
         .eq('account_id', dbAccountId)
         .eq('pending', false)
         .gt('created_at', checkpointAsOf);
-      if (txError) {
-        logger.warn('Failed to sum tx deltas for projection — using checkpoint as displayed', {
+      if (postedErr) {
+        logger.warn('Failed to sum posted-tx deltas for projection', {
           account_id: plaidAccount.account_id,
-          error: txError.message,
+          error: postedErr.message,
         });
       } else {
-        for (const row of (txDeltas ?? []) as Array<{ amount: number | null }>) {
+        for (const row of (postedDeltas ?? []) as Array<{ amount: number | null }>) {
+          deltaSum += Number(row.amount ?? 0);
+        }
+      }
+
+      // All currently-pending, capped by age.
+      const { data: pendingDeltas, error: pendingErr } = await supabaseAdmin
+        .from('transactions')
+        .select('amount')
+        .eq('account_id', dbAccountId)
+        .eq('pending', true)
+        .gt('created_at', pendingFloorIso);
+      if (pendingErr) {
+        logger.warn('Failed to sum pending-tx deltas for projection', {
+          account_id: plaidAccount.account_id,
+          error: pendingErr.message,
+        });
+      } else {
+        for (const row of (pendingDeltas ?? []) as Array<{ amount: number | null }>) {
           deltaSum += Number(row.amount ?? 0);
         }
       }
