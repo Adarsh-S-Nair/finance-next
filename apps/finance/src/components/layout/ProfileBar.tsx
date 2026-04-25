@@ -176,7 +176,7 @@ export default function ProfileBar({ onNavigate }: { onNavigate?: () => void }) 
         >
           <div className="relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-xs font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
             {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+
               <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
             ) : (
               <span>{initials}</span>

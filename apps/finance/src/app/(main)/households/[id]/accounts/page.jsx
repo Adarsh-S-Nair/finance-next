@@ -56,7 +56,7 @@ function MemberAvatar({ owner, size = "sm", muted = false }) {
       )}
     >
       {owner?.avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
+
         <img src={owner.avatar_url} alt={ownerName(owner)} className="h-full w-full object-cover" />
       ) : (
         <span>{ownerInitials(owner)}</span>
@@ -70,7 +70,7 @@ function InstitutionLogo({ institution }) {
     <div className="relative w-10 h-10 flex-shrink-0">
       <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
         {institution?.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
+
           <img
             src={institution.logo}
             alt={institution.name || ""}

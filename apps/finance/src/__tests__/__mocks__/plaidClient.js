@@ -102,10 +102,12 @@ export const mockSyncTransactions = jest.fn(() =>
 )
 
 // Export the main mock
-export default {
+const plaidClientMock = {
   exchangePublicToken: mockExchangePublicToken,
   getAccounts: mockGetAccounts,
   getInstitution: mockGetInstitution,
   getTransactions: mockGetTransactions,
   syncTransactions: mockSyncTransactions
 }
+
+export default plaidClientMock

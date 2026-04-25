@@ -25,7 +25,7 @@ function InstitutionAvatar({ logo, name, size = 32 }) {
       style={{ width: dim, height: dim }}
     >
       {logo && (
-        // eslint-disable-next-line @next/next/no-img-element
+
         <img
           src={logo}
           alt={name || ""}

@@ -37,7 +37,7 @@ export default function PublicRoute({ children }) {
 
     // Safety timeout — if onAuthStateChange never fires, show public page
     const timeout = setTimeout(() => {
-      if (isMounted && isChecking) {
+      if (isMounted) {
         console.log("[PublicRoute] Safety timeout — showing public page");
         setIsChecking(false);
       }

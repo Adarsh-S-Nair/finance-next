@@ -64,7 +64,10 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
     ['monthly-overview:available-months', user?.id],
     useQueries ? '/api/transactions/available-months' : null,
   );
-  const availableMonths = mockData?.availableMonths ?? monthsData?.months ?? [];
+  const availableMonths = useMemo(
+    () => mockData?.availableMonths ?? monthsData?.months ?? [],
+    [mockData?.availableMonths, monthsData?.months],
+  );
 
   // Pick the newest month once the list arrives (unless an explicit
   // initialMonth was passed in).

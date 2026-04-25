@@ -1,11 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
 
 export const NetWorthContext = createContext();
+
+const NET_WORTH_DISABLED = false;
+const NET_WORTH_CACHE_DURATION = 5 * 60 * 1000;
 
 export function NetWorthProvider({ children }) {
   const { user } = useUser();
@@ -16,14 +19,9 @@ export function NetWorthProvider({ children }) {
   const [error, setError] = useState(null);
   const [lastFetched, setLastFetched] = useState(null);
   const abortRef = useRef(null);
-  const DISABLED = false; // temporarily disable all net worth fetching and data
-
-  // Cache duration: 5 minutes (300000ms)
-  const CACHE_DURATION = 5 * 60 * 1000;
-
   // Fetch net worth data from the API
-  const fetchNetWorthData = async (forceRefresh = false) => {
-    if (DISABLED) {
+  const fetchNetWorthData = useCallback(async (forceRefresh = false) => {
+    if (NET_WORTH_DISABLED) {
       setLoading(false);
       setNetWorthHistory([]);
       setCurrentNetWorth(null);
@@ -33,7 +31,7 @@ export function NetWorthProvider({ children }) {
     }
 
     // Don't fetch if we already have data and it's not a force refresh
-    if (!forceRefresh && lastFetched && Date.now() - lastFetched < CACHE_DURATION) {
+    if (!forceRefresh && lastFetched && Date.now() - lastFetched < NET_WORTH_CACHE_DURATION) {
       return;
     }
 
@@ -95,11 +93,11 @@ export function NetWorthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [lastFetched]);
 
   // Load net worth data when user changes
   useEffect(() => {
-    if (DISABLED) {
+    if (NET_WORTH_DISABLED) {
       setNetWorthHistory([]);
       setCurrentNetWorth(null);
       setError(null);
@@ -126,7 +124,7 @@ export function NetWorthProvider({ children }) {
     }
     
     return () => { if (abortRef.current) abortRef.current.abort(); };
-  }, [user?.id, pathname]);
+  }, [user?.id, pathname, fetchNetWorthData]);
 
   // Refresh net worth data (force fetch)
   const refreshNetWorthData = () => {
@@ -169,7 +167,6 @@ export function useNetWorth() {
   }
   return context;
 }
-
 
 
 

@@ -81,7 +81,7 @@ export default function HouseholdMemberFilter() {
                 )}
               >
                 {member.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+
                   <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <span>{memberInitials(member)}</span>

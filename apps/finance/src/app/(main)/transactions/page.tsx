@@ -954,7 +954,7 @@ function TransactionsContent() {
   // visible snap/flash, so it was removed.
 
   // Fetch transactions helper
-  const fetchTransactionsData = async (cursor = null, direction = 'forward') => {
+  const fetchTransactionsData = useCallback(async (cursor = null, direction = 'forward') => {
     if (!user?.id) return null;
 
     const params = new URLSearchParams({
@@ -1038,12 +1038,25 @@ function TransactionsContent() {
     const response = await authFetch(`/api/plaid/transactions/get?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch transactions');
     return await response.json();
-  };
+  }, [
+    user?.id,
+    debouncedSearchQuery,
+    transactionType,
+    transactionStatus,
+    amountRange.min,
+    amountRange.max,
+    dateRange,
+    customDateRange.start,
+    customDateRange.end,
+    selectedGroupIds,
+    selectedCategoryIds,
+    selectedAccountId,
+  ]);
 
   // Initial fetch — also stashes the result in the react-query
   // cache so the next time this filter combo mounts we can paint
   // immediately without a skeleton flash.
-  const fetchInitialTransactions = async () => {
+  const fetchInitialTransactions = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -1074,7 +1087,7 @@ function TransactionsContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, fetchTransactionsData, queryClient, transactionsCacheKey]);
 
   // Hydrate from cache before the initial fetch runs. Suppresses the
   // skeleton when we already know what to show; background refetch
@@ -1164,7 +1177,7 @@ function TransactionsContent() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, nextCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
+  }, [loadingMore, nextCursor, fetchTransactionsData]);
 
   // Load previous (prev page - newer transactions)
   const loadPrev = useCallback(async () => {
@@ -1198,7 +1211,7 @@ function TransactionsContent() {
     } finally {
       setLoadingPrev(false);
     }
-  }, [loadingPrev, prevCursor, user?.id, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, debouncedSearchQuery]);
+  }, [loadingPrev, prevCursor, fetchTransactionsData]);
 
   // Intersection Observer for infinite scroll. Use refs for the
   // callbacks so the observer is created once and never re-attaches —
@@ -1243,10 +1256,11 @@ function TransactionsContent() {
 
   useEffect(() => {
     fetchInitialTransactions();
+    const initialAbort = initialAbortRef.current;
     return () => {
-      if (initialAbortRef.current) initialAbortRef.current.abort();
+      if (initialAbort) initialAbort.abort();
     };
-  }, [user?.id, debouncedSearchQuery, transactionType, transactionStatus, amountRange, dateRange, customDateRange, selectedGroupIds, selectedCategoryIds, selectedAccountId]); // Re-fetch when ANY filter changes
+  }, [fetchInitialTransactions]); // Re-fetch when ANY filter changes
 
   // Debounce search query with transition for non-blocking updates
   useEffect(() => {

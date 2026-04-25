@@ -309,7 +309,7 @@ export default function HouseholdInviteModal({ isOpen, householdId, onClose }: P
                           >
                             <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-[10px] font-semibold text-[var(--color-on-accent,white)]">
                               {lookup.user.avatar_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
+
                                 <img
                                   src={lookup.user.avatar_url}
                                   alt={formatName(lookup.user)}

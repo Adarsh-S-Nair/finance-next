@@ -49,7 +49,7 @@ export default function AccentPicker({ inline = false }) {
         applyAccent({ base: profile.accent_color, hover: profile.accent_color, on: "#ffffff" });
       }
     }
-  }, [profile?.accent_color]);
+  }, [profile]);
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -142,5 +142,4 @@ export default function AccentPicker({ inline = false }) {
     </div>
   );
 }
-
 

@@ -188,7 +188,7 @@ export default function InvestmentAccountPage() {
                     style={{ width: 40, height: 40 }}
                   >
                     {meta?.logo && (
-                      // eslint-disable-next-line @next/next/no-img-element
+
                       <img
                         src={meta.logo}
                         alt={h.ticker}

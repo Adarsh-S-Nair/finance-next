@@ -126,6 +126,8 @@ export const createMockSupabaseClientWithData = (tableName, data) => {
 export const mockCreateClient = jest.fn(() => createMockSupabaseClient())
 
 // Export the main mock
-export default {
+const supabaseMock = {
   createClient: mockCreateClient
 }
+
+export default supabaseMock

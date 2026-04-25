@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { FiPlus, FiUser } from 'react-icons/fi';
 
@@ -8,11 +8,7 @@ export default function ContactSelector({ onSelect, selectedContactId }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newContactName, setNewContactName] = useState('');
 
-  useEffect(() => {
-    fetchContacts();
-  }, []);
-
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('contacts')
@@ -26,7 +22,11 @@ export default function ContactSelector({ onSelect, selectedContactId }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
 
   const handleAddContact = async () => {
     if (!newContactName.trim()) return;

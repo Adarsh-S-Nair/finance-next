@@ -84,8 +84,11 @@ export default function BudgetsPage() {
     data?: BudgetRecord[];
     burn?: BurnSeriesPoint[];
   }>(['budgets:list', user?.id], user?.id ? '/api/budgets' : null);
-  const budgets = budgetsPayload?.data ?? [];
-  const burnSeries = Array.isArray(budgetsPayload?.burn) ? budgetsPayload.burn : [];
+  const budgets = useMemo(() => budgetsPayload?.data ?? [], [budgetsPayload]);
+  const burnSeries = useMemo(
+    () => (Array.isArray(budgetsPayload?.burn) ? budgetsPayload.burn : []),
+    [budgetsPayload],
+  );
   const loading = !!user?.id && budgetsLoading && !budgetsPayload;
 
   const { data: incomePayload } = useAuthedQuery<{ data?: IncomeMonth[] }>(
@@ -987,4 +990,3 @@ function BudgetsSkeleton() {
     </section>
   );
 }
-

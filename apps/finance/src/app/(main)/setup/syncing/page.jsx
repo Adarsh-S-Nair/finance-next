@@ -59,23 +59,23 @@ export default function SyncingPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [done, setDone] = useState(false);
   const mountedRef = useRef(true);
-  const startedAtRef = useRef(Date.now());
+  const [startedAt] = useState(() => Date.now());
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [startedAt]);
 
   // Elapsed-time ticker for phased copy and the fallback timeout.
   useEffect(() => {
     const id = setInterval(() => {
       if (!mountedRef.current) return;
-      setElapsedMs(Date.now() - startedAtRef.current);
+      setElapsedMs(Date.now() - startedAt);
     }, 500);
     return () => clearInterval(id);
-  }, []);
+  }, [startedAt]);
 
   const finish = useCallback(async () => {
     if (done || !mountedRef.current) return;

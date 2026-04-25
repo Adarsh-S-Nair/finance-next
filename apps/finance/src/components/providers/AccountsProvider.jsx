@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from './UserProvider';
 import { authFetch } from '../../lib/api/fetch';
 import { supabase } from '../../lib/supabase/client';
@@ -22,7 +22,7 @@ export function AccountsProvider({ children }) {
   const [lastFetched, setLastFetched] = useState(null);
 
   // Fetch accounts from the database
-  const fetchAccounts = async (forceRefresh = false) => {
+  const fetchAccounts = useCallback(async (forceRefresh = false) => {
     if (!user?.id) {
       setAccounts([]);
       setError(null);
@@ -78,7 +78,7 @@ export function AccountsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, lastFetched]);
 
   // Retry fetching accounts if auth wasn't ready on first try
   const retryCountRef = useRef(0);
@@ -91,7 +91,7 @@ export function AccountsProvider({ children }) {
       return () => clearTimeout(timer);
     }
     if (initialized) retryCountRef.current = 0;
-  }, [user?.id, initialized, loading]);
+  }, [user?.id, initialized, loading, fetchAccounts]);
 
   // Load accounts when user changes (not on every navigation)
   useEffect(() => {
@@ -105,8 +105,7 @@ export function AccountsProvider({ children }) {
       setLastFetched(null);
       setInitialized(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, fetchAccounts]);
 
   // Add account to context (for when new accounts are added)
   // Callers (ConnectingStep, PlaidOAuthHandler) already call refreshAccounts() after

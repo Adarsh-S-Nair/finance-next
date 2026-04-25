@@ -86,7 +86,7 @@ function InlinePicker({ value, options, onChange, minWidth }) {
 }
 
 export default function RuleBuilder({ criteria, initialConditions, categoryName, onRuleChange, onEditCategory }) {
-  const [conditions, setConditions] = useState([{
+  const [conditions, setConditions] = useState(() => [{
     id: Date.now(),
     field: 'merchant_name',
     operator: 'is',

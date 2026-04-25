@@ -21,7 +21,10 @@ export function AuthProvider({ children }) {
   const [lastEvent, setLastEvent] = useState(null); // { type, user, ts }
   const recoveringRef = useRef(false);
   const userRef = useRef(user);
-  userRef.current = user;
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const clearStaleAuthData = useCallback(() => {
     if (typeof window === "undefined") return;

@@ -156,16 +156,16 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, [hoveredId, onHover]);
 
-  let cumulative = 0;
-  const rendered: RenderedSegment[] = segments.map((seg) => {
+  const rendered: RenderedSegment[] = [];
+  segments.reduce((cumulative, seg) => {
     const pct = total > 0 ? seg.value / total : 0;
     const arc = pct * circumference;
     const dash = Math.max(0.001, arc - effectiveGap);
     const dashArray = `${dash} ${circumference}`;
     const dashOffset = -cumulative;
-    cumulative += arc;
-    return { ...seg, dashArray, dashOffset, pct };
-  });
+    rendered.push({ ...seg, dashArray, dashOffset, pct });
+    return cumulative + arc;
+  }, 0);
 
   const hovered = hoveredId
     ? rendered.find((r) => r.id === hoveredId) ?? null

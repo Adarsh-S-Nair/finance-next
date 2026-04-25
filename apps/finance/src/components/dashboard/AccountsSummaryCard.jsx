@@ -44,7 +44,7 @@ function AnimatedCounter({ value, duration = 120 }) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [value, duration]);
+  }, [value, duration, displayValue]);
 
   return (
     <span>{formatCurrency(displayValue)}</span>

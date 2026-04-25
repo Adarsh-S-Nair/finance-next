@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiCheck, FiChevronLeft, FiChevronRight } from "react-icons/fi";
@@ -75,25 +75,23 @@ export default function CreateBudgetOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
 
-  // Fetch categories when opened.
-  useEffect(() => {
-    if (!isOpen) return;
-    fetchCategories();
-  }, [isOpen]);
-
   // Buckets already covered by an existing budget. We filter these out of
   // the chip grid so users can't accidentally create a duplicate budget for
   // the same group or category.
-  const existingBucketKeys = new Set(
-    existingBudgets
-      .flatMap((b) => [
-        b.category_group_id ? `group:${b.category_group_id}` : null,
-        b.category_id ? `category:${b.category_id}` : null,
-      ])
-      .filter(Boolean)
+  const existingBucketKeys = useMemo(
+    () =>
+      new Set(
+        existingBudgets
+          .flatMap((b) => [
+            b.category_group_id ? `group:${b.category_group_id}` : null,
+            b.category_id ? `category:${b.category_id}` : null,
+          ])
+          .filter(Boolean)
+      ),
+    [existingBudgets],
   );
 
-  async function fetchCategories() {
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
       // Default to category groups — budgets are about planning, and users
@@ -126,7 +124,13 @@ export default function CreateBudgetOverlay({
     } finally {
       setLoading(false);
     }
-  }
+  }, [existingBucketKeys]);
+
+  // Fetch categories when opened.
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchCategories();
+  }, [isOpen, fetchCategories]);
 
   async function fetchHistory(bucket) {
     try {

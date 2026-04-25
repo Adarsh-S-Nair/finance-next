@@ -195,7 +195,7 @@ export default function HouseholdSettingsPage() {
                     <li key={member.user_id} className="flex items-center gap-3 py-3 first:pt-0">
                       <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-xs font-semibold text-[var(--color-on-accent,white)]">
                         {member.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
+
                           <img src={member.avatar_url} alt={name} className="h-full w-full object-cover" />
                         ) : (
                           <span>{initialsFor(name)}</span>
@@ -263,7 +263,7 @@ export default function HouseholdSettingsPage() {
                       ) : (
                         <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-xs font-semibold text-[var(--color-on-accent,white)]">
                           {invitedUser?.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
+
                             <img src={invitedUser.avatar_url} alt={name} className="h-full w-full object-cover" />
                           ) : (
                             <span>{initialsFor(name)}</span>

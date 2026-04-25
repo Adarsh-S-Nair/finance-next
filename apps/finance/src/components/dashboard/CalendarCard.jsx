@@ -119,7 +119,10 @@ export default function CalendarCard({ className = '', mockData }) {
     ['dashboard-recurring', user?.id],
     queryEnabled ? '/api/recurring/get' : null,
   );
-  const recurring = mockData?.recurring ?? data?.recurring ?? [];
+  const recurring = useMemo(
+    () => mockData?.recurring ?? data?.recurring ?? [],
+    [mockData?.recurring, data?.recurring],
+  );
   const loading = mockData ? false : queryEnabled ? isLoading : false;
 
   // Group upcoming bills (outflows only) by day for the next 7 days.

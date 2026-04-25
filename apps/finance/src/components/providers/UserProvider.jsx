@@ -201,7 +201,7 @@ export default function UserProvider({ children }) {
     }
     if (loading) setLoading(false);
     if (authTransition && !isPublic) setAuthTransition(false);
-  }, [user, profile, pathname, applyTheme, applyAccent]);
+  }, [user, profile, pathname, applyTheme, applyAccent, loading, authTransition]);
 
   // -----------------------------------------------------------------------
   // Heartbeat — bump user_profiles.last_active_at so the admin "last seen"

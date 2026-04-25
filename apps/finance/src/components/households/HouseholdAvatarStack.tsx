@@ -54,7 +54,7 @@ function Avatar({
       className="rounded-full overflow-hidden bg-[var(--color-accent)] text-[var(--color-on-accent,white)] flex items-center justify-center box-border"
     >
       {member.avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
+
         <img
           src={member.avatar_url}
           alt=""

@@ -249,7 +249,7 @@ export const createBalanceUpdateTestScenario = ({
 }
 
 // Export default mock factory
-export default {
+const syncTransactionsServiceMock = {
   createMockSyncResponse,
   createMockAccountsResponse,
   createAccountBalanceTestData,
@@ -258,3 +258,5 @@ export default {
   validateBalanceUpdates,
   createBalanceUpdateTestScenario
 }
+
+export default syncTransactionsServiceMock

@@ -70,7 +70,7 @@ function HoldingLogo({ ticker, logo, metaLoaded = true, assetType, size = 40 }) 
       style={{ width: dim, height: dim }}
     >
       {logo && (
-        // eslint-disable-next-line @next/next/no-img-element
+
         <img
           src={logo}
           alt={ticker}
@@ -213,9 +213,9 @@ export default function InvestmentsPage() {
     enabled: !!user?.id,
   });
 
-  const accounts = data?.accounts ?? [];
-  const holdings = data?.holdings ?? [];
-  const quotes = data?.quotes ?? {};
+  const accounts = useMemo(() => data?.accounts ?? [], [data?.accounts]);
+  const holdings = useMemo(() => data?.holdings ?? [], [data?.holdings]);
+  const quotes = useMemo(() => data?.quotes ?? {}, [data?.quotes]);
   const tickerMeta = data?.tickerMeta ?? {};
   const sparklines = data?.sparklines ?? {};
   const loading = !!user?.id && isLoading && !data;

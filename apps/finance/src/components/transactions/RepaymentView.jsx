@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ContactSelector from '../reimbursements/ContactSelector';
 import { supabase } from '../../lib/supabase/client';
 import { Button } from "@zervo/ui";
@@ -8,17 +8,28 @@ export default function RepaymentView({ transaction, onRepaymentCreated, onClose
   const [allocations, setAllocations] = useState({}); // { split_id: amount }
   const [loading, setLoading] = useState(false);
   const [fetchingDebts, setFetchingDebts] = useState(false);
+  const transactionAmount = transaction?.amount || 0;
 
-  useEffect(() => {
-    if (selectedContactId) {
-      fetchDebts(selectedContactId);
-    } else {
-      setDebts([]);
-      setAllocations({});
+  const autoAllocate = useCallback((currentDebts, totalAmount) => {
+    let remainingToAllocate = totalAmount;
+    const newAllocations = {};
+
+    for (const debt of currentDebts) {
+      if (remainingToAllocate <= 0) break;
+      // Allocate up to the debt remaining, but not more than what we have left
+      const allocate = Math.min(debt.remaining, remainingToAllocate);
+      // Round to 2 decimals to avoid float issues
+      const roundedAllocate = Math.round(allocate * 100) / 100;
+
+      if (roundedAllocate > 0) {
+        newAllocations[debt.id] = roundedAllocate;
+        remainingToAllocate -= roundedAllocate;
+      }
     }
-  }, [selectedContactId]);
+    setAllocations(newAllocations);
+  }, []);
 
-  const fetchDebts = async (contactId) => {
+  const fetchDebts = useCallback(async (contactId) => {
     setFetchingDebts(true);
     try {
       const { data, error } = await supabase
@@ -52,33 +63,23 @@ export default function RepaymentView({ transaction, onRepaymentCreated, onClose
       setDebts(activeDebts);
 
       // Auto-allocate logic
-      autoAllocate(activeDebts, transaction?.amount || 0);
+      autoAllocate(activeDebts, transactionAmount);
 
     } catch (error) {
       console.error('Error fetching debts:', error);
     } finally {
       setFetchingDebts(false);
     }
-  };
+  }, [autoAllocate, transactionAmount]);
 
-  const autoAllocate = (currentDebts, totalAmount) => {
-    let remainingToAllocate = totalAmount;
-    const newAllocations = {};
-
-    for (const debt of currentDebts) {
-      if (remainingToAllocate <= 0) break;
-      // Allocate up to the debt remaining, but not more than what we have left
-      const allocate = Math.min(debt.remaining, remainingToAllocate);
-      // Round to 2 decimals to avoid float issues
-      const roundedAllocate = Math.round(allocate * 100) / 100;
-
-      if (roundedAllocate > 0) {
-        newAllocations[debt.id] = roundedAllocate;
-        remainingToAllocate -= roundedAllocate;
-      }
+  useEffect(() => {
+    if (selectedContactId) {
+      fetchDebts(selectedContactId);
+    } else {
+      setDebts([]);
+      setAllocations({});
     }
-    setAllocations(newAllocations);
-  };
+  }, [selectedContactId, fetchDebts]);
 
   const handleAllocationChange = (splitId, value) => {
     const numValue = parseFloat(value) || 0;

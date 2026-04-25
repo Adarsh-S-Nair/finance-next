@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { FiCheckCircle, FiLoader, FiXCircle } from 'react-icons/fi';
 import { useUser } from './providers/UserProvider';
@@ -123,7 +123,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     }
   }, [linkToken, ready, error, open]);
 
-  const fetchLinkTokenAndOpen = async () => {
+  const fetchLinkTokenAndOpen = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -165,14 +165,14 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setError(err.message);
       setLoading(false);
     }
-  };
+  }, [activePlaidItemId, onClose, onUpgradeNeeded]);
 
   // Automatically fetch link token when modal opens
   useEffect(() => {
     if (isOpen && !linkToken && !loading && !error && !success) {
       fetchLinkTokenAndOpen();
     }
-  }, [isOpen]);
+  }, [isOpen, linkToken, loading, error, success, fetchLinkTokenAndOpen]);
 
   const handleClose = () => {
     onClose();
