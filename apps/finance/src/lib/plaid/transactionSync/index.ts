@@ -622,10 +622,16 @@ async function updateAccountBalances(
     const checkpointAvailable = checkpointChanged
       ? incomingAvailable
       : acct.plaid_balance_available;
-    const checkpointAsOf =
-      checkpointChanged || !acct.plaid_balance_as_of
-        ? new Date().toISOString()
-        : acct.plaid_balance_as_of;
+    // `as_of` is "the last time we observed Plaid's `current` value",
+    // not "the last time it changed". Plaid's transactions endpoint and
+    // /accounts/get are independent — a tx can post via /transactions/sync
+    // before *or* after Plaid's institution-level balance cache reflects
+    // it. By bumping as_of on every successful fetch, we guarantee that
+    // anything ingested after the most recent Plaid observation is what
+    // projects on top, and we never double-count a tx that was already
+    // baked into a returned `current` (even if that value didn't move
+    // versus our previous checkpoint).
+    const checkpointAsOf = new Date().toISOString();
 
     // Compute the delta to project on top of the checkpoint. Two
     // contributors:
@@ -706,11 +712,14 @@ async function updateAccountBalances(
     const updates: TablesUpdate<'accounts'> = {
       balances: projectedBalances as unknown as TablesUpdate<'accounts'>['balances'],
       updated_at: new Date().toISOString(),
+      // Always bump as_of: this is "when we last observed Plaid's
+      // `current`", which advances every sync regardless of whether the
+      // value moved.
+      plaid_balance_as_of: checkpointAsOf,
     };
     if (checkpointChanged) {
       updates.plaid_balance_current = checkpointCurrent;
       updates.plaid_balance_available = checkpointAvailable;
-      updates.plaid_balance_as_of = checkpointAsOf;
     }
 
     const { error: updateError } = await supabaseAdmin
