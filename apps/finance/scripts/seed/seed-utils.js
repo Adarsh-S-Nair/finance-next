@@ -7,23 +7,33 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-// Load .env.test variables into process.env if the file exists
-const envTestPath = resolve(process.cwd(), '.env.test');
-try {
-  const content = readFileSync(envTestPath, 'utf8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const [key, ...rest] = trimmed.split('=');
-    const value = rest.join('=').trim();
-    if (key && !(key in process.env)) {
-      process.env[key] = value;
+// Load env from one of the local dotfiles, in priority order. We prefer
+// .env.test if present (historical), then fall back to .env.local /
+// .env.development which is what `next dev` uses. Whichever file is
+// found first wins — but later files only fill in missing keys.
+const envCandidates = ['.env.test', '.env.local', '.env.development'];
+let loadedFrom = null;
+for (const candidate of envCandidates) {
+  try {
+    const content = readFileSync(resolve(process.cwd(), candidate), 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const [key, ...rest] = trimmed.split('=');
+      const value = rest.join('=').trim();
+      if (key && !(key in process.env)) {
+        process.env[key] = value;
+      }
     }
+    if (!loadedFrom) loadedFrom = candidate;
+  } catch {
+    // file not found — try the next candidate
   }
-  console.log('[seed] Loaded environment from .env.test');
-} catch {
-  // .env.test not found — rely on environment variables already set
-  console.log('[seed] No .env.test found, using existing environment variables');
+}
+if (loadedFrom) {
+  console.log(`[seed] Loaded environment from ${loadedFrom}`);
+} else {
+  console.log('[seed] No .env.* file found, using existing environment variables');
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -169,27 +179,53 @@ export async function insertAccounts({ userId, plaidItemId, itemId, institutionI
 
 /**
  * Insert transactions for an account.
+ *
+ * Looks up `system_categories.plaid_category_key` to populate `category_id`
+ * from each transaction's `personal_finance_category.detailed`. Without this
+ * the dashboard's monthly-overview / spending-earning queries silently
+ * exclude rows because their `NOT IN (excludedCategoryIds)` filter rejects
+ * NULLs (Postgres tri-valued NOT IN behavior).
  */
 export async function insertTransactions(transactions) {
   if (!transactions.length) return;
 
-  const rows = transactions.map(tx => ({
-    account_id: tx.accountId, // internal UUID, not Plaid account_id
-    plaid_transaction_id: tx.transaction_id,
-    description: tx.name,
-    amount: tx.amount,
-    currency_code: tx.iso_currency_code || 'USD',
-    pending: tx.pending || false,
-    merchant_name: tx.merchant_name || null,
-    icon_url: tx.logo_url || tx.icon_url || null,
-    personal_finance_category: tx.personal_finance_category || null,
-    datetime: tx.datetime || null,
-    location: tx.location || null,
-    payment_channel: tx.payment_channel || null,
-    website: tx.website || null,
-    pending_plaid_transaction_id: tx.pending_transaction_id || null,
-    transaction_source: 'transactions',
-  }));
+  const { data: systemCategories } = await supabaseAdmin
+    .from('system_categories')
+    .select('id, plaid_category_key')
+    .not('plaid_category_key', 'is', null);
+
+  const categoryIdByPlaidKey = new Map();
+  for (const row of systemCategories ?? []) {
+    if (row.plaid_category_key) categoryIdByPlaidKey.set(row.plaid_category_key, row.id);
+  }
+
+  const rows = transactions.map(tx => {
+    const dt = tx.datetime ? new Date(tx.datetime) : null;
+    const dateStr = dt && !Number.isNaN(dt.getTime())
+      ? dt.toISOString().slice(0, 10)
+      : (tx.date || null);
+    const detailedKey = tx.personal_finance_category?.detailed || null;
+    const categoryId = detailedKey ? categoryIdByPlaidKey.get(detailedKey) ?? null : null;
+    return {
+      account_id: tx.accountId, // internal UUID, not Plaid account_id
+      plaid_transaction_id: tx.transaction_id,
+      description: tx.name,
+      amount: tx.amount,
+      currency_code: tx.iso_currency_code || 'USD',
+      pending: tx.pending || false,
+      merchant_name: tx.merchant_name || null,
+      icon_url: tx.logo_url || tx.icon_url || null,
+      personal_finance_category: tx.personal_finance_category || null,
+      category_id: categoryId,
+      datetime: tx.datetime || null,
+      date: dateStr,
+      location: tx.location || null,
+      payment_channel: tx.payment_channel || null,
+      website: tx.website || null,
+      pending_plaid_transaction_id: tx.pending_transaction_id || null,
+      transaction_source: 'transactions',
+    };
+  });
 
   // Insert in batches to avoid payload size limits
   const BATCH_SIZE = 100;

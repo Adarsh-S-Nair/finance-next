@@ -12,8 +12,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "seed:ftux": "node --experimental-vm-modules scripts/seed/seed-empty-user.js",
-    "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js",
-    "seed:investor": "node --experimental-vm-modules scripts/seed/seed-investment-user.js"
+    "seed:power": "node --experimental-vm-modules scripts/seed/seed-power-user.js"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.49.0",

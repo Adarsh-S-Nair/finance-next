@@ -199,6 +199,7 @@ When working on specific areas, consult these files:
 | UI Style Guide | `apps/finance/docs/ui_style_guide.md` |
 | Architecture & Patterns | `apps/finance/docs/architectural_patterns.md` |
 | Log Debugging Guide | `.claude/docs/debugging_logs.md` |
+| Agent test workflow (dev sign-in + seed) | `apps/finance/AGENTS.md` |
 
 ## Git & Commits
 

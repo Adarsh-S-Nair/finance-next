@@ -40,6 +40,31 @@ export default function AuthPage() {
     // On success the browser redirects to Google OAuth — no state cleanup needed.
   };
 
+  // Dev-only path so AI agents and the maintainer can sign in as a seeded
+  // test user without going through Google OAuth. Hidden in production.
+  // See apps/finance/AGENTS.md and pnpm seed:power.
+  const isDev = process.env.NODE_ENV !== "production";
+  const [devEmail, setDevEmail] = useState("test-power@zervo.test");
+  const [devPassword, setDevPassword] = useState("TestPower123!");
+  const handleDevSignIn = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: devEmail,
+      password: devPassword,
+    });
+    if (error) {
+      setToast({
+        title: "Dev sign in failed",
+        description: error.message,
+        variant: "error",
+      });
+      setIsLoading(false);
+      return;
+    }
+    window.location.href = "/auth/callback/exchange";
+  };
+
   return (
     <PublicRoute>
       <RouteTransition>
@@ -89,6 +114,38 @@ export default function AuthPage() {
               <div className="mt-8">
                 <GoogleSignInButton loading={isLoading} onClick={handleGoogleSignIn} />
               </div>
+
+              {isDev ? (
+                <form onSubmit={handleDevSignIn} className="mt-8 rounded-md border border-dashed border-[var(--color-border)] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                    <span className="rounded-sm bg-[var(--color-surface-alt)] px-1.5 py-0.5">dev only</span>
+                    <span>email + password</span>
+                  </div>
+                  <input
+                    type="email"
+                    value={devEmail}
+                    onChange={(e) => setDevEmail(e.target.value)}
+                    autoComplete="email"
+                    className="w-full rounded-sm bg-[var(--color-input-bg)] px-3 py-2 text-sm text-[var(--color-input-fg)] placeholder:text-[var(--color-input-placeholder)]"
+                    placeholder="test-power@zervo.test"
+                  />
+                  <input
+                    type="password"
+                    value={devPassword}
+                    onChange={(e) => setDevPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="mt-2 w-full rounded-sm bg-[var(--color-input-bg)] px-3 py-2 text-sm text-[var(--color-input-fg)] placeholder:text-[var(--color-input-placeholder)]"
+                    placeholder="password"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="mt-3 w-full rounded-sm bg-[var(--color-fg)] px-3 py-2 text-sm font-medium text-[var(--color-bg)] transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    Sign in (dev)
+                  </button>
+                </form>
+              ) : null}
 
               <p className="mt-8 text-xs leading-5 text-[var(--color-muted)]">
                 By continuing, you agree to our{" "}
