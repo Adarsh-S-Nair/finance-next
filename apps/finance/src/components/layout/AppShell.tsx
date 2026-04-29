@@ -10,7 +10,6 @@ import {
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MobileNavBar from "./MobileNavBar";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
@@ -18,7 +17,7 @@ import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import PlaidOAuthHandler from "../PlaidOAuthHandler";
 import PaymentFailureBanner from "../PaymentFailureBanner";
-import { ConfirmOverlay } from "@zervo/ui";
+import { BrandMark, ConfirmOverlay } from "@zervo/ui";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
@@ -48,24 +47,8 @@ function SetupShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen overflow-hidden bg-zinc-50 text-zinc-900 relative">
       {/* Top-left logo */}
-      <div className="absolute top-6 left-6 sm:left-8 flex items-center gap-3 z-10">
-        <Link href="/" className="inline-flex items-center gap-3">
-          <span
-            aria-hidden
-            className="block h-8 w-8 bg-zinc-900"
-            style={{
-              WebkitMaskImage: "url(/logo.svg)",
-              maskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-          <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZERVO</span>
-        </Link>
+      <div className="absolute top-6 left-6 sm:left-8 z-10">
+        <BrandMark size="md" />
       </div>
 
       {/* Centered content */}
@@ -139,23 +122,7 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="flex min-h-screen flex-col px-5 py-6 sm:px-6 lg:px-8">
         <div className="flex items-start justify-between gap-4">
-          <Link href="/dashboard" className="inline-flex items-center gap-3">
-            <span
-              aria-hidden
-              className="block h-10 w-10 bg-zinc-900"
-              style={{
-                WebkitMaskImage: "url(/logo.svg)",
-                maskImage: "url(/logo.svg)",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
-            />
-            <span className="text-sm font-semibold tracking-[0.18em] text-zinc-900">ZERVO</span>
-          </Link>
+          <BrandMark size="lg" href="/dashboard" />
         </div>
 
         <div className="flex-1">{children}</div>
