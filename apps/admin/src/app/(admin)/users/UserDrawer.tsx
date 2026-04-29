@@ -101,7 +101,6 @@ export default function UserDrawer({
             <div className="flex items-center gap-4">
               <div className="relative h-14 w-14 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-sm font-semibold text-[var(--color-on-accent)]">
                 {user.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <span>{initials(user)}</span>

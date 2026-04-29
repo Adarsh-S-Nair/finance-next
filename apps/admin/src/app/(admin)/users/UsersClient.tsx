@@ -85,7 +85,6 @@ export default function UsersClient({ users }: { users: AdminUserRow[] }) {
               >
                 <div className="row-span-2 relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-xs font-semibold text-[var(--color-on-accent)]">
                   {u.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <span>{initials(u)}</span>

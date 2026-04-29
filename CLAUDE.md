@@ -3,9 +3,13 @@
 pnpm monorepo. Two apps share one codebase:
 
 - `apps/finance` — the personal finance product (this file's historical "finance-next"). Deploys to Vercel at the primary domain.
-- `apps/admin` — internal admin dashboard at `admin.zervo.app` (planned, not yet scaffolded).
+- `apps/admin` — internal admin dashboard at `admin.zervo.app`. Same Supabase backend, gated by `ADMIN_EMAILS` allowlist.
 
-Shared code will live in `packages/*` (UI primitives, Supabase client, config). `packages/ui` replaces the old external `@slate-ui/react` dep.
+Shared code lives in `packages/*`:
+- `packages/ui` — shared component library (`@zervo/ui`), replaces the old external `@slate-ui/react` dep.
+- `packages/supabase` — shared `Database` types + service-role admin client factory (`@zervo/supabase`).
+
+Per-app code stays per-app: each app has its own browser/server Supabase clients (finance uses `@supabase/supabase-js` with custom PKCE + fetch patching; admin uses `@supabase/ssr` for cookie-based SSR). They share the Database type and the service-role client factory only.
 
 ## Tech Stack (apps/finance)
 
@@ -27,39 +31,38 @@ Shared code will live in `packages/*` (UI primitives, Supabase client, config). 
 ├── pnpm-workspace.yaml
 ├── package.json            # root manifest — thin, just dev scripts
 ├── apps/
-│   └── finance/            # Next.js app (everything from the old repo root lives here)
+│   ├── finance/            # personal finance Next.js app (zervo.app)
+│   │   ├── src/
+│   │   │   ├── app/                    # Next.js App Router
+│   │   │   │   ├── (main)/             # Protected routes (wrapped by AuthGuard + AppShell)
+│   │   │   │   │   ├── dashboard/
+│   │   │   │   │   ├── accounts/
+│   │   │   │   │   ├── transactions/
+│   │   │   │   │   ├── budgets/
+│   │   │   │   │   ├── investments/
+│   │   │   │   │   └── settings/
+│   │   │   │   └── api/                # API routes
+│   │   │   ├── components/
+│   │   │   │   ├── layout/             # AppShell, Sidebar, Topbar, ProfileBar, ...
+│   │   │   │   ├── dashboard/
+│   │   │   │   └── providers/
+│   │   │   ├── lib/
+│   │   │   │   ├── supabase/           # finance-specific browser/server clients
+│   │   │   │   ├── plaid/
+│   │   │   │   └── spending.js
+│   │   │   └── styles/colors.css
+│   │   ├── supabase/migrations/         # canonical migrations dir for the shared DB
+│   │   └── ...
+│   └── admin/              # internal admin Next.js app (admin.zervo.app)
 │       ├── src/
-│       │   ├── app/                    # Next.js App Router
-│       │   │   ├── (main)/             # Protected routes (wrapped by AuthGuard + AppShell)
-│       │   │   │   ├── dashboard/
-│       │   │   │   ├── accounts/
-│       │   │   │   ├── transactions/
-│       │   │   │   ├── budgets/
-│       │   │   │   ├── investments/
-│       │   │   │   └── settings/
-│       │   │   └── api/                # API routes
-│       │   ├── components/
-│       │   │   ├── ui/                 # Reusable primitives (will migrate to packages/ui)
-│       │   │   ├── dashboard/
-│       │   │   └── providers/
-│       │   ├── lib/
-│       │   │   ├── supabase/            # client + admin + tokenCache
-│       │   │   ├── marketData.js
-│       │   │   ├── plaid/
-│       │   │   └── spending.js
-│       │   ├── config/
-│       │   │   └── dashboardLayout.js
-│       │   └── styles/
-│       │       └── colors.css
-│       ├── supabase/migrations/
-│       ├── public/
-│       ├── next.config.mjs
-│       ├── tsconfig.json
-│       └── vercel.json
-└── packages/               # (planned) shared code
-    ├── ui/                 # UI primitives (Button, Card, Modal, ...)
-    ├── supabase/           # shared client + generated types
-    └── config/             # shared tsconfig / eslint / tailwind preset
+│       │   ├── app/(admin)/            # protected admin routes
+│       │   ├── components/             # AdminShell, AdminSidebar, AdminTopbar, ...
+│       │   ├── lib/supabase/            # admin-specific @supabase/ssr clients
+│       │   └── styles/colors.css
+│       └── ...
+└── packages/
+    ├── ui/                 # @zervo/ui — shared UI primitives (Button, Card, ProfileBar, ...)
+    └── supabase/           # @zervo/supabase — shared Database types + service-role admin client
 ```
 
 ## Essential Commands
@@ -213,18 +216,30 @@ When working on specific areas, consult these files:
 - **Do NOT include `Co-Authored-By` trailers** in commit messages. All commits should be attributed solely to the repo owner.
 - **Do NOT include the Claude session URL** (e.g. `https://claude.ai/code/...`) in commit messages. It triggers co-author attribution.
 
-## Shared UI (`@zervo/ui` — planned)
+## Shared packages
 
-Shared component library lives in `packages/ui` inside this workspace. **This replaces the old external `@slate-ui/react` package** — we stopped maintaining that separate repo once the monorepo landed (publish-loop friction was killing updates).
+### `@zervo/ui`
+
+Shared component library at `packages/ui`. **Replaces the old external `@slate-ui/react` package** — we stopped maintaining that separate repo once the monorepo landed (publish-loop friction was killing updates).
 
 - **Source**: `packages/ui/src/` — TypeScript components built with Tailwind + CSS variables
-- **Consumption**: `apps/finance` and `apps/admin` depend on `@zervo/ui` via pnpm workspace (`"@zervo/ui": "workspace:*"`). Edits propagate instantly — no publish, no reinstall.
-- **Theming**: Components consume CSS variables from `apps/*/src/styles/colors.css` (e.g. `--color-fg`, `--color-surface`, `--color-accent`).
+- **Consumption**: both apps depend on it via `"@zervo/ui": "workspace:*"`. Edits propagate instantly — no publish, no reinstall.
+- **Theming**: components consume CSS variables from `apps/*/src/styles/colors.css` (e.g. `--color-fg`, `--color-surface`, `--color-accent`).
 - **Extraction discipline**: a component moves to `packages/ui` only after it's genuinely needed in both apps. Don't pre-extract churny components.
+
+### `@zervo/supabase`
+
+Shared Supabase glue at `packages/supabase`. Intentionally narrow:
+
+- **`Database` type** — generated types for the shared Postgres schema. Both apps import this so query results are typed.
+- **`createAdminClient<Database>()`** — service-role client factory for server-only admin operations. Identical config across apps (`autoRefreshToken: false`, `persistSession: false`).
+
+**Not shared**: per-app browser/server Supabase clients. Finance uses `@supabase/supabase-js` directly with PKCE + custom `window.fetch` patching for `/api/*` calls; admin uses `@supabase/ssr` for cookie-based SSR. These genuinely differ — don't merge them.
 
 ## Working Conventions
 
 - **TypeScript strict mode is enabled** — all new `.ts`/`.tsx` files must pass strict checks. When adding new provider hooks consumed by TypeScript files, add a `.d.ts` declaration file alongside the `.jsx` provider.
-- **ESLint is configured** with `eslint-config-next`. React 19 strict rules (`set-state-in-effect`, `refs`, `purity`, `immutability`) are set to warn, not error. New code should avoid these patterns where possible.
-- The codebase is mixed JS/TS (84% JS). Prefer TypeScript for new files, but don't convert existing JS files unless doing meaningful work in them.
+- **ESLint is configured** with `eslint-config-next`. The React Compiler advisory rule `react-hooks/set-state-in-effect` is `off` (it false-positives on legitimate mount-sync patterns from auth/portals/timers); `refs`/`purity`/`immutability` are `warn`. Both apps share the same rule overrides — keep them in sync if you change one.
+- **CI runs typecheck + lint + test on every push/PR** (`.github/workflows/test.yml`). All three must pass before deploy.
+- The codebase is mixed JS/TS (84% JS in finance). Prefer TypeScript for new files, but don't convert existing JS files unless doing meaningful work in them.
 - **Icon style**: Use chevrons (`‹ ›`) instead of arrows for directional indicators. Prefer plain text/numbers over pill-shaped badges.

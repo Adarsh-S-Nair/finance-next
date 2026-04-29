@@ -375,7 +375,6 @@ function Avatar({ url, initials }: { url: string | null; initials: string }) {
   return (
     <div className="relative h-8 w-8 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-[11px] font-semibold text-[var(--color-on-accent)]">
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : (
         <span>{initials}</span>
