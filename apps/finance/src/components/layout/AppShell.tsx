@@ -52,7 +52,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
         <Link href="/" className="inline-flex items-center gap-3">
           <span
             aria-hidden
-            className="block h-8 w-8 bg-zinc-900"
+            className="block h-8 w-8 bg-[var(--color-brand)]"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
@@ -142,7 +142,7 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="inline-flex items-center gap-3">
             <span
               aria-hidden
-              className="block h-10 w-10 bg-zinc-900"
+              className="block h-10 w-10 bg-[var(--color-brand)]"
               style={{
                 WebkitMaskImage: "url(/logo.svg)",
                 maskImage: "url(/logo.svg)",

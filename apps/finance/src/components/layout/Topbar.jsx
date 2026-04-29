@@ -44,7 +44,7 @@ export default function Topbar() {
         <Link href="/" className="flex items-center flex-shrink-0">
           <span
             aria-hidden
-            className="block h-16 w-16 bg-zinc-900 flex-shrink-0"
+            className="block h-16 w-16 bg-[var(--color-brand)] flex-shrink-0"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",

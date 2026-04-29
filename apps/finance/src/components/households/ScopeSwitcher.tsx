@@ -46,12 +46,12 @@ function PersonalTile({ size }: { size: number }) {
   const radius = Math.max(6, Math.round(size * 0.28));
   return (
     <span
-      className="flex items-center justify-center flex-shrink-0 bg-[var(--color-fg)]"
+      className="flex items-center justify-center flex-shrink-0 bg-[var(--color-brand)]"
       style={{ width: size, height: size, borderRadius: radius }}
     >
       <span
         aria-hidden
-        className="block bg-[var(--color-bg)]"
+        className="block bg-[var(--color-on-brand)]"
         style={{
           width: inner,
           height: inner,

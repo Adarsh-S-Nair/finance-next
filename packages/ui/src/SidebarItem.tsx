@@ -45,7 +45,7 @@ export default function SidebarItem({
           isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
           active
-            ? "text-[var(--color-fg)] font-medium"
+            ? "text-[var(--color-brand)] font-medium"
             : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
         )}
       >
@@ -58,12 +58,12 @@ export default function SidebarItem({
           <>
             <motion.span
               layoutId="sidebar-active-bg"
-              className="absolute inset-0 rounded-md bg-[var(--color-fg)]/[0.08]"
+              className="absolute inset-0 rounded-md bg-[var(--color-brand)]/[0.10]"
               transition={{ type: "spring", stiffness: 420, damping: 36 }}
             />
             <motion.span
               layoutId="sidebar-active-bar"
-              className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r-full bg-[var(--color-fg)]"
+              className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r-full bg-[var(--color-brand)]"
               transition={{ type: "spring", stiffness: 420, damping: 36 }}
             />
           </>
@@ -75,7 +75,7 @@ export default function SidebarItem({
             <Icon
               className={clsx(
                 "h-[18px] w-[18px]",
-                active && "text-[var(--color-fg)]",
+                active && "text-[var(--color-brand)]",
               )}
             />
             {notification && (
