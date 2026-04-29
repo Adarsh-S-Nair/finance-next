@@ -143,13 +143,15 @@ Example: `apps/finance/src/app/api/budgets/route.js`
 
 **CRITICAL:** When applying migrations via Supabase MCP (`apply_migration`), you **must also create a matching local migration file** in `apps/finance/supabase/migrations/`. The CI/CD pipeline runs `supabase db push` which compares the remote migration history table against local files — if a remote migration version has no local `.sql` file, the deploy **will fail**.
 
-**Workflow:**
-1. Apply migration via MCP `apply_migration` (this runs it on the remote DB and records the version)
-2. Note the version timestamp from the MCP result (e.g. `20260411024907`)
-3. Create `apps/finance/supabase/migrations/<version>_<name>.sql` with the same SQL content
-4. Commit and push the migration file along with your code changes
+**Workflow** (every step required, no exceptions):
+1. Apply the migration via MCP `apply_migration` (runs on remote DB, records the version).
+2. Note the version timestamp from the MCP result (e.g. `20260411024907`).
+3. Create `apps/finance/supabase/migrations/<version>_<name>.sql` with the same SQL content.
+4. **Regenerate Database types** via MCP `generate_typescript_types` (project `ffydfwlnivdilemhzrta` = Production) and overwrite `packages/supabase/src/database.ts`. Skipping this means new columns are silently untyped in queries.
+5. Run `pnpm typecheck` — if anything broke, this is where you find out (e.g. a column was renamed and existing code still references the old name).
+6. Commit and push the migration file + regenerated types + any code fixes together.
 
-**Never** apply a migration remotely without committing the corresponding local file in the same push.
+**Never** apply a migration remotely without committing the matching local migration file AND regenerated types in the same push.
 
 ---
 
