@@ -36,7 +36,11 @@ import {
   getDefaultIconForGroup,
   linkRowsToCategories,
 } from './categories';
-import { isCheckpointChange, projectCurrent } from './projectBalance';
+import {
+  isCheckpointChange,
+  projectCurrent,
+  shouldProjectPending,
+} from './projectBalance';
 import type {
   AccountMap,
   CategoryGroupRow,
@@ -652,11 +656,15 @@ async function updateAccountBalances(
     //     posted on a calendar day later than Plaid's last vetted
     //     date is by definition not yet in the checkpoint.
     //
-    //   - Pending transactions, regardless of date — Plaid's
-    //     `current` excludes pending entirely, so they're never in
-    //     the checkpoint. Bounded to the last 14 days as a safety
-    //     net against any orphaned rows that escape the `removed`
-    //     array (Plaid drops real pending holds within ~7 days).
+    //   - Pending transactions, filtered by `shouldProjectPending`
+    //     and bounded to the last 14 days as a safety net against
+    //     orphaned rows that escape the `removed` array (Plaid drops
+    //     real pending holds within ~7 days). The filter excludes
+    //     pending CREDITS on depository accounts because those are
+    //     usually hold-release / memo-credit entries that Plaid's
+    //     `current` already reflects (e.g. Chase "HOLD REL MEM CR"),
+    //     so adding them on top double-counts. See
+    //     `shouldProjectPending` for the full rationale.
     //
     // The strict `>` on date means same-day boundary txs (a tx
     // posted on the same calendar day Plaid last refreshed the
@@ -692,7 +700,9 @@ async function updateAccountBalances(
         }
       }
 
-      // All currently-pending, capped by age.
+      // All currently-pending, capped by age. Per-row include/exclude
+      // applied via `shouldProjectPending` after the fetch, since the
+      // rule is type-aware (depends on `acct.type`).
       const { data: pendingDeltas, error: pendingErr } = await supabaseAdmin
         .from('transactions')
         .select('amount')
@@ -706,7 +716,9 @@ async function updateAccountBalances(
         });
       } else {
         for (const row of (pendingDeltas ?? []) as Array<{ amount: number | null }>) {
-          deltaSum += Number(row.amount ?? 0);
+          const amount = Number(row.amount ?? 0);
+          if (!shouldProjectPending(amount, acct.type)) continue;
+          deltaSum += amount;
         }
       }
     }

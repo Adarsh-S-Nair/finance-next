@@ -91,3 +91,47 @@ export function projectCurrent(
  * checkpoint and should project. This module no longer exports a
  * date-shrinker because the sync code filters on `created_at` directly.
  */
+
+/**
+ * Should this pending transaction contribute to the balance projection?
+ *
+ * Background: the original projection assumed Plaid's `current` *always*
+ * excludes pending entries, so pending was projected unconditionally. That
+ * is not true for one important pattern — **pending credits on depository
+ * accounts**.
+ *
+ * When a bank places a hold on a deposit and later releases it, the
+ * hold-release shows up in the transactions feed as a *pending memo
+ * credit* (e.g. Chase: "HOLD REL MEM CR"). The underlying deposit has
+ * already posted, and Plaid's `current` already reflects the resulting
+ * balance — but our code was *also* adding the pending memo on top, so
+ * the balance jumped by the deposit amount a second time. A $48k
+ * deposit displayed as $96k.
+ *
+ * The fix is type-aware:
+ *
+ *   - **Depository, amount > 0**: skip. A pending credit on a checking
+ *     or savings account is almost always a hold-release / memo entry
+ *     for a deposit that has *already* moved `current`. Truly fresh
+ *     incoming credits (wires) typically arrive in `current` as soon
+ *     as the bank books them; the worst-case is a 1-day display lag
+ *     until Plaid's next refresh, which is far better than 2× over-
+ *     counting.
+ *
+ *   - **Depository, amount < 0**: keep. Card authorizations are
+ *     universally not yet in Plaid's `current` and projecting them
+ *     gives the user the correct "available after pending" view.
+ *
+ *   - **Credit / loan, any sign**: keep. Pending charges (negative)
+ *     aren't yet in Plaid's `current` (the amount you've been billed),
+ *     and projecting them with the credit-side sign flip correctly
+ *     raises what you owe. Pending refunds/payments (positive) lower
+ *     it.
+ */
+export function shouldProjectPending(
+  amount: number,
+  accountType: string | null | undefined
+): boolean {
+  if (accountType === 'depository' && amount > 0) return false;
+  return true;
+}

@@ -2,6 +2,7 @@ import {
   isCheckpointChange,
   projectCurrent,
   projectionSignFor,
+  shouldProjectPending,
 } from '../projectBalance';
 
 describe('isCheckpointChange', () => {
@@ -81,6 +82,46 @@ describe('projectCurrent', () => {
   it('rounds to cents to avoid float artefacts', () => {
     // 0.1 + 0.2 = 0.30000000000000004 in IEEE 754; rounding cleans it.
     expect(projectCurrent(0.1, 0.2, 'depository')).toBe(0.3);
+  });
+});
+
+describe('shouldProjectPending', () => {
+  it('skips pending credits on depository (Chase HOLD REL MEM CR pattern)', () => {
+    // The bug: a +$48,076.92 pending memo credit on a checking account
+    // was being added on top of a Plaid `current` that already included
+    // the underlying deposit, displaying $96,282 for an account that
+    // really held $48,205.
+    expect(shouldProjectPending(48076.92, 'depository')).toBe(false);
+  });
+
+  it('keeps pending debits on depository (card authorizations)', () => {
+    // Card auths are universally not in Plaid's `current`; projecting
+    // them gives the correct "available after pending" view.
+    expect(shouldProjectPending(-25.5, 'depository')).toBe(true);
+  });
+
+  it('keeps pending charges on credit cards (raises owed balance)', () => {
+    // Pending credit-card spend (negative tx amount, sign-flipped to +)
+    // should add to what you owe.
+    expect(shouldProjectPending(-100, 'credit')).toBe(true);
+  });
+
+  it('keeps pending refunds on credit cards (lowers owed balance)', () => {
+    expect(shouldProjectPending(50, 'credit')).toBe(true);
+  });
+
+  it('keeps pending on loan accounts regardless of sign', () => {
+    expect(shouldProjectPending(100, 'loan')).toBe(true);
+    expect(shouldProjectPending(-100, 'loan')).toBe(true);
+  });
+
+  it('keeps pending on unknown / null type (conservative — project rather than hide)', () => {
+    expect(shouldProjectPending(100, null)).toBe(true);
+    expect(shouldProjectPending(-100, undefined)).toBe(true);
+  });
+
+  it('treats zero-amount pending as keep (no effect either way)', () => {
+    expect(shouldProjectPending(0, 'depository')).toBe(true);
   });
 });
 
