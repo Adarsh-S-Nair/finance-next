@@ -1,4 +1,3 @@
-import type { NextRequest } from 'next/server';
 import { after } from 'next/server';
 import { exchangePublicToken, getAccounts, getInstitution } from '../../../../lib/plaid/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
@@ -6,7 +5,8 @@ import { createAccountSnapshots } from '../../../../lib/accountSnapshotUtils';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { getPlaidProducts } from '../../../../lib/tierConfig';
 import { createLogger } from '../../../../lib/logger';
-import { syncInvestmentTransactionsForItem } from '../../../../lib/plaid/investmentTransactionSync';
+import { productsForAccounts } from '../../../../lib/plaid/productMap';
+import { runSyncsForProducts } from '../../../../lib/plaid/syncRunners';
 import { formatDisplayName } from '../../../../lib/utils/formatName';
 import { encryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 import type { TablesInsert, TablesUpdate } from '../../../../types/database';
@@ -99,15 +99,19 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
     );
   }
 
+  // Derive the product list from the connected account types via the
+  // central productMap. Adding a new Plaid product is a one-line edit
+  // there — no need to touch this route.
+  const products = productsForAccounts(accounts);
+  if (products.length === 0) products.push('transactions');
+
+  // These two flags drive a couple of legacy code paths below
+  // (account upsert branching, recurring_ready). Keep them around but
+  // derive them from the same shared source of truth.
   const hasInvestmentAccounts = accounts.some((a) => a.type === 'investment');
   const hasTransactionAccounts = accounts.some(
     (a) => a.type === 'depository' || a.type === 'credit'
   );
-
-  const products: string[] = [];
-  if (hasTransactionAccounts) products.push('transactions');
-  if (hasInvestmentAccounts) products.push('investments');
-  if (products.length === 0) products.push('transactions');
 
   logger.info('Detected products from accounts', { products });
 
@@ -413,95 +417,16 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
     logger.error('Exception while creating account snapshots', snapshotError as Error);
   }
 
-  // Use after() to keep the serverless function alive until syncs complete
+  // Use after() to keep the serverless function alive until syncs complete.
+  // Iterate over the products on this plaid_item and dispatch via the
+  // sync runner registry — no per-product if-blocks here.
   after(async () => {
-    const internalHeaders = new Headers({ 'x-user-id': userId });
-
-    if (hasTransactionAccounts && accountsData.length > 0) {
-      try {
-        const { POST: syncEndpoint } = await import('../transactions/sync/route');
-        const syncRequest = {
-          headers: internalHeaders,
-          json: async () => ({ plaidItemId: plaidItemData.id }),
-        } as unknown as NextRequest;
-        const syncResponse = await syncEndpoint(syncRequest, {
-          params: Promise.resolve({}),
-        });
-        if (!syncResponse.ok) {
-          const syncErrorBody = await syncResponse.json().catch(() => ({}));
-          logger.error('Transaction sync failed after exchange', null, {
-            plaidItemId: plaidItemData.id,
-            body: syncErrorBody,
-          });
-        } else {
-          const syncResult = (await syncResponse.json()) as {
-            transactions_synced?: number;
-          };
-          logger.info('Transaction sync completed after exchange', {
-            plaidItemId: plaidItemData.id,
-            transactions_synced: syncResult.transactions_synced,
-          });
-        }
-      } catch (syncError) {
-        logger.error('Exception triggering transaction sync', syncError as Error, {
-          plaidItemId: plaidItemData.id,
-        });
-      }
-    }
-
-    if (hasInvestmentAccounts && accountsData.length > 0) {
-      try {
-        const { POST: holdingsSyncEndpoint } = await import(
-          '../investments/holdings/sync/route'
-        );
-        const holdingsSyncRequest = {
-          headers: internalHeaders,
-          json: async () => ({ plaidItemId: plaidItemData.id }),
-        } as unknown as NextRequest;
-        const holdingsSyncResponse = await holdingsSyncEndpoint(holdingsSyncRequest, {
-          params: Promise.resolve({}),
-        });
-        if (!holdingsSyncResponse.ok) {
-          logger.warn(
-            'Holdings sync failed after exchange, but account linking succeeded',
-            {
-              plaidItemId: plaidItemData.id,
-              status: holdingsSyncResponse.status,
-            }
-          );
-        } else {
-          const holdingsSyncResult = (await holdingsSyncResponse.json()) as {
-            holdings_synced?: number;
-          };
-          logger.info('Holdings sync completed after exchange', {
-            plaidItemId: plaidItemData.id,
-            holdings_synced: holdingsSyncResult.holdings_synced,
-          });
-        }
-      } catch (holdingsSyncError) {
-        logger.error('Exception triggering holdings sync', holdingsSyncError as Error, {
-          plaidItemId: plaidItemData.id,
-        });
-      }
-
-      try {
-        const invTxResult = (await syncInvestmentTransactionsForItem({
-          plaidItemId: plaidItemData.id,
-          userId,
-        })) as { transactions_synced?: number };
-        logger.info('Investment transactions sync completed after exchange', {
-          plaidItemId: plaidItemData.id,
-          transactions_synced: invTxResult.transactions_synced,
-        });
-      } catch (invTxError) {
-        logger.error(
-          'Exception triggering investment transactions sync',
-          invTxError as Error,
-          {
-            plaidItemId: plaidItemData.id,
-          }
-        );
-      }
+    if (accountsData.length > 0) {
+      await runSyncsForProducts(products, {
+        plaidItemId: plaidItemData.id,
+        userId,
+        logger,
+      });
     }
     await logger.flush();
   });
