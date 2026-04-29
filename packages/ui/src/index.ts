@@ -11,6 +11,8 @@ export { default as Input } from "./Input";
 export { default as LineChart } from "./LineChart";
 export { default as Modal } from "./Modal";
 export { default as Pill } from "./Pill";
+export { default as ProfileBar, PROFILE_BAR_ITEM_CLASS } from "./ProfileBar";
+export type { ProfileBarProps, ProfileBarChildrenApi } from "./ProfileBar";
 export { default as Skeleton, CardSkeleton, PortfolioCardSkeleton, ChartSkeleton, HoldingsTableSkeleton, ListSkeleton } from "./Skeleton";
 export { default as Tabs } from "./Tabs";
 export { default as TimeRangeSelector } from "./TimeRangeSelector";
