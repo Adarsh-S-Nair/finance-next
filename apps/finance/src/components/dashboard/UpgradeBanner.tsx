@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@zervo/ui";
 import { useUser } from "../providers/UserProvider";
 import { authFetch } from "../../lib/api/fetch";
 import { useToast } from "../providers/ToastProvider";
@@ -65,13 +66,16 @@ export default function UpgradeBanner() {
         ))}
       </ul>
 
-      <button
+      <Button
+        variant="primary"
+        size="md"
+        fullWidth
         onClick={handleUpgrade}
         disabled={loading}
-        className="mt-5 inline-flex h-9 w-full items-center justify-center bg-[var(--color-fg)] text-xs font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-5"
       >
         {loading ? "Redirecting…" : "Upgrade to Pro"}
-      </button>
+      </Button>
     </div>
   );
 }
