@@ -13,6 +13,7 @@ import type {
   HoldingsWebhookPayload,
   InvestmentsTransactionsWebhookPayload,
   ItemWebhookPayload,
+  LiabilitiesWebhookPayload,
   PlaidWebhookPayload,
   RecurringTransactionsWebhookPayload,
   TransactionsWebhookPayload,
@@ -32,6 +33,7 @@ export interface WebhookHandlers {
   holdings: HandlerFn<HoldingsWebhookPayload>;
   investmentTransactions: HandlerFn<InvestmentsTransactionsWebhookPayload>;
   recurring: HandlerFn<RecurringTransactionsWebhookPayload>;
+  liabilities: HandlerFn<LiabilitiesWebhookPayload>;
 }
 
 /**
@@ -60,6 +62,9 @@ export async function dispatch(
       return;
     case 'RECURRING_TRANSACTIONS':
       await handlers.recurring(webhookData as RecurringTransactionsWebhookPayload, logger);
+      return;
+    case 'LIABILITIES':
+      await handlers.liabilities(webhookData as LiabilitiesWebhookPayload, logger);
       return;
     default:
       logger.warn('Unhandled webhook type', { webhook_type: webhookData.webhook_type });

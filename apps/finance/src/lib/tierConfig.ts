@@ -33,7 +33,7 @@ const TIERS: Record<string, TierConfig> = {
       recurring: false,
       net_worth_history: true,
     },
-    plaid_products: ['transactions'],
+    plaid_products: ['transactions', 'liabilities'],
   },
   pro: {
     connections: 5,
@@ -44,7 +44,7 @@ const TIERS: Record<string, TierConfig> = {
       recurring: true,
       net_worth_history: true,
     },
-    plaid_products: ['transactions', 'investments'],
+    plaid_products: ['transactions', 'investments', 'liabilities'],
   },
 };
 

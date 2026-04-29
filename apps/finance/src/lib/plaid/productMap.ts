@@ -10,8 +10,8 @@
  */
 export const ACCOUNT_TYPE_PRODUCTS: Record<string, string[]> = {
   depository: ["transactions"],
-  credit: ["transactions"], // credit cards also benefit from "liabilities" once that runner ships
-  loan: [], // mortgage/student loans only meaningful with "liabilities"
+  credit: ["transactions", "liabilities"], // credit cards: txns + APR/due-date data
+  loan: ["liabilities"],                    // mortgage/student loans: liabilities only
   investment: ["investments"],
 };
 

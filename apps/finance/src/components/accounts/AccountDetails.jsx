@@ -5,6 +5,7 @@ import { Button } from "@zervo/ui";
 import { formatAccountSubtype } from "../../lib/accountSubtype";
 import { isLiabilityAccount } from "../../lib/accountUtils";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import AccountLiabilitySection from "./AccountLiabilitySection";
 
 const formatCurrency = (amount, currency = "USD") =>
   formatCurrencyBase(amount ?? 0, true, currency || "USD");
@@ -197,6 +198,16 @@ export default function AccountDetails({ account, institution, onViewTransaction
                 </div>
               )}
             </div>
+          )}
+
+          {/* Liabilities-product detail — APR, statement, payment due, etc.
+              Only renders for liability accounts and only if a row exists
+              in the liabilities table (sync may not have run yet). */}
+          {isLiability && (
+            <AccountLiabilitySection
+              accountId={account.id}
+              currency={currency}
+            />
           )}
 
           {/* Actions — primary CTA in the same pill shape as the

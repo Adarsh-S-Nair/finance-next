@@ -12,7 +12,8 @@ export type PlaidWebhookType =
   | 'ITEM'
   | 'HOLDINGS'
   | 'INVESTMENTS_TRANSACTIONS'
-  | 'RECURRING_TRANSACTIONS';
+  | 'RECURRING_TRANSACTIONS'
+  | 'LIABILITIES';
 
 export interface BaseWebhookPayload {
   webhook_type: string;
@@ -61,12 +62,26 @@ export interface RecurringTransactionsWebhookPayload extends BaseWebhookPayload 
   webhook_type: 'RECURRING_TRANSACTIONS';
 }
 
+export interface LiabilitiesWebhookPayload extends BaseWebhookPayload {
+  webhook_type: 'LIABILITIES';
+  /** Account ids that have new liabilities-product attributes available. */
+  account_ids_with_new_liabilities?: string[];
+  /** Map of account_id -> list of attributes that changed. */
+  account_ids_with_updated_liabilities?: Record<string, string[]>;
+  error?: {
+    error_type?: string;
+    error_code?: string;
+    error_message?: string;
+  };
+}
+
 export type PlaidWebhookPayload =
   | TransactionsWebhookPayload
   | ItemWebhookPayload
   | HoldingsWebhookPayload
   | InvestmentsTransactionsWebhookPayload
   | RecurringTransactionsWebhookPayload
+  | LiabilitiesWebhookPayload
   | (BaseWebhookPayload & { webhook_type: string }); // fallback for unknown types
 
 /**

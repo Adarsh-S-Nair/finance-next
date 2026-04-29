@@ -17,6 +17,7 @@ import { dispatch, type WebhookHandlers } from './dispatcher';
 import { handleHoldingsWebhook } from './holdings';
 import { handleInvestmentTransactionsWebhook } from './investmentTransactions';
 import { handleItemWebhook } from './item';
+import { handleLiabilitiesWebhook } from './liabilities';
 import { handleRecurringTransactionsWebhook } from './recurring';
 import { handleTransactionsWebhook } from './transactions';
 import type { PlaidWebhookPayload, WebhookLogger } from './types';
@@ -50,6 +51,7 @@ export const defaultHandlers: WebhookHandlers = {
   holdings: handleHoldingsWebhook,
   investmentTransactions: handleInvestmentTransactionsWebhook,
   recurring: handleRecurringTransactionsWebhook,
+  liabilities: handleLiabilitiesWebhook,
 };
 
 /**

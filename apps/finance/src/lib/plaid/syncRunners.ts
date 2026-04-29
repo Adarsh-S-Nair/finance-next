@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { createLogger } from "../logger";
 import { syncInvestmentTransactionsForItem } from "./investmentTransactionSync";
+import { syncLiabilitiesForItem } from "./liabilitiesSync";
 
 /**
  * Sync runner registry. Each runner takes a uniform context and triggers
@@ -98,9 +99,22 @@ const runInvestmentsSync: SyncRunner = async ({ plaidItemId, userId, logger }) =
   }
 };
 
+const runLiabilitiesSync: SyncRunner = async ({ plaidItemId, userId, logger }) => {
+  try {
+    const result = await syncLiabilitiesForItem({ plaidItemId, userId });
+    logger.info("Liabilities sync completed after exchange", {
+      plaidItemId,
+      liabilities_synced: result.liabilities_synced,
+    });
+  } catch (err) {
+    logger.error("Exception triggering liabilities sync", err as Error, { plaidItemId });
+  }
+};
+
 export const SYNC_RUNNERS: Record<string, SyncRunner> = {
   transactions: runTransactionsSync,
   investments: runInvestmentsSync,
+  liabilities: runLiabilitiesSync,
 };
 
 /**

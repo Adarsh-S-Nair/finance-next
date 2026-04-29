@@ -456,6 +456,89 @@ export type Database = {
         }
         Relationships: []
       }
+      liabilities: {
+        Row: {
+          account_id: string
+          created_at: string
+          details: Json
+          expected_payoff_date: string | null
+          id: string
+          interest_rate: number | null
+          interest_rate_type: string | null
+          is_overdue: boolean | null
+          kind: Database["public"]["Enums"]["liability_kind"]
+          last_payment_amount: number | null
+          last_payment_date: string | null
+          last_statement_balance: number | null
+          last_statement_issue_date: string | null
+          minimum_payment_amount: number | null
+          next_payment_due_date: string | null
+          origination_date: string | null
+          origination_principal_amount: number | null
+          synced_at: string
+          updated_at: string
+          user_id: string
+          ytd_interest_paid: number | null
+          ytd_principal_paid: number | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          details?: Json
+          expected_payoff_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          interest_rate_type?: string | null
+          is_overdue?: boolean | null
+          kind: Database["public"]["Enums"]["liability_kind"]
+          last_payment_amount?: number | null
+          last_payment_date?: string | null
+          last_statement_balance?: number | null
+          last_statement_issue_date?: string | null
+          minimum_payment_amount?: number | null
+          next_payment_due_date?: string | null
+          origination_date?: string | null
+          origination_principal_amount?: number | null
+          synced_at?: string
+          updated_at?: string
+          user_id: string
+          ytd_interest_paid?: number | null
+          ytd_principal_paid?: number | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          details?: Json
+          expected_payoff_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          interest_rate_type?: string | null
+          is_overdue?: boolean | null
+          kind?: Database["public"]["Enums"]["liability_kind"]
+          last_payment_amount?: number | null
+          last_payment_date?: string | null
+          last_statement_balance?: number | null
+          last_statement_issue_date?: string | null
+          minimum_payment_amount?: number | null
+          next_payment_due_date?: string | null
+          origination_date?: string | null
+          origination_principal_amount?: number | null
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          ytd_interest_paid?: number | null
+          ytd_principal_paid?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liabilities_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plaid_items: {
         Row: {
           access_token: string
@@ -1019,7 +1102,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      liability_kind: "credit" | "mortgage" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1146,6 +1229,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      liability_kind: ["credit", "mortgage", "student"],
+    },
   },
 } as const

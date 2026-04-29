@@ -305,6 +305,19 @@ export async function getInvestmentTransactions(
   }
 }
 
+export async function getLiabilities(
+  accessToken: string
+): Promise<Record<string, unknown>> {
+  try {
+    const client = getPlaidClient();
+    const response = await client.liabilitiesGet({ access_token: accessToken });
+    return response.data as unknown as Record<string, unknown>;
+  } catch (error) {
+    console.error('Error getting liabilities:', error);
+    throw error;
+  }
+}
+
 export async function removeItem(accessToken: string): Promise<Record<string, unknown>> {
   try {
     const client = getPlaidClient();

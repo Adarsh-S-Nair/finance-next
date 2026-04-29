@@ -3,6 +3,7 @@ import type {
   HoldingsWebhookPayload,
   InvestmentsTransactionsWebhookPayload,
   ItemWebhookPayload,
+  LiabilitiesWebhookPayload,
   PlaidWebhookPayload,
   RecurringTransactionsWebhookPayload,
   TransactionsWebhookPayload,
@@ -29,6 +30,7 @@ function makeHandlers(): WebhookHandlers & {
     holdings: jest.fn(async () => undefined),
     investmentTransactions: jest.fn(async () => undefined),
     recurring: jest.fn(async () => undefined),
+    liabilities: jest.fn(async () => undefined),
   };
   return {
     ...spies,
@@ -55,6 +57,7 @@ describe('dispatch', () => {
     expect(handlers.spies.holdings).not.toHaveBeenCalled();
     expect(handlers.spies.investmentTransactions).not.toHaveBeenCalled();
     expect(handlers.spies.recurring).not.toHaveBeenCalled();
+    expect(handlers.spies.liabilities).not.toHaveBeenCalled();
   });
 
   it('routes ITEM to the item handler', async () => {
@@ -101,6 +104,17 @@ describe('dispatch', () => {
     };
     await dispatch(payload, handlers, makeLogger());
     expect(handlers.spies.recurring).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes LIABILITIES to the liabilities handler', async () => {
+    const handlers = makeHandlers();
+    const payload: LiabilitiesWebhookPayload = {
+      webhook_type: 'LIABILITIES',
+      webhook_code: 'DEFAULT_UPDATE',
+      item_id: 'item-1',
+    };
+    await dispatch(payload, handlers, makeLogger());
+    expect(handlers.spies.liabilities).toHaveBeenCalledTimes(1);
   });
 
   it('logs a warning (no-op) for unknown webhook types instead of throwing', async () => {
