@@ -109,22 +109,37 @@ export function printCredentials({ scenario, email, password, userId, notes = []
 }
 
 /**
- * Upsert an institution record. Returns the institution row.
+ * Find an institution by `institution_id` (Plaid's text id, e.g. `ins_3`),
+ * or create it if it doesn't exist. Never overwrites an existing row.
+ *
+ * Why not upsert: the `institutions` table is shared across all users.
+ * If a real user has Chase linked, that row holds the real Chase logo,
+ * primary color, and URL fetched from Plaid. An upsert with our fixture
+ * data (which usually has logo: null) would clobber those fields for
+ * every real user the next time the seed runs.
  */
-export async function upsertInstitution(institution) {
+export async function findOrCreateInstitution(institution) {
+  const { data: existing, error: findErr } = await supabaseAdmin
+    .from('institutions')
+    .select('*')
+    .eq('institution_id', institution.institution_id)
+    .maybeSingle();
+  if (findErr) throw new Error(`Failed to look up institution: ${findErr.message}`);
+  if (existing) return existing;
+
   const { data, error } = await supabaseAdmin
     .from('institutions')
-    .upsert({
+    .insert({
       institution_id: institution.institution_id,
       name: institution.name,
       logo: institution.logo || null,
       primary_color: institution.primary_color || null,
       url: institution.url || null,
-    }, { onConflict: 'institution_id' })
+    })
     .select()
     .single();
 
-  if (error) throw new Error(`Failed to upsert institution: ${error.message}`);
+  if (error) throw new Error(`Failed to insert institution: ${error.message}`);
   return data;
 }
 

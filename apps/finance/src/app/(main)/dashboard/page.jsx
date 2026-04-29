@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -279,16 +279,20 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Sidebar — fixed width, anchored to the right */}
+        {/* Sidebar — fixed width, anchored to the right.
+            Insights render first so the user-specific signal is the
+            top thing they see; the Pro upgrade pitch sits below it. */}
         <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
-          {!isPro && <UpgradeBanner />}
           {dashboardLayout.sidebar.map((item) => {
             // Hide pro-only cards (budgets, calendar) for free users
             if (!isPro && item.id === 'sidebar-group') return null;
             return (
-              <div key={item.id}>
-                {renderItem(item)}
-              </div>
+              <Fragment key={item.id}>
+                <div>{renderItem(item)}</div>
+                {/* Slot the upgrade banner as a sibling immediately
+                    after insights so the parent's space-y-* applies. */}
+                {!isPro && item.id === 'insights' && <UpgradeBanner />}
+              </Fragment>
             );
           })}
         </div>

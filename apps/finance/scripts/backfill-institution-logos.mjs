@@ -45,9 +45,11 @@ function loadEnvFile(filename) {
   console.log(`✅ Loaded ${filename}`);
 }
 
-// Load .env.prod first (Supabase prod creds), then .env.local as fallback for Plaid creds
+// Load env from any local dotfile we can find. Earlier files take precedence;
+// later files only fill in keys still missing.
 loadEnvFile('.env.prod');
-loadEnvFile('.env.local'); // may contain PLAID_CLIENT_ID / PLAID_SECRET for local dev
+loadEnvFile('.env.local');
+loadEnvFile('.env.development');
 
 // ── Validate env ────────────────────────────────────────────────────────────
 const required = [

@@ -16,7 +16,7 @@
 import {
   createTestUser,
   printCredentials,
-  upsertInstitution,
+  findOrCreateInstitution,
   insertPlaidItem,
   insertAccounts,
   insertTransactions,
@@ -236,8 +236,8 @@ async function main() {
 
   const user = await createTestUser({ email, password, name });
 
-  const institution = await upsertInstitution(CHASE_INSTITUTION);
-  console.log(`[seed] Institution upserted: ${institution.name}`);
+  const institution = await findOrCreateInstitution(CHASE_INSTITUTION);
+  console.log(`[seed] Institution: ${institution.name} (logo: ${institution.logo ? 'present' : 'missing'})`);
 
   const plaidItem = await insertPlaidItem({
     userId: user.id,
