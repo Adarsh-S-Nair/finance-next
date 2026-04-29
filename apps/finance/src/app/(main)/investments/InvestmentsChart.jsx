@@ -200,7 +200,11 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
   const totalGain = (currentValue ?? 0) - (costBasis ?? 0);
   const totalGainPct = costBasis > 0 ? (totalGain / costBasis) * 100 : 0;
 
-  if (loading && chartData.length === 0) {
+  // Show the skeleton for the entire fetch, not just when chartData is
+  // empty. The synthetic single-point fallback below is for users who
+  // genuinely have no history *after* the fetch completes — using it as a
+  // placeholder during fetch produces a flat green line on first load.
+  if (loading) {
     return (
       <div className="animate-pulse">
         <div className="mb-2 h-3 w-32 rounded bg-[var(--color-border)]" />
