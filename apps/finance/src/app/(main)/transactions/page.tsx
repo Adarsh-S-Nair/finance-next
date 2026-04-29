@@ -371,7 +371,7 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
     <div className="space-y-6 pb-24">
       {sortedDates.map((dateKey, groupIndex) => (
         <div key={dateKey} className="relative">
-          <div className="sticky top-16 z-20 py-4 pointer-events-none">
+          <div className="sticky top-16 z-20 py-2 bg-[var(--color-content-bg)]">
             <span className="text-sm font-medium text-[var(--color-muted)]">
               {formatDateHeader(dateKey === 'Unknown' ? null : dateKey)}
             </span>

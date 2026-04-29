@@ -101,12 +101,16 @@
   font-weight: 300;
 }
 
+/* `overflow-x: clip` instead of `hidden` — `hidden` would make these
+   elements scroll containers and silently break `position: sticky`
+   on every descendant (the topbar specifically). `clip` clips overflow
+   without establishing a scroll context. */
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
   min-height: 100vh;
   font-family: var(--font-geist-sans), sans-serif;
 }

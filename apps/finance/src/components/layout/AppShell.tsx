@@ -257,7 +257,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <HouseholdRailProvider>
     <HouseholdRailPanel />
-    <div className="min-h-screen bg-[var(--color-content-bg)] relative">
+    <div className="min-h-screen bg-[var(--color-shell-bg)] relative">
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
           it can't live inside any React-rendered stacking context. */}
@@ -269,27 +269,41 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <ProfileBar />
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-60 relative">
         <PaymentFailureBanner />
-        <AppTopbar />
-        <main className="flex-1 pt-16 pb-24 md:pb-0 bg-[var(--color-content-bg)]">
-          <div
-            style={{
-              transform: "translateY(var(--rail-offset, 0px))",
-              transition: "transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
-              willChange: "transform",
-            }}
-            className={
-              pathname === "/dashboard"
-                ? "mx-auto max-w-[1600px] px-4 md:px-6 lg:px-10"
-                : "mx-auto max-w-[1440px] px-4 md:px-6 lg:px-10"
-            }
-          >
-            {/* No page transition wrapper. AnimatePresence mode="wait"
-                fought with Next's App Router behaviour — the new
-                cached page would paint, then disappear during the
-                old page's exit, then reappear. Polish lives in the
-                sidebar's animated active indicator instead, which
-                doesn't gate page rendering. */}
-            {children}
+        {/* Main content rendered as a "giant card" — bg-content surface
+            sitting inside the shell so the sidebar reads as navigation
+            chrome on a different layer. The AppTopbar lives INSIDE the
+            card so the card encompasses every product surface; only the
+            sidebar + ProfileBar live on the shell. */}
+        <main className="flex-1 pb-24 md:pb-0 flex flex-col">
+          {/* The "card" is now edge-to-edge — the bg color difference
+              between content-bg and shell-bg (the sidebar's bg) is what
+              defines the navigation/work split. No border, no radius,
+              no margin. The card has NO transform — `transform` creates
+              a containing block which breaks `position: sticky` on the
+              topbar. Rail-offset is applied to the content wrapper
+              below the topbar so only content slides. */}
+          <div className="flex-1 bg-[var(--color-content-bg)] flex flex-col">
+            <AppTopbar />
+            <div
+              style={{
+                transform: "translateY(var(--rail-offset, 0px))",
+                transition: "transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
+                willChange: "transform",
+              }}
+              className={
+                pathname === "/dashboard"
+                  ? "mx-auto w-full max-w-[1600px] px-4 md:px-6 lg:px-10"
+                  : "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-10"
+              }
+            >
+              {/* No page transition wrapper. AnimatePresence mode="wait"
+                  fought with Next's App Router behaviour — the new
+                  cached page would paint, then disappear during the
+                  old page's exit, then reappear. Polish lives in the
+                  sidebar's animated active indicator instead, which
+                  doesn't gate page rendering. */}
+              {children}
+            </div>
           </div>
         </main>
       </div>

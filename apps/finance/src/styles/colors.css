@@ -60,8 +60,11 @@
   /* Matches --color-muted */
   --color-floating-border: color-mix(in oklab, #000000, transparent 92%);
 
-  --color-content-bg: #fafafa;
-  --color-sidebar-bg: var(--color-content-bg);
+  --color-content-bg: #ffffff;
+  /* Shell — the outer chrome around the main "card". Sidebar lives on
+     this layer so it reads as navigation chrome, not content. */
+  --color-shell-bg: #f4f4f5;
+  --color-sidebar-bg: var(--color-shell-bg);
   --color-sidebar-active: var(--color-surface-alt);
 
   /* Card styling - Light Mode */
@@ -70,7 +73,7 @@
   --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 
   --color-shadow: transparent;
-  --color-card-border: #e4e4e7;
+  --color-card-border: color-mix(in oklab, #18181b, transparent 94%);
 
   /* Chart Colors */
   --color-chart-primary: #3b82f6;
@@ -156,7 +159,11 @@
   --color-floating-border: color-mix(in oklab, #ffffff, transparent 88%);
 
   --color-content-bg: #0d0d0d;
-  --color-sidebar-bg: var(--color-content-bg);
+  /* Shell — see light-mode comment. In dark, content-bg already sits
+     above pure black, so the shell drops to #000 to give the card
+     enough lift to read. */
+  --color-shell-bg: #000000;
+  --color-sidebar-bg: var(--color-shell-bg);
   --color-sidebar-active: #1a1a1a;
 
   /* Card styling - Dark Mode */
@@ -165,7 +172,7 @@
   --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 
   --color-shadow: transparent;
-  --color-card-border: #27272a;
+  --color-card-border: color-mix(in oklab, #ffffff, transparent 92%);
 
   /* Chart Colors */
   --color-chart-primary: #60a5fa;
@@ -188,7 +195,7 @@
 /* Base application colors */
 html,
 body {
-  background-color: var(--color-content-bg);
+  background-color: var(--color-shell-bg);
   color: var(--color-fg);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   margin: 0;

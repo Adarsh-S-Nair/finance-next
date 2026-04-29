@@ -42,7 +42,7 @@ const MENU_MARGIN = 6;
 // relative to the tile size so both 40px and 28px tiles look like
 // the same family of shape.
 function PersonalTile({ size }: { size: number }) {
-  const inner = Math.round(size * 0.55);
+  const inner = Math.round(size * 0.72);
   const radius = Math.max(6, Math.round(size * 0.28));
   return (
     <span
@@ -339,7 +339,7 @@ export default function ScopeSwitcher() {
           expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
-          <ScopeAvatar household={activeHousehold} size={40} />
+          <ScopeAvatar household={activeHousehold} size={32} />
         </ScopeRow>
 
         <AnimatePresence initial={false}>
