@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.2",
+    "@zervo/supabase": "workspace:*",
     "@zervo/ui": "workspace:*",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
