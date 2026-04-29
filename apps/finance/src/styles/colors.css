@@ -29,14 +29,6 @@
   --color-accent-hover: var(--color-primary-hover);
   --color-on-accent: var(--color-on-primary);
 
-  /* Brand color — Zervo blue. Used for identity surfaces only:
-     logo mark, sidebar active state, focus rings on form inputs.
-     Independent of `--color-accent` (which is user-customizable via
-     the accent picker) so the brand never gets overridden. */
-  --color-brand: #2563eb;
-  --color-brand-hover: #1d4ed8;
-  --color-on-brand: #ffffff;
-
   --color-success: #059669;
   --color-success-hover: #047857;
   --color-on-success: #ffffff;
@@ -131,12 +123,6 @@
   --color-accent: var(--color-primary);
   --color-accent-hover: var(--color-primary-hover);
   --color-on-accent: var(--color-on-primary);
-
-  /* Brand — same Zervo blue, lifted slightly so it stays
-     legible against the dark surfaces. */
-  --color-brand: #60a5fa;
-  --color-brand-hover: #3b82f6;
-  --color-on-brand: #0d0d0d;
 
   --color-success: var(--color-neon-green);
   --color-success-hover: #10b981;

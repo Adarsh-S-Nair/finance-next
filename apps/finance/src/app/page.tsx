@@ -317,7 +317,7 @@ export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
         <Link href="/" className="flex items-center gap-3">
           <span
             aria-hidden
-            className="block h-10 w-10 bg-[var(--color-brand)]"
+            className="block h-10 w-10 bg-[var(--color-fg)]"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
@@ -413,7 +413,7 @@ function MockSidebar() {
         <div className="flex items-center gap-2.5">
           <span
             aria-hidden
-            className="block h-6 w-6 bg-[var(--color-brand)]"
+            className="block h-6 w-6 bg-[var(--color-fg)]"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",
@@ -577,7 +577,7 @@ function PhoneDashboard() {
         <div className="flex items-center gap-2">
           <span
             aria-hidden
-            className="block h-6 w-6 bg-[var(--color-brand)]"
+            className="block h-6 w-6 bg-[var(--color-fg)]"
             style={{
               WebkitMaskImage: "url(/logo.svg)",
               maskImage: "url(/logo.svg)",

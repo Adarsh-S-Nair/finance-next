@@ -35,7 +35,7 @@ function ZervoMark({ inverted, className = "" }: { inverted?: boolean; className
       aria-hidden
       className={clsx(
         "block",
-        inverted ? "bg-[var(--color-on-brand)]" : "bg-[var(--color-brand)]",
+        inverted ? "bg-[var(--color-on-accent,white)]" : "bg-[var(--color-fg)]",
         className,
       )}
       style={{
