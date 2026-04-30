@@ -47,12 +47,21 @@ export const GET = withAuth("impersonation:me", async (req: NextRequest, callerI
     return NextResponse.json({ impersonating: false });
   }
 
-  const { data: requester } = await supabaseAdmin.auth.admin.getUserById(session.requester_id);
+  const [{ data: requester }, { data: requesterProfile }] = await Promise.all([
+    supabaseAdmin.auth.admin.getUserById(session.requester_id),
+    supabaseAdmin
+      .from("user_profiles")
+      .select("first_name, last_name")
+      .eq("id", session.requester_id)
+      .maybeSingle(),
+  ]);
 
   return NextResponse.json({
     impersonating: true,
     session_id: session.id,
     requester_email: requester?.user?.email ?? null,
+    requester_first_name: requesterProfile?.first_name ?? null,
+    requester_last_name: requesterProfile?.last_name ?? null,
     expires_at: grant.expires_at,
     started_at: session.started_at,
   });

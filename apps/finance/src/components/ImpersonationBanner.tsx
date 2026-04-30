@@ -1,17 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiAlertOctagon } from "react-icons/fi";
+import { FiEye } from "react-icons/fi";
 import { authFetch } from "../lib/api/fetch";
 import { supabase } from "../lib/supabase/client";
 
 type Context = {
   impersonating: boolean;
   requester_email?: string | null;
+  requester_first_name?: string | null;
+  requester_last_name?: string | null;
   expires_at?: string | null;
   started_at?: string | null;
   session_id?: string;
 };
+
+function requesterDisplayName(ctx: Context): string {
+  const parts = [ctx.requester_first_name, ctx.requester_last_name].filter(Boolean) as string[];
+  if (parts.length > 0) return parts.join(" ");
+  if (ctx.requester_email) return ctx.requester_email.split("@")[0]!;
+  return "an admin";
+}
 
 function formatExpiresIn(iso: string | null | undefined): string {
   if (!iso) return "until revoked";
@@ -97,17 +106,18 @@ export default function ImpersonationBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[70] h-10 bg-[var(--color-danger)]/95 text-white px-4 flex items-center justify-center gap-3 text-sm border-b border-black/10"
+      // bg-red-600 reads as a saturated alert red in both themes — the
+      // theme-aware --color-danger var was a brick red in light mode and
+      // a duller red in dark mode, neither of which felt urgent enough.
+      // border-black/10 in light mode + border-white/10 in dark gives a
+      // subtle hairline at the bottom edge in either theme.
+      className="fixed top-0 left-0 right-0 z-[70] h-10 bg-red-600 text-white px-4 flex items-center justify-center gap-3 text-sm border-b border-black/10 dark:border-white/10"
       role="status"
     >
-      <FiAlertOctagon className="h-4 w-4 flex-shrink-0" />
+      <FiEye className="h-4 w-4 flex-shrink-0" />
       <span className="truncate">
-        Impersonating as this user
-        {ctx.requester_email ? (
-          <>
-            {" "}— signed in via <strong className="font-medium">{ctx.requester_email}</strong>
-          </>
-        ) : null}
+        Viewing as this user — signed in by{" "}
+        <strong className="font-medium">{requesterDisplayName(ctx)}</strong>
         {" · "}
         {formatExpiresIn(ctx.expires_at)}
       </span>
