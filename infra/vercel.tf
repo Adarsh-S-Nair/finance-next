@@ -125,3 +125,13 @@ resource "vercel_project_domain" "admin_subdomain" {
   project_id = vercel_project.admin.id
   domain     = "admin.zervo.app"
 }
+
+# support.zervo.app serves the *finance* app from a separate origin so
+# impersonation sessions get their own localStorage scope. Same code,
+# different host. The admin "Enter session" button constructs URLs at
+# this host when the IMPERSONATION_HOST env var is set on the finance
+# project (recommended value: https://support.zervo.app).
+resource "vercel_project_domain" "finance_support" {
+  project_id = vercel_project.finance.id
+  domain     = "support.zervo.app"
+}

@@ -43,6 +43,18 @@ resource "vercel_dns_record" "admin_cname" {
   ttl    = 60
 }
 
+# Impersonation viewer — points at the same finance Vercel project as
+# www. Used so admins entering an impersonation session land on a host
+# with isolated localStorage; the admin's own www.zervo.app session
+# stays intact in other tabs. See IMPERSONATION_HOST in CLAUDE.md.
+resource "vercel_dns_record" "support_cname" {
+  domain = local.domain
+  name   = "support"
+  type   = "CNAME"
+  value  = "cname.vercel-dns.com"
+  ttl    = 60
+}
+
 # -----------------------------------------------------------------------------
 # Email — Namecheap's free email forwarding (contact@zervo.app, etc)
 # Kept as-is so existing forwarding continues to work after the nameserver
