@@ -47,14 +47,30 @@ export const GET = withAuth("impersonation:me", async (req: NextRequest, callerI
     return NextResponse.json({ impersonating: false });
   }
 
-  const [{ data: requester }, { data: requesterProfile }] = await Promise.all([
+  const [
+    { data: requester },
+    { data: requesterProfile },
+    { data: targetProfile },
+    { data: targetAuthUser },
+  ] = await Promise.all([
     supabaseAdmin.auth.admin.getUserById(session.requester_id),
     supabaseAdmin
       .from("user_profiles")
       .select("first_name, last_name")
       .eq("id", session.requester_id)
       .maybeSingle(),
+    supabaseAdmin
+      .from("user_profiles")
+      .select("first_name, last_name")
+      .eq("id", session.target_user_id)
+      .maybeSingle(),
+    supabaseAdmin.auth.admin.getUserById(session.target_user_id),
   ]);
+
+  const targetFullName = [targetProfile?.first_name, targetProfile?.last_name]
+    .filter((p): p is string => Boolean(p && p.trim()))
+    .join(" ")
+    .trim();
 
   return NextResponse.json({
     impersonating: true,
@@ -62,6 +78,8 @@ export const GET = withAuth("impersonation:me", async (req: NextRequest, callerI
     requester_email: requester?.user?.email ?? null,
     requester_first_name: requesterProfile?.first_name ?? null,
     requester_last_name: requesterProfile?.last_name ?? null,
+    target_name: targetFullName || null,
+    target_email: targetAuthUser?.user?.email ?? null,
     expires_at: grant.expires_at,
     started_at: session.started_at,
   });

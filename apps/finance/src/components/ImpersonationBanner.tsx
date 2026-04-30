@@ -10,6 +10,8 @@ type Context = {
   requester_email?: string | null;
   requester_first_name?: string | null;
   requester_last_name?: string | null;
+  target_name?: string | null;
+  target_email?: string | null;
   expires_at?: string | null;
   started_at?: string | null;
   session_id?: string;
@@ -20,6 +22,12 @@ function requesterDisplayName(ctx: Context): string {
   if (parts.length > 0) return parts.join(" ");
   if (ctx.requester_email) return ctx.requester_email.split("@")[0]!;
   return "an admin";
+}
+
+function targetDisplayName(ctx: Context): string {
+  if (ctx.target_name && ctx.target_name.trim()) return ctx.target_name;
+  if (ctx.target_email) return ctx.target_email;
+  return "this user";
 }
 
 function formatExpiresIn(iso: string | null | undefined): string {
@@ -116,7 +124,8 @@ export default function ImpersonationBanner() {
     >
       <FiEye className="h-4 w-4 flex-shrink-0" />
       <span className="truncate">
-        Viewing as this user — signed in by{" "}
+        Viewing as <strong className="font-medium">{targetDisplayName(ctx)}</strong>
+        {" "}— signed in by{" "}
         <strong className="font-medium">{requesterDisplayName(ctx)}</strong>
         {" · "}
         {formatExpiresIn(ctx.expires_at)}
