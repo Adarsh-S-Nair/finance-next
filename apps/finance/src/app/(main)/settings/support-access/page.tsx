@@ -15,7 +15,16 @@ type Grant = {
   reason: string | null;
   requester_id: string;
   requester_email: string | null;
+  requester_first_name: string | null;
+  requester_last_name: string | null;
 };
+
+function requesterDisplayName(g: Grant): string {
+  const parts = [g.requester_first_name, g.requester_last_name].filter(Boolean) as string[];
+  if (parts.length > 0) return parts.join(" ");
+  if (g.requester_email) return g.requester_email.split("@")[0]!;
+  return "Unknown admin";
+}
 
 function formatRelative(iso: string | null): string {
   if (!iso) return "—";
@@ -134,9 +143,12 @@ export default function SupportAccessPage() {
                 <li key={g.id} className="py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium text-[var(--color-fg)] truncate">
-                          {g.requester_email ?? "Unknown admin"}
+                          {requesterDisplayName(g)}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-muted)]/70 font-medium">
+                          Admin
                         </span>
                         <span
                           className={

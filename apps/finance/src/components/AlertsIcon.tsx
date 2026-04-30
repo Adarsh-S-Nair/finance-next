@@ -27,6 +27,17 @@ type PendingInvitation = {
   invited_by: InviterProfile | null;
 };
 
+type ImpersonationGrant = {
+  id: string;
+  status: string;
+  duration_seconds: number;
+  requested_at: string;
+  reason: string | null;
+  requester_email: string | null;
+  requester_first_name: string | null;
+  requester_last_name: string | null;
+};
+
 type Counts = {
   count: number;
   unknownAccountCount: number;
@@ -37,6 +48,20 @@ function inviterName(profile: InviterProfile | null) {
   if (!profile) return "Someone";
   const parts = [profile.first_name, profile.last_name].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : "Someone";
+}
+
+function requesterName(g: ImpersonationGrant): string {
+  const parts = [g.requester_first_name, g.requester_last_name].filter(Boolean) as string[];
+  if (parts.length > 0) return parts.join(" ");
+  if (g.requester_email) return g.requester_email.split("@")[0]!;
+  return "An admin";
+}
+
+function formatDuration(seconds: number): string | null {
+  if (seconds === 0) return null; // indefinite — caller drops the suffix
+  if (seconds >= 86_400) return `${seconds / 86_400}d`;
+  if (seconds >= 3_600) return `${Math.round(seconds / 3_600)}h`;
+  return `${Math.round(seconds / 60)}m`;
 }
 
 // Small red dot used to mark alert rows as unseen. Everything in the
@@ -59,6 +84,7 @@ export default function AlertsIcon() {
   const router = useRouter();
   const [counts, setCounts] = useState<Counts>({ count: 0, unknownAccountCount: 0, unmatchedTransferCount: 0 });
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
+  const [impersonationRequests, setImpersonationRequests] = useState<ImpersonationGrant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -66,7 +92,8 @@ export default function AlertsIcon() {
 
   // Badge + dropdown count excludes unmatched transfers on purpose —
   // those live in the dashboard Insights carousel now, not here.
-  const totalCount = counts.unknownAccountCount + invitations.length;
+  const totalCount =
+    counts.unknownAccountCount + invitations.length + impersonationRequests.length;
 
   const loadInvitations = useCallback(async () => {
     try {
@@ -79,6 +106,21 @@ export default function AlertsIcon() {
     }
   }, []);
 
+  const loadImpersonationRequests = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/account/impersonation");
+      if (!res.ok) return;
+      const data = await res.json();
+      const grants = (data.grants ?? []) as ImpersonationGrant[];
+      // Endpoint returns pending + active; the alerts tray only cares
+      // about pending (decisions to make). Active grants are managed
+      // via the settings page.
+      setImpersonationRequests(grants.filter((g) => g.status === "pending"));
+    } catch (err) {
+      console.error("[alerts] impersonation requests error", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!profile?.id) return;
     (async () => {
@@ -86,6 +128,7 @@ export default function AlertsIcon() {
         const [countRes] = await Promise.all([
           fetch("/api/plaid/transactions/unknown-count"),
           loadInvitations(),
+          loadImpersonationRequests(),
         ]);
         if (countRes.ok) {
           const data = await countRes.json();
@@ -97,7 +140,7 @@ export default function AlertsIcon() {
         setLoading(false);
       }
     })();
-  }, [profile?.id, loadInvitations]);
+  }, [profile?.id, loadInvitations, loadImpersonationRequests]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -152,6 +195,39 @@ export default function AlertsIcon() {
     }
   };
 
+  const decideImpersonation = async (
+    grant: ImpersonationGrant,
+    action: "approve" | "deny",
+  ) => {
+    try {
+      setActingId(grant.id);
+      const res = await authFetch(`/api/account/impersonation/${grant.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setToast({
+          title: action === "approve" ? "Couldn't approve" : "Couldn't deny",
+          description: data?.error,
+          variant: "error",
+        });
+        return;
+      }
+      setImpersonationRequests((prev) => prev.filter((g) => g.id !== grant.id));
+      if (action === "approve") {
+        setToast({
+          title: `Approved ${requesterName(grant)}`,
+          description: "They can now enter your account.",
+          variant: "success",
+        });
+      }
+    } finally {
+      setActingId(null);
+    }
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <motion.button
@@ -191,6 +267,55 @@ export default function AlertsIcon() {
             </div>
 
             <div className="max-h-[420px] overflow-y-auto pb-2">
+              {impersonationRequests.length > 0 && (
+                <div>
+                  {impersonationRequests.map((grant) => {
+                    const dur = formatDuration(grant.duration_seconds);
+                    return (
+                      <div key={grant.id} className="px-5 py-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="pt-1.5">
+                            <UnseenDot />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[var(--color-floating-fg)]">
+                              <span className="font-medium">{requesterName(grant)}</span>
+                              <span className="text-[var(--color-floating-muted)]"> (Admin)</span>
+                              {" requested "}
+                              {dur ? `${dur} of ` : "indefinite "}
+                              support access
+                            </p>
+                            {grant.reason && (
+                              <p className="mt-1 text-xs italic text-[var(--color-floating-muted)]">
+                                “{grant.reason}”
+                              </p>
+                            )}
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={actingId === grant.id}
+                                onClick={() => decideImpersonation(grant, "approve")}
+                                className="inline-flex items-center rounded-full bg-[var(--color-floating-fg)] px-3 py-1 text-xs font-medium text-[var(--color-floating-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={actingId === grant.id}
+                                onClick={() => decideImpersonation(grant, "deny")}
+                                className="text-xs text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors cursor-pointer"
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {invitations.length > 0 && (
                 <div>
                   {invitations.map((invite) => (
