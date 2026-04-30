@@ -9,3 +9,9 @@ export type {
 } from "./database";
 export { Constants } from "./database";
 export { createAdminClient } from "./admin";
+export {
+  encryptPlatformSecret,
+  decryptPlatformSecret,
+  isEncryptedPlatformSecret,
+  maskPlatformSecret,
+} from "./platformSecrets";

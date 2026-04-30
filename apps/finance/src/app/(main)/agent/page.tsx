@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FiSend } from "react-icons/fi";
-import { LuSparkles } from "react-icons/lu";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 
@@ -30,10 +29,10 @@ function extractText(content: unknown): string {
 }
 
 const STARTER_PROMPTS = [
-  "How should I think about budgeting?",
-  "What's a good emergency fund target?",
-  "Help me set a savings goal.",
-  "Explain dollar-cost averaging.",
+  "How was my spending this month?",
+  "Am I on track for my savings goals?",
+  "What's my biggest recurring expense?",
+  "Help me think through my budget.",
 ];
 
 function greeting(hour: number): string {
@@ -41,6 +40,15 @@ function greeting(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function formatNetWorth(value: number): string {
+  // Compact for large numbers ($1.2M, $147k), full for under $10k.
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 10_000) return `${sign}$${(abs / 1_000).toFixed(1)}k`;
+  return `${sign}$${abs.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 export default function AgentPage() {
@@ -54,15 +62,17 @@ export default function AgentPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Net worth — fetched in parallel with conversation, never blocks chat.
+  const [netWorth, setNetWorth] = useState<number | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Local-only IDs for optimistic messages (replaced by DB IDs on next load).
-  // Counter ref keeps the lint purity rule happy (no Date.now in handlers).
   const localIdRef = useRef(0);
 
-  // Initial load — pull the latest conversation + its messages.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Conversation load drives the loading spinner; net worth is
+      // best-effort and won't block.
       try {
         const res = await authFetch("/api/agent/conversation");
         if (!res.ok) throw new Error(`Conversation load failed (${res.status})`);
@@ -84,12 +94,25 @@ export default function AgentPage() {
         if (!cancelled) setLoading(false);
       }
     })();
+
+    (async () => {
+      try {
+        const res = await authFetch("/api/net-worth/current");
+        if (!res.ok) return;
+        const body = await res.json();
+        const value = typeof body?.netWorth === "number" ? body.netWorth : null;
+        if (!cancelled) setNetWorth(value);
+      } catch {
+        // Silent — the stat is decorative.
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Autoscroll to bottom on new messages.
+  // Autoscroll to bottom on new messages (only relevant in chat-mode layout).
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -150,9 +173,14 @@ export default function AgentPage() {
             continue;
           }
           if (typeof evt !== "object" || !evt) continue;
-          const e = evt as { type?: string; conversation_id?: string; text?: string; message?: string };
-          if (e.type === "meta" && e.conversation_id) {
-            const newId = e.conversation_id;
+          const ev = evt as {
+            type?: string;
+            conversation_id?: string;
+            text?: string;
+            message?: string;
+          };
+          if (ev.type === "meta" && ev.conversation_id) {
+            const newId = ev.conversation_id;
             setConversation((prev) =>
               prev
                 ? prev
@@ -163,13 +191,15 @@ export default function AgentPage() {
                     created_at: new Date().toISOString(),
                   },
             );
-          } else if (e.type === "delta" && typeof e.text === "string") {
-            const delta = e.text;
+          } else if (ev.type === "delta" && typeof ev.text === "string") {
+            const delta = ev.text;
             setMessages((prev) =>
-              prev.map((m) => (m.id === assistantMsgId ? { ...m, text: m.text + delta } : m)),
+              prev.map((m) =>
+                m.id === assistantMsgId ? { ...m, text: m.text + delta } : m,
+              ),
             );
-          } else if (e.type === "error") {
-            streamErr = e.message ?? "Stream error";
+          } else if (ev.type === "error") {
+            streamErr = ev.message ?? "Stream error";
           }
         }
       }
@@ -188,31 +218,20 @@ export default function AgentPage() {
     setTimeout(() => handleSubmit(null), 0);
   }
 
-  const showStarter = messages.length === 0 && !loading;
+  const hasMessages = messages.length > 0;
 
-  // Bypass PageContainer — chat needs full available height with the input
-  // docked at the bottom. Negative top margin counters AppShell's spacing
-  // above the children slot so we sit flush with the topbar.
   return (
     <div
       className="flex flex-col w-full"
       style={{
-        // 64px = topbar (min-h-16). dvh handles mobile viewport changes.
         height: "calc(100dvh - 64px - var(--impersonation-banner-h, 0px))",
       }}
     >
-      {/* Scroll area */}
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto"
-      >
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          {loading ? (
-            <div className="text-center text-sm text-[var(--color-muted)] py-16">Loading…</div>
-          ) : showStarter ? (
-            <GreetingBlock firstName={firstName} onStarter={sendStarter} />
-          ) : (
-            <div className="space-y-4">
+      {hasMessages ? (
+        <>
+          {/* Chat mode: messages scroll, input docked at bottom */}
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+            <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
               {messages.map((m) => (
                 <MessageBubble key={m.id} role={m.role} text={m.text} />
               ))}
@@ -224,79 +243,132 @@ export default function AgentPage() {
                   </div>
                 )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Input — always rendered, disabled when no API key */}
-      <div className="flex-shrink-0 border-t border-[var(--color-border)]/50 bg-[var(--color-content-bg)]">
-        <div className="max-w-2xl mx-auto px-4 py-3">
-          {error && (
-            <div className="mb-2 px-3 py-2 rounded-md bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-xs text-[var(--color-danger)]">
-              {error}
+          </div>
+          <div className="flex-shrink-0 border-t border-[var(--color-border)]/50 bg-[var(--color-content-bg)]">
+            <div className="max-w-2xl mx-auto px-4 py-3">
+              {error && <ErrorBanner message={error} />}
+              <ChatInputForm
+                input={input}
+                setInput={setInput}
+                onSubmit={handleSubmit}
+                disabled={sending || loading}
+                canSend={!sending && !loading && Boolean(input.trim())}
+              />
             </div>
-          )}
-          <form onSubmit={handleSubmit} className="flex items-end gap-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(null);
-                }
-              }}
-              disabled={sending || loading}
-              placeholder="Ask anything…"
-              rows={1}
-              className="flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60 disabled:cursor-not-allowed"
-            />
-            <button
-              type="submit"
-              disabled={sending || loading || !input.trim()}
-              className="flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
-              aria-label="Send"
-            >
-              <FiSend className="h-4 w-4" />
-            </button>
-          </form>
+          </div>
+        </>
+      ) : (
+        // Empty mode: input centered vertically, suggestions listed beneath
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="max-w-xl w-full">
+            {loading ? (
+              <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
+            ) : (
+              <>
+                {netWorth !== null && netWorth !== 0 && (
+                  <div className="text-center mb-10">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)] mb-1">
+                      Net worth
+                    </div>
+                    <div className="text-3xl font-medium text-[var(--color-fg)] tabular-nums">
+                      {formatNetWorth(netWorth)}
+                    </div>
+                  </div>
+                )}
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] text-center mb-6">
+                  {greeting(new Date().getHours())}
+                  {firstName ? `, ${firstName}` : ""}
+                </h1>
+                {error && <ErrorBanner message={error} />}
+                <ChatInputForm
+                  input={input}
+                  setInput={setInput}
+                  onSubmit={handleSubmit}
+                  disabled={sending || loading}
+                  canSend={!sending && !loading && Boolean(input.trim())}
+                  size="lg"
+                  autoFocus
+                />
+                <div className="mt-6 flex flex-col items-center gap-2">
+                  {STARTER_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => sendStarter(p)}
+                      className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function GreetingBlock({
-  firstName,
-  onStarter,
+function ChatInputForm({
+  input,
+  setInput,
+  onSubmit,
+  disabled,
+  canSend,
+  size = "md",
+  autoFocus = false,
 }: {
-  firstName: string | null;
-  onStarter: (prompt: string) => void;
+  input: string;
+  setInput: (v: string) => void;
+  onSubmit: (e: FormEvent | null) => void;
+  disabled: boolean;
+  canSend: boolean;
+  size?: "md" | "lg";
+  autoFocus?: boolean;
 }) {
+  const isLg = size === "lg";
   return (
-    <div className="flex flex-col items-center text-center py-10">
-      <div className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] mb-4">
-        <LuSparkles className="h-5 w-5" />
-      </div>
-      <h1 className="text-lg font-medium text-[var(--color-fg)] mb-1">
-        {greeting(new Date().getHours())}
-        {firstName ? `, ${firstName}` : ""}
-      </h1>
-      <p className="text-sm text-[var(--color-muted)] mb-6">
-        Ask anything about your money, or try one of these:
-      </p>
-      <div className="flex flex-wrap gap-2 justify-center max-w-md">
-        {STARTER_PROMPTS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => onStarter(p)}
-            className="text-xs px-3 py-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-alt)] text-[var(--color-fg)] transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+    <form onSubmit={onSubmit} className="flex items-end gap-2">
+      <textarea
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSubmit(null);
+          }
+        }}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        placeholder="Ask anything…"
+        rows={1}
+        className={
+          isLg
+            ? "flex-1 min-w-0 resize-none px-5 py-4 max-h-40 text-base rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)]/60 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60"
+            : "flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60"
+        }
+      />
+      <button
+        type="submit"
+        disabled={!canSend}
+        className={
+          isLg
+            ? "flex-shrink-0 inline-flex items-center justify-center h-12 w-12 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
+            : "flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
+        }
+        aria-label="Send"
+      >
+        <FiSend className={isLg ? "h-5 w-5" : "h-4 w-4"} />
+      </button>
+    </form>
+  );
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="mb-2 px-3 py-2 rounded-md bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-xs text-[var(--color-danger)]">
+      {message}
     </div>
   );
 }

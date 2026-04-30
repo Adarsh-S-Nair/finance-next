@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { FiActivity, FiCreditCard, FiHome, FiUsers } from "react-icons/fi";
+import { FiActivity, FiCpu, FiCreditCard, FiHome, FiUsers } from "react-icons/fi";
 import { SidebarItem, SidebarSection } from "@zervo/ui";
 import BrandMark from "./BrandMark";
 
@@ -10,6 +10,7 @@ const NAV = {
   items: [
     { href: "/", label: "Overview", icon: FiHome },
     { href: "/users", label: "Users", icon: FiUsers },
+    { href: "/settings/agent", label: "Agent", icon: FiCpu },
     { href: "#", label: "Subscriptions", icon: FiCreditCard, disabled: true },
     { href: "#", label: "Audit log", icon: FiActivity, disabled: true },
   ],

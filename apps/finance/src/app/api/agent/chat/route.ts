@@ -3,11 +3,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import {
-  DEFAULT_AGENT_MODEL,
   MAX_PRIOR_MESSAGES,
   MAX_RESPONSE_TOKENS,
   SYSTEM_PROMPT,
 } from '../../../../lib/agent/config';
+import { resolveAgentConfig } from '../../../../lib/agent/platformConfig';
 import type { Json } from '../../../../types/database';
 
 /**
@@ -49,20 +49,24 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     return Response.json({ error: 'Message is required' }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.error('[agent:chat] ANTHROPIC_API_KEY is not set');
+  let agentConfig: Awaited<ReturnType<typeof resolveAgentConfig>>;
+  try {
+    agentConfig = await resolveAgentConfig();
+  } catch (err) {
+    console.error('[agent:chat] config resolution failed', err);
     return Response.json(
-      { error: 'Agent is not configured on the server.' },
+      { error: err instanceof Error ? err.message : 'Agent is not configured on the server.' },
       { status: 500 },
     );
   }
+  const apiKey = agentConfig.apiKey;
 
-  // 1. Load profile (custom instructions + model preference). Auto-create
-  // a row on first use so future per-user settings have somewhere to live.
+  // 1. Load profile (custom instructions only — model now comes from
+  // platform_config). Auto-create a row on first use so future per-user
+  // settings have somewhere to live.
   const { data: profile } = await supabaseAdmin
     .from('user_agent_profile')
-    .select('ai_model, custom_instructions')
+    .select('custom_instructions')
     .eq('user_id', userId)
     .maybeSingle();
   if (!profile) {
@@ -128,7 +132,7 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     ? `${SYSTEM_PROMPT}\n\nUser's custom instructions:\n${profile.custom_instructions}`
     : SYSTEM_PROMPT;
 
-  const model = profile?.ai_model || DEFAULT_AGENT_MODEL;
+  const model = agentConfig.model;
 
   const client = new Anthropic({ apiKey });
 

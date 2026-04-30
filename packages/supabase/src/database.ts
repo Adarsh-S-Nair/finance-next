@@ -673,6 +673,30 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_config: {
+        Row: {
+          is_secret: boolean
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          is_secret?: boolean
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          is_secret?: boolean
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       recurring_streams: {
         Row: {
           account_id: string
