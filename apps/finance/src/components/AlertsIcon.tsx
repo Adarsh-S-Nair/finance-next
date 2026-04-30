@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { FiBell, FiX } from "react-icons/fi";
+import { createPortal } from "react-dom";
+import { FiBell, FiChevronLeft } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { useHouseholds } from "./providers/HouseholdsProvider";
-import { motion, AnimatePresence, Variants } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../lib/api/fetch";
@@ -89,7 +90,11 @@ export default function AlertsIcon() {
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevCountRef = useRef<number>(0);
+  const bellControls = useAnimation();
 
   // Badge + dropdown count excludes unmatched transfers on purpose —
   // those live in the dashboard Insights carousel now, not here.
@@ -144,6 +149,18 @@ export default function AlertsIcon() {
   }, [profile?.id, loadInvitations, loadImpersonationRequests]);
 
   useEffect(() => {
+    setMounted(true);
+    const check = () => setIsMobile(window.matchMedia("(max-width: 639px)").matches);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Click-outside dismissal is for the desktop floating dropdown only.
+  // On mobile the overlay is portaled to body and dismissed via its own
+  // backdrop / chevron / Esc.
+  useEffect(() => {
+    if (isMobile) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -151,7 +168,46 @@ export default function AlertsIcon() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [isMobile]);
+
+  // Esc dismisses the mobile overlay (the only modal-style surface here).
+  useEffect(() => {
+    if (!isOpen || !isMobile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, isMobile]);
+
+  // Lock body scroll while the mobile overlay is up so the underlying
+  // page doesn't scroll under the user's finger.
+  useEffect(() => {
+    if (!isOpen || !isMobile) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [isOpen, isMobile]);
+
+  // Jiggle the bell whenever the unread count INCREASES — a passive
+  // realtime update should announce itself, not just sit there. Skip on
+  // first paint (initial fetch fills the count) by gating on `loading`,
+  // and skip when the count goes down (user dismissed/acted on something).
+  useEffect(() => {
+    if (loading) {
+      prevCountRef.current = totalCount;
+      return;
+    }
+    if (totalCount > prevCountRef.current) {
+      bellControls.start({
+        rotate: [0, -18, 18, -14, 14, -8, 8, 0],
+        transition: { duration: 0.7, ease: "easeInOut" },
+      });
+    }
+    prevCountRef.current = totalCount;
+  }, [totalCount, loading, bellControls]);
 
   // Live updates — when an admin requests impersonation access, or
   // someone invites this user to a household, the relevant tray section
@@ -194,12 +250,6 @@ export default function AlertsIcon() {
   }, [profile?.id, loadImpersonationRequests, loadInvitations]);
 
   if (loading) return null;
-
-  const jiggleVariants: Variants = {
-    hover: { rotate: [0, -10, 10, -10, 10, 0], transition: { duration: 0.5, ease: "easeInOut" } },
-    click: { rotate: [0, -20, 20, -20, 20, 0], scale: [1, 1.2, 1], transition: { duration: 0.4, ease: "easeInOut" } },
-    idle: { rotate: 0, scale: 1 },
-  };
 
   const acceptInvite = async (invite: PendingInvitation) => {
     if (!invite.household) return;
@@ -269,15 +319,164 @@ export default function AlertsIcon() {
     }
   };
 
+  // The notification list — used in both the desktop floating dropdown
+  // and the mobile fullscreen overlay so the rendering stays in one
+  // place. `floating` controls the typography color tokens because the
+  // desktop dropdown sits on a dark floating surface while the mobile
+  // overlay is full-page on the regular content surface.
+  const renderRows = (floating: boolean) => {
+    const fg = floating ? "var(--color-floating-fg)" : "var(--color-fg)";
+    const muted = floating ? "var(--color-floating-muted)" : "var(--color-muted)";
+    const hoverBg = floating
+      ? "hover:bg-[var(--color-floating-fg)]/[0.04]"
+      : "hover:bg-[var(--color-fg)]/[0.04]";
+    return (
+      <>
+        {impersonationRequests.length > 0 &&
+          impersonationRequests.map((grant) => {
+            const dur = formatDuration(grant.duration_seconds);
+            return (
+              <div key={grant.id} className="px-5 py-3.5">
+                <div className="flex items-start gap-2.5">
+                  <span className="pt-1.5">
+                    <UnseenDot />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm" style={{ color: fg }}>
+                      <span className="font-medium">{requesterName(grant)}</span>
+                      <span style={{ color: muted }}> (Admin)</span>
+                      {" requested "}
+                      {dur ? `${dur} of ` : "indefinite "}
+                      support access
+                    </p>
+                    {grant.reason && (
+                      <p
+                        className="mt-1 text-xs italic"
+                        style={{ color: muted }}
+                      >
+                        “{grant.reason}”
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={actingId === grant.id}
+                        onClick={() => decideImpersonation(grant, "approve")}
+                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                        style={{
+                          backgroundColor: fg,
+                          color: floating
+                            ? "var(--color-floating-bg)"
+                            : "var(--color-bg)",
+                        }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actingId === grant.id}
+                        onClick={() => decideImpersonation(grant, "deny")}
+                        className="text-xs hover:underline disabled:opacity-50 cursor-pointer transition-colors"
+                        style={{ color: muted }}
+                      >
+                        Deny
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+        {invitations.length > 0 &&
+          invitations.map((invite) => (
+            <div key={invite.id} className="px-5 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <span className="pt-1.5">
+                  <UnseenDot />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm" style={{ color: fg }}>
+                    <span className="font-medium">{inviterName(invite.invited_by)}</span>{" "}
+                    invited you to{" "}
+                    <span className="font-medium">
+                      {invite.household?.name ?? "a household"}
+                    </span>
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={actingId === invite.id}
+                      onClick={() => acceptInvite(invite)}
+                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                      style={{
+                        backgroundColor: fg,
+                        color: floating
+                          ? "var(--color-floating-bg)"
+                          : "var(--color-bg)",
+                      }}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actingId === invite.id}
+                      onClick={() => declineInvite(invite)}
+                      className="text-xs hover:underline disabled:opacity-50 cursor-pointer transition-colors"
+                      style={{ color: muted }}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+        {counts.unknownAccountCount > 0 && (
+          <Link
+            href="/transactions?status=attention"
+            onClick={() => setIsOpen(false)}
+            className={`flex items-center gap-2.5 px-5 py-3.5 transition-colors ${hoverBg}`}
+          >
+            <UnseenDot />
+            <div className="flex-1 min-w-0 mr-3">
+              <p className="text-sm font-medium truncate" style={{ color: fg }}>
+                Unknown accounts
+              </p>
+              <p
+                className="text-xs mt-0.5 truncate"
+                style={{ color: muted }}
+              >
+                {counts.unknownAccountCount} transaction
+                {counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
+              </p>
+            </div>
+            <span className="text-base leading-none" style={{ color: muted }}>
+              &#8250;
+            </span>
+          </Link>
+        )}
+
+        {totalCount === 0 && (
+          <div className="px-5 py-12 text-center">
+            <p className="text-sm" style={{ color: muted }}>
+              You&apos;re all caught up
+            </p>
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <motion.button
         className="relative p-2 rounded-full hover:bg-[var(--color-surface-alt)] transition-colors duration-200 text-[var(--color-fg)] outline-none cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
-        whileHover="hover"
-        whileTap="click"
-        animate={isOpen ? "click" : "idle"}
-        variants={jiggleVariants}
+        whileHover={{ rotate: [0, -10, 10, -10, 10, 0], transition: { duration: 0.5 } }}
+        whileTap={{ rotate: [0, -20, 20, -20, 20, 0], scale: [1, 1.2, 1], transition: { duration: 0.4 } }}
+        animate={bellControls}
         aria-label="Notifications"
       >
         <FiBell className="w-5 h-5" />
@@ -295,165 +494,61 @@ export default function AlertsIcon() {
         </AnimatePresence>
       </motion.button>
 
+      {/* Desktop floating dropdown — anchored under the bell icon. */}
       <AnimatePresence>
-        {isOpen && (
-          <>
-            {/* Mobile backdrop. Tapping anywhere outside the sheet closes
-                it. The desktop dropdown's outside-click handler in the
-                effect above covers the >= sm case, so this is only here
-                to dim the page on small screens where the panel takes
-                over the full bottom of the viewport. */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              onClick={() => setIsOpen(false)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] sm:hidden"
-              aria-hidden
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 1 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 1 }}
-              transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-              className={`fixed inset-x-0 bottom-0 z-50 max-h-[85vh] w-full rounded-t-2xl flex flex-col sm:absolute sm:bottom-auto sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80 sm:max-h-none sm:rounded-2xl ${TOOLTIP_SURFACE_CLASSES}`}
-            >
-              {/* Drag handle on mobile so the sheet visually reads as
-                  dismissable; on sm+ it's hidden (the dropdown floats). */}
-              <div className="pt-2 pb-1 flex justify-center sm:hidden">
-                <span className="block h-1 w-9 rounded-full bg-[var(--color-floating-muted)]/40" />
-              </div>
-              <div className="px-5 pt-3 sm:pt-4 pb-2 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="sm:hidden p-1 rounded-full text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors"
-                  aria-label="Close notifications"
-                >
-                  <FiX className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-2 sm:max-h-[420px]">
-              {impersonationRequests.length > 0 && (
-                <div>
-                  {impersonationRequests.map((grant) => {
-                    const dur = formatDuration(grant.duration_seconds);
-                    return (
-                      <div key={grant.id} className="px-5 py-3">
-                        <div className="flex items-start gap-2.5">
-                          <span className="pt-1.5">
-                            <UnseenDot />
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-[var(--color-floating-fg)]">
-                              <span className="font-medium">{requesterName(grant)}</span>
-                              <span className="text-[var(--color-floating-muted)]"> (Admin)</span>
-                              {" requested "}
-                              {dur ? `${dur} of ` : "indefinite "}
-                              support access
-                            </p>
-                            {grant.reason && (
-                              <p className="mt-1 text-xs italic text-[var(--color-floating-muted)]">
-                                “{grant.reason}”
-                              </p>
-                            )}
-                            <div className="mt-2 flex items-center gap-2">
-                              <button
-                                type="button"
-                                disabled={actingId === grant.id}
-                                onClick={() => decideImpersonation(grant, "approve")}
-                                className="inline-flex items-center rounded-full bg-[var(--color-floating-fg)] px-3 py-1 text-xs font-medium text-[var(--color-floating-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                type="button"
-                                disabled={actingId === grant.id}
-                                onClick={() => decideImpersonation(grant, "deny")}
-                                className="text-xs text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors cursor-pointer"
-                              >
-                                Deny
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {invitations.length > 0 && (
-                <div>
-                  {invitations.map((invite) => (
-                    <div key={invite.id} className="px-5 py-3">
-                      <div className="flex items-start gap-2.5">
-                        <span className="pt-1.5">
-                          <UnseenDot />
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[var(--color-floating-fg)]">
-                            <span className="font-medium">{inviterName(invite.invited_by)}</span>{" "}
-                            invited you to{" "}
-                            <span className="font-medium">
-                              {invite.household?.name ?? "a household"}
-                            </span>
-                          </p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              type="button"
-                              disabled={actingId === invite.id}
-                              onClick={() => acceptInvite(invite)}
-                              className="inline-flex items-center rounded-full bg-[var(--color-floating-fg)] px-3 py-1 text-xs font-medium text-[var(--color-floating-bg)] transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              disabled={actingId === invite.id}
-                              onClick={() => declineInvite(invite)}
-                              className="text-xs text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors cursor-pointer"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {counts.unknownAccountCount > 0 && (
-                <Link
-                  href="/transactions?status=attention"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-5 py-3 hover:bg-[var(--color-floating-fg)]/[0.04] transition-colors"
-                >
-                  <UnseenDot />
-                  <div className="flex-1 min-w-0 mr-3">
-                    <p className="text-sm font-medium text-[var(--color-floating-fg)] truncate">Unknown accounts</p>
-                    <p className="text-xs text-[var(--color-floating-muted)] mt-0.5 truncate">
-                      {counts.unknownAccountCount} transaction{counts.unknownAccountCount !== 1 ? "s" : ""} from unknown accounts
-                    </p>
-                  </div>
-                  <span className="text-[var(--color-floating-muted)] text-base leading-none">&#8250;</span>
-                </Link>
-              )}
-
-              {totalCount === 0 && (
-                <div className="px-5 py-10 text-center">
-                  <p className="text-sm text-[var(--color-floating-muted)]">You&apos;re all caught up</p>
-                </div>
-              )}
-              </div>
-            </motion.div>
-          </>
+        {isOpen && !isMobile && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.14, ease: [0.25, 0.1, 0.25, 1] }}
+            className={`absolute top-full right-0 mt-2 w-80 z-50 overflow-hidden ${TOOLTIP_SURFACE_CLASSES}`}
+          >
+            <div className="px-5 pt-4 pb-2">
+              <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto pb-2">{renderRows(true)}</div>
+          </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile fullscreen overlay — portaled to body so it escapes any
+          ancestor stacking context (transformed wrappers, sticky headers,
+          etc.) and renders above the MobileNavBar regardless. Slides in
+          from the right like a page transition. Chevron-left closes. */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {isOpen && isMobile && (
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                className="fixed inset-0 z-[80] bg-[var(--color-content-bg)] flex flex-col"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Notifications"
+              >
+                <div className="sticky top-0 z-10 flex items-center gap-2 px-3 pt-[max(env(safe-area-inset-top),0.5rem)] pb-3 bg-[var(--color-content-bg)] border-b border-[var(--color-fg)]/[0.06]">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="p-2 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                    aria-label="Back"
+                  >
+                    <FiChevronLeft className="h-5 w-5" />
+                  </button>
+                  <h2 className="text-base font-medium text-[var(--color-fg)]">Notifications</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto pb-[max(env(safe-area-inset-bottom),1rem)]">
+                  {renderRows(false)}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 }
