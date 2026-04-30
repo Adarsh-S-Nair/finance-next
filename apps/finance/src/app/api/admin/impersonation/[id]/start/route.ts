@@ -5,15 +5,24 @@ import { supabaseAdmin } from "../../../../../../lib/supabase/admin";
 
 /**
  * Admin clicks "Enter session" → finance creates an impersonation_sessions
- * row (intent token, consumed_at = null) and generates a one-time Supabase
- * magic link for the target user. The admin's browser opens the action_link
- * in a new tab; Supabase verifies + mints a session as the target, then
- * redirects through `/auth/callback?next=/impersonation/begin?session=<id>`
- * which sets the impersonator cookie and lands on the dashboard.
+ * row (intent token, consumed_at = null) and generates a one-time
+ * verifyOtp token_hash for the target user. The admin's browser opens
+ * /impersonation/begin?token_hash=…&session=… in a new tab; the begin
+ * page calls supabase.auth.verifyOtp to mint a real client-side session
+ * as the target, then POSTs /api/impersonation/begin to set the
+ * impersonator cookie, and lands on /dashboard.
  *
- * The session_id is the row's uuid, which is hard to guess and only valid
- * once (we set consumed_at on /api/impersonation/begin so a leaked URL
- * can't be replayed).
+ * Why verifyOtp instead of action_link + auth callback?
+ *   The finance Supabase client is configured for PKCE (flowType: 'pkce').
+ *   PKCE requires a client-stored verifier from the moment the auth flow
+ *   started — admin-generated magic links have no such verifier, so the
+ *   /auth/callback exchangeCodeForSession call silently fails and the
+ *   admin's existing session leaks through. verifyOtp(token_hash) is the
+ *   non-PKCE branch and works with admin-issued tokens.
+ *
+ * The session_id is the row's uuid, which is hard to guess and only
+ * valid once (consumed_at is set on /api/impersonation/begin so a
+ * leaked URL can't be replayed).
  */
 export const POST = withAuth<{ id: string }>(
   "admin:impersonation:start",
@@ -81,21 +90,14 @@ export const POST = withAuth<{ id: string }>(
       return NextResponse.json({ error: "Could not start session" }, { status: 500 });
     }
 
-    // The host the admin's browser landed on — used so dev can hit
-    // localhost and prod can hit www.zervo.app without env juggling.
-    const origin = req.headers.get("origin") || `https://${req.headers.get("host")}`;
-    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-      `/impersonation/begin?session=${session.id}`,
-    )}`;
-
     const { data: linkData, error: linkErr } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
         email: targetEmail,
-        options: { redirectTo },
       });
 
-    if (linkErr || !linkData?.properties?.action_link) {
+    const tokenHash = linkData?.properties?.hashed_token;
+    if (linkErr || !tokenHash) {
       console.error("[admin:impersonation:start] generateLink failed", linkErr);
       // Drop the dangling session row so it doesn't appear in audit as a
       // mystery never-consumed entry.
@@ -103,9 +105,19 @@ export const POST = withAuth<{ id: string }>(
       return NextResponse.json({ error: "Could not generate magic link" }, { status: 500 });
     }
 
+    // Construct the begin URL ourselves rather than using Supabase's
+    // action_link — we want the browser to land on /impersonation/begin
+    // directly with the token_hash so the page can call verifyOtp,
+    // which works without a PKCE verifier (admin-issued tokens don't
+    // have one).
+    const origin = req.headers.get("origin") || `https://${req.headers.get("host")}`;
+    const beginUrl =
+      `${origin}/impersonation/begin?session=${encodeURIComponent(session.id)}` +
+      `&token_hash=${encodeURIComponent(tokenHash)}`;
+
     return NextResponse.json({
       session_id: session.id,
-      action_link: linkData.properties.action_link,
+      begin_url: beginUrl,
     });
   },
 );

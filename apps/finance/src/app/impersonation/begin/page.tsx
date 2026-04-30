@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { authFetch } from "../../../lib/api/fetch";
+import { supabase } from "../../../lib/supabase/client";
 
 function BeginHandler() {
   const router = useRouter();
@@ -15,24 +15,49 @@ function BeginHandler() {
     attempted.current = true;
 
     const sessionId = searchParams.get("session");
-    if (!sessionId) {
+    const tokenHash = searchParams.get("token_hash");
+    if (!sessionId || !tokenHash) {
       router.replace("/dashboard");
       return;
     }
 
-    authFetch(`/api/impersonation/begin?session=${encodeURIComponent(sessionId)}`, {
-      method: "POST",
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error || `Begin failed (${res.status})`);
-        }
-        router.replace("/dashboard");
-      })
-      .catch((e) => {
-        setError(e?.message || "Could not start session");
+    (async () => {
+      // 1) Sign in as the target user using the admin-issued token.
+      //    verifyOtp is the non-PKCE branch — it doesn't need a
+      //    client-stored verifier, which is exactly why we use it
+      //    here (admin.generateLink doesn't generate one).
+      const { data: otpData, error: otpErr } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "magiclink",
       });
+      if (otpErr || !otpData?.session?.access_token) {
+        throw new Error(otpErr?.message || "Could not verify magic token");
+      }
+      const accessToken = otpData.session.access_token;
+
+      // 2) Mark the impersonation_sessions row consumed and have the
+      //    server set the httpOnly impersonator cookie on this response.
+      //    Pass the bearer explicitly so we don't race against the
+      //    auth-token cache picking up the new session.
+      const res = await fetch(
+        `/api/impersonation/begin?session=${encodeURIComponent(sessionId)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `Begin failed (${res.status})`);
+      }
+
+      // Hard navigation, not router.replace — we want a fresh page
+      // load so the AppShell + UserProvider remount with the target
+      // user's session in localStorage.
+      window.location.replace("/dashboard");
+    })().catch((e) => {
+      setError(e?.message || "Could not start session");
+    });
   }, [router, searchParams]);
 
   return (

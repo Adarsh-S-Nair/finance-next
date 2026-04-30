@@ -199,11 +199,13 @@ export default function UserDrawer({
       );
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error || "Could not start session");
-      const link = body?.action_link as string | undefined;
-      if (!link) throw new Error("No magic link returned");
+      const link = body?.begin_url as string | undefined;
+      if (!link) throw new Error("No begin URL returned");
       // Open in a new tab so the admin app stays signed in as me. The
-      // new tab follows the magic link, mints a session as the target,
-      // and lands on /dashboard with the impersonation banner showing.
+      // new tab calls verifyOtp client-side (which works with admin-
+      // issued tokens — no PKCE verifier needed), sets the impersonator
+      // cookie via /api/impersonation/begin, and lands on /dashboard
+      // with the red banner showing.
       window.open(link, "_blank", "noopener,noreferrer");
     } catch (e: unknown) {
       const err = e as { message?: string };
