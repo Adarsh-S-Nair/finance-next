@@ -106,12 +106,12 @@ export default function ImpersonationBanner() {
 
   return (
     <div
-      // bg-red-600 reads as a saturated alert red in both themes — the
-      // theme-aware --color-danger var was a brick red in light mode and
-      // a duller red in dark mode, neither of which felt urgent enough.
-      // border-black/10 in light mode + border-white/10 in dark gives a
-      // subtle hairline at the bottom edge in either theme.
-      className="fixed top-0 left-0 right-0 z-[70] h-10 bg-red-600 text-white px-4 flex items-center justify-center gap-3 text-sm border-b border-black/10 dark:border-white/10"
+      // bg-red-800 — darker + less saturated than red-600. Reads as a
+      // serious alert without the screaming-vibrant feel; works against
+      // both light and dark page backgrounds. border-black/10 in light
+      // mode + border-white/10 in dark gives a subtle hairline at the
+      // bottom edge in either theme.
+      className="fixed top-0 left-0 right-0 z-[70] h-10 bg-red-800 text-white px-4 flex items-center justify-center gap-3 text-sm border-b border-black/10 dark:border-white/10"
       role="status"
     >
       <FiEye className="h-4 w-4 flex-shrink-0" />
