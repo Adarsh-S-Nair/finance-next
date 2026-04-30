@@ -2,7 +2,6 @@ import { type NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { decryptAgentApiKey } from '../../../../lib/crypto/agentApiKey';
 import {
   DEFAULT_AGENT_MODEL,
   MAX_PRIOR_MESSAGES,
@@ -14,14 +13,12 @@ import type { Json } from '../../../../types/database';
 /**
  * Chat turn endpoint.
  *
- * Body: { message: string, conversation_id?: string | null }
+ * Uses the platform-wide ANTHROPIC_API_KEY env var — every authed user can
+ * chat with the agent without configuring anything. We previously had a
+ * BYOK design and the `ai_api_key_encrypted` column still exists on
+ * user_agent_profile for that future-flexibility, but it is unused.
  *
- * Behaviour:
- *   1. Resolve or create the user's conversation row.
- *   2. Persist the user's message.
- *   3. Load prior messages (capped at MAX_PRIOR_MESSAGES for cost control).
- *   4. Stream the assistant response from Anthropic via SSE.
- *   5. Persist the final assistant message + bump conversation timestamp.
+ * Body: { message: string, conversation_id?: string | null }
  *
  * SSE events:
  *   data: { "type": "meta", "conversation_id": "..." }      (first event)
@@ -52,26 +49,26 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     return Response.json({ error: 'Message is required' }, { status: 400 });
   }
 
-  // 1. Resolve API key.
-  const { data: profile } = await supabaseAdmin
-    .from('user_agent_profile')
-    .select('ai_api_key_encrypted, ai_model, custom_instructions')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (!profile?.ai_api_key_encrypted) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error('[agent:chat] ANTHROPIC_API_KEY is not set');
     return Response.json(
-      { error: 'No API key set. Add one in Settings → Agent.' },
-      { status: 400 },
+      { error: 'Agent is not configured on the server.' },
+      { status: 500 },
     );
   }
 
-  let apiKey: string;
-  try {
-    apiKey = decryptAgentApiKey(profile.ai_api_key_encrypted);
-  } catch (err) {
-    console.error('[agent:chat] failed to decrypt key', err);
-    return Response.json({ error: 'Stored API key is invalid. Re-save it.' }, { status: 500 });
+  // 1. Load profile (custom instructions + model preference). Auto-create
+  // a row on first use so future per-user settings have somewhere to live.
+  const { data: profile } = await supabaseAdmin
+    .from('user_agent_profile')
+    .select('ai_model, custom_instructions')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!profile) {
+    await supabaseAdmin
+      .from('user_agent_profile')
+      .upsert({ user_id: userId }, { onConflict: 'user_id' });
   }
 
   // 2. Resolve or create conversation.
@@ -125,14 +122,13 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     }))
     .filter((m) => m.content.length > 0);
 
-  // Drop oldest messages beyond the cap, but always keep the latest pair.
   const trimmed = priorMessages.slice(-MAX_PRIOR_MESSAGES);
 
-  const systemPrompt = profile.custom_instructions
+  const systemPrompt = profile?.custom_instructions
     ? `${SYSTEM_PROMPT}\n\nUser's custom instructions:\n${profile.custom_instructions}`
     : SYSTEM_PROMPT;
 
-  const model = profile.ai_model || DEFAULT_AGENT_MODEL;
+  const model = profile?.ai_model || DEFAULT_AGENT_MODEL;
 
   const client = new Anthropic({ apiKey });
 

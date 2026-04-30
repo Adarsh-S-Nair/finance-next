@@ -99,6 +99,11 @@ Required in `apps/finance/.env.local`:
 - `FINNHUB_API_KEY` - Ticker metadata lookups (name, sector, domain)
 - `STRIPE_SECRET_KEY` - Stripe API key (server-side only)
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+- `ANTHROPIC_API_KEY` - Powers the personal AI agent at `/agent`. One
+  platform-wide key shared across all users; each chat turn costs ~$0.01-
+  0.02 against this account. Get one at
+  https://console.anthropic.com/settings/keys. The chat route returns a
+  500 with a clear error if this is missing.
 - `PLAID_TOKEN_ENCRYPTION_KEY` - AES-256 key used to encrypt
   `plaid_items.access_token` / `accounts.access_token` at rest. 64 hex chars
   (preferred) or base64 that decodes to 32 bytes. Generate with:

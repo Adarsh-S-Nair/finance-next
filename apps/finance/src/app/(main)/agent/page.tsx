@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { FiSend } from "react-icons/fi";
 import { LuSparkles } from "react-icons/lu";
-import { Button } from "@zervo/ui";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 
@@ -49,7 +47,6 @@ export default function AgentPage() {
   const userCtx = useUser() as { profile?: { first_name?: string | null } | null };
   const firstName = userCtx?.profile?.first_name ?? null;
 
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,21 +59,15 @@ export default function AgentPage() {
   // Counter ref keeps the lint purity rule happy (no Date.now in handlers).
   const localIdRef = useRef(0);
 
-  // Initial load — profile + conversation in parallel.
+  // Initial load — pull the latest conversation + its messages.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [profileRes, conversationRes] = await Promise.all([
-          authFetch("/api/agent/profile"),
-          authFetch("/api/agent/conversation"),
-        ]);
-        if (!profileRes.ok) throw new Error(`Profile load failed (${profileRes.status})`);
-        if (!conversationRes.ok) throw new Error(`Conversation load failed (${conversationRes.status})`);
-        const profile = await profileRes.json();
-        const conv = await conversationRes.json();
+        const res = await authFetch("/api/agent/conversation");
+        if (!res.ok) throw new Error(`Conversation load failed (${res.status})`);
+        const conv = await res.json();
         if (cancelled) return;
-        setHasApiKey(Boolean(profile.has_api_key));
         setConversation(conv.conversation ?? null);
         setMessages(
           (conv.messages ?? [])
@@ -108,7 +99,7 @@ export default function AgentPage() {
   async function handleSubmit(e: FormEvent | null) {
     if (e) e.preventDefault();
     const text = input.trim();
-    if (!text || sending || hasApiKey !== true) return;
+    if (!text || sending) return;
 
     setError(null);
     setInput("");
@@ -197,8 +188,7 @@ export default function AgentPage() {
     setTimeout(() => handleSubmit(null), 0);
   }
 
-  const isEmptyState = hasApiKey === false;
-  const showStarter = hasApiKey === true && messages.length === 0 && !loading;
+  const showStarter = messages.length === 0 && !loading;
 
   // Bypass PageContainer — chat needs full available height with the input
   // docked at the bottom. Negative top margin counters AppShell's spacing
@@ -219,8 +209,6 @@ export default function AgentPage() {
         <div className="max-w-2xl mx-auto px-4 py-6">
           {loading ? (
             <div className="text-center text-sm text-[var(--color-muted)] py-16">Loading…</div>
-          ) : isEmptyState ? (
-            <EmptyStateCard />
           ) : showStarter ? (
             <GreetingBlock firstName={firstName} onStarter={sendStarter} />
           ) : (
@@ -258,18 +246,14 @@ export default function AgentPage() {
                   handleSubmit(null);
                 }
               }}
-              disabled={sending || loading || isEmptyState}
-              placeholder={
-                isEmptyState
-                  ? "Add an API key in Settings → Agent to start chatting"
-                  : "Ask anything…"
-              }
+              disabled={sending || loading}
+              placeholder="Ask anything…"
               rows={1}
               className="flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
-              disabled={sending || loading || isEmptyState || !input.trim()}
+              disabled={sending || loading || !input.trim()}
               className="flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
               aria-label="Send"
             >
@@ -278,28 +262,6 @@ export default function AgentPage() {
           </form>
         </div>
       </div>
-    </div>
-  );
-}
-
-function EmptyStateCard() {
-  return (
-    <div className="flex flex-col items-center text-center py-10">
-      <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] mb-4">
-        <LuSparkles className="h-6 w-6" />
-      </div>
-      <h1 className="text-xl font-semibold text-[var(--color-fg)] mb-2">
-        Meet your finance agent
-      </h1>
-      <p className="text-sm text-[var(--color-muted)] mb-6 max-w-md">
-        Add an Anthropic API key to start chatting. Bring your own key — the agent runs
-        on your usage, not ours, so there&apos;s no subscription to add.
-      </p>
-      <Link href="/settings/agent">
-        <Button variant="primary" size="md">
-          Set up agent
-        </Button>
-      </Link>
     </div>
   );
 }

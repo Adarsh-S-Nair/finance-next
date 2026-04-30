@@ -6,10 +6,6 @@
 
 export const DEFAULT_AGENT_MODEL = 'claude-sonnet-4-6';
 
-// Anthropic raw API keys start with `sk-ant-`. We don't validate further —
-// Anthropic itself returns 401 on bad keys, which we surface to the user.
-export const ANTHROPIC_KEY_PREFIX = 'sk-ant-';
-
 // Cap on how many prior messages we send to the model per turn. Older
 // messages stay in the DB but get pruned from the prompt to keep cost
 // bounded. When generative UI lands we'll add summarisation; for now a
