@@ -42,7 +42,9 @@ export const POST = withAuth<{ id: string }>(
     if (grant.status !== "approved") {
       return NextResponse.json({ error: `Grant is ${grant.status}` }, { status: 400 });
     }
-    if (!grant.expires_at || new Date(grant.expires_at).getTime() < Date.now()) {
+    // null expires_at = indefinite grant; only block if the grant has a
+    // concrete expiry that's already passed.
+    if (grant.expires_at && new Date(grant.expires_at).getTime() < Date.now()) {
       return NextResponse.json({ error: "Grant has expired" }, { status: 400 });
     }
 

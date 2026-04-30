@@ -38,11 +38,11 @@ export const GET = withAuth("impersonation:me", async (req: NextRequest, callerI
     .select("status, expires_at")
     .eq("id", session.grant_id)
     .single();
+  // null expires_at = indefinite grant; still active until target revokes.
   if (
     !grant ||
     grant.status !== "approved" ||
-    !grant.expires_at ||
-    new Date(grant.expires_at).getTime() < Date.now()
+    (grant.expires_at && new Date(grant.expires_at).getTime() < Date.now())
   ) {
     return NextResponse.json({ impersonating: false });
   }

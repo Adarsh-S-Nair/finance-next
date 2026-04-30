@@ -14,7 +14,7 @@ type Context = {
 };
 
 function formatExpiresIn(iso: string | null | undefined): string {
-  if (!iso) return "";
+  if (!iso) return "until revoked";
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "expired";
   const mins = Math.floor(ms / 60_000);
@@ -89,7 +89,8 @@ export default function ImpersonationBanner() {
             {" "}— signed in via <strong className="font-medium">{ctx.requester_email}</strong>
           </>
         ) : null}
-        {ctx.expires_at ? <> · {formatExpiresIn(ctx.expires_at)}</> : null}
+        {" · "}
+        {formatExpiresIn(ctx.expires_at)}
       </span>
       <button
         onClick={exit}
