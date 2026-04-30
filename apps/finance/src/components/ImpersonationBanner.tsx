@@ -95,18 +95,41 @@ export default function ImpersonationBanner() {
   async function exit() {
     setExiting(true);
     try {
+      // Server-side: clear impersonator cookie + mark session ended.
       await authFetch("/api/impersonation/exit", { method: "POST" });
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // Best-effort — even if signOut fails, the cookie is cleared and
-        // the next /me call will return false.
-      }
-      // Send the admin back to the admin app since that's where they
-      // started. window.location to force a hard navigation off this
-      // app's localStorage state.
+
+      // Fire-and-forget Supabase signOut. supabase-js clears
+      // localStorage synchronously inside this call before the network
+      // request leaves; awaiting it would let React re-render against
+      // the no-session state, which makes AuthGuard bounce us through
+      // the landing page on the way to the admin app — exactly the
+      // flash we're trying to avoid.
+      void supabase.auth.signOut().catch(() => {});
+
       const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "https://admin.zervo.app";
-      window.location.href = adminUrl;
+
+      // Best-case UX: bring the original admin tab back to focus and
+      // close THIS tab. window.close() works on tabs opened via
+      // window.open() (which is how admin's "Enter session" launches
+      // us), even if the opener is gone in some browsers.
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.focus();
+        }
+      } catch {
+        // Cross-origin opener access can throw on some browsers — fine
+        // to skip; the close + fallback still work.
+      }
+      window.close();
+
+      // Fallback: if close() was blocked (or this is a regular tab the
+      // user navigated into manually), the timer wins and we hard-nav
+      // to the admin app instead of leaving them stranded on a signed-
+      // out finance page. Closed tabs don't run timers, so this only
+      // fires when close failed.
+      setTimeout(() => {
+        window.location.replace(adminUrl);
+      }, 150);
     } finally {
       setExiting(false);
     }
