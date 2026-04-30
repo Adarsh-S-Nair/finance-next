@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { FiBell } from "react-icons/fi";
+import { FiBell, FiX } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { useHouseholds } from "./providers/HouseholdsProvider";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../lib/api/fetch";
+import { supabase } from "../lib/supabase/client";
 import { useToast } from "./providers/ToastProvider";
 import { TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 
@@ -152,6 +153,46 @@ export default function AlertsIcon() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Live updates — when an admin requests impersonation access, or
+  // someone invites this user to a household, the relevant tray section
+  // refreshes the moment the row lands. We don't try to apply the change
+  // payload directly because the REST endpoints hydrate joined data
+  // (requester names, household name, etc.) that the WAL row doesn't
+  // carry; refetching is simpler and the lists are small.
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`alerts-${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "impersonation_grants",
+          filter: `target_user_id=eq.${profile.id}`,
+        },
+        () => {
+          loadImpersonationRequests();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "household_invitations",
+          filter: `invited_user_id=eq.${profile.id}`,
+        },
+        () => {
+          loadInvitations();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, loadImpersonationRequests, loadInvitations]);
+
   if (loading) return null;
 
   const jiggleVariants: Variants = {
@@ -247,7 +288,8 @@ export default function AlertsIcon() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className="absolute top-2 right-2 w-2 h-2 bg-[var(--color-fg)] rounded-full border-2 border-[var(--color-content-bg)]"
+              className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[var(--color-danger)] rounded-full border-2 border-[var(--color-content-bg)]"
+              aria-label={`${totalCount} unread`}
             />
           )}
         </AnimatePresence>
@@ -255,18 +297,46 @@ export default function AlertsIcon() {
 
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.14, ease: [0.25, 0.1, 0.25, 1] }}
-            className={`absolute top-full right-0 mt-2 w-80 z-50 overflow-hidden ${TOOLTIP_SURFACE_CLASSES}`}
-          >
-            <div className="px-5 pt-4 pb-2">
-              <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
-            </div>
+          <>
+            {/* Mobile backdrop. Tapping anywhere outside the sheet closes
+                it. The desktop dropdown's outside-click handler in the
+                effect above covers the >= sm case, so this is only here
+                to dim the page on small screens where the panel takes
+                over the full bottom of the viewport. */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] sm:hidden"
+              aria-hidden
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 1 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 1 }}
+              transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+              className={`fixed inset-x-0 bottom-0 z-50 max-h-[85vh] w-full rounded-t-2xl flex flex-col sm:absolute sm:bottom-auto sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80 sm:max-h-none sm:rounded-2xl ${TOOLTIP_SURFACE_CLASSES}`}
+            >
+              {/* Drag handle on mobile so the sheet visually reads as
+                  dismissable; on sm+ it's hidden (the dropdown floats). */}
+              <div className="pt-2 pb-1 flex justify-center sm:hidden">
+                <span className="block h-1 w-9 rounded-full bg-[var(--color-floating-muted)]/40" />
+              </div>
+              <div className="px-5 pt-3 sm:pt-4 pb-2 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-[var(--color-floating-fg)]">Notifications</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="sm:hidden p-1 rounded-full text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] transition-colors"
+                  aria-label="Close notifications"
+                >
+                  <FiX className="h-4 w-4" />
+                </button>
+              </div>
 
-            <div className="max-h-[420px] overflow-y-auto pb-2">
+              <div className="flex-1 overflow-y-auto pb-[max(env(safe-area-inset-bottom),0.5rem)] sm:pb-2 sm:max-h-[420px]">
               {impersonationRequests.length > 0 && (
                 <div>
                   {impersonationRequests.map((grant) => {
@@ -379,8 +449,9 @@ export default function AlertsIcon() {
                   <p className="text-sm text-[var(--color-floating-muted)]">You&apos;re all caught up</p>
                 </div>
               )}
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
