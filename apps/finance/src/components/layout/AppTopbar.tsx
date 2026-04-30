@@ -16,7 +16,7 @@ export default function AppTopbar() {
   return (
     <header
       id="app-topbar"
-      className="sticky top-0 z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] flex flex-col"
+      className="sticky top-[var(--impersonation-banner-h,0px)] z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] flex flex-col"
     >
       <div
         className={`mx-auto ${

@@ -117,6 +117,17 @@ Required in `apps/finance/.env.local`:
   mapping, so links don't fail on the unapproved product. The schema,
   sync code, webhook handler, and UI are all already in place — flipping
   this flag turns the feature on without a code change.
+- `IMPERSONATION_HOST` - Optional URL (e.g. `https://support.zervo.app`)
+  where the impersonation tab should land. The Supabase magic-token
+  exchange writes the target user's session into localStorage, which is
+  scoped per-origin — putting impersonation on a separate subdomain that
+  points at the same finance Vercel project keeps the admin's
+  `www.zervo.app` session untouched in other tabs. The subdomain needs
+  to be added to the Vercel finance project's domain list and pointed
+  there in DNS; the code path falls back to the request origin if the
+  env var isn't set, so single-domain mode still works (with the
+  caveat that impersonating logs the admin out of their own finance
+  session in the same browser).
 
 ## Key Entry Points
 

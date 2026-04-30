@@ -110,7 +110,18 @@ export const POST = withAuth<{ id: string }>(
     // directly with the token_hash so the page can call verifyOtp,
     // which works without a PKCE verifier (admin-issued tokens don't
     // have one).
-    const origin = req.headers.get("origin") || `https://${req.headers.get("host")}`;
+    //
+    // Prefer IMPERSONATION_HOST if set (e.g. https://support.zervo.app).
+    // Pointing the begin URL at a separate subdomain that hosts the
+    // same finance project gives the impersonation tab its own
+    // localStorage scope — the admin's normal www.zervo.app session
+    // stays intact in other tabs. Falls back to the request origin if
+    // the env var isn't configured (single-domain mode, dev, etc.).
+    const impersonationHost = process.env.IMPERSONATION_HOST?.replace(/\/$/, "");
+    const origin =
+      impersonationHost ||
+      req.headers.get("origin") ||
+      `https://${req.headers.get("host")}`;
     const beginUrl =
       `${origin}/impersonation/begin?session=${encodeURIComponent(session.id)}` +
       `&token_hash=${encodeURIComponent(tokenHash)}`;

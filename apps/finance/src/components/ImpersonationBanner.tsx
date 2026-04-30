@@ -57,6 +57,22 @@ export default function ImpersonationBanner() {
     };
   }, []);
 
+  // Publish a CSS variable so the sidebar + topbar can shift their
+  // top-anchored positions down by exactly the banner's height. Cleared
+  // on unmount or when the session ends so non-impersonated views don't
+  // pay the offset.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (ctx.impersonating) {
+      root.style.setProperty("--impersonation-banner-h", "40px");
+    } else {
+      root.style.removeProperty("--impersonation-banner-h");
+    }
+    return () => {
+      root.style.removeProperty("--impersonation-banner-h");
+    };
+  }, [ctx.impersonating]);
+
   if (!ctx.impersonating) return null;
 
   async function exit() {
@@ -80,9 +96,12 @@ export default function ImpersonationBanner() {
   }
 
   return (
-    <div className="bg-[var(--color-danger)]/95 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm border-b border-black/10">
+    <div
+      className="fixed top-0 left-0 right-0 z-[70] h-10 bg-[var(--color-danger)]/95 text-white px-4 flex items-center justify-center gap-3 text-sm border-b border-black/10"
+      role="status"
+    >
       <FiAlertOctagon className="h-4 w-4 flex-shrink-0" />
-      <span>
+      <span className="truncate">
         Impersonating as this user
         {ctx.requester_email ? (
           <>
@@ -95,7 +114,7 @@ export default function ImpersonationBanner() {
       <button
         onClick={exit}
         disabled={exiting}
-        className="ml-2 text-xs font-medium px-2.5 py-1 rounded bg-white/15 hover:bg-white/25 disabled:opacity-50"
+        className="ml-2 text-xs font-medium px-2.5 py-1 rounded bg-white/15 hover:bg-white/25 disabled:opacity-50 flex-shrink-0"
       >
         {exiting ? "Exiting…" : "Exit impersonation"}
       </button>

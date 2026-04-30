@@ -229,14 +229,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
           it can't live inside any React-rendered stacking context. */}
+      {/* Impersonation banner is fixed full-width across the top — it
+          sets --impersonation-banner-h on documentElement so the sidebar
+          + topbar shift down to clear it. Mounted here (outside the
+          sidebar-offset wrapper) is purely organizational; with `fixed`
+          positioning its DOM location doesn't matter, but the visual
+          intent reads better. */}
+      <ImpersonationBanner />
       <Sidebar
         isCollapsed={isSidebarCollapsed}
         toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         showToggle={isTablet}
       />
       <ProfileBar />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-60 relative">
-        <ImpersonationBanner />
+      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-60 relative pt-[var(--impersonation-banner-h,0px)]">
         <PaymentFailureBanner />
         {/* Main content rendered as a "giant card" — bg-content surface
             sitting inside the shell so the sidebar reads as navigation
