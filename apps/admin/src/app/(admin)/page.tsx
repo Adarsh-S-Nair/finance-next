@@ -12,18 +12,31 @@ type AccountRow = { item_id: string; type: string | null };
 
 export const dynamic = "force-dynamic";
 
-type RecentSignup = {
+type RecentlyOnlineUser = {
   id: string;
   email: string | null;
-  created_at: string | null;
+  last_active_at: string | null;
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
   tier: string;
 };
 
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const RECENT_WINDOW_MS = 60 * 60 * 1000;
+
+type Presence = "online" | "recent" | "offline";
+
+function presence(iso: string | null): Presence {
+  if (!iso) return "offline";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < ONLINE_WINDOW_MS) return "online";
+  if (diff < RECENT_WINDOW_MS) return "recent";
+  return "offline";
+}
+
 function formatRelative(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "never";
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60_000);
@@ -54,7 +67,6 @@ function initials(first: string | null, last: string | null, email: string | nul
 export default async function HomePage() {
   const admin = createAdminClient();
 
-  // Window boundaries for growth comparisons
   const now = new Date();
   const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -92,7 +104,7 @@ export default async function HomePage() {
     admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     admin
       .from("user_profiles")
-      .select("id, first_name, last_name, avatar_url, subscription_tier"),
+      .select("id, first_name, last_name, avatar_url, subscription_tier, last_active_at"),
     admin
       .from("plaid_items")
       .select(
@@ -114,35 +126,42 @@ export default async function HomePage() {
     last_name: string | null;
     avatar_url: string | null;
     subscription_tier: string | null;
+    last_active_at: string | null;
   };
   const profileById = new Map<string, ProfileRow>();
   for (const row of (profiles ?? []) as ProfileRow[]) {
     profileById.set(row.id, row);
   }
 
-  const sortedAuth = [...(authUsers?.users ?? [])].sort((a, b) => {
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return tb - ta;
-  });
+  const authById = new Map<string, { email: string | null }>();
+  for (const u of authUsers?.users ?? []) {
+    authById.set(u.id, { email: u.email ?? null });
+  }
 
-  const recentSignups: RecentSignup[] = sortedAuth.slice(0, 6).map((u) => {
-    const p = profileById.get(u.id);
-    return {
-      id: u.id,
-      email: u.email ?? null,
-      created_at: u.created_at ?? null,
-      first_name: p?.first_name ?? null,
-      last_name: p?.last_name ?? null,
-      avatar_url: p?.avatar_url ?? null,
-      tier: p?.subscription_tier ?? "free",
-    };
-  });
-
+  const recentlyOnline: RecentlyOnlineUser[] = (profiles ?? [])
+    .filter((p): p is ProfileRow => Boolean((p as ProfileRow).last_active_at))
+    .sort((a, b) => {
+      const ta = new Date((a as ProfileRow).last_active_at!).getTime();
+      const tb = new Date((b as ProfileRow).last_active_at!).getTime();
+      return tb - ta;
+    })
+    .slice(0, 5)
+    .map((p) => {
+      const row = p as ProfileRow;
+      const auth = authById.get(row.id);
+      return {
+        id: row.id,
+        email: auth?.email ?? null,
+        last_active_at: row.last_active_at,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        avatar_url: row.avatar_url,
+        tier: row.subscription_tier ?? "free",
+      };
+    });
 
   // Plaid cost aggregation. Billing is per Item per product; account types
-  // gate which products an Item is eligible for (an Item with only credit
-  // accounts shouldn't bill for Investments even if products includes it).
+  // gate which products an Item is eligible for.
   const plaidCostByUser = new Map<string, number>();
   let totalPlaidCost = 0;
   let totalPlaidItems = 0;
@@ -163,11 +182,11 @@ export default async function HomePage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([userId, cost]) => {
-      const authUser = sortedAuth.find((u) => u.id === userId);
+      const auth = authById.get(userId);
       const p = profileById.get(userId);
       return {
         id: userId,
-        email: authUser?.email ?? null,
+        email: auth?.email ?? null,
         first_name: p?.first_name ?? null,
         last_name: p?.last_name ?? null,
         avatar_url: p?.avatar_url ?? null,
@@ -187,11 +206,13 @@ export default async function HomePage() {
         : 0
       : Math.round(((growth30 - growthPrev) / growthPrev) * 100);
 
+  const onlineNow = recentlyOnline.filter((u) => presence(u.last_active_at) === "online").length;
+
   return (
     <>
       <AdminPageHeader title="Overview" subtitle="Internal state at a glance." />
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-8 mb-14">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-8 mb-16">
         <Stat
           label="Users"
           value={totalUsers}
@@ -211,6 +232,15 @@ export default async function HomePage() {
           }
         />
         <Stat
+          label="Active · 7d"
+          value={activeLast7 ?? 0}
+          sub={
+            <span className="text-[var(--color-muted)]/80 tabular-nums">
+              {onlineNow > 0 ? `${onlineNow} online now` : "used the app recently"}
+            </span>
+          }
+        />
+        <Stat
           label="Plaid · est."
           value={`${formatUsd(totalPlaidCost)}`}
           sub={
@@ -220,18 +250,13 @@ export default async function HomePage() {
             </span>
           }
         />
-        <Stat
-          label="Active · 7d"
-          value={activeLast7 ?? 0}
-          sub={<span className="text-[var(--color-muted)]/80">used the app recently</span>}
-        />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-x-12 gap-y-12">
         <section>
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
-              Recent signups
+              Recently online
             </h2>
             <Link
               href="/users"
@@ -241,37 +266,51 @@ export default async function HomePage() {
             </Link>
           </div>
           <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
-            {recentSignups.length === 0 ? (
-              <li className="py-4 text-sm text-[var(--color-muted)]">No signups yet.</li>
+            {recentlyOnline.length === 0 ? (
+              <li className="py-4 text-sm text-[var(--color-muted)]">
+                No active users yet.
+              </li>
             ) : (
-              recentSignups.map((u) => (
-                <li key={u.id}>
-                  <div className="flex items-center gap-3 py-3">
-                    <Avatar
-                      url={u.avatar_url}
-                      initials={initials(u.first_name, u.last_name, u.email)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm text-[var(--color-fg)] truncate">
-                          {fullName(u.first_name, u.last_name, u.email)}
-                        </span>
-                        {u.tier === "pro" && (
-                          <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)] font-medium">
-                            pro
+              recentlyOnline.map((u) => {
+                const p = presence(u.last_active_at);
+                return (
+                  <li key={u.id}>
+                    <div className="flex items-center gap-3 py-3.5">
+                      <Avatar
+                        url={u.avatar_url}
+                        initials={initials(u.first_name, u.last_name, u.email)}
+                        presence={p}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+                            {fullName(u.first_name, u.last_name, u.email)}
                           </span>
-                        )}
+                          {u.tier === "pro" && (
+                            <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)] font-semibold">
+                              pro
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-[var(--color-muted)] truncate leading-tight mt-0.5">
+                          {u.email ?? "—"}
+                        </div>
                       </div>
-                      <div className="text-xs text-[var(--color-muted)] truncate">
-                        {u.email ?? "—"}
+                      <div className="flex flex-col items-end flex-shrink-0">
+                        <span
+                          className={
+                            p === "online"
+                              ? "text-xs font-medium text-[var(--color-success)]"
+                              : "text-xs text-[var(--color-muted)] tabular-nums"
+                          }
+                        >
+                          {p === "online" ? "online" : formatRelative(u.last_active_at)}
+                        </span>
                       </div>
                     </div>
-                    <span className="text-xs text-[var(--color-muted)] tabular-nums flex-shrink-0">
-                      {formatRelative(u.created_at)}
-                    </span>
-                  </div>
-                </li>
-              ))
+                  </li>
+                );
+              })
             )}
           </ul>
         </section>
@@ -312,14 +351,6 @@ export default async function HomePage() {
               ))}
             </ul>
           )}
-
-          <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3 mt-10">
-            Quick actions
-          </h2>
-          <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
-            <QuickLink href="/users" label="Browse users" />
-            <QuickLink href="/settings" label="Admin settings" />
-          </ul>
         </section>
       </div>
     </>
@@ -371,13 +402,33 @@ function DeltaPill({ value }: { value: number }) {
   );
 }
 
-function Avatar({ url, initials }: { url: string | null; initials: string }) {
+function Avatar({
+  url,
+  initials,
+  presence: p,
+}: {
+  url: string | null;
+  initials: string;
+  presence?: Presence;
+}) {
   return (
-    <div className="relative h-8 w-8 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-[11px] font-semibold text-[var(--color-on-accent)]">
+    <div className="relative h-9 w-9 flex-shrink-0 rounded-full bg-[var(--color-accent)] flex items-center justify-center overflow-hidden text-[11px] font-semibold text-[var(--color-on-accent)]">
       {url ? (
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : (
         <span>{initials}</span>
+      )}
+      {p === "online" && (
+        <span
+          aria-hidden
+          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[var(--color-success)] ring-2 ring-[var(--color-content-bg)]"
+        />
+      )}
+      {p === "recent" && (
+        <span
+          aria-hidden
+          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#d97706] ring-2 ring-[var(--color-content-bg)]"
+        />
       )}
     </div>
   );
@@ -409,21 +460,5 @@ function TierBar({ pro, total }: { pro: number; total: number }) {
         <span className="tabular-nums text-[var(--color-fg)]">{pro}</span>
       </div>
     </div>
-  );
-}
-
-function QuickLink({ href, label }: { href: string; label: string }) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="group flex items-center justify-between py-3 text-sm text-[var(--color-fg)] transition-colors hover:text-[var(--color-accent)]"
-      >
-        <span>{label}</span>
-        <span className="text-[var(--color-muted)] transition-colors group-hover:text-[var(--color-accent)]">
-          ›
-        </span>
-      </Link>
-    </li>
   );
 }
