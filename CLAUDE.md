@@ -111,6 +111,12 @@ Required in `apps/finance/.env.local`:
   apps/finance and apps/admin. Gates the admin subdomain and server-side
   `isCallerAdmin` checks on admin-only routes (e.g.
   `/api/tickers/refresh-crypto-logos`).
+- `PLAID_LIABILITIES_ENABLED` - Set to `'true'` once Plaid approves the
+  Liabilities product on the account. While false (default), liabilities
+  is excluded from link-token requests and from the account-type → product
+  mapping, so links don't fail on the unapproved product. The schema,
+  sync code, webhook handler, and UI are all already in place — flipping
+  this flag turns the feature on without a code change.
 
 ## Key Entry Points
 

@@ -9,6 +9,8 @@
  * pricing rarely shifts and a code push is the simplest audit trail.
  */
 
+import { LIABILITIES_ENABLED } from './plaid/productMap';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -23,6 +25,12 @@ interface TierConfig {
 // Config data (single source of truth)
 // ---------------------------------------------------------------------------
 
+// `liabilities` is gated on Plaid product approval. Including it in
+// link-token products before approval causes Plaid to reject token
+// creation. See LIABILITIES_ENABLED in lib/plaid/productMap.ts — flip
+// PLAID_LIABILITIES_ENABLED=true in the environment once approval lands.
+const liabilitiesProducts: string[] = LIABILITIES_ENABLED ? ['liabilities'] : [];
+
 const TIERS: Record<string, TierConfig> = {
   free: {
     connections: 1,
@@ -33,7 +41,7 @@ const TIERS: Record<string, TierConfig> = {
       recurring: false,
       net_worth_history: true,
     },
-    plaid_products: ['transactions', 'liabilities'],
+    plaid_products: ['transactions', ...liabilitiesProducts],
   },
   pro: {
     connections: 5,
@@ -44,7 +52,7 @@ const TIERS: Record<string, TierConfig> = {
       recurring: true,
       net_worth_history: true,
     },
-    plaid_products: ['transactions', 'investments', 'liabilities'],
+    plaid_products: ['transactions', 'investments', ...liabilitiesProducts],
   },
 };
 
