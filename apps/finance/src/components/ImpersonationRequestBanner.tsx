@@ -16,7 +16,10 @@ type Grant = {
   requester_email: string | null;
 };
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number): string | null {
+  // 0 = indefinite. Caller drops the suffix on the Approve button so it
+  // reads "Approve" rather than "Approve 0".
+  if (seconds === 0) return null;
   if (seconds >= 86_400) return `${seconds / 86_400}d`;
   if (seconds >= 3_600) return `${Math.round(seconds / 3_600)}h`;
   return `${Math.round(seconds / 60)}m`;
@@ -90,7 +93,8 @@ export default function ImpersonationRequestBanner() {
         <strong className="font-medium">
           {target.requester_email ?? "An admin"}
         </strong>{" "}
-        is requesting access to your account
+        is requesting{" "}
+        {target.duration_seconds === 0 ? "indefinite " : ""}access to your account
         {target.reason ? <> — “{target.reason}”</> : ""}.
       </span>
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -99,7 +103,12 @@ export default function ImpersonationRequestBanner() {
           disabled={busy === target.id}
           className="text-xs font-medium px-2.5 py-1 rounded bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
         >
-          {busy === target.id ? "…" : `Approve ${formatDuration(target.duration_seconds)}`}
+          {busy === target.id
+            ? "…"
+            : (() => {
+                const d = formatDuration(target.duration_seconds);
+                return d ? `Approve ${d}` : "Approve";
+              })()}
         </button>
         <button
           onClick={() => decide(target.id, "deny")}

@@ -53,11 +53,11 @@ export const POST = withAuth("impersonation:begin", async (req: NextRequest, cal
     .select("status, expires_at")
     .eq("id", session.grant_id)
     .single();
+  // null expires_at = indefinite, still active.
   if (
     !grant ||
     grant.status !== "approved" ||
-    !grant.expires_at ||
-    new Date(grant.expires_at).getTime() < Date.now()
+    (grant.expires_at && new Date(grant.expires_at).getTime() < Date.now())
   ) {
     return NextResponse.json({ error: "Grant is no longer active" }, { status: 400 });
   }

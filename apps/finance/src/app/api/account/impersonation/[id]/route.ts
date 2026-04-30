@@ -48,13 +48,19 @@ export const PATCH = withAuth<{ id: string }>(
         );
       }
       const now = new Date();
-      const expires = new Date(now.getTime() + grant.duration_seconds * 1000);
+      // duration_seconds === 0 means indefinite — leave expires_at null so
+      // the grant runs until revoked. Every guard treats null as "still
+      // valid" provided status is approved.
+      const expires =
+        grant.duration_seconds > 0
+          ? new Date(now.getTime() + grant.duration_seconds * 1000).toISOString()
+          : null;
       const { data: updated, error } = await supabaseAdmin
         .from("impersonation_grants")
         .update({
           status: "approved",
           decided_at: now.toISOString(),
-          expires_at: expires.toISOString(),
+          expires_at: expires,
         })
         .eq("id", grantId)
         .select(
