@@ -11,6 +11,16 @@ export type PlaidItemWithCost = PlaidItemRow & {
   monthly_cost: number;
 };
 
+export type ImpersonationGrant = {
+  id: string;
+  status: string;
+  expires_at: string | null;
+  decided_at: string | null;
+  duration_seconds: number;
+  requested_at: string;
+  reason: string | null;
+};
+
 export type AdminUserRow = {
   id: string;
   email: string | null;
@@ -23,6 +33,7 @@ export type AdminUserRow = {
   subscription_status: string | null;
   plaid_items: PlaidItemWithCost[];
   plaid_monthly_cost: number;
+  impersonation_grants: ImpersonationGrant[];
 };
 
 function formatDate(iso: string | null): string {

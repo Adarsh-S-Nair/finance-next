@@ -28,19 +28,57 @@ export const GET = withAuth("account:impersonation:list", async (req: NextReques
     return NextResponse.json({ error: "Could not load grants" }, { status: 500 });
   }
 
-  // Hydrate requester emails so the banner can say "Adarsh is requesting…".
-  // Do this server-side because clients can't read auth.users for non-self.
+  // Hydrate requester profile so the notification can say "Adarsh Nair (Admin)…".
+  // Do this server-side because clients can't read auth.users for non-self,
+  // and user_profiles is RLS-restricted to the caller's own row.
   const requesterIds = Array.from(new Set((grants ?? []).map((g) => g.requester_id)));
-  const requesterById: Record<string, { email: string | null }> = {};
-  for (const id of requesterIds) {
-    const { data } = await supabaseAdmin.auth.admin.getUserById(id);
-    requesterById[id] = { email: data?.user?.email ?? null };
+  const requesterById: Record<
+    string,
+    {
+      email: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      avatar_url: string | null;
+    }
+  > = {};
+  if (requesterIds.length > 0) {
+    const { data: profiles } = await supabaseAdmin
+      .from("user_profiles")
+      .select("id, first_name, last_name, avatar_url")
+      .in("id", requesterIds);
+    const profileById = new Map<
+      string,
+      { first_name: string | null; last_name: string | null; avatar_url: string | null }
+    >();
+    for (const p of profiles ?? []) {
+      profileById.set(p.id, {
+        first_name: p.first_name,
+        last_name: p.last_name,
+        avatar_url: p.avatar_url,
+      });
+    }
+    for (const id of requesterIds) {
+      const auth = await supabaseAdmin.auth.admin.getUserById(id);
+      const profile = profileById.get(id);
+      requesterById[id] = {
+        email: auth.data?.user?.email ?? null,
+        first_name: profile?.first_name ?? null,
+        last_name: profile?.last_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+      };
+    }
   }
 
-  const enriched = (grants ?? []).map((g) => ({
-    ...g,
-    requester_email: requesterById[g.requester_id]?.email ?? null,
-  }));
+  const enriched = (grants ?? []).map((g) => {
+    const r = requesterById[g.requester_id];
+    return {
+      ...g,
+      requester_email: r?.email ?? null,
+      requester_first_name: r?.first_name ?? null,
+      requester_last_name: r?.last_name ?? null,
+      requester_avatar_url: r?.avatar_url ?? null,
+    };
+  });
 
   return NextResponse.json({ grants: enriched });
 });

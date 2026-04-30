@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import {
   estimateItemMonthlyCost,
@@ -6,6 +6,7 @@ import {
 } from "@/lib/plaidPricing";
 import UsersClient, {
   type AdminUserRow,
+  type ImpersonationGrant,
   type PlaidItemWithCost,
 } from "./UsersClient";
 
@@ -21,14 +22,33 @@ type ProfileRow = {
   last_active_at: string | null;
 };
 
+type ImpersonationGrantRow = {
+  id: string;
+  status: string;
+  expires_at: string | null;
+  decided_at: string | null;
+  duration_seconds: number;
+  requested_at: string;
+  reason: string | null;
+  target_user_id: string;
+};
+
 export default async function UsersPage() {
   const admin = createAdminClient();
+
+  // Identify the calling admin so we can preload their impersonation
+  // grants alongside the user list. Drawer opens are instant when the
+  // current state ships in the initial render — no per-open fetch.
+  const supabase = await createClient();
+  const { data: callerData } = await supabase.auth.getUser();
+  const callerId = callerData?.user?.id ?? null;
 
   const [
     { data: authData, error: authErr },
     { data: profiles },
     { data: plaidItems },
     { data: accounts },
+    { data: impersonationGrants },
   ] = await Promise.all([
     admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     admin
@@ -42,6 +62,16 @@ export default async function UsersPage() {
         "id, user_id, item_id, products, recurring_ready, sync_status, last_error, created_at",
       ),
     admin.from("accounts").select("item_id, type"),
+    callerId
+      ? admin
+          .from("impersonation_grants")
+          .select(
+            "id, status, expires_at, decided_at, duration_seconds, requested_at, reason, target_user_id",
+          )
+          .eq("requester_id", callerId)
+          .order("requested_at", { ascending: false })
+          .limit(500)
+      : Promise.resolve({ data: [] as ImpersonationGrantRow[] }),
   ]);
 
   const profileMap = new Map<string, ProfileRow>();
@@ -57,6 +87,21 @@ export default async function UsersPage() {
     const list = accountTypesByItemId.get(row.item_id) ?? [];
     list.push(row.type);
     accountTypesByItemId.set(row.item_id, list);
+  }
+
+  const grantsByTarget = new Map<string, ImpersonationGrant[]>();
+  for (const row of (impersonationGrants ?? []) as ImpersonationGrantRow[]) {
+    const list = grantsByTarget.get(row.target_user_id) ?? [];
+    list.push({
+      id: row.id,
+      status: row.status,
+      expires_at: row.expires_at,
+      decided_at: row.decided_at,
+      duration_seconds: row.duration_seconds,
+      requested_at: row.requested_at,
+      reason: row.reason,
+    });
+    grantsByTarget.set(row.target_user_id, list);
   }
 
   const itemsByUser = new Map<string, PlaidItemWithCost[]>();
@@ -91,6 +136,7 @@ export default async function UsersPage() {
         subscription_status: p?.subscription_status ?? null,
         plaid_items: items,
         plaid_monthly_cost: monthlyCost,
+        impersonation_grants: grantsByTarget.get(u.id) ?? [],
       };
     })
     .sort((a, b) => {
