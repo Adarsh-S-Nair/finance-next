@@ -423,6 +423,92 @@ export type Database = {
         }
         Relationships: []
       }
+      impersonation_grants: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          duration_seconds: number
+          expires_at: string | null
+          id: string
+          reason: string | null
+          requested_at: string
+          requester_id: string
+          status: string
+          target_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          duration_seconds?: number
+          expires_at?: string | null
+          id?: string
+          reason?: string | null
+          requested_at?: string
+          requester_id: string
+          status?: string
+          target_user_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          duration_seconds?: number
+          expires_at?: string | null
+          id?: string
+          reason?: string | null
+          requested_at?: string
+          requester_id?: string
+          status?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
+      impersonation_sessions: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          ended_at: string | null
+          grant_id: string
+          id: string
+          ip: string | null
+          requester_id: string
+          started_at: string
+          target_user_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          ended_at?: string | null
+          grant_id: string
+          id?: string
+          ip?: string | null
+          requester_id: string
+          started_at?: string
+          target_user_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          ended_at?: string | null
+          grant_id?: string
+          id?: string
+          ip?: string | null
+          requester_id?: string
+          started_at?: string
+          target_user_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "impersonation_grants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       institutions: {
         Row: {
           created_at: string

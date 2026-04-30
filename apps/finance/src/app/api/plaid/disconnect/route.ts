@@ -2,12 +2,16 @@ import { removeItem } from '../../../../lib/plaid/client';
 import { decryptPlaidToken } from '../../../../lib/crypto/plaidTokens';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
+import { blockedByImpersonation } from '../../../../lib/impersonation/guard';
 
 interface RequestBody {
   plaidItemId?: string;
 }
 
 export const POST = withAuth('plaid:disconnect', async (request, userId) => {
+  const blocked = await blockedByImpersonation(request);
+  if (blocked) return blocked;
+
   const { plaidItemId } = (await request.json()) as RequestBody;
   console.log('Disconnect request for plaid item:', plaidItemId, 'user:', userId);
   if (!plaidItemId) {

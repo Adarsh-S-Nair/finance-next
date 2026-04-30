@@ -14,12 +14,16 @@ import {
   disconnectAccount,
   DisconnectError,
 } from '../../../../lib/plaid/disconnectAccount';
+import { blockedByImpersonation } from '../../../../lib/impersonation/guard';
 
 interface RequestBody {
   accountId?: string;
 }
 
 export const POST = withAuth('plaid:disconnect-account', async (request, userId) => {
+  const blocked = await blockedByImpersonation(request);
+  if (blocked) return blocked;
+
   const { accountId } = (await request.json()) as RequestBody;
 
   if (!accountId) {
