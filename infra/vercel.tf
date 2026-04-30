@@ -62,6 +62,25 @@ resource "vercel_project" "admin" {
 }
 
 # -----------------------------------------------------------------------------
+# Finance env vars — most live in the dashboard (importing all of them here
+# carries clobber risk during the import dance), so this section only owns
+# net-new variables that didn't exist before. Adding a new resource block
+# below is safe; importing/managing an existing dashboard var is what to
+# avoid until we're ready to do the full sweep.
+# -----------------------------------------------------------------------------
+
+# Where impersonation sessions land. Pointing at support.zervo.app gives
+# the impersonation tab its own localStorage scope, isolated from the
+# admin's regular www.zervo.app session in any other tab. See
+# IMPERSONATION_HOST in CLAUDE.md.
+resource "vercel_project_environment_variable" "finance_impersonation_host" {
+  project_id = vercel_project.finance.id
+  key        = "IMPERSONATION_HOST"
+  value      = "https://support.zervo.app"
+  target     = ["production", "preview", "development"]
+}
+
+# -----------------------------------------------------------------------------
 # Admin env vars (finance env vars are managed in its own Vercel dashboard for
 # now — adding them here would risk clobbering prod secrets during import).
 # -----------------------------------------------------------------------------
