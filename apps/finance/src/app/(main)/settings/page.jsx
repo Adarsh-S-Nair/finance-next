@@ -278,6 +278,16 @@ export default function SettingsPage() {
           />
         </SettingsSection>
 
+        {/* Agent Section */}
+        <SettingsSection label="Agent">
+          <SettingsActionRow
+            label="Personal finance agent"
+            description="Bring your own Anthropic API key to chat with your money."
+            onClick={() => router.push('/settings/agent')}
+            trailing={<span className="text-base leading-none">&#8250;</span>}
+          />
+        </SettingsSection>
+
         {/* Connected Institutions Section */}
         <SettingsSection
           label="Connected Institutions"

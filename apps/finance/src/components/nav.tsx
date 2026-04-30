@@ -1,4 +1,4 @@
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine } from "react-icons/lu";
+import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuSparkles } from "react-icons/lu";
 import { IconType } from "react-icons";
 
 export type NavItem = {
@@ -18,6 +18,7 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
     title: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LuLayoutDashboard },
+      { href: "/agent", label: "Agent", icon: LuSparkles, badge: "Beta" },
     ],
   },
   {

@@ -1100,6 +1100,95 @@ export type Database = {
           },
         ]
       }
+      user_agent_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string
+          summary: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          summary?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          summary?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_agent_messages: {
+        Row: {
+          content: Json
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: Json
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: Json
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "user_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_agent_profile: {
+        Row: {
+          ai_api_key_encrypted: string | null
+          ai_model: string
+          ai_provider: string
+          created_at: string
+          custom_instructions: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_api_key_encrypted?: string | null
+          ai_model?: string
+          ai_provider?: string
+          created_at?: string
+          custom_instructions?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_api_key_encrypted?: string | null
+          ai_model?: string
+          ai_provider?: string
+          created_at?: string
+          custom_instructions?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           accent_color: string | null
