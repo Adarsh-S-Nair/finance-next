@@ -1,26 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
 import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
   type AdminUserRow,
+  type ImpersonationGrant as Grant,
   formatDate,
   formatRelative,
   fullName,
   initials,
 } from "./UsersClient";
-
-type Grant = {
-  id: string;
-  status: string;
-  expires_at: string | null;
-  decided_at: string | null;
-  duration_seconds: number;
-  requested_at: string;
-  reason: string | null;
-};
 
 // duration_seconds === 0 means indefinite (no expires_at, lasts until
 // the target revokes). All other values are a TTL applied at approve time.
@@ -88,50 +80,29 @@ export default function UserDrawer({
   const [subBusy, setSubBusy] = useState(false);
   const [subError, setSubError] = useState<string | null>(null);
 
-  const [grants, setGrants] = useState<Grant[] | null>(null);
-  const [grantsLoading, setGrantsLoading] = useState(false);
+  // Server-rendered grants for this user (preloaded by users/page.tsx so
+  // the impersonation section paints with the right state on first render
+  // — no per-open fetch). Local state lets us optimistically reflect the
+  // user's actions inside this drawer instance; the parent's
+  // router.refresh() picks up the next-load truth from the server.
+  const [grants, setGrants] = useState<Grant[]>(user?.impersonation_grants ?? []);
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantError, setGrantError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(86_400);
   const [reason, setReason] = useState("");
+  const router = useRouter();
 
   const isPro = user?.subscription_tier === "pro";
   const status = user?.subscription_status;
-  const openGrant = grants?.find((g) => isOpen(g)) ?? null;
-  const lastGrant = grants?.[0] ?? null;
+  const openGrant = grants.find((g) => isOpen(g)) ?? null;
+  const lastGrant = grants[0] ?? null;
 
+  // Re-seed local state whenever the parent swaps in a different user, or
+  // the server data refreshes (e.g. via router.refresh after a mutation).
   useEffect(() => {
-    if (!user) {
-      setGrants(null);
-      setGrantError(null);
-      setReason("");
-      return;
-    }
-    let cancelled = false;
-    setGrantsLoading(true);
+    setGrants(user?.impersonation_grants ?? []);
     setGrantError(null);
-    fetch(`/api/impersonation?target=${encodeURIComponent(user.id)}`, { cache: "no-store" })
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!res.ok) {
-          setGrantError(body?.error || "Could not load grants");
-          setGrants([]);
-          return;
-        }
-        setGrants((body?.grants as Grant[]) ?? []);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setGrantError(e?.message || "Could not load grants");
-        setGrants([]);
-      })
-      .finally(() => {
-        if (!cancelled) setGrantsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setReason("");
   }, [user]);
 
   async function requestImpersonation() {
@@ -153,10 +124,14 @@ export default function UserDrawer({
       const newGrant = body.grant as Grant | undefined;
       if (newGrant) {
         setGrants((prev) => {
-          const others = (prev ?? []).filter((g) => g.id !== newGrant.id);
+          const others = prev.filter((g) => g.id !== newGrant.id);
           return [newGrant, ...others];
         });
         setReason("");
+        // Refresh server-rendered grants so subsequent drawer opens for
+        // this user reflect the new request even if the user closes and
+        // reopens before the next mutation.
+        router.refresh();
       }
     } catch (e: unknown) {
       const err = e as { message?: string };
@@ -201,9 +176,8 @@ export default function UserDrawer({
       if (!res.ok) throw new Error(body?.error || "Cancel failed");
       const updated = body.grant as Grant | undefined;
       if (updated) {
-        setGrants((prev) =>
-          (prev ?? []).map((g) => (g.id === updated.id ? updated : g)),
-        );
+        setGrants((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+        router.refresh();
       }
     } catch (e: unknown) {
       const err = e as { message?: string };
@@ -429,9 +403,7 @@ export default function UserDrawer({
                 Impersonation
               </h3>
               <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 space-y-3">
-                {grantsLoading && !grants ? (
-                  <div className="text-xs text-[var(--color-muted)]">Loading…</div>
-                ) : openGrant && openGrant.status === "pending" ? (
+                {openGrant && openGrant.status === "pending" ? (
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="text-sm text-[var(--color-fg)]">

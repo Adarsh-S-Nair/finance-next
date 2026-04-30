@@ -17,7 +17,6 @@ import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import PlaidOAuthHandler from "../PlaidOAuthHandler";
 import PaymentFailureBanner from "../PaymentFailureBanner";
-import ImpersonationRequestBanner from "../ImpersonationRequestBanner";
 import ImpersonationBanner from "../ImpersonationBanner";
 import { BrandMark, ConfirmOverlay } from "@zervo/ui";
 
@@ -239,7 +238,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-60 relative">
         <ImpersonationBanner />
         <PaymentFailureBanner />
-        <ImpersonationRequestBanner />
         {/* Main content rendered as a "giant card" — bg-content surface
             sitting inside the shell so the sidebar reads as navigation
             chrome on a different layer. The AppTopbar lives INSIDE the
