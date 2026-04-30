@@ -464,6 +464,7 @@ export type Database = {
       }
       impersonation_sessions: {
         Row: {
+          consumed_at: string | null
           created_at: string
           ended_at: string | null
           grant_id: string
@@ -475,6 +476,7 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
+          consumed_at?: string | null
           created_at?: string
           ended_at?: string | null
           grant_id: string
@@ -486,6 +488,7 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
+          consumed_at?: string | null
           created_at?: string
           ended_at?: string | null
           grant_id?: string

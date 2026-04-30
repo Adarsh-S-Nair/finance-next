@@ -146,6 +146,30 @@ export default function UserDrawer({
     }
   }
 
+  async function enterSession(grantId: string) {
+    setGrantBusy(true);
+    setGrantError(null);
+    try {
+      const res = await fetch(
+        `/api/impersonation/${encodeURIComponent(grantId)}/start`,
+        { method: "POST" },
+      );
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Could not start session");
+      const link = body?.action_link as string | undefined;
+      if (!link) throw new Error("No magic link returned");
+      // Open in a new tab so the admin app stays signed in as me. The
+      // new tab follows the magic link, mints a session as the target,
+      // and lands on /dashboard with the impersonation banner showing.
+      window.open(link, "_blank", "noopener,noreferrer");
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setGrantError(err?.message || "Could not start session");
+    } finally {
+      setGrantBusy(false);
+    }
+  }
+
   async function cancelImpersonation(grantId: string) {
     setGrantBusy(true);
     setGrantError(null);
@@ -421,10 +445,10 @@ export default function UserDrawer({
                       <Button
                         variant="secondary"
                         size="sm"
-                        disabled
-                        title="Enter session — coming next commit"
+                        onClick={() => enterSession(openGrant.id)}
+                        disabled={grantBusy}
                       >
-                        Enter session
+                        {grantBusy ? "Opening…" : "Enter session"}
                       </Button>
                       <Button
                         variant="dangerSubtle"
