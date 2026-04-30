@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@zervo/ui";
 import PageContainer from "../../../../components/layout/PageContainer";
 import { authFetch } from "../../../../lib/api/fetch";
 import { FiChevronLeft, FiCheckCircle, FiExternalLink } from "react-icons/fi";
@@ -148,14 +149,15 @@ export default function AgentSettingsPage() {
                 <FiCheckCircle className="h-4 w-4 text-[var(--color-success,#16a34a)]" />
                 <span>Key saved — agent is ready to chat.</span>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={clearApiKey}
-                disabled={clearing}
-                className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]/60 disabled:opacity-50"
+                loading={clearing}
               >
-                {clearing ? "Clearing…" : "Clear key"}
-              </button>
+                {clearing ? "Clearing" : "Clear key"}
+              </Button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -182,14 +184,16 @@ export default function AgentSettingsPage() {
                   spellCheck={false}
                   className="flex-1 min-w-0 px-3 py-2 text-sm rounded-md bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="primary"
+                  size="sm"
                   onClick={saveApiKey}
-                  disabled={saving || !apiKeyInput.trim()}
-                  className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50"
+                  disabled={!apiKeyInput.trim()}
+                  loading={saving}
                 >
-                  {saving ? "Saving…" : "Save"}
-                </button>
+                  {saving ? "Saving" : "Save"}
+                </Button>
               </div>
             </div>
           )}
@@ -215,14 +219,16 @@ export default function AgentSettingsPage() {
             <span className="text-xs text-[var(--color-muted)]">
               {savedRecently ? "Saved" : ""}
             </span>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="sm"
               onClick={saveInstructions}
-              disabled={saving || (instructions ?? "") === (profile?.custom_instructions ?? "")}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-50"
+              disabled={(instructions ?? "") === (profile?.custom_instructions ?? "")}
+              loading={saving}
             >
-              {saving ? "Saving…" : "Save instructions"}
-            </button>
+              {saving ? "Saving" : "Save instructions"}
+            </Button>
           </div>
         </section>
 

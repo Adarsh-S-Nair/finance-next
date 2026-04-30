@@ -55,7 +55,7 @@ const oauthRedirectScript = `
   var p = new URLSearchParams(location.search);
   var code = p.get('code');
   if (!code) return;
-  location.replace('/auth/callback/exchange?code=' + encodeURIComponent(code) + '&next=/dashboard');
+  location.replace('/auth/callback/exchange?code=' + encodeURIComponent(code) + '&next=/agent');
 }catch(e){}})();
 `;
 

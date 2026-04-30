@@ -27,11 +27,11 @@ function ExchangeHandler() {
     // Safety timeout — if exchange takes too long, fall through
     const timeout = setTimeout(() => {
       console.warn("[exchange] Exchange timed out after 8s, redirecting");
-      router.replace(nextOverride || "/dashboard");
+      router.replace(nextOverride || "/agent");
     }, 8000);
 
     const t0 = Date.now();
-    let target = nextOverride || "/dashboard";
+    let target = nextOverride || "/agent";
 
     // Dynamic import to avoid any module-level errors blocking the page
     import("../../../../lib/supabase/client")
@@ -84,7 +84,7 @@ function ExchangeHandler() {
               .select("id")
               .eq("user_id", user.id)
               .limit(1);
-            target = items && items.length > 0 ? "/dashboard" : "/setup";
+            target = items && items.length > 0 ? "/agent" : "/setup";
             console.log("[exchange] Routing based on accounts:", target);
           } catch (err) {
             console.warn("[exchange] Accounts check failed, defaulting to /setup:", err);

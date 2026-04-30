@@ -725,7 +725,7 @@ export default function Home() {
     const code = new URLSearchParams(window.location.search).get("code");
     if (!code) return;
     window.location.replace(
-      `/auth/callback/exchange?code=${encodeURIComponent(code)}&next=/dashboard`
+      `/auth/callback/exchange?code=${encodeURIComponent(code)}&next=/agent`
     );
   }, [isOAuthReturn]);
 
