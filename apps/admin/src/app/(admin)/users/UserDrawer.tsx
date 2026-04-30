@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
+import { createClient } from "@/lib/supabase/client";
 import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
   type AdminUserRow,
@@ -104,6 +105,53 @@ export default function UserDrawer({
     setGrantError(null);
     setReason("");
   }, [user]);
+
+  // Subscribing per-drawer-instance ensures the channel is torn down
+  // when the admin closes or switches users. Reusing a single client
+  // across the app is fine — Supabase multiplexes channels over one
+  // websocket.
+  const supabase = useMemo(() => createClient(), []);
+
+  // Live updates for grant state — when the target approves/denies/
+  // revokes from their phone or another tab, the drawer flips without a
+  // refresh. We only apply UPDATE payloads for grants already in local
+  // state so events for grants belonging to OTHER admins (filter is on
+  // target_user_id, not requester) don't bleed in.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`drawer-grants-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "impersonation_grants",
+          filter: `target_user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            status: string;
+            expires_at: string | null;
+            decided_at: string | null;
+            duration_seconds: number;
+            requested_at: string;
+            reason: string | null;
+          } | null;
+          if (!row) return;
+          setGrants((prev) =>
+            prev.some((g) => g.id === row.id)
+              ? prev.map((g) => (g.id === row.id ? { ...g, ...row } : g))
+              : prev,
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
 
   async function requestImpersonation() {
     if (!user) return;
