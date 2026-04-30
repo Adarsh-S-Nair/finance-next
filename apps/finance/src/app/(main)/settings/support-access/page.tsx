@@ -34,7 +34,10 @@ function formatRelative(iso: string | null): string {
 }
 
 function isActive(g: Grant): boolean {
-  return g.status === "approved" && !!g.expires_at && new Date(g.expires_at).getTime() > Date.now();
+  if (g.status !== "approved") return false;
+  // null expires_at = indefinite grant.
+  if (!g.expires_at) return true;
+  return new Date(g.expires_at).getTime() > Date.now();
 }
 
 const STATUS_COPY: Record<string, string> = {
@@ -161,7 +164,14 @@ export default function SupportAccessPage() {
                             {formatRelative(g.decided_at)}
                           </>
                         )}
-                        {active && g.expires_at && <> · expires {formatRelative(g.expires_at)}</>}
+                        {active && (
+                          <>
+                            {" · "}
+                            {g.expires_at
+                              ? `expires ${formatRelative(g.expires_at)}`
+                              : "until revoked"}
+                          </>
+                        )}
                       </div>
                     </div>
                     {open && (

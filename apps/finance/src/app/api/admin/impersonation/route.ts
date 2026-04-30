@@ -4,7 +4,8 @@ import { isCallerAdmin } from "../../../../lib/api/admin";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
 import { isOpen, type GrantRow } from "../../../../lib/impersonation/status";
 
-const VALID_DURATIONS = new Set([3_600, 86_400, 604_800]); // 1h, 24h, 7d
+// 0 = indefinite (no expires_at, lasts until target revokes).
+const VALID_DURATIONS = new Set([0, 3_600, 86_400, 604_800]);
 
 /**
  * Admin requests impersonation access to a target user. The target must
@@ -31,7 +32,7 @@ export const POST = withAuth("admin:impersonation:create", async (req, callerId)
   const duration = body.duration_seconds ?? 86_400;
   if (!VALID_DURATIONS.has(duration)) {
     return NextResponse.json(
-      { error: "duration_seconds must be 3600, 86400, or 604800" },
+      { error: "duration_seconds must be 0, 3600, 86400, or 604800" },
       { status: 400 },
     );
   }

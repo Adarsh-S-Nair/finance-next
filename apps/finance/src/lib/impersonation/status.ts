@@ -24,7 +24,9 @@ export type GrantRow = {
 
 export function isActive(grant: Pick<GrantRow, "status" | "expires_at">): boolean {
   if (grant.status !== "approved") return false;
-  if (!grant.expires_at) return false;
+  // Indefinite grants (duration 0) leave expires_at null; they remain
+  // active until the target revokes.
+  if (!grant.expires_at) return true;
   return new Date(grant.expires_at).getTime() > Date.now();
 }
 

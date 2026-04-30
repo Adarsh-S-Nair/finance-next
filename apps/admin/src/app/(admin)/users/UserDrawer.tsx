@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import clsx from "clsx";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
 import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
@@ -21,8 +22,20 @@ type Grant = {
   reason: string | null;
 };
 
+// duration_seconds === 0 means indefinite (no expires_at, lasts until
+// the target revokes). All other values are a TTL applied at approve time.
+const DURATION_OPTIONS: { value: number; label: string }[] = [
+  { value: 3_600, label: "1h" },
+  { value: 86_400, label: "1 day" },
+  { value: 604_800, label: "1 week" },
+  { value: 0, label: "Until revoked" },
+];
+
 function isActive(g: Grant): boolean {
-  return g.status === "approved" && !!g.expires_at && new Date(g.expires_at).getTime() > Date.now();
+  if (g.status !== "approved") return false;
+  // null expires_at = indefinite grant (target hasn't revoked).
+  if (!g.expires_at) return true;
+  return new Date(g.expires_at).getTime() > Date.now();
 }
 
 function isOpen(g: Grant): boolean {
@@ -30,7 +43,7 @@ function isOpen(g: Grant): boolean {
 }
 
 function formatExpiresIn(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "until revoked";
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "expired";
   const mins = Math.floor(ms / 60_000);
@@ -39,6 +52,13 @@ function formatExpiresIn(iso: string | null): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+function formatRequestedDuration(seconds: number): string {
+  if (seconds === 0) return "until revoked";
+  if (seconds >= 86_400) return `${seconds / 86_400}d`;
+  if (seconds >= 3_600) return `${Math.round(seconds / 3_600)}h`;
+  return `${Math.round(seconds / 60)}m`;
 }
 
 type Props = {
@@ -310,7 +330,7 @@ export default function UserDrawer({
                   </Button>
                 ) : (
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
                     onClick={() => updateSubscription("grant_pro")}
                     disabled={subBusy}
@@ -419,7 +439,7 @@ export default function UserDrawer({
                       </div>
                       <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
                         Requested {formatRelative(openGrant.requested_at)} ·{" "}
-                        {Math.round(openGrant.duration_seconds / 3600)}h grant
+                        {formatRequestedDuration(openGrant.duration_seconds)} grant
                       </div>
                     </div>
                     <Button
@@ -435,7 +455,10 @@ export default function UserDrawer({
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="text-sm text-[var(--color-success)] font-medium">
-                        Active — expires in {formatExpiresIn(openGrant.expires_at)}
+                        Active —{" "}
+                        {openGrant.expires_at
+                          ? `expires in ${formatExpiresIn(openGrant.expires_at)}`
+                          : "until revoked"}
                       </div>
                       <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
                         Approved {formatRelative(openGrant.decided_at)}
@@ -443,7 +466,7 @@ export default function UserDrawer({
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="secondary"
+                        variant="primary"
                         size="sm"
                         onClick={() => enterSession(openGrant.id)}
                         disabled={grantBusy}
@@ -461,27 +484,30 @@ export default function UserDrawer({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {lastGrant && (
                       <div className="text-[11px] text-[var(--color-muted)]">
                         Last request: {lastGrant.status} ·{" "}
                         {formatRelative(lastGrant.decided_at ?? lastGrant.requested_at)}
                       </div>
                     )}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <label className="text-[11px] text-[var(--color-muted)]/70 uppercase tracking-[0.08em]">
-                        Duration
-                      </label>
-                      <select
-                        value={duration}
-                        onChange={(e) => setDuration(Number(e.target.value))}
-                        className="bg-[var(--color-input-bg)] text-[var(--color-input-fg)] text-xs rounded px-2 py-1 outline-none"
-                        disabled={grantBusy}
-                      >
-                        <option value={3_600}>1 hour</option>
-                        <option value={86_400}>24 hours</option>
-                        <option value={604_800}>7 days</option>
-                      </select>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DURATION_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setDuration(opt.value)}
+                          disabled={grantBusy}
+                          className={clsx(
+                            "h-7 px-3 rounded-full text-xs transition-colors disabled:opacity-50",
+                            duration === opt.value
+                              ? "bg-[var(--color-fg)] text-[var(--color-bg)]"
+                              : "bg-[var(--color-surface-alt)] text-[var(--color-muted)] hover:text-[var(--color-fg)]",
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
                     <input
                       type="text"
@@ -490,10 +516,10 @@ export default function UserDrawer({
                       placeholder="Reason (optional, shown to user)"
                       maxLength={500}
                       disabled={grantBusy}
-                      className="w-full bg-[var(--color-input-bg)] text-[var(--color-input-fg)] text-xs rounded px-2 py-1.5 outline-none placeholder:text-[var(--color-input-placeholder)]"
+                      className="w-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] text-xs rounded-md px-3 py-2 outline-none placeholder:text-[var(--color-muted)]/70 focus:ring-1 focus:ring-[var(--color-fg)]/20 transition-shadow"
                     />
                     <Button
-                      variant="secondary"
+                      variant="primary"
                       size="sm"
                       onClick={requestImpersonation}
                       disabled={grantBusy}
