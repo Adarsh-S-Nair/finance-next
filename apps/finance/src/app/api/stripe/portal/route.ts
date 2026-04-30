@@ -1,6 +1,7 @@
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
+import { blockedByImpersonation } from '../../../../lib/impersonation/guard';
 
 /**
  * POST /api/stripe/portal
@@ -12,7 +13,10 @@ import { withAuth } from '../../../../lib/api/withAuth';
  * Requires the user to have a stripe_customer_id already set (i.e., they
  * went through Checkout at least once).
  */
-export const POST = withAuth('stripe:portal', async (_request, userId) => {
+export const POST = withAuth('stripe:portal', async (request, userId) => {
+    const blocked = await blockedByImpersonation(request);
+    if (blocked) return blocked;
+
     const stripe = requireStripe();
 
     const { data: profile, error: profileError } = await supabaseAdmin!

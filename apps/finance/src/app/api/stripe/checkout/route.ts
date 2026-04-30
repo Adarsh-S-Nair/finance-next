@@ -1,6 +1,7 @@
 import { requireStripe } from '../../../../lib/stripe/client';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
+import { blockedByImpersonation } from '../../../../lib/impersonation/guard';
 
 /**
  * POST /api/stripe/checkout
@@ -12,7 +13,10 @@ import { withAuth } from '../../../../lib/api/withAuth';
  * - Stores the stripe_customer_id on the user_profiles row so we can
  *   match webhook events back to the right user.
  */
-export const POST = withAuth('stripe:checkout', async (_request, userId) => {
+export const POST = withAuth('stripe:checkout', async (request, userId) => {
+    const blocked = await blockedByImpersonation(request);
+    if (blocked) return blocked;
+
     const stripe = requireStripe();
 
     const priceId = process.env.STRIPE_PRO_PRICE_ID;
