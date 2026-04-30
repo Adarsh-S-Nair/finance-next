@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
 import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
@@ -10,6 +10,36 @@ import {
   fullName,
   initials,
 } from "./UsersClient";
+
+type Grant = {
+  id: string;
+  status: string;
+  expires_at: string | null;
+  decided_at: string | null;
+  duration_seconds: number;
+  requested_at: string;
+  reason: string | null;
+};
+
+function isActive(g: Grant): boolean {
+  return g.status === "approved" && !!g.expires_at && new Date(g.expires_at).getTime() > Date.now();
+}
+
+function isOpen(g: Grant): boolean {
+  return g.status === "pending" || isActive(g);
+}
+
+function formatExpiresIn(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "expired";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
 
 type Props = {
   user: AdminUserRow | null;
@@ -38,8 +68,106 @@ export default function UserDrawer({
   const [subBusy, setSubBusy] = useState(false);
   const [subError, setSubError] = useState<string | null>(null);
 
+  const [grants, setGrants] = useState<Grant[] | null>(null);
+  const [grantsLoading, setGrantsLoading] = useState(false);
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number>(86_400);
+  const [reason, setReason] = useState("");
+
   const isPro = user?.subscription_tier === "pro";
   const status = user?.subscription_status;
+  const openGrant = grants?.find((g) => isOpen(g)) ?? null;
+  const lastGrant = grants?.[0] ?? null;
+
+  useEffect(() => {
+    if (!user) {
+      setGrants(null);
+      setGrantError(null);
+      setReason("");
+      return;
+    }
+    let cancelled = false;
+    setGrantsLoading(true);
+    setGrantError(null);
+    fetch(`/api/impersonation?target=${encodeURIComponent(user.id)}`, { cache: "no-store" })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setGrantError(body?.error || "Could not load grants");
+          setGrants([]);
+          return;
+        }
+        setGrants((body?.grants as Grant[]) ?? []);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setGrantError(e?.message || "Could not load grants");
+        setGrants([]);
+      })
+      .finally(() => {
+        if (!cancelled) setGrantsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  async function requestImpersonation() {
+    if (!user) return;
+    setGrantBusy(true);
+    setGrantError(null);
+    try {
+      const res = await fetch(`/api/impersonation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_user_id: user.id,
+          duration_seconds: duration,
+          reason: reason.trim() || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Request failed");
+      const newGrant = body.grant as Grant | undefined;
+      if (newGrant) {
+        setGrants((prev) => {
+          const others = (prev ?? []).filter((g) => g.id !== newGrant.id);
+          return [newGrant, ...others];
+        });
+        setReason("");
+      }
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setGrantError(err?.message || "Request failed");
+    } finally {
+      setGrantBusy(false);
+    }
+  }
+
+  async function cancelImpersonation(grantId: string) {
+    setGrantBusy(true);
+    setGrantError(null);
+    try {
+      const res = await fetch(`/api/impersonation/${encodeURIComponent(grantId)}`, {
+        method: "DELETE",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Cancel failed");
+      const updated = body.grant as Grant | undefined;
+      if (updated) {
+        setGrants((prev) =>
+          (prev ?? []).map((g) => (g.id === updated.id ? updated : g)),
+        );
+      }
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setGrantError(err?.message || "Cancel failed");
+    } finally {
+      setGrantBusy(false);
+    }
+  }
 
   async function handleDelete() {
     if (!user) return;
@@ -249,6 +377,110 @@ export default function UserDrawer({
                     );
                   })}
                 </ul>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3">
+                Impersonation
+              </h3>
+              <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 space-y-3">
+                {grantsLoading && !grants ? (
+                  <div className="text-xs text-[var(--color-muted)]">Loading…</div>
+                ) : openGrant && openGrant.status === "pending" ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm text-[var(--color-fg)]">
+                        Pending — awaiting user approval
+                      </div>
+                      <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                        Requested {formatRelative(openGrant.requested_at)} ·{" "}
+                        {Math.round(openGrant.duration_seconds / 3600)}h grant
+                      </div>
+                    </div>
+                    <Button
+                      variant="dangerSubtle"
+                      size="sm"
+                      onClick={() => cancelImpersonation(openGrant.id)}
+                      disabled={grantBusy}
+                    >
+                      {grantBusy ? "Canceling…" : "Cancel"}
+                    </Button>
+                  </div>
+                ) : openGrant && isActive(openGrant) ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm text-[var(--color-success)] font-medium">
+                        Active — expires in {formatExpiresIn(openGrant.expires_at)}
+                      </div>
+                      <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                        Approved {formatRelative(openGrant.decided_at)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled
+                        title="Enter session — coming next commit"
+                      >
+                        Enter session
+                      </Button>
+                      <Button
+                        variant="dangerSubtle"
+                        size="sm"
+                        onClick={() => cancelImpersonation(openGrant.id)}
+                        disabled={grantBusy}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {lastGrant && (
+                      <div className="text-[11px] text-[var(--color-muted)]">
+                        Last request: {lastGrant.status} ·{" "}
+                        {formatRelative(lastGrant.decided_at ?? lastGrant.requested_at)}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <label className="text-[11px] text-[var(--color-muted)]/70 uppercase tracking-[0.08em]">
+                        Duration
+                      </label>
+                      <select
+                        value={duration}
+                        onChange={(e) => setDuration(Number(e.target.value))}
+                        className="bg-[var(--color-input-bg)] text-[var(--color-input-fg)] text-xs rounded px-2 py-1 outline-none"
+                        disabled={grantBusy}
+                      >
+                        <option value={3_600}>1 hour</option>
+                        <option value={86_400}>24 hours</option>
+                        <option value={604_800}>7 days</option>
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Reason (optional, shown to user)"
+                      maxLength={500}
+                      disabled={grantBusy}
+                      className="w-full bg-[var(--color-input-bg)] text-[var(--color-input-fg)] text-xs rounded px-2 py-1.5 outline-none placeholder:text-[var(--color-input-placeholder)]"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={requestImpersonation}
+                      disabled={grantBusy}
+                    >
+                      {grantBusy ? "Requesting…" : "Request access"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {grantError && (
+                <p className="mt-2 text-xs text-[var(--color-danger)]/80">{grantError}</p>
               )}
             </section>
 
