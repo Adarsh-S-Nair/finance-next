@@ -135,3 +135,105 @@ export function shouldProjectPending(
   if (accountType === 'depository' && amount > 0) return false;
   return true;
 }
+
+/**
+ * Does this depository account need pending-debit projection at all?
+ *
+ * Background: traditional banks (Chase, Wells, BofA) report two numbers
+ * that mean different things — `current` is settled funds, `available`
+ * is `current` minus outstanding pending debits. While pending charges
+ * exist, `available < current`, and the projection layer recreates
+ * "available after pending" by subtracting the pending tx feed from the
+ * checkpoint.
+ *
+ * Modern fintechs (Venmo, Cash App, most neobanks) don't track a
+ * settled/available distinction — money moves in real time, and Plaid
+ * relays a single number as both `current` and `available`. The
+ * `pending` flag on a transaction is metadata about Plaid's view of
+ * settlement state, NOT a signal that the amount hasn't been deducted
+ * from balance yet. Projecting pending on top of `current` here
+ * double-counts the spend.
+ *
+ * The signal: when Plaid returns `current === available`, the
+ * institution is telling us "what you see is what you can spend." Skip
+ * pending projection — the checkpoint already reflects every charge,
+ * settled or not.
+ *
+ * Conservative defaults: if either value is null, project (we'd rather
+ * show a slightly low balance than a wildly inflated one). The half-
+ * cent epsilon mirrors `isCheckpointChange`.
+ *
+ * Only meaningful for depository accounts. Credit cards have
+ * `available = limit - current` (different semantics entirely), so this
+ * comparison would always say "skip" and silently break credit-card
+ * pending projection. Callers must gate on account type.
+ */
+export function shouldProjectPendingForDepository(
+  plaidCurrent: number | null,
+  plaidAvailable: number | null
+): boolean {
+  if (plaidCurrent === null) return true;
+  if (plaidAvailable === null) return true;
+  return Math.abs(plaidCurrent - plaidAvailable) > 0.005;
+}
+
+/**
+ * End-to-end balance projection. Combines the checkpoint, posted-tx
+ * deltas, and pending-tx contributions into the displayed `current`
+ * value, applying all the type- and institution-aware rules above.
+ *
+ * Pure function so we can exercise the full math under test without
+ * spinning up Supabase mocks. The orchestrator in `index.ts` is the
+ * thin shell that handles I/O (fetching txs, persisting the row).
+ *
+ *   - `checkpointCurrent` — the stored Plaid checkpoint, or the just-
+ *     incoming value if it's a fresh checkpoint. Null disables
+ *     projection entirely (returns null).
+ *   - `checkpointAvailable` — the corresponding `available` value from
+ *     Plaid. Used only for the depository real-time-institution check.
+ *   - `accountType` — depository / credit / loan / null-or-other.
+ *   - `postedDeltaSum` — sum of posted tx amounts with `date > as_of`.
+ *     Caller is responsible for the date filter; this function trusts
+ *     it.
+ *   - `pendingAmounts` — amounts of every pending tx the caller wants
+ *     to consider. Per-tx and institution-level filtering applied here.
+ */
+export interface ProjectedBalanceInputs {
+  checkpointCurrent: number | null;
+  checkpointAvailable: number | null;
+  accountType: string | null | undefined;
+  postedDeltaSum: number;
+  pendingAmounts: number[];
+}
+
+export function computeProjectedBalance(
+  inputs: ProjectedBalanceInputs
+): number | null {
+  const {
+    checkpointCurrent,
+    checkpointAvailable,
+    accountType,
+    postedDeltaSum,
+    pendingAmounts,
+  } = inputs;
+
+  if (checkpointCurrent === null) return null;
+
+  const skipPendingForRealtimeInstitution =
+    accountType === 'depository' &&
+    !shouldProjectPendingForDepository(checkpointCurrent, checkpointAvailable);
+
+  let pendingSum = 0;
+  if (!skipPendingForRealtimeInstitution) {
+    for (const amount of pendingAmounts) {
+      if (!shouldProjectPending(amount, accountType)) continue;
+      pendingSum += amount;
+    }
+  }
+
+  return projectCurrent(
+    checkpointCurrent,
+    postedDeltaSum + pendingSum,
+    accountType
+  );
+}

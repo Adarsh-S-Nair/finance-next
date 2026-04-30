@@ -37,9 +37,9 @@ import {
   linkRowsToCategories,
 } from './categories';
 import {
+  computeProjectedBalance,
   isCheckpointChange,
-  projectCurrent,
-  shouldProjectPending,
+  shouldProjectPendingForDepository,
 } from './projectBalance';
 import type {
   AccountMap,
@@ -678,7 +678,8 @@ async function updateAccountBalances(
       Date.now() - PENDING_PROJECTION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
     const pendingFloorIso = new Date(pendingFloorMs).toISOString();
 
-    let deltaSum = 0;
+    let postedDeltaSum = 0;
+    const pendingAmounts: number[] = [];
     if (checkpointCurrent !== null) {
       // Posted, with calendar date strictly after `as_of`.
       const postedQuery = supabaseAdmin
@@ -696,34 +697,53 @@ async function updateAccountBalances(
         });
       } else {
         for (const row of (postedDeltas ?? []) as Array<{ amount: number | null }>) {
-          deltaSum += Number(row.amount ?? 0);
+          postedDeltaSum += Number(row.amount ?? 0);
         }
       }
 
-      // All currently-pending, capped by age. Per-row include/exclude
-      // applied via `shouldProjectPending` after the fetch, since the
-      // rule is type-aware (depends on `acct.type`).
-      const { data: pendingDeltas, error: pendingErr } = await supabaseAdmin
-        .from('transactions')
-        .select('amount')
-        .eq('account_id', dbAccountId)
-        .eq('pending', true)
-        .gt('created_at', pendingFloorIso);
-      if (pendingErr) {
-        logger.warn('Failed to sum pending-tx deltas for projection', {
-          account_id: plaidAccount.account_id,
-          error: pendingErr.message,
-        });
-      } else {
-        for (const row of (pendingDeltas ?? []) as Array<{ amount: number | null }>) {
-          const amount = Number(row.amount ?? 0);
-          if (!shouldProjectPending(amount, acct.type)) continue;
-          deltaSum += amount;
+      // Skip the pending fetch entirely for depository accounts where
+      // Plaid signals "no settled/available distinction" (Venmo, Cash
+      // App, fintechs that update in real time). Their `current`
+      // already includes pending; projecting on top double-counts.
+      // `computeProjectedBalance` would discard the rows anyway, but
+      // skipping the round-trip is cheap insurance.
+      const fetchPending =
+        acct.type !== 'depository' ||
+        shouldProjectPendingForDepository(
+          checkpointCurrent,
+          checkpointAvailable
+        );
+
+      if (fetchPending) {
+        // All currently-pending, capped by age. Per-row include/exclude
+        // applied inside `computeProjectedBalance` since the rule is
+        // type-aware.
+        const { data: pendingDeltas, error: pendingErr } = await supabaseAdmin
+          .from('transactions')
+          .select('amount')
+          .eq('account_id', dbAccountId)
+          .eq('pending', true)
+          .gt('created_at', pendingFloorIso);
+        if (pendingErr) {
+          logger.warn('Failed to sum pending-tx deltas for projection', {
+            account_id: plaidAccount.account_id,
+            error: pendingErr.message,
+          });
+        } else {
+          for (const row of (pendingDeltas ?? []) as Array<{ amount: number | null }>) {
+            pendingAmounts.push(Number(row.amount ?? 0));
+          }
         }
       }
     }
 
-    const projectedCurrent = projectCurrent(checkpointCurrent, deltaSum, acct.type);
+    const projectedCurrent = computeProjectedBalance({
+      checkpointCurrent,
+      checkpointAvailable,
+      accountType: acct.type,
+      postedDeltaSum,
+      pendingAmounts,
+    });
 
     // Build the displayed balance JSON. Take Plaid's incoming object as
     // the base (preserves currency_code + limit), then override `current`
