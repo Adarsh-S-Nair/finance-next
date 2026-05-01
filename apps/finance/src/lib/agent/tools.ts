@@ -216,6 +216,13 @@ async function getBudgets(userId: string, input: BudgetsInput) {
     const fallbackGroup =
       !directGroup && cat?.group_id ? groupIconMap.get(cat.group_id) ?? null : null;
 
+    // getBudgetProgress returns the BudgetProgress shape, which extends
+    // the budget row with `spent`, `remaining`, and `percentage`. Read
+    // those fields, not the misnamed `totalSpent` I had before — that
+    // was always undefined, which is why the widget kept reporting $0
+    // spent regardless of how much the user actually spent.
+    const spent = Number(rec.spent ?? 0);
+    const amount = Number(rec.amount ?? 0);
     return {
       id: rec.id,
       label: directGroup?.name ?? cat?.label ?? 'Uncategorized',
@@ -226,13 +233,10 @@ async function getBudgets(userId: string, input: BudgetsInput) {
         '#71717a',
       icon_lib: directGroup?.icon_lib ?? fallbackGroup?.icon_lib ?? null,
       icon_name: directGroup?.icon_name ?? fallbackGroup?.icon_name ?? null,
-      budget_amount: Number(rec.amount ?? 0),
-      spent: Number(rec.totalSpent ?? 0),
-      remaining: Number(rec.amount ?? 0) - Number(rec.totalSpent ?? 0),
-      percent_used:
-        Number(rec.amount ?? 0) > 0
-          ? Math.round((Number(rec.totalSpent ?? 0) / Number(rec.amount ?? 0)) * 100)
-          : 0,
+      budget_amount: amount,
+      spent,
+      remaining: amount - spent,
+      percent_used: amount > 0 ? Math.round((spent / amount) * 100) : 0,
     };
   });
 
