@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import clsx from "clsx";
 
 const KEY_ANTHROPIC = "agent.anthropic_api_key";
 const KEY_MODEL = "agent.model";
 
 const MODELS = [
-  { value: "claude-opus-4-7", label: "Claude Opus 4.7", note: "Highest quality, slowest, most expensive" },
-  { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", note: "Balanced — good default" },
-  { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", note: "Fastest, cheapest" },
+  {
+    value: "claude-haiku-4-5-20251001",
+    label: "Claude Haiku 4.5",
+    note: "Fastest, cheapest",
+  },
+  {
+    value: "claude-sonnet-4-6",
+    label: "Claude Sonnet 4.6",
+    note: "Balanced — good default",
+  },
+  {
+    value: "claude-opus-4-7",
+    label: "Claude Opus 4.7",
+    note: "Highest quality, most expensive",
+  },
 ];
+
+const DEFAULT_MODEL = MODELS[0].value;
 
 type ConfigRow = {
   key: string;
@@ -20,21 +33,30 @@ type ConfigRow = {
   updated_at: string;
 };
 
+function formatTimestamp(iso: string): string {
+  // Pure transformation — no Date.now() so the purity rule stays happy.
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function AgentConfigClient() {
   const [rows, setRows] = useState<ConfigRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // API key form
-  const [keyInput, setKeyInput] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
+  // Uncommitted form state
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
+
+  // Async state
+  const [saving, setSaving] = useState(false);
   const [clearingKey, setClearingKey] = useState(false);
-
-  // Model form
-  const [savingModel, setSavingModel] = useState(false);
-
-  // Saved indicator
   const [savedRecently, setSavedRecently] = useState(false);
+
   function flashSaved() {
     setSavedRecently(true);
     setTimeout(() => setSavedRecently(false), 2500);
@@ -45,7 +67,10 @@ export function AgentConfigClient() {
       const res = await fetch("/api/platform-config", { cache: "no-store" });
       if (!res.ok) throw new Error(`Load failed (${res.status})`);
       const body = await res.json();
-      setRows(body.rows ?? []);
+      const fetched = (body.rows ?? []) as ConfigRow[];
+      setRows(fetched);
+      const modelRow = fetched.find((r) => r.key === KEY_MODEL);
+      setSelectedModel(modelRow?.value ?? DEFAULT_MODEL);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -59,33 +84,65 @@ export function AgentConfigClient() {
 
   const apiKeyRow = rows.find((r) => r.key === KEY_ANTHROPIC);
   const modelRow = rows.find((r) => r.key === KEY_MODEL);
-  const currentModel = modelRow?.value ?? "claude-sonnet-4-6";
+  const persistedModel = modelRow?.value ?? DEFAULT_MODEL;
+  const persistedModelLabel =
+    MODELS.find((m) => m.value === persistedModel)?.label ?? persistedModel;
 
-  async function saveKey() {
-    const trimmed = keyInput.trim();
-    if (!trimmed) return;
+  const apiKeyDirty = apiKeyInput.trim().length > 0;
+  const modelDirty = selectedModel !== persistedModel;
+  const dirty = apiKeyDirty || modelDirty;
+
+  async function save() {
+    if (!dirty || saving) return;
     setError(null);
-    setSavingKey(true);
+    setSaving(true);
     try {
-      const res = await fetch("/api/platform-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: KEY_ANTHROPIC, value: trimmed, is_secret: true }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || `Save failed (${res.status})`);
-      setKeyInput("");
+      // Save changed fields in sequence. The API takes one key/value pair
+      // per call; that's fine — at most two calls per save.
+      if (apiKeyDirty) {
+        const r = await fetch("/api/platform-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: KEY_ANTHROPIC,
+            value: apiKeyInput.trim(),
+            is_secret: true,
+          }),
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(body?.error || `Failed to save key (${r.status})`);
+      }
+      if (modelDirty) {
+        const r = await fetch("/api/platform-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: KEY_MODEL,
+            value: selectedModel,
+            is_secret: false,
+          }),
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(body?.error || `Failed to save model (${r.status})`);
+      }
+      setApiKeyInput("");
       flashSaved();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
-      setSavingKey(false);
+      setSaving(false);
     }
   }
 
   async function clearKey() {
-    if (!confirm("Clear the Anthropic API key? The agent will fall back to ANTHROPIC_API_KEY env var (if set) or stop working.")) return;
+    if (
+      !confirm(
+        "Clear the Anthropic API key? The agent will fall back to the ANTHROPIC_API_KEY env var (if set) or stop working.",
+      )
+    ) {
+      return;
+    }
     setError(null);
     setClearingKey(true);
     try {
@@ -102,25 +159,7 @@ export function AgentConfigClient() {
     }
   }
 
-  async function saveModel(modelId: string) {
-    setError(null);
-    setSavingModel(true);
-    try {
-      const res = await fetch("/api/platform-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: KEY_MODEL, value: modelId, is_secret: false }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || `Save failed (${res.status})`);
-      flashSaved();
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setSavingModel(false);
-    }
-  }
+  const selectedModelDescription = MODELS.find((m) => m.value === selectedModel)?.note;
 
   return (
     <div className="space-y-8">
@@ -130,120 +169,118 @@ export function AgentConfigClient() {
         </div>
       )}
 
-      {/* API key */}
+      {/* API key section */}
       <section>
         <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-4">
           Anthropic API key
         </h2>
         <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-5 space-y-4">
-          <p className="text-xs text-[var(--color-muted)] leading-relaxed">
-            Powers the personal finance agent at <code className="px-1 py-0.5 rounded bg-[var(--color-fg)]/[0.06] font-mono text-[11px]">/agent</code> on the finance app for every user. Stored encrypted at rest. The chat route falls back to the <code className="px-1 py-0.5 rounded bg-[var(--color-fg)]/[0.06] font-mono text-[11px]">ANTHROPIC_API_KEY</code> env var if no DB value is set.
-          </p>
-
-          {loading ? (
-            <div className="text-sm text-[var(--color-muted)]">Loading…</div>
-          ) : apiKeyRow ? (
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-[var(--color-fg)]">Current key</div>
-                <div className="text-xs text-[var(--color-muted)] mt-0.5 font-mono">
-                  {apiKeyRow.display}
-                </div>
-                <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-                  Updated {new Date(apiKeyRow.updated_at).toLocaleString()}
-                </div>
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-[var(--color-fg)]">
+                Platform key
               </div>
+              <p className="mt-1 text-xs text-[var(--color-muted)] leading-relaxed">
+                Powers the personal finance agent for every user. Encrypted at rest.
+                Falls back to the{" "}
+                <code className="px-1 py-0.5 rounded bg-[var(--color-fg)]/[0.06] font-mono text-[11px]">
+                  ANTHROPIC_API_KEY
+                </code>{" "}
+                env var when no DB value is set.
+              </p>
+              {loading ? null : apiKeyRow ? (
+                <p className="mt-2 text-xs text-[var(--color-muted)] font-mono">
+                  Current: {apiKeyRow.display} · updated {formatTimestamp(apiKeyRow.updated_at)}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-[var(--color-muted)]">
+                  No DB key — using env var fallback.
+                </p>
+              )}
+            </div>
+            {apiKeyRow && (
               <button
                 type="button"
                 onClick={clearKey}
-                disabled={clearingKey}
-                className="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--color-fg)]/15 hover:border-[var(--color-fg)]/30 disabled:opacity-50"
+                disabled={clearingKey || saving}
+                className="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--color-fg)]/15 hover:border-[var(--color-fg)]/30 disabled:opacity-50 flex-shrink-0"
               >
                 {clearingKey ? "Clearing…" : "Clear"}
               </button>
-            </div>
-          ) : (
-            <div className="text-xs text-[var(--color-muted)]">
-              No DB key set — the agent uses <code className="px-1 py-0.5 rounded bg-[var(--color-fg)]/[0.06] font-mono text-[11px]">ANTHROPIC_API_KEY</code> from the env.
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="sk-ant-…"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={savingKey}
-              className="flex-1 min-w-0 px-3 py-2 text-sm rounded-md bg-[var(--color-bg)] border border-[var(--color-fg)]/10 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60"
-            />
-            <button
-              type="button"
-              onClick={saveKey}
-              disabled={savingKey || !keyInput.trim()}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
-            >
-              {savingKey ? "Saving…" : apiKeyRow ? "Replace key" : "Save key"}
-            </button>
+            )}
           </div>
+          <input
+            type="password"
+            value={apiKeyInput}
+            onChange={(e) => setApiKeyInput(e.target.value)}
+            placeholder={apiKeyRow ? "Paste new key to replace (sk-ant-…)" : "sk-ant-…"}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={loading || saving}
+            className="w-full px-3 py-2 text-sm rounded-md bg-[var(--color-bg)] border border-[var(--color-fg)]/10 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60"
+          />
         </div>
       </section>
 
-      {/* Model */}
+      {/* Model section */}
       <section>
         <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-4">
           Model
         </h2>
         <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-5">
-          <p className="text-xs text-[var(--color-muted)] mb-4 leading-relaxed">
-            Which Claude model the agent uses. Falls back to{" "}
-            <code className="px-1 py-0.5 rounded bg-[var(--color-fg)]/[0.06] font-mono text-[11px]">
-              claude-sonnet-4-6
-            </code>{" "}
-            if not set.
-          </p>
-          <div className="space-y-2">
-            {MODELS.map((m) => {
-              const active = currentModel === m.value;
-              return (
-                <button
-                  key={m.value}
-                  type="button"
-                  disabled={savingModel || active}
-                  onClick={() => saveModel(m.value)}
-                  className={clsx(
-                    "w-full text-left flex items-center justify-between gap-4 px-3 py-3 rounded-md border transition-colors",
-                    active
-                      ? "border-[var(--color-fg)] bg-[var(--color-fg)]/[0.04]"
-                      : "border-[var(--color-fg)]/10 hover:border-[var(--color-fg)]/30 disabled:opacity-50",
-                  )}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-[var(--color-fg)]">
-                      {m.label}
-                    </div>
-                    <div className="text-xs text-[var(--color-muted)] mt-0.5">{m.note}</div>
-                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5 font-mono">
-                      {m.value}
-                    </div>
-                  </div>
-                  {active && (
-                    <span className="text-xs font-medium text-[var(--color-fg)] flex-shrink-0">
-                      Active
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-[var(--color-fg)]">
+                Claude model
+              </div>
+              <p className="mt-1 text-xs text-[var(--color-muted)] leading-relaxed">
+                Active: <span className="text-[var(--color-fg)]">{persistedModelLabel}</span>
+                {selectedModelDescription && selectedModel === persistedModel && (
+                  <> · {selectedModelDescription}</>
+                )}
+                {modelDirty && (
+                  <>
+                    {" "}—{" "}
+                    <span className="text-[var(--color-fg)]">
+                      pending: {MODELS.find((m) => m.value === selectedModel)?.label}
                     </span>
-                  )}
-                </button>
-              );
-            })}
+                  </>
+                )}
+              </p>
+            </div>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={loading || saving}
+              className="px-3 py-2 text-sm rounded-md bg-[var(--color-bg)] border border-[var(--color-fg)]/10 text-[var(--color-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60 cursor-pointer flex-shrink-0"
+            >
+              {MODELS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </section>
 
-      {savedRecently && (
-        <div className="text-xs text-[var(--color-muted)]">Saved.</div>
-      )}
+      {/* Save bar */}
+      <div className="flex items-center justify-end gap-3 pt-2">
+        {savedRecently && (
+          <span className="text-xs text-[var(--color-muted)]">Saved</span>
+        )}
+        {dirty && !savedRecently && !saving && (
+          <span className="text-xs text-[var(--color-muted)]">Unsaved changes</span>
+        )}
+        <button
+          type="button"
+          onClick={save}
+          disabled={!dirty || saving || loading}
+          className="px-4 py-2 text-sm font-medium rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+      </div>
     </div>
   );
 }
