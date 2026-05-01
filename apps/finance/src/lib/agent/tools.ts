@@ -64,9 +64,17 @@ export const TOOLS: ToolDefinition[] = [
         days: {
           type: 'integer',
           description:
-            'How many days back to search. Defaults to 30. Use 7 for "this week", 90 for a quarter.',
+            'How many days back to search from today. Defaults to 30. Use 7 for "this week", ' +
+            '90 for a quarter. Ignored if `month` is provided.',
           minimum: 1,
           maximum: 365,
+        },
+        month: {
+          type: 'string',
+          description:
+            'Specific calendar month to query in YYYY-MM-DD format (any date in the month works). ' +
+            'Use this for questions about a particular month (e.g. "last month", "in April"). ' +
+            'When set, takes precedence over `days`.',
         },
         merchant_query: {
           type: 'string',
@@ -132,6 +140,7 @@ interface BudgetsInput {
 interface RecentTransactionsInput {
   limit?: number;
   days?: number;
+  month?: string;
   merchant_query?: string;
   category_query?: string;
 }
@@ -266,16 +275,36 @@ async function getBudgets(userId: string, input: BudgetsInput) {
 async function getRecentTransactions(userId: string, input: RecentTransactionsInput) {
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);
   const days = Math.min(Math.max(input.days ?? 30, 1), 365);
-  const since = format(subDays(new Date(), days), 'yyyy-MM-dd');
 
   const categoryQuery = input.category_query?.trim() ?? '';
   const merchantQuery = input.merchant_query?.trim() ?? '';
+
+  // Date window: a `month` argument pins the search to that calendar
+  // month (start..end), which is what the model should reach for when
+  // the user names a specific month ("last month", "in April"). Without
+  // it we fall back to a rolling N-day window from today, which is the
+  // right shape for relative phrases like "this week".
+  let startDate: string;
+  let endDate: string | null;
+  let resolvedMonth: string | null = null;
+  if (input.month && input.month.trim().length > 0) {
+    const monthDate = new Date(input.month);
+    if (isNaN(monthDate.getTime())) {
+      return { error: `Invalid month: ${input.month}` };
+    }
+    startDate = format(startOfMonth(monthDate), 'yyyy-MM-dd');
+    endDate = format(endOfMonth(monthDate), 'yyyy-MM-dd');
+    resolvedMonth = format(startOfMonth(monthDate), 'yyyy-MM');
+  } else {
+    startDate = format(subDays(new Date(), days), 'yyyy-MM-dd');
+    endDate = null;
+  }
 
   // When the model asks for a category match we over-fetch (no DB-side
   // filter on the joined category) and apply the substring match in JS
   // before slicing to `limit`. Postgrest's `.or()` doesn't support
   // filtering across embedded relations cleanly, and the windows here
-  // (≤365 days for one user) are small enough that this is fine.
+  // (one month or ≤365 days for one user) are small enough that this is fine.
   const overFetch = categoryQuery.length > 0;
 
   let query = supabaseAdmin
@@ -298,8 +327,12 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
       `,
     )
     .eq('accounts.user_id', userId)
-    .gte('date', since)
+    .gte('date', startDate)
     .order('date', { ascending: false });
+
+  if (endDate) {
+    query = query.lte('date', endDate);
+  }
 
   if (!overFetch) {
     query = query.limit(limit);
@@ -360,7 +393,11 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
   return {
     transactions,
     count: transactions.length,
-    days_searched: days,
+    // Surface whichever date window we actually used so the model can
+    // sanity-check its own call ("did I really query April?") and the
+    // widget could optionally render a month label.
+    month: resolvedMonth,
+    days_searched: resolvedMonth ? null : days,
     merchant_query: merchantQuery || null,
     category_query: categoryQuery || null,
   };
