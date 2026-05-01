@@ -514,8 +514,8 @@ export default function AlertsIcon() {
 
       {/* Mobile fullscreen overlay — portaled to body so it escapes any
           ancestor stacking context (transformed wrappers, sticky headers,
-          etc.) and renders above the MobileNavBar regardless. Slides in
-          from the right like a page transition. Chevron-left closes. */}
+          etc.). Slides in from the right like a page transition.
+          Chevron-left closes. */}
       {mounted &&
         createPortal(
           <AnimatePresence>

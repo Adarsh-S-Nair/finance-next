@@ -9,7 +9,6 @@ import {
 } from "../households/HouseholdRailExpander";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import MobileNavBar from "./MobileNavBar";
 import { usePathname } from "next/navigation";
 import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
@@ -249,7 +248,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             chrome on a different layer. The AppTopbar lives INSIDE the
             card so the card encompasses every product surface; only the
             sidebar + ProfileBar live on the shell. */}
-        <main className="flex-1 pb-24 md:pb-0 flex flex-col">
+        <main className="flex-1 flex flex-col">
           {/* The "card" is now edge-to-edge — the bg color difference
               between content-bg and shell-bg (the sidebar's bg) is what
               defines the navigation/work split. No border, no radius,
@@ -296,7 +295,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      <MobileNavBar />
       <PlaidOAuthHandler />
     </div>
     </HouseholdRailProvider>

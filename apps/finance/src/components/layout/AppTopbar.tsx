@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
 import { HouseholdRailInlineTrigger } from "../households/HouseholdRailExpander";
+import MobileNavMenu from "./MobileNavMenu";
 
 export default function AppTopbar() {
   const pathname = usePathname();
@@ -23,6 +24,9 @@ export default function AppTopbar() {
           pathname === "/dashboard" ? "max-w-[1600px]" : "max-w-[1440px]"
         } px-4 md:px-6 lg:px-10 h-16 w-full flex items-center gap-3 shrink-0 relative`}
       >
+
+        {/* Mobile: hamburger menu — always-visible nav trigger. */}
+        <MobileNavMenu />
 
         {/* Mobile: page-specific start portal (e.g. search button) */}
         <div id="page-mobile-start-portal" className="md:hidden flex items-center z-10" />

@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiPlus, FiClock, FiTrash2 } from "react-icons/fi";
 import { marked } from "marked";
-import { Drawer } from "@zervo/ui";
+import { Drawer, ConfirmOverlay } from "@zervo/ui";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 import ToolWidget, {
@@ -180,6 +180,8 @@ export default function AgentPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const localIdRef = useRef(0);
@@ -410,15 +412,10 @@ export default function AgentPage() {
     setDrawerOpen(false);
   }
 
-  async function deleteConversation(id: string) {
-    if (sending) return;
-    if (
-      !confirm(
-        "Delete this conversation? This permanently removes its messages.",
-      )
-    ) {
-      return;
-    }
+  async function confirmDelete() {
+    const id = pendingDeleteId;
+    if (!id || sending) return;
+    setDeleting(true);
     try {
       const res = await authFetch(`/api/agent/conversations/${id}`, {
         method: "DELETE",
@@ -435,8 +432,11 @@ export default function AgentPage() {
         setConversation(null);
         setMessages([]);
       }
+      setPendingDeleteId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -581,36 +581,53 @@ export default function AgentPage() {
         size="sm"
       >
         <div className="space-y-1">
-          {/* Borderless "New chat" — text + icon, no card chrome. Mirrors
-              the rest of the chat-screen aesthetic. */}
-          <button
-            type="button"
-            onClick={newChat}
-            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
-          >
-            <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
-            New chat
-          </button>
+          {/* "New chat" is only useful when an existing conversation is
+              open — on the welcome screen the user is already in a fresh
+              chat, so the button would be a no-op. */}
+          {conversation && (
+            <button
+              type="button"
+              onClick={newChat}
+              className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+            >
+              <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
+              New chat
+            </button>
+          )}
 
           {allConversations.length === 0 ? (
             <div className="text-xs text-[var(--color-muted)] py-6 text-center">
               No past conversations.
             </div>
           ) : (
-            <div className="pt-2">
+            <div className={conversation ? "pt-2" : ""}>
               {allConversations.map((c) => (
                 <ConversationRow
                   key={c.id}
                   conversation={c}
                   active={conversation?.id === c.id}
                   onClick={() => switchTo(c.id)}
-                  onDelete={() => deleteConversation(c.id)}
+                  onDelete={() => setPendingDeleteId(c.id)}
                 />
               ))}
             </div>
           )}
         </div>
       </Drawer>
+
+      <ConfirmOverlay
+        isOpen={pendingDeleteId !== null}
+        onCancel={() => {
+          if (!deleting) setPendingDeleteId(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete conversation?"
+        description="This permanently removes the conversation and all of its messages."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        busy={deleting}
+      />
     </div>
   );
 }

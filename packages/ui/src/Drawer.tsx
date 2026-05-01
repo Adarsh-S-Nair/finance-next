@@ -27,6 +27,8 @@ type DrawerProps = {
   currentViewId?: string;
   onViewChange?: (viewId: string) => void;
   onBack?: () => void;
+  /** Which edge the drawer docks to on desktop and animates from on mobile. Defaults to "right". */
+  side?: "left" | "right";
 };
 
 /**
@@ -55,6 +57,7 @@ export default function Drawer({
   currentViewId,
   onViewChange,
   onBack,
+  side = "right",
 }: DrawerProps) {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
@@ -134,7 +137,10 @@ export default function Drawer({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-[80] flex overflow-hidden overscroll-contain items-stretch justify-stretch sm:justify-end"
+          className={clsx(
+            "fixed inset-0 z-[80] flex overflow-hidden overscroll-contain items-stretch justify-stretch",
+            side === "left" ? "sm:justify-start" : "sm:justify-end",
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -163,9 +169,9 @@ export default function Drawer({
               size === "xl" && "sm:max-w-xl",
               className,
             )}
-            initial={{ x: "100%", opacity: 1 }}
+            initial={{ x: side === "left" ? "-100%" : "100%", opacity: 1 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 1 }}
+            exit={{ x: side === "left" ? "-100%" : "100%", opacity: 1 }}
             transition={{ type: "tween", duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
           >
             {/* Header */}
@@ -186,7 +192,9 @@ export default function Drawer({
                     className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
                     aria-label="Close"
                   >
-                    <span className="text-lg leading-none">&#8249;</span>
+                    <span className="text-lg leading-none">
+                      {side === "left" ? "›" : "‹"}
+                    </span>
                   </button>
                 )}
                 {(displayTitle || displayDescription) && (
