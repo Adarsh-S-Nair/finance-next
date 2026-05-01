@@ -31,6 +31,8 @@ type DrawerProps = {
   side?: "left" | "right";
   /** Suppress the default mobile close affordance (use when the caller provides its own). */
   hideCloseButton?: boolean;
+  /** Strip the default content padding so the caller can render edge-to-edge. */
+  noPadding?: boolean;
 };
 
 /**
@@ -61,6 +63,7 @@ export default function Drawer({
   onBack,
   side = "right",
   hideCloseButton = false,
+  noPadding = false,
 }: DrawerProps) {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
@@ -135,6 +138,8 @@ export default function Drawer({
   // backdrop isn't tappable (the dialog covers the whole viewport).
   // Desktop has the backdrop + Escape, so we don't duplicate it there.
   const showCloseButton = isMobile === true && !showBackButton && !hideCloseButton;
+  const hasHeaderContent =
+    showBackButton || showCloseButton || Boolean(displayTitle) || Boolean(displayDescription);
 
   const drawerContent = (
     <AnimatePresence>
@@ -177,7 +182,10 @@ export default function Drawer({
             exit={{ x: side === "left" ? "-100%" : "100%", opacity: 1 }}
             transition={{ type: "tween", duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            {/* Header */}
+            {/* Header — only renders when there's something to show. An
+                empty header would otherwise reserve 32px at the top of
+                the panel even when the caller wants edge-to-edge content. */}
+            {hasHeaderContent && (
             <div className="px-5 py-4 flex-none z-20">
               <div className="flex items-center gap-3">
                 {showBackButton && (
@@ -210,6 +218,7 @@ export default function Drawer({
                 )}
               </div>
             </div>
+            )}
 
             {/* Scrollable content area */}
             <div className="flex-1 min-h-0 overflow-y-auto">
@@ -219,7 +228,7 @@ export default function Drawer({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -20, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className={clsx("h-full", currentView?.noPadding ? "" : "px-5 pb-5")}
+                className={clsx("h-full", (currentView?.noPadding || noPadding) ? "" : "px-5 pb-5")}
               >
                 {displayContent}
               </motion.div>
