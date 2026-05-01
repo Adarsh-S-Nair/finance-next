@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheck, FiX, FiChevronRight, FiTag } from "react-icons/fi";
+import { FiCheck, FiX, FiTag } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { authFetch } from "../../../lib/api/fetch";
@@ -35,14 +35,14 @@ export type RecategorizationData = {
   error?: string;
 };
 
-// Local widget state — purely client-side, not persisted. After page
-// reload the widget restarts at idle; clicking accept again is a no-op
-// DB write. Acceptable tradeoff for not extending the message-block
-// schema with widget state.
+// Local widget state. The "accepted_silent" variant skips the magic
+// burst — used when the widget detects on mount that the change was
+// already accepted in a previous session.
 type WidgetState =
+  | { kind: "checking" }
   | { kind: "idle" }
   | { kind: "committing" }
-  | { kind: "accepted" }
+  | { kind: "accepted"; silent: boolean }
   | { kind: "declined" }
   | { kind: "failed"; message: string };
 
@@ -60,7 +60,40 @@ export default function RecategorizationWidget({
 }: {
   data: RecategorizationData;
 }) {
-  const [state, setState] = useState<WidgetState>({ kind: "idle" });
+  // Start in "checking" — we hit the API to see if the transaction is
+  // already in the suggested category (i.e. the user accepted this
+  // proposal in a previous session). While that's in flight, render
+  // nothing visible to avoid a flash of accept/decline buttons that
+  // immediately get replaced by the success state.
+  const [state, setState] = useState<WidgetState>({ kind: "checking" });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      try {
+        const res = await authFetch(
+          `/api/agent/transaction-category?id=${encodeURIComponent(data.transaction.id)}`,
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const body = (await res.json()) as { category_id?: string | null };
+          if (cancelled) return;
+          if (body.category_id === data.suggested_category.id) {
+            setState({ kind: "accepted", silent: true });
+            return;
+          }
+        }
+      } catch {
+        // Fall through to idle on error — better to let the user
+        // attempt to accept than block them on a connectivity issue.
+      }
+      if (!cancelled) setState({ kind: "idle" });
+    }
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [data.transaction.id, data.suggested_category.id]);
 
   if (data.error) return <WidgetError message={data.error} />;
 
@@ -81,7 +114,7 @@ export default function RecategorizationWidget({
           (body as { error?: string })?.error || `Failed (${res.status})`,
         );
       }
-      setState({ kind: "accepted" });
+      setState({ kind: "accepted", silent: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
       setState({ kind: "failed", message });
@@ -92,8 +125,7 @@ export default function RecategorizationWidget({
     setState({ kind: "declined" });
   }
 
-  // Declined → collapse to nothing. The agent's preceding prose
-  // remains; user can still ask a follow-up.
+  // Declined → collapse to nothing.
   if (state.kind === "declined") {
     return (
       <motion.div
@@ -105,6 +137,13 @@ export default function RecategorizationWidget({
     );
   }
 
+  // Checking → reserve space without flashing buttons. We render an
+  // empty WidgetFrame at the same height as the proposal so the layout
+  // doesn't jump when state resolves.
+  if (state.kind === "checking") {
+    return <WidgetFrame>{null}</WidgetFrame>;
+  }
+
   return (
     <WidgetFrame>
       <AnimatePresence mode="wait" initial={false}>
@@ -113,6 +152,7 @@ export default function RecategorizationWidget({
             key="accepted"
             tx={data.transaction}
             suggested={data.suggested_category}
+            silent={state.silent}
           />
         ) : (
           <ProposalState
@@ -133,7 +173,7 @@ export default function RecategorizationWidget({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Proposal state
+// Proposal — bigger, more obvious, FROM/TO labels
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
@@ -161,49 +201,27 @@ function ProposalState({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-3"
+      className="space-y-5"
     >
-      {/* Transaction row — same visual language as TransactionListWidget. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <MerchantIcon
-            iconUrl={tx.icon_url}
-            color={suggested.group_color ?? suggested.hex_color}
-            iconLib={suggested.icon_lib}
-            iconName={suggested.icon_name}
-          />
-          <div className="min-w-0">
-            <div className="text-sm text-[var(--color-fg)] truncate">
-              {tx.merchant_name || tx.description}
-            </div>
-            <div className="text-[11px] text-[var(--color-muted)] truncate">
-              {formatDate(tx.date)}
-            </div>
-          </div>
-        </div>
-        <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
-          {tx.amount > 0 ? "+" : ""}
-          {formatCurrency(tx.amount)}
-        </div>
-      </div>
+      <TransactionHeader tx={tx} iconColor={current?.group_color ?? "#71717a"} />
 
-      {/* Category change — colored dot + label, no pill chrome. */}
-      <div className="flex items-center gap-2 text-sm flex-wrap pl-10">
-        <CategoryLine cat={current} muted />
-        <FiChevronRight
-          className="h-3.5 w-3.5 text-[var(--color-muted)] flex-shrink-0"
-          strokeWidth={2.5}
-        />
-        <CategoryLine cat={suggested} />
+      {/* FROM / TO change. Two rows with leading labels so the change
+          reads as a deliberate before/after rather than a tossed-off
+          chevron. Generous vertical spacing keeps it from feeling
+          cramped. The colored dot does the visual lifting; the label
+          is plain text. */}
+      <div className="space-y-2.5 pl-14">
+        <ChangeLine label="From" cat={current} muted />
+        <ChangeLine label="To" cat={suggested} />
       </div>
 
       {reasoning && (
-        <p className="text-[12px] text-[var(--color-muted)] leading-relaxed pl-10">
+        <p className="text-[13px] text-[var(--color-muted)] leading-relaxed pl-14">
           {reasoning}
         </p>
       )}
 
-      <div className="flex items-center justify-end gap-1 pt-1">
+      <div className="flex items-center justify-end gap-2 pt-1">
         {error && (
           <span className="text-[11px] text-rose-500 mr-2">{error}</span>
         )}
@@ -213,7 +231,7 @@ function ProposalState({
           disabled={committing}
           aria-label="Decline suggestion"
         >
-          <FiX className="h-4 w-4" strokeWidth={2.5} />
+          <FiX className="h-4 w-4" strokeWidth={2.75} />
         </ActionButton>
         <ActionButton
           tone="accept"
@@ -224,7 +242,7 @@ function ProposalState({
           {committing ? (
             <SpinnerDot />
           ) : (
-            <FiCheck className="h-4 w-4" strokeWidth={2.5} />
+            <FiCheck className="h-4 w-4" strokeWidth={2.75} />
           )}
         </ActionButton>
       </div>
@@ -232,152 +250,198 @@ function ProposalState({
   );
 }
 
+function ChangeLine({
+  label,
+  cat,
+  muted = false,
+}: {
+  label: string;
+  cat: Category | null;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-8 flex-shrink-0">
+        {label}
+      </span>
+      {cat ? (
+        <span className="inline-flex items-center gap-2 min-w-0">
+          <CategoryDot
+            color={cat.group_color ?? cat.hex_color}
+            iconLib={cat.icon_lib}
+            iconName={cat.icon_name}
+          />
+          <span
+            className={`truncate ${
+              muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
+            }`}
+          >
+            {cat.label}
+          </span>
+        </span>
+      ) : (
+        <span
+          className={`italic ${
+            muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
+          }`}
+        >
+          Uncategorized
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────────────
-// Accepted state — magic burst on the merchant icon, then a subtle
-// confirmation line. Stays minimal — no chips, no big banner, just a
-// short note that the change happened.
+// Accepted — keep the transaction visible; show the new category +
+// recategorized confirmation. Magic burst plays on first acceptance;
+// a remount that detects "already accepted" skips it (silent=true).
 // ──────────────────────────────────────────────────────────────────────────
 
 function AcceptedState({
   tx,
   suggested,
+  silent,
 }: {
   tx: Transaction;
   suggested: Category;
+  silent: boolean;
 }) {
   const burstColor = suggested.group_color ?? suggested.hex_color;
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={silent ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="flex items-center gap-3"
+      className="space-y-5"
     >
+      <TransactionHeader
+        tx={tx}
+        iconColor={burstColor}
+        burst={!silent}
+      />
+
+      <div className="space-y-2 pl-14">
+        <ChangeLine label="Now" cat={suggested} />
+        <motion.div
+          initial={silent ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
+          className="flex items-center gap-1.5 text-xs text-emerald-500"
+        >
+          <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+          Recategorized
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Shared bits
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Transaction header used by both proposal and accepted states.
+ * Bigger merchant icon (10×10 = 40px, vs 7×7 elsewhere) because this
+ * is a confirmation widget — we want the user to clearly see what
+ * they're acting on, not skim past it.
+ *
+ * `burst=true` plays the magic acceptance animation on the icon:
+ * a soft color aura scales out, six sparkles fly in a radial pattern,
+ * and the icon itself springs in.
+ */
+function TransactionHeader({
+  tx,
+  iconColor,
+  burst = false,
+}: {
+  tx: Transaction;
+  iconColor: string;
+  burst?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-4">
       <div className="relative flex-shrink-0">
-        {/* Soft color aura that scales out behind the icon. */}
+        {burst && (
+          <>
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: iconColor }}
+              initial={{ scale: 0.7, opacity: 0.5 }}
+              animate={{ scale: 2.6, opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            />
+            <Sparkles color={iconColor} />
+          </>
+        )}
         <motion.div
-          className="absolute inset-0 rounded-full"
-          style={{ backgroundColor: burstColor }}
-          initial={{ scale: 0.6, opacity: 0.5 }}
-          animate={{ scale: 2.6, opacity: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-        />
-        <Sparkles color={burstColor} />
-        {/* Merchant icon with new category color, popping in. */}
-        <motion.div
-          initial={{ scale: 0.7 }}
-          animate={{ scale: 1 }}
+          initial={burst ? { scale: 0.7 } : false}
+          animate={burst ? { scale: 1 } : {}}
           transition={{ type: "spring", stiffness: 360, damping: 18 }}
           className="relative z-10"
         >
           <MerchantIcon
             iconUrl={tx.icon_url}
-            color={burstColor}
-            iconLib={suggested.icon_lib}
-            iconName={suggested.icon_name}
+            color={iconColor}
+            iconLib={null}
+            iconName={null}
           />
         </motion.div>
       </div>
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25, duration: 0.25 }}
-        className="text-sm text-[var(--color-muted)]"
-      >
-        Recategorized to{" "}
-        <span className="text-[var(--color-fg)]">{suggested.label}</span>
-      </motion.div>
-    </motion.div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[15px] text-[var(--color-fg)] truncate font-medium">
+            {tx.merchant_name || tx.description}
+          </div>
+          <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
+            {tx.amount > 0 ? "+" : ""}
+            {formatCurrency(tx.amount)}
+          </div>
+        </div>
+        <div className="text-[12px] text-[var(--color-muted)] mt-0.5">
+          {formatDate(tx.date)}
+        </div>
+      </div>
+    </div>
   );
 }
-
-function Sparkles({ color }: { color: string }) {
-  // 6 particles flying outward, deterministic radial pattern (no
-  // Math.random in render — purity rule).
-  const angles = [0, 60, 120, 180, 240, 300];
-  return (
-    <>
-      {angles.map((angle, i) => {
-        const rad = (angle * Math.PI) / 180;
-        const dist = 22;
-        return (
-          <motion.div
-            key={i}
-            className="absolute top-1/2 left-1/2 w-1 h-1 rounded-full"
-            style={{ backgroundColor: color }}
-            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
-            animate={{
-              x: Math.cos(rad) * dist,
-              y: Math.sin(rad) * dist,
-              opacity: 0,
-              scale: 0,
-            }}
-            transition={{ duration: 0.55, delay: 0.05, ease: "easeOut" }}
-          />
-        );
-      })}
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Bits
-// ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Category line: a small colored circle (group color) + label text.
- * Replaces the previous pill chip — flat, no background, matches the
- * "no badge pills" rule from the style guide. The colored dot carries
- * category identity; the rest is plain text.
+ * Small colored dot showing a category's group color + icon. Used in
+ * the FROM/TO change lines. 18px circle (vs 16px in the line widget)
+ * for slightly more visual punch on the accept screen.
  */
-function CategoryLine({
-  cat,
-  muted = false,
+function CategoryDot({
+  color,
+  iconLib,
+  iconName,
 }: {
-  cat: Category | null;
-  muted?: boolean;
+  color: string;
+  iconLib: string | null;
+  iconName: string | null;
 }) {
-  if (!cat) {
-    return (
-      <span
-        className={`text-[12px] italic ${
-          muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
-        }`}
-      >
-        Uncategorized
-      </span>
-    );
-  }
-  const dotColor = cat.group_color ?? cat.hex_color;
   return (
-    <span className="inline-flex items-center gap-1.5 min-w-0">
-      <span
-        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: dotColor }}
-      >
-        <DynamicIcon
-          iconLib={cat.icon_lib}
-          iconName={cat.icon_name}
-          className="h-2.5 w-2.5 text-white"
-          fallback={FiTag}
-          style={{ strokeWidth: 2.5 }}
-        />
-      </span>
-      <span
-        className={`text-[12px] truncate ${
-          muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
-        }`}
-      >
-        {cat.label}
-      </span>
+    <span
+      className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: color }}
+    >
+      <DynamicIcon
+        iconLib={iconLib}
+        iconName={iconName}
+        className="h-2.5 w-2.5 text-white"
+        fallback={FiTag}
+        style={{ strokeWidth: 2.5 }}
+      />
     </span>
   );
 }
 
 /**
- * Small circular icon button used for accept/decline. Uses sentiment
- * colors only on hover — neutral muted by default so the buttons don't
- * compete with the rest of the message. emerald = accept, rose = decline.
+ * Accept (✓ emerald) and decline (✕ rose) icon-only buttons. Per
+ * feedback: sentiment color is on by default, not just on hover —
+ * makes the action obvious. Hover adds a subtle tinted background;
+ * tap gives a small scale press.
  */
 function ActionButton({
   children,
@@ -391,10 +455,10 @@ function ActionButton({
   disabled?: boolean;
   tone: "accept" | "decline";
 } & React.AriaAttributes) {
-  const toneClasses =
+  const colorClasses =
     tone === "accept"
-      ? "hover:text-emerald-500 hover:bg-emerald-500/10"
-      : "hover:text-rose-500 hover:bg-rose-500/10";
+      ? "text-emerald-500 hover:bg-emerald-500/10"
+      : "text-rose-500 hover:bg-rose-500/10";
   return (
     <motion.button
       type="button"
@@ -402,7 +466,7 @@ function ActionButton({
       disabled={disabled}
       whileHover={{ scale: disabled ? 1 : 1.05 }}
       whileTap={{ scale: disabled ? 1 : 0.92 }}
-      className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-[var(--color-muted)] ${toneClasses} disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--color-muted)] cursor-pointer disabled:cursor-not-allowed transition-colors`}
+      className={`inline-flex items-center justify-center w-9 h-9 rounded-full ${colorClasses} disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors`}
       {...rest}
     >
       {children}
@@ -429,19 +493,19 @@ function MerchantIcon({
         alt=""
         loading="lazy"
         onError={() => setImageFailed(true)}
-        className="w-7 h-7 rounded-full flex-shrink-0 object-cover bg-[var(--color-surface-alt)]"
+        className="w-10 h-10 rounded-full flex-shrink-0 object-cover bg-[var(--color-surface-alt)]"
       />
     );
   }
   return (
     <div
-      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+      className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
       style={{ backgroundColor: color }}
     >
       <DynamicIcon
         iconLib={iconLib}
         iconName={iconName}
-        className="h-3.5 w-3.5 text-white"
+        className="h-5 w-5 text-white"
         fallback={FiTag}
         style={{ strokeWidth: 2.5 }}
       />
@@ -449,10 +513,38 @@ function MerchantIcon({
   );
 }
 
+function Sparkles({ color }: { color: string }) {
+  // 6 particles flying outward, deterministic radial pattern.
+  const angles = [0, 60, 120, 180, 240, 300];
+  return (
+    <>
+      {angles.map((angle, i) => {
+        const rad = (angle * Math.PI) / 180;
+        const dist = 28;
+        return (
+          <motion.div
+            key={i}
+            className="absolute top-1/2 left-1/2 w-1 h-1 rounded-full"
+            style={{ backgroundColor: color }}
+            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+            animate={{
+              x: Math.cos(rad) * dist,
+              y: Math.sin(rad) * dist,
+              opacity: 0,
+              scale: 0,
+            }}
+            transition={{ duration: 0.55, delay: 0.05, ease: "easeOut" }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
 function SpinnerDot() {
   return (
     <motion.div
-      className="h-3.5 w-3.5 rounded-full border-2 border-[var(--color-muted)] border-t-transparent"
+      className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent"
       animate={{ rotate: 360 }}
       transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
     />
