@@ -106,11 +106,16 @@ Required in `apps/finance/.env.local`:
   Each chat turn costs ~$0.01-0.02 against the configured account. The
   chat route surfaces a clear error if neither source has a key.
 - `PLAID_TOKEN_ENCRYPTION_KEY` - AES-256 key used to encrypt
-  `plaid_items.access_token` / `accounts.access_token` at rest. 64 hex chars
-  (preferred) or base64 that decodes to 32 bytes. Generate with:
+  `plaid_items.access_token` / `accounts.access_token` at rest, AND
+  `platform_config` secrets (admin-managed Anthropic API key etc).
+  **Must be set on BOTH `apps/finance` and `apps/admin` Vercel projects
+  with the same value** — admin encrypts on write, finance decrypts on
+  read. 64 hex chars (preferred) or base64 that decodes to 32 bytes.
+  Generate with:
   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
   Rotating this key requires re-encrypting every stored token — treat loss
-  as credential loss (all bank connections must be re-linked). To backfill
+  as credential loss (all bank connections must be re-linked, and any
+  stored platform secrets must be re-saved via the admin UI). To backfill
   existing plaintext tokens once: `node scripts/encrypt-plaid-tokens.mjs`
   from `apps/finance/`.
 - `ADMIN_EMAILS` - Comma-separated allowlist of admin emails. Same value on

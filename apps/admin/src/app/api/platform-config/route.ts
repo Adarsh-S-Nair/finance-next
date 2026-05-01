@@ -117,7 +117,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "value is required" }, { status: 400 });
   }
 
-  const stored = isSecret ? encryptPlatformSecret(rawValue.trim()) : rawValue.trim();
+  // Encrypt + upsert in one try block so the actual failure reason
+  // (e.g. PLAID_TOKEN_ENCRYPTION_KEY missing on the admin app) makes
+  // it back to the admin instead of a bare "Save failed (500)".
+  let stored: string;
+  try {
+    stored = isSecret ? encryptPlatformSecret(rawValue.trim()) : rawValue.trim();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown encryption error";
+    console.error("[admin platform-config POST] encrypt failed", e);
+    return NextResponse.json(
+      { error: `Failed to encrypt value: ${message}` },
+      { status: 500 },
+    );
+  }
 
   const db = createAdminClient();
   const { error } = await db.from("platform_config").upsert(
@@ -130,8 +143,11 @@ export async function POST(req: NextRequest) {
     { onConflict: "key" },
   );
   if (error) {
-    console.error("[admin platform-config POST]", error);
-    return NextResponse.json({ error: "Upsert failed" }, { status: 500 });
+    console.error("[admin platform-config POST] upsert failed", error);
+    return NextResponse.json(
+      { error: `Upsert failed: ${error.message}` },
+      { status: 500 },
+    );
   }
   return NextResponse.json({ ok: true });
 }
