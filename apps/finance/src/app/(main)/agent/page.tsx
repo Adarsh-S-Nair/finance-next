@@ -735,18 +735,29 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
   if (blocks.length === 0) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
+
+  // Render text first, then tool widgets — within a single assistant
+  // message, the model's prose answer reads as the response and the
+  // tool result widgets feel like the supporting evidence below it.
+  // The system prompt asks the model to call tools first then write
+  // text, which means in document order the widget would appear above
+  // an empty text region; reordering on render fixes that without
+  // changing the underlying message structure.
+  const textBlocks: TextBlock[] = [];
+  const toolBlocks: ToolBlock[] = [];
+  for (const b of blocks) {
+    if (b.kind === "text") textBlocks.push(b);
+    else toolBlocks.push(b);
+  }
+
   return (
     <div className="text-sm text-[var(--color-fg)]">
-      {blocks.map((b, i) =>
-        b.kind === "text" ? (
-          <MarkdownText key={`t-${i}`} text={b.text} />
-        ) : (
-          <ToolWidget
-            key={b.id}
-            tool={b as ToolBlockData}
-          />
-        ),
-      )}
+      {textBlocks.map((b, i) => (
+        <MarkdownText key={`t-${i}`} text={b.text} />
+      ))}
+      {toolBlocks.map((b) => (
+        <ToolWidget key={b.id} tool={b as ToolBlockData} />
+      ))}
     </div>
   );
 }

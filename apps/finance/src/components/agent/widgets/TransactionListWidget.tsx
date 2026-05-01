@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FiTag } from "react-icons/fi";
+import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
 
@@ -12,6 +14,8 @@ type Transaction = {
   amount: number;
   category: string;
   category_color: string;
+  category_icon_lib: string | null;
+  category_icon_name: string | null;
   account_name: string;
   icon_url: string | null;
 };
@@ -26,7 +30,13 @@ export type TransactionListData = {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // Use UTC so the displayed day matches the date column's calendar day,
+  // matching how TransactionRow displays it on the transactions page.
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export default function TransactionListWidget({ data }: { data: TransactionListData }) {
@@ -57,13 +67,19 @@ export default function TransactionListWidget({ data }: { data: TransactionListD
 }
 
 function TransactionRow({ tx }: { tx: Transaction }) {
+  // Sign convention matches the existing TransactionRow on the
+  // transactions page: amount > 0 is income (emerald + leading +),
+  // amount <= 0 is expense (default fg, native negative formatting).
+  const isIncome = tx.amount > 0;
+
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 group">
+    <div className="flex items-center justify-between gap-3 py-1.5">
       <div className="flex items-center gap-3 min-w-0">
         <MerchantIcon
           iconUrl={tx.icon_url}
-          name={tx.merchant_name || tx.description}
           color={tx.category_color}
+          iconLib={tx.category_icon_lib}
+          iconName={tx.category_icon_name}
         />
         <div className="min-w-0">
           <div className="text-sm text-[var(--color-fg)] truncate">
@@ -76,11 +92,11 @@ function TransactionRow({ tx }: { tx: Transaction }) {
       </div>
       <div
         className={`text-sm tabular-nums flex-shrink-0 ${
-          tx.amount < 0 ? "text-emerald-500" : "text-[var(--color-fg)]"
+          isIncome ? "text-emerald-500" : "text-[var(--color-fg)]"
         }`}
       >
-        {tx.amount < 0 ? "+" : ""}
-        {formatCurrency(Math.abs(tx.amount))}
+        {isIncome ? "+" : ""}
+        {formatCurrency(tx.amount)}
       </div>
     </div>
   );
@@ -88,16 +104,17 @@ function TransactionRow({ tx }: { tx: Transaction }) {
 
 function MerchantIcon({
   iconUrl,
-  name,
   color,
+  iconLib,
+  iconName,
 }: {
   iconUrl: string | null;
-  name: string;
   color: string;
+  iconLib: string | null;
+  iconName: string | null;
 }) {
-  // Track image load failure so we can fall back gracefully without
-  // calling the `onError` repeatedly. Plaid's icon URLs are reliable
-  // but occasionally 404 for niche merchants.
+  // Track image load failure so we can fall back gracefully if Plaid's
+  // logo URL 404s. Mirrors the pattern in TransactionRow on /transactions.
   const [imageFailed, setImageFailed] = useState(false);
 
   if (iconUrl && !imageFailed) {
@@ -107,20 +124,25 @@ function MerchantIcon({
         alt=""
         loading="lazy"
         onError={() => setImageFailed(true)}
-        className="w-7 h-7 rounded-full bg-[var(--color-surface-alt)] flex-shrink-0 object-cover"
+        className="w-7 h-7 rounded-full flex-shrink-0 object-cover bg-[var(--color-surface-alt)]"
       />
     );
   }
 
-  // Fallback: a small filled circle with the merchant initial. Color
-  // borrows the category's color for a subtle hint at category type.
-  const initial = (name || "·").trim().charAt(0).toUpperCase();
+  // Fallback: white category icon on the category-color circle, exactly
+  // like the transactions page does it (DynamicIcon + FiTag fallback).
   return (
     <div
-      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium text-white flex-shrink-0"
+      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
       style={{ backgroundColor: color }}
     >
-      {initial}
+      <DynamicIcon
+        iconLib={iconLib}
+        iconName={iconName}
+        className="h-3.5 w-3.5 text-white"
+        fallback={FiTag}
+        style={{ strokeWidth: 2.5 }}
+      />
     </div>
   );
 }

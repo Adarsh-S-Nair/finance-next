@@ -225,7 +225,11 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         category_id,
         icon_url,
         accounts!inner(user_id, name),
-        system_categories(label, hex_color)
+        system_categories(
+          label,
+          hex_color,
+          category_groups(icon_lib, icon_name, hex_color)
+        )
       `,
     )
     .eq('accounts.user_id', userId)
@@ -245,8 +249,17 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
 
   const transactions = (data ?? []).map((t) => {
     const cat = t.system_categories as
-      | { label?: string; hex_color?: string }
+      | {
+          label?: string;
+          hex_color?: string;
+          category_groups?: {
+            icon_lib?: string | null;
+            icon_name?: string | null;
+            hex_color?: string | null;
+          } | null;
+        }
       | null;
+    const group = cat?.category_groups ?? null;
     const acc = t.accounts as { name?: string } | null;
     return {
       id: t.id,
@@ -255,7 +268,11 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
       merchant_name: t.merchant_name,
       amount: Number(t.amount ?? 0),
       category: cat?.label ?? 'Uncategorized',
-      category_color: cat?.hex_color ?? '#71717a',
+      // Prefer the group's color (matches the chip on the transactions
+      // page); fall back to the category-level color, then a neutral.
+      category_color: group?.hex_color ?? cat?.hex_color ?? '#71717a',
+      category_icon_lib: group?.icon_lib ?? null,
+      category_icon_name: group?.icon_name ?? null,
       account_name: acc?.name ?? 'Account',
       icon_url: t.icon_url ?? null,
     };
