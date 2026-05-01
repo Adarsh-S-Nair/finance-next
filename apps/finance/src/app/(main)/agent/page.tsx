@@ -5,10 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
-import NetWorthCard from "../../../components/dashboard/NetWorthCard";
-import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHoverContext";
-import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
-import CalendarCard from "../../../components/dashboard/CalendarCard";
 
 type Message = {
   id: string;
@@ -234,13 +230,8 @@ export default function AgentPage() {
           </div>
         </>
       ) : (
-        // Empty / welcome state: chat composer on the left (vertically
-        // centered as a column), widget rail on the right (top-aligned).
-        // The rail collapses below xl breakpoints so mobile + tablet
-        // get a focused chat surface; on wide screens the rail provides
-        // ambient "what's going on with my money" context.
-        <div className="flex-1 flex justify-center gap-10 px-4 overflow-y-auto">
-          <div className="w-full max-w-xl flex flex-col justify-center py-12">
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <div className="max-w-xl w-full">
             {loading ? (
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
@@ -276,20 +267,6 @@ export default function AgentPage() {
               </>
             )}
           </div>
-
-          {/* NetWorthCard internally calls useNetWorthHover() to coordinate
-              hover state with AccountsSummaryCard on the dashboard. We
-              don't render the summary card here, but the hook still
-              requires the provider — wrap the rail to satisfy it. */}
-          <NetWorthHoverProvider>
-            <aside className="w-80 flex-shrink-0 hidden xl:block py-12 space-y-8">
-              <NetWorthCard width="full" />
-              <TopCategoriesCard />
-              {/* mockData={undefined} satisfies the JSX-inferred prop typing
-                  without changing runtime behaviour — defaults to live data. */}
-              <CalendarCard mockData={undefined} />
-            </aside>
-          </NetWorthHoverProvider>
         </div>
       )}
     </div>

@@ -158,10 +158,12 @@
   /* Matches --color-muted */
   --color-floating-border: color-mix(in oklab, #ffffff, transparent 88%);
 
-  --color-content-bg: #0d0d0d;
-  /* Shell — see light-mode comment. In dark, content-bg already sits
-     above pure black, so the shell drops to #000 to give the card
-     enough lift to read. */
+  --color-content-bg: #050505;
+  /* Shell — see light-mode comment. The earlier dark-mode pairing was
+     #000 shell + #0d0d0d content, but that ~5% lift read as a sharp
+     seam against the sidebar instead of as ambient chrome. Pull the
+     content down to #050505 so the gap is barely 2% — same intent
+     (card sits on shell), much subtler in practice. */
   --color-shell-bg: #000000;
   --color-sidebar-bg: var(--color-shell-bg);
   --color-sidebar-active: #1a1a1a;
