@@ -19,8 +19,9 @@ const OFFSET_PATTERN: { x: number; y: number }[] = [
 
 /**
  * Stagger-in wrapper for widget rows. Each child flies in from a small
- * offset (cycled deterministically) and settles with an exponential-out
- * ease — feels like assembly, not a list rendering.
+ * offset (cycled deterministically), resolves out of a soft blur, and
+ * settles with an exponential-out ease — reads as "resolving into
+ * focus" rather than "list rendering". The blur is the magic touch.
  *
  * Caps the per-item delay so very long lists still finish appearing
  * within ~0.6s of the first item.
@@ -37,12 +38,12 @@ export function MagicItem({
   const offset = OFFSET_PATTERN[index % OFFSET_PATTERN.length];
   return (
     <motion.div
-      initial={{ opacity: 0, x: offset.x, y: offset.y }}
-      animate={{ opacity: 1, x: 0, y: 0 }}
+      initial={{ opacity: 0, x: offset.x, y: offset.y, filter: "blur(4px)" }}
+      animate={{ opacity: 1, x: 0, y: 0, filter: "blur(0px)" }}
       transition={{
         // Cap stagger delay so long lists don't take forever to assemble.
-        delay: Math.min(index * 0.04, 0.4),
-        duration: 0.5,
+        delay: Math.min(index * 0.05, 0.5),
+        duration: 0.6,
         ease: [0.16, 1, 0.3, 1],
       }}
       className={className}

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
 
 type Budget = {
   id?: string;
@@ -29,27 +29,17 @@ export default function BudgetListWidget({ data }: { data: BudgetListData }) {
   if (!data.budgets || data.budgets.length === 0) {
     return (
       <WidgetFrame>
-        <WidgetLabel left={data.month ? `Budgets · ${data.month}` : "Budgets"} />
         <div className="text-xs text-[var(--color-muted)]">No budgets set up.</div>
       </WidgetFrame>
     );
   }
 
-  const right =
-    (data.total_budgeted ?? 0) > 0
-      ? `${formatCurrency(data.total_spent ?? 0)} / ${formatCurrency(data.total_budgeted ?? 0)}`
-      : undefined;
-
   return (
     <WidgetFrame>
-      <WidgetLabel
-        left={data.month ? `Budgets · ${data.month}` : "Budgets"}
-        right={right}
-      />
-      <div className="space-y-3">
+      <div className="space-y-4">
         {data.budgets.map((b, i) => (
           <MagicItem key={b.id ?? `${b.label}-${i}`} index={i}>
-            <BudgetRow budget={b} delay={i * 0.04} />
+            <BudgetRow budget={b} delay={i * 0.05} />
           </MagicItem>
         ))}
       </div>

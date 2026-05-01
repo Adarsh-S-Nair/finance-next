@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FiTag } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
 
 type Transaction = {
   id: string;
@@ -42,19 +42,12 @@ function formatDate(iso: string | null): string {
 export default function TransactionListWidget({ data }: { data: TransactionListData }) {
   if (data.error) return <WidgetError message={data.error} />;
 
-  const labelParts: string[] = [];
-  if (data.merchant_query) labelParts.push(`"${data.merchant_query}"`);
-  labelParts.push(`Last ${data.days_searched ?? 30} days`);
-  const left = labelParts.join(" · ");
-  const right = `${data.count} ${data.count === 1 ? "match" : "matches"}`;
-
   return (
     <WidgetFrame>
-      <WidgetLabel left={left} right={right} />
       {data.transactions.length === 0 ? (
         <div className="text-xs text-[var(--color-muted)]">No transactions match.</div>
       ) : (
-        <div className="space-y-1">
+        <div>
           {data.transactions.map((tx, i) => (
             <MagicItem key={tx.id} index={i}>
               <TransactionRow tx={tx} />
@@ -73,7 +66,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
   const isIncome = tx.amount > 0;
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
+    <div className="flex items-center justify-between gap-3 py-2.5">
       <div className="flex items-center gap-3 min-w-0">
         <MerchantIcon
           iconUrl={tx.icon_url}

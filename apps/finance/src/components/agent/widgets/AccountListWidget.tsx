@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
 
 type Account = {
   id: string;
@@ -63,22 +63,17 @@ export default function AccountListWidget({ data }: { data: AccountListData }) {
 
   return (
     <WidgetFrame>
-      <WidgetLabel
-        left="Accounts"
-        right={`Net worth ${formatCurrency(data.totals.net_worth)}`}
-      />
-
       {data.accounts.length === 0 ? (
         <div className="text-xs text-[var(--color-muted)]">No accounts connected.</div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {CATEGORY_ORDER.map((cat) => {
             const items = grouped.get(cat) ?? [];
             if (items.length === 0) return null;
 
             return (
               <div key={cat}>
-                <div className="flex items-center gap-2 mb-1.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+                <div className="flex items-center gap-2 mb-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
                   <span
                     className="w-1 h-1 rounded-full"
                     style={{ backgroundColor: CATEGORY_COLOR[cat] }}
@@ -86,7 +81,7 @@ export default function AccountListWidget({ data }: { data: AccountListData }) {
                   />
                   {CATEGORY_LABEL[cat]}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {items.map((acc) => {
                     const idx = runningIndex++;
                     return (
