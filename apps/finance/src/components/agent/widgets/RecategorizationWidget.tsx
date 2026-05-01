@@ -55,6 +55,18 @@ function formatDate(iso: string | null): string {
   });
 }
 
+/**
+ * Pick the display color for a category. Mirrors how /api/plaid/transactions/get
+ * resolves color: leaf system_category's hex_color first, parent
+ * category_group's color as fallback. Inverting this (group first)
+ * paints everything in the parent group's color and breaks distinct
+ * leaves like Education (orange leaf inside the generic Other group).
+ */
+function categoryColor(cat: Category | null | undefined): string {
+  if (!cat) return "#71717a";
+  return cat.hex_color || cat.group_color || "#71717a";
+}
+
 export default function RecategorizationWidget({
   data,
 }: {
@@ -195,6 +207,13 @@ function ProposalState({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  // Color resolution matches /api/plaid/transactions/get: prefer the
+  // LEAF category's hex_color, fall back to the parent group. Earlier
+  // versions had this inverted (group first), which painted everything
+  // in the parent group's color — e.g. Education's leaf is orange, but
+  // its parent group's color is generic purple, so we were showing
+  // purple. The transactions page uses leaf-first; widgets should too.
+  const proposalIconColor = categoryColor(current);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -203,7 +222,12 @@ function ProposalState({
       transition={{ duration: 0.2 }}
       className="space-y-5"
     >
-      <TransactionHeader tx={tx} iconColor={current?.group_color ?? "#71717a"} />
+      <TransactionHeader
+        tx={tx}
+        iconColor={proposalIconColor}
+        iconLib={current?.icon_lib ?? null}
+        iconName={current?.icon_name ?? null}
+      />
 
       {/* FROM / TO change. Two rows with leading labels so the change
           reads as a deliberate before/after rather than a tossed-off
@@ -265,12 +289,8 @@ function ChangeLine({
         {label}
       </span>
       {cat ? (
-        <span className="inline-flex items-center gap-2 min-w-0">
-          <CategoryDot
-            color={cat.group_color ?? cat.hex_color}
-            iconLib={cat.icon_lib}
-            iconName={cat.icon_name}
-          />
+        <span className="inline-flex items-center gap-2.5 min-w-0">
+          <CategoryDot color={categoryColor(cat)} />
           <span
             className={`truncate ${
               muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
@@ -307,7 +327,10 @@ function AcceptedState({
   suggested: Category;
   silent: boolean;
 }) {
-  const burstColor = suggested.group_color ?? suggested.hex_color;
+  // Same leaf-first resolution as the proposal — see comment in
+  // ProposalState. The icon morphs to the suggested category's identity
+  // on accept, with the merchant icon picking up the new color/icon.
+  const burstColor = categoryColor(suggested);
   return (
     <motion.div
       initial={silent ? false : { opacity: 0 }}
@@ -318,6 +341,8 @@ function AcceptedState({
       <TransactionHeader
         tx={tx}
         iconColor={burstColor}
+        iconLib={suggested.icon_lib}
+        iconName={suggested.icon_name}
         burst={!silent}
       />
 
@@ -354,10 +379,14 @@ function AcceptedState({
 function TransactionHeader({
   tx,
   iconColor,
+  iconLib,
+  iconName,
   burst = false,
 }: {
   tx: Transaction;
   iconColor: string;
+  iconLib: string | null;
+  iconName: string | null;
   burst?: boolean;
 }) {
   return (
@@ -384,8 +413,8 @@ function TransactionHeader({
           <MerchantIcon
             iconUrl={tx.icon_url}
             color={iconColor}
-            iconLib={null}
-            iconName={null}
+            iconLib={iconLib}
+            iconName={iconName}
           />
         </motion.div>
       </div>
@@ -408,32 +437,18 @@ function TransactionHeader({
 }
 
 /**
- * Small colored dot showing a category's group color + icon. Used in
- * the FROM/TO change lines. 18px circle (vs 16px in the line widget)
- * for slightly more visual punch on the accept screen.
+ * Solid colored dot for category identity. We tried embedding the
+ * group icon inside, but leaves don't have icons in the schema and
+ * adjacent leaves often share a parent group — so two different
+ * categories rendered identical icons. A clean colored dot avoids
+ * that confusion: color carries identity, label carries meaning.
  */
-function CategoryDot({
-  color,
-  iconLib,
-  iconName,
-}: {
-  color: string;
-  iconLib: string | null;
-  iconName: string | null;
-}) {
+function CategoryDot({ color }: { color: string }) {
   return (
     <span
-      className="w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0"
+      className="w-3.5 h-3.5 rounded-full flex-shrink-0"
       style={{ backgroundColor: color }}
-    >
-      <DynamicIcon
-        iconLib={iconLib}
-        iconName={iconName}
-        className="h-2.5 w-2.5 text-white"
-        fallback={FiTag}
-        style={{ strokeWidth: 2.5 }}
-      />
-    </span>
+    />
   );
 }
 
