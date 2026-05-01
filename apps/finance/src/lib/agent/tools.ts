@@ -46,12 +46,18 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: 'get_recent_transactions',
     description:
-      "Pull recent transactions, most recent first. Use this when the user " +
-      "asks about specific spending events, recent activity, transactions " +
-      "from a particular merchant, or wants to see what they've been " +
-      "spending money on lately. Use `merchant_query` for merchant-style " +
-      "questions (\"what did I spend at Starbucks?\") and `category_query` " +
-      "for category-style questions (\"what did I spend on food and drink?\").",
+      "Search the user's transactions with a flexible set of filters that mirror the " +
+      "/transactions page in the app. Filters are AND-ed together. Reach for this whenever the " +
+      "user asks about transactions, spending events, or a specific slice of their activity " +
+      "— pick whichever filters match the question.\n\n" +
+      "Examples (assuming today is 2026-05-01):\n" +
+      "- \"what did I spend on food and drink last month?\"  →  { month: \"2026-04-15\", category_query: \"food and drink\", type: \"expense\" }\n" +
+      "- \"show me purchases over $100 this week\"  →  { days: 7, min_amount: 100, type: \"expense\" }\n" +
+      "- \"chase card transactions in March\"  →  { account_query: \"chase\", start_date: \"2026-03-01\", end_date: \"2026-03-31\" }\n" +
+      "- \"any pending transactions?\"  →  { status: \"pending\" }\n" +
+      "- \"transactions between $20 and $50 last month\"  →  { month: \"2026-04-15\", min_amount: 20, max_amount: 50 }\n" +
+      "- \"my last 5 starbucks visits\"  →  { merchant_query: \"starbucks\", limit: 5, days: 365 }\n" +
+      "- \"income i received in April\"  →  { month: \"2026-04-15\", type: \"income\" }",
     input_schema: {
       type: 'object',
       properties: {
@@ -64,30 +70,77 @@ export const TOOLS: ToolDefinition[] = [
         days: {
           type: 'integer',
           description:
-            'How many days back to search from today. Defaults to 30. Use 7 for "this week", ' +
-            '90 for a quarter. Ignored if `month` is provided.',
+            'Rolling window: how many days back to search from today. Defaults to 30. ' +
+            'Ignored if `month` or `start_date`/`end_date` is provided.',
           minimum: 1,
           maximum: 365,
         },
         month: {
           type: 'string',
           description:
-            'Specific calendar month to query in YYYY-MM-DD format (any date in the month works). ' +
-            'Use this for questions about a particular month (e.g. "last month", "in April"). ' +
-            'When set, takes precedence over `days`.',
+            'Calendar month to query in YYYY-MM-DD format (any date in the month works). ' +
+            'Use for questions about a specific month (e.g. "last month", "in April"). ' +
+            'Ignored if `start_date`/`end_date` is provided.',
+        },
+        start_date: {
+          type: 'string',
+          description:
+            'Inclusive start of an arbitrary date window (YYYY-MM-DD). Use for custom ranges ' +
+            'that don\'t line up with a single calendar month. When set, overrides `month` and `days`.',
+        },
+        end_date: {
+          type: 'string',
+          description:
+            'Inclusive end of an arbitrary date window (YYYY-MM-DD). Pair with `start_date`.',
+        },
+        type: {
+          type: 'string',
+          enum: ['income', 'expense'],
+          description:
+            '`expense` filters to outflows (negative amounts), `income` filters to inflows ' +
+            '(positive amounts). Omit to include both. When the user asks "what did I spend" ' +
+            'pass `expense`; when they ask about income/refunds/transfers in pass `income`.',
+        },
+        status: {
+          type: 'string',
+          enum: ['pending', 'completed', 'attention'],
+          description:
+            '`pending` = not yet posted; `completed` = posted; `attention` = transactions the ' +
+            'user should review (unmatched transfers, unknown account). Omit to include any.',
+        },
+        min_amount: {
+          type: 'number',
+          description:
+            'Minimum absolute dollar amount, sign-agnostic. E.g. 100 matches both +$100 income ' +
+            'and -$100 spending. Use for "over $X" questions.',
+          minimum: 0,
+        },
+        max_amount: {
+          type: 'number',
+          description:
+            'Maximum absolute dollar amount, sign-agnostic. Use for "under $X" or with min_amount ' +
+            'for a range.',
+          minimum: 0,
         },
         merchant_query: {
           type: 'string',
           description:
-            'Optional case-insensitive substring match against the merchant name or description. ' +
-            'E.g. "starbucks", "amazon". Use this when the user names a specific business.',
+            'Case-insensitive substring against the merchant name or description. E.g. "starbucks", ' +
+            '"amazon". Use when the user names a specific business.',
         },
         category_query: {
           type: 'string',
           description:
-            'Optional case-insensitive substring match against the category label or category group name. ' +
-            'E.g. "food and drink", "groceries", "transportation". Use this when the user asks about ' +
+            'Case-insensitive substring against the category label or category group name. ' +
+            'E.g. "food and drink", "groceries", "transportation". Use when the user asks about ' +
             'a category of spending rather than a specific merchant.',
+        },
+        account_query: {
+          type: 'string',
+          description:
+            'Case-insensitive substring against the account name or institution name. E.g. "chase", ' +
+            '"checking", "amex". Use when the user asks about a specific account or institution. ' +
+            'Call get_account_balances first if you need the exact account names.',
         },
       },
     },
@@ -141,8 +194,15 @@ interface RecentTransactionsInput {
   limit?: number;
   days?: number;
   month?: string;
+  start_date?: string;
+  end_date?: string;
+  type?: 'income' | 'expense';
+  status?: 'pending' | 'completed' | 'attention';
+  min_amount?: number;
+  max_amount?: number;
   merchant_query?: string;
   category_query?: string;
+  account_query?: string;
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
@@ -278,16 +338,31 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
 
   const categoryQuery = input.category_query?.trim() ?? '';
   const merchantQuery = input.merchant_query?.trim() ?? '';
+  const accountQuery = input.account_query?.trim() ?? '';
 
-  // Date window: a `month` argument pins the search to that calendar
-  // month (start..end), which is what the model should reach for when
-  // the user names a specific month ("last month", "in April"). Without
-  // it we fall back to a rolling N-day window from today, which is the
-  // right shape for relative phrases like "this week".
+  // ── Date window resolution ──────────────────────────────────────────
+  // Precedence: explicit start_date/end_date > month > rolling days.
+  // This mirrors the transactions page UI where a custom range overrides
+  // any preset.
   let startDate: string;
   let endDate: string | null;
   let resolvedMonth: string | null = null;
-  if (input.month && input.month.trim().length > 0) {
+  let resolvedRange: { start: string; end: string | null } | null = null;
+
+  if (input.start_date || input.end_date) {
+    const sd = input.start_date ? new Date(input.start_date) : null;
+    const ed = input.end_date ? new Date(input.end_date) : null;
+    if (sd && isNaN(sd.getTime())) return { error: `Invalid start_date: ${input.start_date}` };
+    if (ed && isNaN(ed.getTime())) return { error: `Invalid end_date: ${input.end_date}` };
+    // Without an explicit start_date, fall back to the user's earliest
+    // possible relevant window — pinned to the rolling default — to avoid
+    // accidentally scanning the whole table.
+    startDate = sd
+      ? format(sd, 'yyyy-MM-dd')
+      : format(subDays(new Date(), days), 'yyyy-MM-dd');
+    endDate = ed ? format(ed, 'yyyy-MM-dd') : null;
+    resolvedRange = { start: startDate, end: endDate };
+  } else if (input.month && input.month.trim().length > 0) {
     const monthDate = new Date(input.month);
     if (isNaN(monthDate.getTime())) {
       return { error: `Invalid month: ${input.month}` };
@@ -300,12 +375,26 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
     endDate = null;
   }
 
-  // When the model asks for a category match we over-fetch (no DB-side
-  // filter on the joined category) and apply the substring match in JS
-  // before slicing to `limit`. Postgrest's `.or()` doesn't support
-  // filtering across embedded relations cleanly, and the windows here
-  // (one month or ≤365 days for one user) are small enough that this is fine.
-  const overFetch = categoryQuery.length > 0;
+  // ── Status="attention" prep ─────────────────────────────────────────
+  // Mirrors the API: surface unmatched transfers + transactions on
+  // accounts with a null name. We need the latter ID list up front so
+  // the OR clause can reference it.
+  let attentionAccountIds: string[] = [];
+  if (input.status === 'attention') {
+    const { data: unknownAccounts } = await supabaseAdmin
+      .from('accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .is('name', null);
+    attentionAccountIds = (unknownAccounts ?? []).map((a) => a.id);
+  }
+
+  // We post-filter (in JS) for category and account substring matches
+  // because postgrest's `.or()` doesn't compose across embedded relations,
+  // and we don't want to round-trip name → id resolution. When either is
+  // active, skip the DB-side `limit` so the filter has the full window
+  // to work with before we slice.
+  const overFetch = categoryQuery.length > 0 || accountQuery.length > 0;
 
   let query = supabaseAdmin
     .from('transactions')
@@ -318,7 +407,9 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         date,
         category_id,
         icon_url,
-        accounts!inner(user_id, name),
+        pending,
+        is_unmatched_transfer,
+        accounts!inner(user_id, name, mask, institutions(name)),
         system_categories(
           label,
           hex_color,
@@ -344,10 +435,44 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
     );
   }
 
+  // Type → sign filter. Plaid convention used throughout this codebase:
+  // positive = income/inflow, negative = expense/outflow.
+  if (input.type === 'income') {
+    query = query.gt('amount', 0);
+  } else if (input.type === 'expense') {
+    query = query.lt('amount', 0);
+  }
+
+  if (input.status === 'pending') {
+    query = query.eq('pending', true);
+  } else if (input.status === 'completed') {
+    query = query.not('pending', 'is', true);
+  } else if (input.status === 'attention') {
+    if (attentionAccountIds.length > 0) {
+      query = query.or(
+        `is_unmatched_transfer.eq.true,account_id.in.(${attentionAccountIds.join(',')})`,
+      );
+    } else {
+      query = query.eq('is_unmatched_transfer', true);
+    }
+  }
+
+  // Amount range — sign-agnostic absolute value. Matches the UI's mental
+  // model where "$50 to $200" means |amount| between 50 and 200.
+  if (typeof input.min_amount === 'number' && input.min_amount > 0) {
+    const min = input.min_amount;
+    query = query.or(`amount.gte.${min},amount.lte.-${min}`);
+  }
+  if (typeof input.max_amount === 'number' && input.max_amount > 0) {
+    const max = input.max_amount;
+    query = query.lte('amount', max).gte('amount', -max);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
 
   const catNeedle = categoryQuery.toLowerCase();
+  const accNeedle = accountQuery.toLowerCase();
 
   const transactions = (data ?? [])
     .map((t) => {
@@ -364,13 +489,20 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
           }
         | null;
       const group = cat?.category_groups ?? null;
-      const acc = t.accounts as { name?: string } | null;
+      const acc = t.accounts as
+        | {
+            name?: string | null;
+            mask?: string | null;
+            institutions?: { name?: string | null } | null;
+          }
+        | null;
       return {
         id: t.id,
         date: t.date,
         description: t.description,
         merchant_name: t.merchant_name,
         amount: Number(t.amount ?? 0),
+        pending: t.pending ?? false,
         category: cat?.label ?? 'Uncategorized',
         category_group: group?.name ?? null,
         // Prefer the group's color (matches the chip on the transactions
@@ -379,27 +511,42 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         category_icon_lib: group?.icon_lib ?? null,
         category_icon_name: group?.icon_name ?? null,
         account_name: acc?.name ?? 'Account',
+        account_mask: acc?.mask ?? null,
+        institution: acc?.institutions?.name ?? null,
         icon_url: t.icon_url ?? null,
       };
     })
     .filter((t) => {
-      if (catNeedle.length === 0) return true;
-      const cat = t.category?.toLowerCase() ?? '';
-      const grp = t.category_group?.toLowerCase() ?? '';
-      return cat.includes(catNeedle) || grp.includes(catNeedle);
+      if (catNeedle.length > 0) {
+        const cat = t.category?.toLowerCase() ?? '';
+        const grp = t.category_group?.toLowerCase() ?? '';
+        if (!cat.includes(catNeedle) && !grp.includes(catNeedle)) return false;
+      }
+      if (accNeedle.length > 0) {
+        const name = t.account_name?.toLowerCase() ?? '';
+        const inst = t.institution?.toLowerCase() ?? '';
+        if (!name.includes(accNeedle) && !inst.includes(accNeedle)) return false;
+      }
+      return true;
     })
     .slice(0, limit);
 
   return {
     transactions,
     count: transactions.length,
-    // Surface whichever date window we actually used so the model can
-    // sanity-check its own call ("did I really query April?") and the
-    // widget could optionally render a month label.
+    // Echo the resolved filters back so the model can sanity-check what
+    // it actually queried — same idea as the month label on the budget
+    // widget. Helps the model self-correct on follow-ups.
     month: resolvedMonth,
-    days_searched: resolvedMonth ? null : days,
+    range: resolvedRange,
+    days_searched: resolvedMonth || resolvedRange ? null : days,
+    type: input.type ?? null,
+    status: input.status ?? null,
+    min_amount: input.min_amount ?? null,
+    max_amount: input.max_amount ?? null,
     merchant_query: merchantQuery || null,
     category_query: categoryQuery || null,
+    account_query: accountQuery || null,
   };
 }
 
