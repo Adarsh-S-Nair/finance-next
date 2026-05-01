@@ -105,9 +105,14 @@ Required in `apps/finance/.env.local`:
   DB key is set. Get a key at https://console.anthropic.com/settings/keys.
   Each chat turn costs ~$0.01-0.02 against the configured account. The
   chat route surfaces a clear error if neither source has a key.
-- `PLAID_TOKEN_ENCRYPTION_KEY` - AES-256 key used to encrypt
-  `plaid_items.access_token` / `accounts.access_token` at rest, AND
-  `platform_config` secrets (admin-managed Anthropic API key etc).
+- `PLATFORM_ENCRYPTION_KEY` (legacy alias: `PLAID_TOKEN_ENCRYPTION_KEY`)
+  - AES-256 key used to encrypt `plaid_items.access_token` /
+  `accounts.access_token` at rest AND `platform_config` secrets
+  (admin-managed Anthropic API key etc). One platform-wide key,
+  multiple consumers. The code reads `PLATFORM_ENCRYPTION_KEY` first
+  and falls back to the legacy name so existing deployments keep
+  working through the rename — both can be set during transition; new
+  deployments only need the canonical one.
   **Must be set on BOTH `apps/finance` and `apps/admin` Vercel projects
   with the same value** — admin encrypts on write, finance decrypts on
   read. 64 hex chars (preferred) or base64 that decodes to 32 bytes.

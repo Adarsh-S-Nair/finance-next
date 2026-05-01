@@ -12,7 +12,10 @@
  *   - tag (16 B):   GCM authentication tag
  *   - ciphertext:   AES-256-GCM of the UTF-8 plaintext token
  *
- * Key: `PLAID_TOKEN_ENCRYPTION_KEY` — must decode to exactly 32 bytes.
+ * Key: `PLATFORM_ENCRYPTION_KEY` (legacy fallback: `PLAID_TOKEN_ENCRYPTION_KEY`)
+ *   — must decode to exactly 32 bytes. The same key also protects
+ *   `platform_config` secrets (admin-managed Anthropic API key, etc) —
+ *   one platform-wide AES-256-GCM key, multiple consumers.
  *   - 64 hex chars (preferred), or
  *   - 44 char base64 (no padding/or with)
  * Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
@@ -36,10 +39,16 @@ let cachedKey: Buffer | null = null;
 function loadKey(): Buffer {
   if (cachedKey) return cachedKey;
 
-  const raw = process.env.PLAID_TOKEN_ENCRYPTION_KEY;
+  // Prefer PLATFORM_ENCRYPTION_KEY (the canonical name — this key protects
+  // Plaid tokens AND platform_config secrets, despite the legacy name).
+  // Fall back to PLAID_TOKEN_ENCRYPTION_KEY so existing deployments keep
+  // working through the rename without re-encrypting any data.
+  const raw =
+    process.env.PLATFORM_ENCRYPTION_KEY ?? process.env.PLAID_TOKEN_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
-      'PLAID_TOKEN_ENCRYPTION_KEY is not set — refusing to (de)crypt Plaid tokens. ' +
+      'PLATFORM_ENCRYPTION_KEY (or legacy PLAID_TOKEN_ENCRYPTION_KEY) is not set — ' +
+        'refusing to (de)crypt at-rest secrets. ' +
         'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
     );
   }
@@ -53,14 +62,14 @@ function loadKey(): Buffer {
       key = Buffer.from(raw, 'base64');
     } catch {
       throw new Error(
-        'PLAID_TOKEN_ENCRYPTION_KEY must be 64 hex chars or base64 that decodes to 32 bytes'
+        'PLATFORM_ENCRYPTION_KEY must be 64 hex chars or base64 that decodes to 32 bytes'
       );
     }
   }
 
   if (key.length !== 32) {
     throw new Error(
-      `PLAID_TOKEN_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`
+      `PLATFORM_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`
     );
   }
 

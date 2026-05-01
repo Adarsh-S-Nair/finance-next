@@ -20,7 +20,8 @@
  * Required env (loaded from .env.prod, then .env.local):
  *   - NEXT_PUBLIC_SUPABASE_URL
  *   - SUPABASE_SERVICE_ROLE_KEY
- *   - PLAID_TOKEN_ENCRYPTION_KEY  (64 hex chars OR base64 → 32 bytes)
+ *   - PLATFORM_ENCRYPTION_KEY     (64 hex chars OR base64 → 32 bytes)
+ *     [or legacy PLAID_TOKEN_ENCRYPTION_KEY — same value, old name]
  *
  * Generate a key:
  *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -69,16 +70,21 @@ loadEnvFile('.env.local');
 loadEnvFile('.env.development');
 
 // ── Validate env ────────────────────────────────────────────────────────────
-const required = [
+// Either PLATFORM_ENCRYPTION_KEY (canonical) or PLAID_TOKEN_ENCRYPTION_KEY
+// (legacy) satisfies the encryption-key requirement.
+const requiredCore = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
-  'PLAID_TOKEN_ENCRYPTION_KEY',
 ];
-for (const key of required) {
+for (const key of requiredCore) {
   if (!process.env[key]) {
     console.error(`❌ Missing required env var: ${key}`);
     process.exit(1);
   }
+}
+if (!process.env.PLATFORM_ENCRYPTION_KEY && !process.env.PLAID_TOKEN_ENCRYPTION_KEY) {
+  console.error('❌ Missing encryption key: set PLATFORM_ENCRYPTION_KEY (or legacy PLAID_TOKEN_ENCRYPTION_KEY)');
+  process.exit(1);
 }
 
 // ── Encryption (mirrors src/lib/crypto/plaidTokens.ts) ──────────────────────
@@ -87,7 +93,8 @@ const IV_BYTES = 12;
 const VERSION = 'v1';
 
 function loadKey() {
-  const raw = process.env.PLAID_TOKEN_ENCRYPTION_KEY;
+  const raw =
+    process.env.PLATFORM_ENCRYPTION_KEY ?? process.env.PLAID_TOKEN_ENCRYPTION_KEY;
   let key;
   if (/^[0-9a-fA-F]{64}$/.test(raw)) {
     key = Buffer.from(raw, 'hex');
@@ -95,7 +102,7 @@ function loadKey() {
     key = Buffer.from(raw, 'base64');
   }
   if (key.length !== 32) {
-    throw new Error(`PLAID_TOKEN_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`);
+    throw new Error(`PLATFORM_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`);
   }
   return key;
 }

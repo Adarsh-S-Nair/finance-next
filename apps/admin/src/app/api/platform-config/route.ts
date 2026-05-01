@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Encrypt + upsert in one try block so the actual failure reason
-  // (e.g. PLAID_TOKEN_ENCRYPTION_KEY missing on the admin app) makes
-  // it back to the admin instead of a bare "Save failed (500)".
+  // (e.g. PLATFORM_ENCRYPTION_KEY missing on the admin app) makes it
+  // back to the admin instead of a bare "Save failed (500)".
   let stored: string;
   try {
     stored = isSecret ? encryptPlatformSecret(rawValue.trim()) : rawValue.trim();

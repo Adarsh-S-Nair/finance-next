@@ -1,9 +1,10 @@
 /**
  * Platform-secret encryption helpers used by both apps to read/write
- * `platform_config` rows where `is_secret = true`. Reuses the same
- * AES-256-GCM key (`PLAID_TOKEN_ENCRYPTION_KEY`) that protects Plaid
- * tokens — one key to rotate, one secret to manage.
+ * `platform_config` rows where `is_secret = true`. Uses the platform-wide
+ * AES-256-GCM key — same key that protects Plaid access tokens. One key
+ * to rotate, one secret to manage.
  *
+ * Env var: `PLATFORM_ENCRYPTION_KEY` (legacy fallback: `PLAID_TOKEN_ENCRYPTION_KEY`).
  * Encoding: `v1:{iv_b64}:{tag_b64}:{ciphertext_b64}` (matches plaidTokens).
  *
  * Server-side only. Never imported from client components.
@@ -20,10 +21,14 @@ let cachedKey: Buffer | null = null;
 function loadKey(): Buffer {
   if (cachedKey) return cachedKey;
 
-  const raw = process.env.PLAID_TOKEN_ENCRYPTION_KEY;
+  // Prefer the canonical name; fall back to the legacy `PLAID_TOKEN_*`
+  // alias so deployments mid-rename keep decrypting cleanly.
+  const raw =
+    process.env.PLATFORM_ENCRYPTION_KEY ?? process.env.PLAID_TOKEN_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
-      'PLAID_TOKEN_ENCRYPTION_KEY is not set — refusing to (de)crypt platform secrets.'
+      'PLATFORM_ENCRYPTION_KEY (or legacy PLAID_TOKEN_ENCRYPTION_KEY) is not set — ' +
+        'refusing to (de)crypt platform secrets.'
     );
   }
 
@@ -35,14 +40,14 @@ function loadKey(): Buffer {
       key = Buffer.from(raw, 'base64');
     } catch {
       throw new Error(
-        'PLAID_TOKEN_ENCRYPTION_KEY must be 64 hex chars or base64 that decodes to 32 bytes'
+        'PLATFORM_ENCRYPTION_KEY must be 64 hex chars or base64 that decodes to 32 bytes'
       );
     }
   }
 
   if (key.length !== 32) {
     throw new Error(
-      `PLAID_TOKEN_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`
+      `PLATFORM_ENCRYPTION_KEY must decode to 32 bytes (got ${key.length})`
     );
   }
 
