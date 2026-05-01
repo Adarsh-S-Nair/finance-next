@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -517,23 +518,29 @@ function ChatInputForm({
         // positioned send button so long lines don't underrun it.
         className="w-full resize-none pl-4 pr-12 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
       />
-      {/* Send button is anchored to the bottom-right of the textarea so it
-          stays put as the textarea auto-grows. Faded out (rather than
-          unmounted) when there's nothing to send to avoid a layout pop. */}
-      <button
-        type="submit"
-        disabled={!canSend}
-        aria-label="Send"
-        aria-hidden={!hasText}
-        tabIndex={hasText ? 0 : -1}
-        className={`absolute right-2 bottom-2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] transition-opacity duration-150 ${
-          hasText
-            ? "opacity-100 hover:opacity-90"
-            : "opacity-0 pointer-events-none"
-        }`}
-      >
-        <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
-      </button>
+      {/* Send button anchored to the bottom-right of the textarea. The
+          bottom offset (6px = bottom-1.5) is chosen so the button is
+          vertically centered when the textarea is single-line height
+          (40px = py-2.5 + 20px line-height); when the textarea grows it
+          stays anchored at the bottom-right corner. AnimatePresence
+          drives a snappy spring entrance + exit that feels alive. */}
+      <AnimatePresence>
+        {hasText && (
+          <motion.button
+            key="send"
+            type="submit"
+            disabled={!canSend}
+            aria-label="Send"
+            initial={{ opacity: 0, scale: 0.4, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.4, y: 6 }}
+            transition={{ type: "spring", stiffness: 600, damping: 18 }}
+            className="absolute right-2 bottom-1.5 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
+          >
+            <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </form>
   );
 }
