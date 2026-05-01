@@ -35,8 +35,8 @@ type ToolBlock = {
 type Block = TextBlock | ToolBlock;
 
 type Message =
-  | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; blocks: Block[] };
+  | { id: string; role: "user"; text: string; created_at: string }
+  | { id: string; role: "assistant"; blocks: Block[]; created_at: string };
 
 type Conversation = {
   id: string;
@@ -82,11 +82,39 @@ function formatRelative(iso: string, now: number): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// Inline timestamp shown under each message. Closer to a clock format
+// than the conversation-list "5m ago" style — we want to know when a
+// message was sent, not how stale it is.
+function formatMessageTime(iso: string, now: number): string {
+  const d = new Date(iso);
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
+  const msgMidnight = new Date(d);
+  msgMidnight.setHours(0, 0, 0, 0);
+  const dayDelta = Math.round(
+    (todayMidnight.getTime() - msgMidnight.getTime()) / 86_400_000,
+  );
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (dayDelta === 0) return time;
+  if (dayDelta === 1) return `Yesterday ${time}`;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const datePart = d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  return `${datePart} · ${time}`;
+}
+
 // Convert a server row into the kind of content the UI cares about.
 type DbRow = {
   id: string;
   role: string;
   content: StoredContent;
+  created_at: string;
 };
 
 function rowsToMessages(rows: DbRow[]): Message[] {
@@ -95,7 +123,7 @@ function rowsToMessages(rows: DbRow[]): Message[] {
     if (row.role === "user") {
       const text = typeof row.content?.text === "string" ? row.content.text : "";
       if (text) {
-        messages.push({ id: row.id, role: "user", text });
+        messages.push({ id: row.id, role: "user", text, created_at: row.created_at });
       }
     } else if (row.role === "assistant") {
       const blocks: Block[] = [];
@@ -122,7 +150,12 @@ function rowsToMessages(rows: DbRow[]): Message[] {
           }
         }
       }
-      messages.push({ id: row.id, role: "assistant", blocks });
+      messages.push({
+        id: row.id,
+        role: "assistant",
+        blocks,
+        created_at: row.created_at,
+      });
     } else if (row.role === "tool") {
       // Attach tool_result blocks to the most recent assistant message's
       // matching tool_use blocks.
@@ -193,6 +226,13 @@ export default function AgentPage() {
     setTopbarPortal(document.getElementById("topbar-tools-portal"));
   }, []);
 
+  // `now` reference for inline message timestamps. Set once on mount so
+  // formatMessageTime can decide today vs yesterday vs older without
+  // hitting Date.now() in render (purity rule). The "X:YY PM" format
+  // doesn't tick by, so re-rendering as time passes isn't useful.
+  const [nowAtMount, setNowAtMount] = useState<number | null>(null);
+  useEffect(() => setNowAtMount(Date.now()), []);
+
   // Initial load.
   useEffect(() => {
     let cancelled = false;
@@ -241,10 +281,11 @@ export default function AgentPage() {
     const userMsgId = `local-user-${localIdRef.current}`;
     localIdRef.current += 1;
     const assistantMsgId = `local-asst-${localIdRef.current}`;
+    const nowIso = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
-      { id: userMsgId, role: "user", text },
-      { id: assistantMsgId, role: "assistant", blocks: [] },
+      { id: userMsgId, role: "user", text, created_at: nowIso },
+      { id: assistantMsgId, role: "assistant", blocks: [], created_at: nowIso },
     ]);
 
     try {
@@ -512,10 +553,28 @@ export default function AgentPage() {
         <>
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-4 pt-12 pb-6 space-y-6">
-              {displayMessages.map((m) =>
-                m.role === "user" ? (
-                  <UserMessageRow key={m.id} text={m.text} />
-                ) : (
+              {displayMessages.map((m, i) => {
+                const isLastAssistant =
+                  m.role === "assistant" && i === displayMessages.length - 1;
+                // Hide the timestamp on the currently-streaming response —
+                // it's distracting next to typing dots and would just say
+                // "just now / X:YY PM" before the content has even arrived.
+                const showStamp = !(isLastAssistant && sending);
+                if (m.role === "user") {
+                  return (
+                    <div key={m.id}>
+                      <UserMessageRow text={m.text} />
+                      {showStamp && nowAtMount !== null && (
+                        <MessageTimestamp
+                          ts={m.created_at}
+                          now={nowAtMount}
+                          align="right"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+                return (
                   // Animate widgets only for messages that arrived this
                   // session (optimistic ids start with `local-`). Messages
                   // loaded from the DB — page reload, conversation switch,
@@ -526,9 +585,16 @@ export default function AgentPage() {
                     animate={m.id.startsWith("local-")}
                   >
                     <AssistantMessageRow blocks={m.blocks} />
+                    {showStamp && nowAtMount !== null && (
+                      <MessageTimestamp
+                        ts={m.created_at}
+                        now={nowAtMount}
+                        align="left"
+                      />
+                    )}
                   </AnimateProvider>
-                ),
-              )}
+                );
+              })}
               {showTypingDots && <TypingDots />}
             </div>
           </div>
@@ -779,6 +845,29 @@ function UserMessageRow({ text }: { text: string }) {
       <div className="max-w-[80%] px-4 py-2.5 rounded-2xl bg-[var(--color-surface-alt)] text-sm text-[var(--color-fg)] whitespace-pre-wrap break-words">
         {text}
       </div>
+    </div>
+  );
+}
+
+// Subtle "X:YY PM" line under each message. Mirrors the alignment of the
+// message it belongs to so user timestamps land under the right-aligned
+// bubble and assistant timestamps under the left-aligned response.
+function MessageTimestamp({
+  ts,
+  now,
+  align,
+}: {
+  ts: string;
+  now: number;
+  align: "left" | "right";
+}) {
+  return (
+    <div
+      className={`text-[10px] text-[var(--color-muted)]/70 mt-1 ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      {formatMessageTime(ts, now)}
     </div>
   );
 }
