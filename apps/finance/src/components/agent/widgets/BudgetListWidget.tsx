@@ -4,7 +4,21 @@ import { motion } from "framer-motion";
 import { FiTag } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
+import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+
+// Pretty-print "2026-04" as "April 2026". Tool returns yyyy-MM (no day),
+// so we fabricate a UTC mid-month date to avoid timezone drift turning
+// "2026-04" into "March 2026" for users west of UTC.
+function formatMonthLabel(month: string): string {
+  const [year, m] = month.split("-").map((s) => Number(s));
+  if (!year || !m) return month;
+  const d = new Date(Date.UTC(year, m - 1, 15));
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 type Budget = {
   id?: string;
@@ -38,8 +52,24 @@ export default function BudgetListWidget({ data }: { data: BudgetListData }) {
     );
   }
 
+  // Show "April 2026 · $63 spent" header so the user can sanity-check
+  // which month the agent actually queried. Without this, two widgets for
+  // "this month vs last month" looked identical when the model picked the
+  // wrong month — there was no way to tell from the rendered output.
+  const monthLabel = data.month ? formatMonthLabel(data.month) : null;
+  const totalSpent =
+    typeof data.total_spent === "number"
+      ? formatCurrency(data.total_spent)
+      : null;
+
   return (
     <WidgetFrame>
+      {monthLabel ? (
+        <WidgetLabel
+          left={monthLabel}
+          right={totalSpent ? `${totalSpent} spent` : null}
+        />
+      ) : null}
       <div className="space-y-5">
         {data.budgets.map((b, i) => (
           <MagicItem key={b.id ?? `${b.label}-${i}`} index={i}>

@@ -159,9 +159,31 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   // Persist the user message.
   await insertMessage(conversationId, 'user', { text: userMessage } as unknown as Json);
 
+  // Anchor the model in time. Without this it has no idea what "today" is
+  // and starts inventing months — calling get_budgets with `month: 2024-01-15`
+  // when the user asks about "last month", which silently returns $0 because
+  // the user has no January 2024 data. Inject the current date in a couple
+  // of formats so date-math prompts ("last month", "this week") resolve to
+  // real calendar boundaries instead of hallucinations.
+  const now = new Date();
+  const isoToday = now.toISOString().slice(0, 10); // yyyy-MM-dd
+  const humanToday = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const dateContext =
+    `# Date context\n\n` +
+    `Today is ${humanToday} (${isoToday}). ` +
+    `When the user mentions relative time ranges like "this month", "last month", or "last week", ` +
+    `resolve them against this date. For tools that take a \`month\` parameter (YYYY-MM-DD), pass any ` +
+    `date inside the target month — the tool normalizes to month boundaries internally.`;
+
+  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}`;
   const systemPrompt = profile?.custom_instructions
-    ? `${SYSTEM_PROMPT}\n\nUser's custom instructions:\n${profile.custom_instructions}`
-    : SYSTEM_PROMPT;
+    ? `${basePrompt}\n\nUser's custom instructions:\n${profile.custom_instructions}`
+    : basePrompt;
 
   const client = new Anthropic({ apiKey: agentConfig.apiKey });
   const encoder = new TextEncoder();

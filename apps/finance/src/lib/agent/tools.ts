@@ -13,7 +13,7 @@
  * transactions) land in a follow-up commit with confirmation flows.
  */
 import type Anthropic from '@anthropic-ai/sdk';
-import { format, startOfMonth, endOfMonth, subDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
 
@@ -86,9 +86,10 @@ export const TOOLS: ToolDefinition[] = [
       properties: {
         period: {
           type: 'string',
-          enum: ['this_month', 'last_30_days', 'last_90_days'],
+          enum: ['this_month', 'last_month', 'last_30_days', 'last_90_days'],
           description:
-            'Time window. Defaults to this_month if omitted.',
+            'Time window. `this_month` and `last_month` use calendar-month boundaries; ' +
+            '`last_30_days` and `last_90_days` are rolling. Defaults to this_month.',
         },
       },
     },
@@ -125,7 +126,7 @@ interface RecentTransactionsInput {
   merchant_query?: string;
 }
 interface SpendingByCategoryInput {
-  period?: 'this_month' | 'last_30_days' | 'last_90_days';
+  period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
 }
 
 export async function executeTool(
@@ -344,6 +345,12 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
       end = today;
       start = subDays(today, 90);
       break;
+    case 'last_month': {
+      const prev = subMonths(today, 1);
+      start = startOfMonth(prev);
+      end = endOfMonth(prev);
+      break;
+    }
     case 'this_month':
     default:
       start = startOfMonth(today);
