@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LuSettings, LuLogOut, LuMenu } from "react-icons/lu";
+import { motion } from "framer-motion";
+import { LuSettings, LuLogOut } from "react-icons/lu";
 import clsx from "clsx";
 import { ConfirmOverlay, Drawer } from "@zervo/ui";
 import { NAV_GROUPS } from "../nav";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
 import { isFeatureEnabled } from "../../lib/tierConfig";
+import ScopeSwitcher from "../households/ScopeSwitcher";
+
+// The toggle is a 36px circular button. When the drawer is open we slide
+// it from `left-4` to a position 16px from the right edge — that delta is
+// `viewport_width - (left:16) - (button:36) - (right:16)` = `100vw - 68px`.
+const TOGGLE_OPEN_X = "calc(100vw - 68px)";
 
 export default function MobileNavMenu() {
   const pathname = usePathname();
@@ -19,15 +26,17 @@ export default function MobileNavMenu() {
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
+  // Close the drawer whenever the route changes — tapping a nav link
+  // triggers Next router navigation, and we want the drawer to dismiss
+  // in sync rather than relying on each link to do it manually.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const mainItems = NAV_GROUPS
     .flatMap((g) => g.items)
     .filter((item) => !item.disabled)
     .filter((item) => !item.featureFlag || isFeatureEnabled(item.featureFlag));
-
-  const navItems = [
-    ...mainItems,
-    { href: "/settings", label: "Settings", icon: LuSettings },
-  ];
 
   const handleLogout = async () => {
     try {
@@ -44,60 +53,73 @@ export default function MobileNavMenu() {
 
   return (
     <>
-      <button
+      <motion.button
         type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Open menu"
-        className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        className="md:hidden fixed top-3.5 left-4 z-[90] inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer"
+        animate={{ x: open ? TOGGLE_OPEN_X : "0px" }}
+        transition={{ type: "tween", duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
       >
-        <LuMenu className="h-5 w-5" />
-      </button>
+        <MorphingMenuIcon open={open} />
+      </motion.button>
 
       <Drawer
         isOpen={open}
         onClose={() => setOpen(false)}
-        title="Menu"
         size="sm"
         side="left"
+        hideCloseButton
       >
-        <nav className="flex flex-col gap-0.5">
-          {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={clsx(
-                  "flex items-center gap-3 px-2 py-2.5 rounded-md text-sm transition-colors",
-                  isActive
-                    ? "bg-[var(--color-surface-alt)] text-[var(--color-fg)]"
-                    : "text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
-                )}
-              >
-                {Icon && (
-                  <Icon
-                    className={clsx(
-                      "w-4 h-4 flex-shrink-0",
-                      isActive ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]",
-                    )}
-                  />
-                )}
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+        <div className="-mx-5 -mb-5 h-full flex flex-col">
+          <ScopeSwitcher />
 
-          <button
-            type="button"
-            onClick={() => setShowLogout(true)}
-            className="mt-2 flex items-center gap-3 px-2 py-2.5 rounded-md text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
-          >
-            <LuLogOut className="w-4 h-4 flex-shrink-0 text-[var(--color-muted)]" />
-            <span>Sign out</span>
-          </button>
-        </nav>
+          <nav className="flex-1 overflow-y-auto px-3 pt-3 space-y-0.5">
+            {mainItems.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={clsx(
+                    "flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
+                    isActive
+                      ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)]"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
+                  )}
+                >
+                  {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="px-3 pt-3 pb-4 border-t border-[var(--color-fg)]/[0.06] space-y-0.5">
+            <Link
+              href="/settings"
+              className={clsx(
+                "flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
+                pathname.startsWith("/settings")
+                  ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)]"
+                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
+              )}
+            >
+              <LuSettings className="w-4 h-4 flex-shrink-0" />
+              <span>Settings</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowLogout(true)}
+              className="w-full flex items-center gap-3 px-2.5 py-2 rounded-md text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+            >
+              <LuLogOut className="w-4 h-4 flex-shrink-0" />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </div>
       </Drawer>
 
       <ConfirmOverlay
@@ -112,5 +134,34 @@ export default function MobileNavMenu() {
         busy={isSigningOut}
       />
     </>
+  );
+}
+
+// Three stacked bars that morph into an X. Top + bottom rotate ±45° and
+// converge to the middle row; the middle bar fades out. Driven entirely
+// by the `open` prop so framer-motion can interpolate smoothly.
+function MorphingMenuIcon({ open }: { open: boolean }) {
+  const transition = { type: "tween" as const, duration: 0.22, ease: [0.25, 0.1, 0.25, 1] as const };
+  return (
+    <span className="relative block w-4 h-4" aria-hidden="true">
+      <motion.span
+        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
+        style={{ top: 0 }}
+        animate={{ y: open ? 7 : 0, rotate: open ? 45 : 0 }}
+        transition={transition}
+      />
+      <motion.span
+        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
+        style={{ top: 7 }}
+        animate={{ opacity: open ? 0 : 1, scaleX: open ? 0 : 1 }}
+        transition={transition}
+      />
+      <motion.span
+        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
+        style={{ top: 14 }}
+        animate={{ y: open ? -7 : 0, rotate: open ? -45 : 0 }}
+        transition={transition}
+      />
+    </span>
   );
 }

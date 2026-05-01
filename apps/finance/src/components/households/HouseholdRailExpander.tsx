@@ -117,45 +117,6 @@ export function useHouseholdRail() {
 }
 
 /**
- * Minimal mobile trigger. No bubble, no background — just the Zervo logo on
- * personal or the household name on a household, centered in the topbar.
- * Tapping still toggles the rail.
- */
-export function HouseholdRailInlineTrigger() {
-  const pathname = usePathname();
-  const { households } = useHouseholds();
-  const { expanded, toggle } = useHouseholdRail();
-
-  const householdId = pathname.match(/^\/households\/([^/]+)/)?.[1] ?? null;
-  const activeHousehold = households.find((h) => h.id === householdId) ?? null;
-  const label = activeHousehold ? activeHousehold.name : "Personal";
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-expanded={expanded}
-      aria-label={`Switch household. Current: ${label}`}
-      className="flex items-center gap-2 px-2 py-1 cursor-pointer group"
-    >
-      {activeHousehold ? (
-        <span className="text-sm font-medium text-[var(--color-fg)] truncate max-w-[200px]">
-          {activeHousehold.name}
-        </span>
-      ) : (
-        <ZervoMark className="h-8 w-8" />
-      )}
-      <LuChevronDown
-        className={clsx(
-          "h-3.5 w-3.5 text-[var(--color-muted)]/60 transition-transform group-hover:text-[var(--color-muted)]",
-          expanded && "rotate-180",
-        )}
-      />
-    </button>
-  );
-}
-
-/**
  * Bubble trigger for the mobile topbar + tablet sidebar. Always renders the
  * active styling of the current scope — personal uses the accent bubble
  * with inverted Zervo, household uses its color. This matches how the

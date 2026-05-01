@@ -6,7 +6,6 @@ import { FiPlus } from "react-icons/fi";
 import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
-import { HouseholdRailInlineTrigger } from "../households/HouseholdRailExpander";
 import MobileNavMenu from "./MobileNavMenu";
 
 export default function AppTopbar() {
@@ -25,18 +24,12 @@ export default function AppTopbar() {
         } px-4 md:px-6 lg:px-10 h-16 w-full flex items-center gap-3 shrink-0 relative`}
       >
 
-        {/* Mobile: hamburger menu — always-visible nav trigger. */}
+        {/* Mobile: hamburger menu — fixed-position trigger that morphs into
+            an X and floats to the top-right while the drawer is open. */}
         <MobileNavMenu />
 
         {/* Mobile: page-specific start portal (e.g. search button) */}
         <div id="page-mobile-start-portal" className="md:hidden flex items-center z-10" />
-
-        {/* Mobile only — centered inline trigger (Zervo on personal, household
-            name on a household). Tablet uses the sidebar bubble + horizontal
-            rail; desktop uses the full rail on the left. */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:hidden">
-          <HouseholdRailInlineTrigger />
-        </div>
 
         {/* Desktop: page title portal */}
         <div id="page-title-portal" className="hidden md:flex flex-1 items-center min-w-0" />

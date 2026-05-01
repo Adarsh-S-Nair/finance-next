@@ -29,6 +29,8 @@ type DrawerProps = {
   onBack?: () => void;
   /** Which edge the drawer docks to on desktop and animates from on mobile. Defaults to "right". */
   side?: "left" | "right";
+  /** Suppress the default mobile close affordance (use when the caller provides its own). */
+  hideCloseButton?: boolean;
 };
 
 /**
@@ -58,6 +60,7 @@ export default function Drawer({
   onViewChange,
   onBack,
   side = "right",
+  hideCloseButton = false,
 }: DrawerProps) {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
@@ -131,7 +134,7 @@ export default function Drawer({
   // On mobile we always need an explicit dismiss affordance because the
   // backdrop isn't tappable (the dialog covers the whole viewport).
   // Desktop has the backdrop + Escape, so we don't duplicate it there.
-  const showCloseButton = isMobile === true && !showBackButton;
+  const showCloseButton = isMobile === true && !showBackButton && !hideCloseButton;
 
   const drawerContent = (
     <AnimatePresence>

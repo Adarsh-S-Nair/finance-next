@@ -13,7 +13,6 @@ import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, use
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { HouseholdRailInlineTrigger } from "../../../components/households/HouseholdRailExpander";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { supabase } from "../../../lib/supabase/client";
@@ -252,19 +251,6 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
           )}
         </AnimatePresence>
       </motion.div>
-
-      {/* Logo — absolute-centered, fades out when the pill expands
-          over it. pointer-events-none while faded so taps go through
-          to whatever else might be underneath. */}
-      <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-150"
-        style={{
-          opacity: searchOpen ? 0 : 1,
-          pointerEvents: searchOpen ? 'none' : 'auto',
-        }}
-      >
-        <HouseholdRailInlineTrigger />
-      </div>
 
       {/* Filter button — always at the right edge. */}
       <div className="ml-auto relative z-10 flex-shrink-0">
