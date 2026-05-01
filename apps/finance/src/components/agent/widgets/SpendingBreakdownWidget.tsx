@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
+import { MagicItem, WidgetError, WidgetFrame, useAnimate } from "./primitives";
 
 type Category = {
   label: string;
@@ -35,18 +35,7 @@ export default function SpendingBreakdownWidget({ data }: { data: SpendingBreakd
               it feels like the breakdown is being assembled. */}
           <div className="w-full h-1.5 rounded-full overflow-hidden bg-[var(--color-surface-alt)]/60 flex mb-4">
             {top.map((c, i) => (
-              <motion.div
-                key={c.label}
-                className="h-full"
-                style={{ backgroundColor: c.color }}
-                initial={{ width: 0 }}
-                animate={{ width: `${c.percent}%` }}
-                transition={{
-                  delay: 0.05 * i,
-                  duration: 0.5,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-              />
+              <BarSegment key={c.label} color={c.color} percent={c.percent} index={i} />
             ))}
           </div>
 
@@ -77,5 +66,38 @@ export default function SpendingBreakdownWidget({ data }: { data: SpendingBreakd
         </>
       )}
     </WidgetFrame>
+  );
+}
+
+function BarSegment({
+  color,
+  percent,
+  index,
+}: {
+  color: string;
+  percent: number;
+  index: number;
+}) {
+  const animate = useAnimate();
+  if (!animate) {
+    return (
+      <div
+        className="h-full"
+        style={{ width: `${percent}%`, backgroundColor: color }}
+      />
+    );
+  }
+  return (
+    <motion.div
+      className="h-full"
+      style={{ backgroundColor: color }}
+      initial={{ width: 0 }}
+      animate={{ width: `${percent}%` }}
+      transition={{
+        delay: 0.05 * index,
+        duration: 0.5,
+        ease: [0.16, 1, 0.3, 1],
+      }}
+    />
   );
 }

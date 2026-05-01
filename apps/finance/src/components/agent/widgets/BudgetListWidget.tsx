@@ -4,7 +4,13 @@ import { motion } from "framer-motion";
 import { FiTag } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+import {
+  MagicItem,
+  WidgetError,
+  WidgetFrame,
+  WidgetLabel,
+  useAnimate,
+} from "./primitives";
 
 // Pretty-print "2026-04" as "April 2026". Tool returns yyyy-MM (no day),
 // so we fabricate a UTC mid-month date to avoid timezone drift turning
@@ -82,6 +88,7 @@ export default function BudgetListWidget({ data }: { data: BudgetListData }) {
 }
 
 function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
+  const animate = useAnimate();
   const over = budget.spent > budget.budget_amount;
   const pct = Math.min(budget.percent_used, 100);
 
@@ -117,17 +124,27 @@ function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
           </span>
         </div>
         <div className="w-full h-2 rounded-full bg-[var(--color-surface-alt)]/60 overflow-hidden">
-          <motion.div
-            className="h-full"
-            style={{ backgroundColor: over ? "#f87171" : budget.hex_color }}
-            initial={{ width: 0 }}
-            animate={{ width: `${pct}%` }}
-            transition={{
-              delay: delay + 0.2,
-              duration: 0.6,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-          />
+          {animate ? (
+            <motion.div
+              className="h-full"
+              style={{ backgroundColor: over ? "#f87171" : budget.hex_color }}
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{
+                delay: delay + 0.2,
+                duration: 0.6,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+            />
+          ) : (
+            <div
+              className="h-full"
+              style={{
+                width: `${pct}%`,
+                backgroundColor: over ? "#f87171" : budget.hex_color,
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

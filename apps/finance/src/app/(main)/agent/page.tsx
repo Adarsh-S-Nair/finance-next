@@ -17,6 +17,7 @@ import { useUser } from "../../../components/providers/UserProvider";
 import ToolWidget, {
   type ToolBlock as ToolBlockData,
 } from "../../../components/agent/widgets/ToolWidget";
+import { AnimateProvider } from "../../../components/agent/widgets/primitives";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -515,7 +516,17 @@ export default function AgentPage() {
                 m.role === "user" ? (
                   <UserMessageRow key={m.id} text={m.text} />
                 ) : (
-                  <AssistantMessageRow key={m.id} blocks={m.blocks} />
+                  // Animate widgets only for messages that arrived this
+                  // session (optimistic ids start with `local-`). Messages
+                  // loaded from the DB — page reload, conversation switch,
+                  // history hydration — render instantly so the user isn't
+                  // watching the same stagger replay every time.
+                  <AnimateProvider
+                    key={m.id}
+                    animate={m.id.startsWith("local-")}
+                  >
+                    <AssistantMessageRow blocks={m.blocks} />
+                  </AnimateProvider>
                 ),
               )}
               {showTypingDots && <TypingDots />}
