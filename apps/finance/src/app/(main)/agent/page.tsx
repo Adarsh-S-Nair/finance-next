@@ -7,21 +7,35 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiPlus, FiClock } from "react-icons/fi";
 import { marked } from "marked";
+import { Drawer } from "@zervo/ui";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
+import ToolWidget, {
+  type ToolBlock as ToolBlockData,
+} from "../../../components/agent/widgets/ToolWidget";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────
 
-type Message = {
+type TextBlock = { kind: "text"; text: string };
+type ToolBlock = {
+  kind: "tool";
   id: string;
-  role: "user" | "assistant";
-  text: string;
+  name: string;
+  input: unknown;
+  output?: unknown;
+  isError?: boolean;
 };
+type Block = TextBlock | ToolBlock;
+
+type Message =
+  | { id: string; role: "user"; text: string }
+  | { id: string; role: "assistant"; blocks: Block[] };
 
 type Conversation = {
   id: string;
@@ -30,25 +44,22 @@ type Conversation = {
   created_at: string;
 };
 
-type StoredContent = { text?: unknown };
+// Persisted content shapes — we accept both legacy {text: string} and
+// new {blocks: ...} on assistant rows.
+type StoredContent = {
+  text?: unknown;
+  blocks?: unknown;
+};
 
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
 
-function extractText(content: unknown): string {
-  if (content && typeof content === "object" && "text" in content) {
-    const t = (content as StoredContent).text;
-    if (typeof t === "string") return t;
-  }
-  return "";
-}
-
 const STARTER_PROMPTS = [
   "How was my spending this month?",
   "Am I on track for my savings goals?",
   "What's my biggest recurring expense?",
-  "Help me think through my budget.",
+  "Show me my budgets.",
 ];
 
 function greeting(hour: number): string {
@@ -58,9 +69,6 @@ function greeting(hour: number): string {
   return "Good evening";
 }
 
-// Pure formatter — no Date.now() so the purity rule stays happy. Caller
-// passes "now" explicitly when they want a relative label, otherwise we
-// fall back to absolute.
 function formatRelative(iso: string, now: number): string {
   const ts = new Date(iso).getTime();
   const diffMin = Math.floor((now - ts) / 60_000);
@@ -71,6 +79,89 @@ function formatRelative(iso: string, now: number): string {
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Convert a server row into the kind of content the UI cares about.
+type DbRow = {
+  id: string;
+  role: string;
+  content: StoredContent;
+};
+
+function rowsToMessages(rows: DbRow[]): Message[] {
+  const messages: Message[] = [];
+  for (const row of rows) {
+    if (row.role === "user") {
+      const text = typeof row.content?.text === "string" ? row.content.text : "";
+      if (text) {
+        messages.push({ id: row.id, role: "user", text });
+      }
+    } else if (row.role === "assistant") {
+      const blocks: Block[] = [];
+      // Legacy text-only assistant rows.
+      if (typeof row.content?.text === "string") {
+        if (row.content.text) blocks.push({ kind: "text", text: row.content.text });
+      } else if (Array.isArray(row.content?.blocks)) {
+        for (const b of row.content.blocks as Array<{
+          type?: string;
+          text?: string;
+          id?: string;
+          name?: string;
+          input?: unknown;
+        }>) {
+          if (b.type === "text" && typeof b.text === "string") {
+            blocks.push({ kind: "text", text: b.text });
+          } else if (b.type === "tool_use" && b.id && b.name) {
+            blocks.push({
+              kind: "tool",
+              id: b.id,
+              name: b.name,
+              input: b.input,
+            });
+          }
+        }
+      }
+      messages.push({ id: row.id, role: "assistant", blocks });
+    } else if (row.role === "tool") {
+      // Attach tool_result blocks to the most recent assistant message's
+      // matching tool_use blocks.
+      const stored = row.content;
+      if (!Array.isArray(stored?.blocks)) continue;
+      // Find the most recent assistant message in messages so far.
+      let target: Message | undefined;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "assistant") {
+          target = messages[i];
+          break;
+        }
+      }
+      if (!target || target.role !== "assistant") continue;
+
+      for (const tr of stored.blocks as Array<{
+        type?: string;
+        tool_use_id?: string;
+        content?: unknown;
+        is_error?: boolean;
+      }>) {
+        if (tr.type !== "tool_result" || !tr.tool_use_id) continue;
+        const block = target.blocks.find(
+          (b): b is ToolBlock => b.kind === "tool" && b.id === tr.tool_use_id,
+        );
+        if (!block) continue;
+        let parsed: unknown = tr.content;
+        if (typeof tr.content === "string") {
+          try {
+            parsed = JSON.parse(tr.content);
+          } catch {
+            parsed = tr.content;
+          }
+        }
+        block.output = parsed;
+        if (tr.is_error) block.isError = true;
+      }
+    }
+  }
+  return messages;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -88,11 +179,18 @@ export default function AgentPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const localIdRef = useRef(0);
 
-  // Initial load: latest conversation + full conversation list, in parallel.
+  // Topbar portal for the conversation-history button.
+  const [topbarPortal, setTopbarPortal] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setTopbarPortal(document.getElementById("topbar-tools-portal"));
+  }, []);
+
+  // Initial load.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -105,16 +203,7 @@ export default function AgentPage() {
         const latest = await latestRes.json();
         if (cancelled) return;
         setConversation(latest.conversation ?? null);
-        setMessages(
-          (latest.messages ?? [])
-            .filter((m: { role: string }) => m.role === "user" || m.role === "assistant")
-            .map((m: { id: string; role: string; content: unknown }) => ({
-              id: m.id,
-              role: m.role as "user" | "assistant",
-              text: extractText(m.content),
-            })),
-        );
-
+        setMessages(rowsToMessages(latest.messages ?? []));
         if (listRes.ok) {
           const listBody = await listRes.json();
           if (!cancelled) setAllConversations(listBody.conversations ?? []);
@@ -130,7 +219,6 @@ export default function AgentPage() {
     };
   }, []);
 
-  // Autoscroll to bottom on new messages.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -153,7 +241,7 @@ export default function AgentPage() {
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, role: "user", text },
-      { id: assistantMsgId, role: "assistant", text: "" },
+      { id: assistantMsgId, role: "assistant", blocks: [] },
     ]);
 
     try {
@@ -191,40 +279,15 @@ export default function AgentPage() {
             continue;
           }
           if (typeof evt !== "object" || !evt) continue;
-          const ev = evt as {
-            type?: string;
-            conversation_id?: string;
-            text?: string;
-            message?: string;
-          };
-          if (ev.type === "meta" && ev.conversation_id) {
-            const newId = ev.conversation_id;
-            setConversation((prev) =>
-              prev
-                ? prev
-                : {
-                    id: newId,
-                    title: text.slice(0, 80),
-                    last_message_at: new Date().toISOString(),
-                    created_at: new Date().toISOString(),
-                  },
-            );
-          } else if (ev.type === "delta" && typeof ev.text === "string") {
-            const delta = ev.text;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsgId ? { ...m, text: m.text + delta } : m,
-              ),
-            );
-          } else if (ev.type === "error") {
-            streamErr = ev.message ?? "Stream error";
+          const ev = evt as Record<string, unknown>;
+          handleStreamEvent(ev, assistantMsgId, text);
+          if (ev.type === "error") {
+            streamErr = (ev.message as string | undefined) ?? "Stream error";
           }
         }
       }
       if (streamErr) throw new Error(streamErr);
 
-      // Refresh conversation list so the new (or just-bumped) thread floats to
-      // the top of the switcher dropdown without a full reload.
       void refreshConversationList();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send";
@@ -235,6 +298,80 @@ export default function AgentPage() {
     }
   }
 
+  function handleStreamEvent(
+    ev: Record<string, unknown>,
+    assistantMsgId: string,
+    submittedText: string,
+  ) {
+    const type = ev.type as string | undefined;
+    if (type === "meta" && typeof ev.conversation_id === "string") {
+      const newId = ev.conversation_id;
+      setConversation((prev) =>
+        prev
+          ? prev
+          : {
+              id: newId,
+              title: submittedText.slice(0, 80),
+              last_message_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            },
+      );
+    } else if (type === "text_delta" && typeof ev.text === "string") {
+      const delta = ev.text;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantMsgId || m.role !== "assistant") return m;
+          const blocks = [...m.blocks];
+          const last = blocks[blocks.length - 1];
+          if (last?.kind === "text") {
+            blocks[blocks.length - 1] = { ...last, text: last.text + delta };
+          } else {
+            blocks.push({ kind: "text", text: delta });
+          }
+          return { ...m, blocks };
+        }),
+      );
+    } else if (
+      type === "tool_use" &&
+      typeof ev.id === "string" &&
+      typeof ev.name === "string"
+    ) {
+      const id = ev.id;
+      const name = ev.name;
+      const inputVal = ev.input;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantMsgId || m.role !== "assistant") return m;
+          return {
+            ...m,
+            blocks: [...m.blocks, { kind: "tool", id, name, input: inputVal }],
+          };
+        }),
+      );
+    } else if (
+      type === "tool_result" &&
+      typeof ev.tool_use_id === "string"
+    ) {
+      const tuId = ev.tool_use_id;
+      const output = ev.output;
+      const isError = ev.is_error === true;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.role !== "assistant") return m;
+          if (!m.blocks.some((b) => b.kind === "tool" && b.id === tuId)) return m;
+          return {
+            ...m,
+            blocks: m.blocks.map((b) =>
+              b.kind === "tool" && b.id === tuId
+                ? { ...b, output, isError }
+                : b,
+            ),
+          };
+        }),
+      );
+    }
+  }
+
   async function refreshConversationList() {
     try {
       const res = await authFetch("/api/agent/conversations");
@@ -242,7 +379,7 @@ export default function AgentPage() {
       const body = await res.json();
       setAllConversations(body.conversations ?? []);
     } catch {
-      // Silent — list stays stale until next load.
+      // Silent.
     }
   }
 
@@ -250,20 +387,13 @@ export default function AgentPage() {
     if (conversation?.id === id || sending) return;
     setError(null);
     setLoading(true);
+    setDrawerOpen(false);
     try {
       const res = await authFetch(`/api/agent/conversations/${id}`);
       if (!res.ok) throw new Error(`Load failed (${res.status})`);
       const body = await res.json();
       setConversation(body.conversation ?? null);
-      setMessages(
-        (body.messages ?? [])
-          .filter((m: { role: string }) => m.role === "user" || m.role === "assistant")
-          .map((m: { id: string; role: string; content: unknown }) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            text: extractText(m.content),
-          })),
-      );
+      setMessages(rowsToMessages(body.messages ?? []));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to switch");
     } finally {
@@ -277,6 +407,7 @@ export default function AgentPage() {
     setConversation(null);
     setMessages([]);
     setInput("");
+    setDrawerOpen(false);
   }
 
   function sendStarter(prompt: string) {
@@ -286,34 +417,53 @@ export default function AgentPage() {
 
   const hasMessages = messages.length > 0;
   const lastMsg = messages[messages.length - 1];
+  // Show typing dots while sending AND the assistant message is empty
+  // (no blocks yet, or only an empty text block).
   const showTypingDots =
-    sending && lastMsg?.role === "assistant" && !lastMsg.text;
+    sending &&
+    lastMsg?.role === "assistant" &&
+    (lastMsg.blocks.length === 0 ||
+      (lastMsg.blocks.length === 1 &&
+        lastMsg.blocks[0].kind === "text" &&
+        lastMsg.blocks[0].text.length === 0));
 
   return (
     <div
-      className="flex flex-col w-full relative"
+      className="flex flex-col w-full"
       style={{
         height: "calc(100dvh - 64px - var(--impersonation-banner-h, 0px))",
       }}
     >
-      {/* Conversation switcher — anchored top-right of the agent page. */}
-      <div className="absolute top-3 right-3 z-20">
-        <ConversationSwitcher
-          activeId={conversation?.id ?? null}
-          conversations={allConversations}
-          onSwitch={switchTo}
-          onNew={newChat}
-          onOpen={refreshConversationList}
-        />
-      </div>
+      {/* Conversation switcher portaled into AppTopbar's tools slot — only
+          rendered when the agent page is mounted, so it cleanly disappears
+          on navigation away. */}
+      {topbarPortal &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => {
+              setDrawerOpen(true);
+              void refreshConversationList();
+            }}
+            aria-label="Conversation history"
+            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+          >
+            <FiClock className="h-4 w-4" />
+          </button>,
+          topbarPortal,
+        )}
 
       {hasMessages ? (
         <>
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-4 pt-12 pb-6 space-y-6">
-              {messages.map((m) => (
-                <MessageRow key={m.id} role={m.role} text={m.text} />
-              ))}
+              {messages.map((m) =>
+                m.role === "user" ? (
+                  <UserMessageRow key={m.id} text={m.text} />
+                ) : (
+                  <AssistantMessageRow key={m.id} blocks={m.blocks} />
+                ),
+              )}
               {showTypingDots && <TypingDots />}
             </div>
           </div>
@@ -341,9 +491,7 @@ export default function AgentPage() {
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
-
                 {error && <ErrorBanner message={error} />}
-
                 <ChatInputForm
                   input={input}
                   setInput={setInput}
@@ -352,7 +500,6 @@ export default function AgentPage() {
                   canSend={!sending && !loading && Boolean(input.trim())}
                   autoFocus
                 />
-
                 <div className="mt-10 flex flex-col items-start gap-6">
                   {STARTER_PROMPTS.map((p) => (
                     <button
@@ -370,6 +517,43 @@ export default function AgentPage() {
           </div>
         </div>
       )}
+
+      {/* History drawer — slides in from the right at sm size. Hold the
+          conversation list with proper room to grow + scroll. */}
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Conversations"
+        size="sm"
+      >
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={newChat}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)]/60 text-sm text-[var(--color-fg)] transition-colors"
+          >
+            <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
+            New chat
+          </button>
+
+          {allConversations.length === 0 ? (
+            <div className="text-xs text-[var(--color-muted)] text-center py-6">
+              No past conversations.
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {allConversations.map((c) => (
+                <ConversationRow
+                  key={c.id}
+                  conversation={c}
+                  active={conversation?.id === c.id}
+                  onClick={() => switchTo(c.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </Drawer>
     </div>
   );
 }
@@ -377,6 +561,39 @@ export default function AgentPage() {
 // ──────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ──────────────────────────────────────────────────────────────────────────
+
+function ConversationRow({
+  conversation,
+  active,
+  onClick,
+}: {
+  conversation: Conversation;
+  active: boolean;
+  onClick: () => void;
+}) {
+  // Compute relative time once on mount so we don't trigger the purity
+  // rule by calling Date.now() inside render.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
+
+  const title = conversation.title?.trim() || "Untitled";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+        active
+          ? "bg-[var(--color-surface-alt)]"
+          : "hover:bg-[var(--color-surface-alt)]/60"
+      }`}
+    >
+      <div className="text-sm text-[var(--color-fg)] truncate">{title}</div>
+      <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+        {now !== null ? formatRelative(conversation.last_message_at, now) : ""}
+      </div>
+    </button>
+  );
+}
 
 const INPUT_MAX_HEIGHT_PX = 160;
 
@@ -441,8 +658,6 @@ function ChatInputForm({
               transition: { type: "tween", duration: 0.1, ease: "easeOut" },
             }}
             transition={{ type: "spring", stiffness: 500, damping: 28 }}
-            // Hover bump + tap squish feel; framer-motion composes these
-            // with the spring-mounted scale animation cleanly.
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             className="absolute right-2 top-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm hover:shadow-md disabled:opacity-50 cursor-pointer"
@@ -455,40 +670,47 @@ function ChatInputForm({
   );
 }
 
-function MessageRow({ role, text }: { role: "user" | "assistant"; text: string }) {
-  if (role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%] px-4 py-2.5 rounded-2xl bg-[var(--color-surface-alt)] text-sm text-[var(--color-fg)] whitespace-pre-wrap break-words">
-          {text}
-        </div>
-      </div>
-    );
-  }
-  // Assistant: full-width plain text, markdown rendered, no bubble.
+function UserMessageRow({ text }: { text: string }) {
   return (
-    <div className="text-sm text-[var(--color-fg)]">
-      <MarkdownText text={text} />
+    <div className="flex justify-end">
+      <div className="max-w-[80%] px-4 py-2.5 rounded-2xl bg-[var(--color-surface-alt)] text-sm text-[var(--color-fg)] whitespace-pre-wrap break-words">
+        {text}
+      </div>
     </div>
   );
 }
 
-// Render markdown via `marked` (already a workspace dep). The output is
-// trusted (it's the model's reply and we authenticate to the API), so we
-// skip an extra DOMPurify pass for now. Tailwind arbitrary descendant
-// selectors style the rendered tags so we don't need a global prose class.
+function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
+  if (blocks.length === 0) {
+    return <div className="text-sm text-[var(--color-fg)]"> </div>;
+  }
+  return (
+    <div className="text-sm text-[var(--color-fg)]">
+      {blocks.map((b, i) =>
+        b.kind === "text" ? (
+          <MarkdownText key={`t-${i}`} text={b.text} />
+        ) : (
+          <ToolWidget
+            key={b.id}
+            tool={b as ToolBlockData}
+          />
+        ),
+      )}
+    </div>
+  );
+}
+
 function MarkdownText({ text }: { text: string }) {
   const html = useMemo(() => {
     if (!text) return "";
     try {
-      // gfm: tables, strikethrough, etc. breaks: single \n becomes <br>.
       return marked.parse(text, { gfm: true, breaks: true }) as string;
     } catch {
       return text;
     }
   }, [text]);
 
-  if (!text) return <span> </span>;
+  if (!text) return null;
 
   return (
     <div
@@ -538,135 +760,6 @@ function ErrorBanner({ message }: { message: string }) {
   return (
     <div className="mb-2 px-3 py-2 rounded-md bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-xs text-[var(--color-danger)]">
       {message}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Conversation switcher (top-right dropdown)
-// ──────────────────────────────────────────────────────────────────────────
-
-function ConversationSwitcher({
-  activeId,
-  conversations,
-  onSwitch,
-  onNew,
-  onOpen,
-}: {
-  activeId: string | null;
-  conversations: Conversation[];
-  onSwitch: (id: string) => void;
-  onNew: () => void;
-  onOpen: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  // Cache "now" at render of the open panel so each row's relative time
-  // is stable for the duration of the popover (no purity warnings + no
-  // distracting per-second drift while the user is reading).
-  const [nowAtOpen, setNowAtOpen] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClick(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  function toggle() {
-    if (!open) {
-      onOpen();
-      setNowAtOpen(Date.now());
-    }
-    setOpen((v) => !v);
-  }
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label="Conversation history"
-        aria-expanded={open}
-        className="inline-flex items-center justify-center h-8 w-8 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-      >
-        <FiClock className="h-4 w-4" />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.12, ease: "easeOut" }}
-            className="absolute top-9 right-0 w-72 rounded-xl bg-[var(--color-content-bg)] border border-[var(--color-border)] shadow-lg overflow-hidden"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                onNew();
-                setOpen(false);
-              }}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors border-b border-[var(--color-border)]"
-            >
-              <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
-              New chat
-            </button>
-
-            <div className="max-h-[60vh] overflow-y-auto py-1">
-              {conversations.length === 0 ? (
-                <div className="px-3.5 py-4 text-xs text-[var(--color-muted)] text-center">
-                  No past conversations
-                </div>
-              ) : (
-                conversations.map((c) => {
-                  const isActive = c.id === activeId;
-                  const title = c.title?.trim() || "Untitled";
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        onSwitch(c.id);
-                        setOpen(false);
-                      }}
-                      className={`w-full flex flex-col items-start gap-0.5 px-3.5 py-2 text-left transition-colors ${
-                        isActive
-                          ? "bg-[var(--color-surface-alt)]"
-                          : "hover:bg-[var(--color-surface-alt)]/60"
-                      }`}
-                    >
-                      <span className="text-sm text-[var(--color-fg)] truncate w-full">
-                        {title}
-                      </span>
-                      <span className="text-[11px] text-[var(--color-muted)]">
-                        {nowAtOpen !== null
-                          ? formatRelative(c.last_message_at, nowAtOpen)
-                          : ""}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
