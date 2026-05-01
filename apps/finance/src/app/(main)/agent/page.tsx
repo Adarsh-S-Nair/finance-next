@@ -877,13 +877,15 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
-  // Render text first, then tool widgets — within a single assistant
-  // message, the model's prose answer reads as the response and the
-  // tool result widgets feel like the supporting evidence below it.
-  // The system prompt asks the model to call tools first then write
-  // text, which means in document order the widget would appear above
-  // an empty text region; reordering on render fixes that without
-  // changing the underlying message structure.
+  // Split text vs tool blocks. On desktop we float the widgets to the
+  // right and let the response text wrap around them magazine-style;
+  // on mobile we leave them as a normal block stack. CSS float requires
+  // the widget element to come BEFORE the text in source order for the
+  // text to wrap around it — so the widgets are rendered first here.
+  // On mobile (no float), that means widgets visually appear above the
+  // text. With per-widget pagination (5 rows max) this is acceptable;
+  // the alternative (text-first → no wrap on desktop) loses the magazine
+  // effect entirely.
   const textBlocks: TextBlock[] = [];
   const toolBlocks: ToolBlock[] = [];
   for (const b of blocks) {
@@ -893,12 +895,20 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
 
   return (
     <div className="text-sm text-[var(--color-fg)]">
+      {toolBlocks.map((b) => (
+        <div
+          key={b.id}
+          className="md:float-right md:w-[280px] md:max-w-[45%] md:ml-5 md:clear-right"
+        >
+          <ToolWidget tool={b as ToolBlockData} />
+        </div>
+      ))}
       {textBlocks.map((b, i) => (
         <MarkdownText key={`t-${i}`} text={b.text} />
       ))}
-      {toolBlocks.map((b) => (
-        <ToolWidget key={b.id} tool={b as ToolBlockData} />
-      ))}
+      {/* Clear floats so the timestamp + the next message in the stack
+          don't get pulled into the float column. */}
+      <div className="md:clear-both" />
     </div>
   );
 }

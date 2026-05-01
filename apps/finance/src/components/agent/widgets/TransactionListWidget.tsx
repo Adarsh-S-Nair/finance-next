@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { FiTag } from "react-icons/fi";
+import { FiTag, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
+
+// Cap visible rows so a "show me 30 transactions" call doesn't paint a
+// wall of items in the chat. The user can flip pages to see more — same
+// data, much less vertical real estate.
+const ITEMS_PER_PAGE = 5;
 
 type Transaction = {
   id: string;
@@ -40,22 +45,95 @@ function formatDate(iso: string | null): string {
 }
 
 export default function TransactionListWidget({ data }: { data: TransactionListData }) {
+  // Page state lives here so resetting it on conversation switch (widget
+  // remounts) puts the user back on page 1 — feels right.
+  const [page, setPage] = useState(0);
+
   if (data.error) return <WidgetError message={data.error} />;
+
+  const total = data.transactions.length;
+  const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
+  // Clamp in case the data shape changes underneath us (defensive).
+  const safePage = Math.min(page, totalPages - 1);
+  const start = safePage * ITEMS_PER_PAGE;
+  const end = Math.min(start + ITEMS_PER_PAGE, total);
+  const visible = data.transactions.slice(start, end);
 
   return (
     <WidgetFrame>
-      {data.transactions.length === 0 ? (
+      {total === 0 ? (
         <div className="text-xs text-[var(--color-muted)]">No transactions match.</div>
       ) : (
-        <div>
-          {data.transactions.map((tx, i) => (
-            <MagicItem key={tx.id} index={i}>
-              <TransactionRow tx={tx} />
-            </MagicItem>
-          ))}
-        </div>
+        <>
+          <div>
+            {visible.map((tx, i) => (
+              // Index by position-in-page so the magic stagger restarts
+              // cleanly each page (no growing delay across pages).
+              <MagicItem key={tx.id} index={i}>
+                <TransactionRow tx={tx} />
+              </MagicItem>
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <PaginationFooter
+              page={safePage}
+              totalPages={totalPages}
+              start={start + 1}
+              end={end}
+              total={total}
+              onChange={setPage}
+            />
+          )}
+        </>
       )}
     </WidgetFrame>
+  );
+}
+
+function PaginationFooter({
+  page,
+  totalPages,
+  start,
+  end,
+  total,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  start: number;
+  end: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mt-3 pt-2.5 text-[11px] text-[var(--color-muted)] border-t border-[var(--color-border)]/30">
+      <span className="tabular-nums">
+        {start}–{end} of {total}
+      </span>
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          disabled={page === 0}
+          onClick={() => onChange(page - 1)}
+          aria-label="Previous page"
+          className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-[var(--color-surface-alt)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+        >
+          <FiChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        <span className="px-1.5 tabular-nums">
+          {page + 1} / {totalPages}
+        </span>
+        <button
+          type="button"
+          disabled={page >= totalPages - 1}
+          onClick={() => onChange(page + 1)}
+          aria-label="Next page"
+          className="inline-flex items-center justify-center h-6 w-6 rounded-md hover:bg-[var(--color-surface-alt)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+        >
+          <FiChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -66,7 +144,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
   const isIncome = tx.amount > 0;
 
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 py-1.5">
       <div className="flex items-center gap-3 min-w-0">
         <MerchantIcon
           iconUrl={tx.icon_url}
