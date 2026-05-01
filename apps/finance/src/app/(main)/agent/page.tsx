@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
-import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
+import { useNetWorth } from "../../../components/providers/NetWorthProvider";
+import { useAccounts } from "../../../components/providers/AccountsProvider";
+import { formatCurrency } from "../../../lib/formatCurrency";
 
 type Message = {
   id: string;
@@ -236,12 +239,14 @@ export default function AgentPage() {
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
               <>
-                <NetWorthBanner />
-
-                <h1 className="text-2xl font-medium text-[var(--color-fg)] mt-10 mb-5">
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] mb-6">
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
+
+                <div className="mb-8">
+                  <AgentNetWorthWidget />
+                </div>
 
                 {error && <ErrorBanner message={error} />}
 
@@ -271,6 +276,188 @@ export default function AgentPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Net-worth widget tailored to the agent chat home: tighter, no card
+// chrome, two slim proportion bars at the same scale (max of assets vs
+// liabilities) so the visual ratio reads at a glance. Uses the same
+// AccountsProvider / NetWorthProvider data as the dashboard.
+type AccountLike = { type?: string; subtype?: string; balance: number };
+
+function categorizeAccount(account: AccountLike): "cash" | "investments" | "credit" | "loans" {
+  const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
+  const liabilityKeywords = ["credit", "loan", "mortgage", "line of credit", "overdraft"];
+  const investmentKeywords = [
+    "investment", "brokerage", "401k", "ira", "retirement",
+    "mutual fund", "stock", "bond",
+  ];
+  if (liabilityKeywords.some((k) => t.includes(k))) {
+    return t.includes("loan") || t.includes("mortgage") || t.includes("line of credit")
+      ? "loans"
+      : "credit";
+  }
+  if (investmentKeywords.some((k) => t.includes(k))) return "investments";
+  return "cash";
+}
+
+type Segment = { label: string; amount: number; color: string };
+
+function AgentNetWorthWidget() {
+  const { currentNetWorth, netWorthHistory, loading: netWorthLoading } = useNetWorth();
+  const { allAccounts, loading: accountsLoading } = useAccounts() as {
+    allAccounts: AccountLike[] | null;
+    loading: boolean;
+  };
+
+  const breakdown = useMemo(() => {
+    if (!allAccounts) return null;
+    const totals = { cash: 0, investments: 0, credit: 0, loans: 0 };
+    for (const acc of allAccounts) {
+      const cat = categorizeAccount(acc);
+      totals[cat] += Math.abs(acc.balance);
+    }
+    return {
+      totalAssets: totals.cash + totals.investments,
+      totalLiabilities: totals.credit + totals.loans,
+      assetSegments: [
+        { label: "Cash", amount: totals.cash, color: "#059669" },
+        { label: "Investments", amount: totals.investments, color: "var(--color-neon-green)" },
+      ] as Segment[],
+      liabilitySegments: [
+        { label: "Credit", amount: totals.credit, color: "#ef4444" },
+        { label: "Loans", amount: totals.loans, color: "#b91c1c" },
+      ] as Segment[],
+    };
+  }, [allAccounts]);
+
+  const percentChange = useMemo(() => {
+    if (!netWorthHistory || netWorthHistory.length < 2) return null;
+    const oldest = netWorthHistory[0];
+    const newest = netWorthHistory[netWorthHistory.length - 1];
+    if (!oldest?.netWorth || oldest.netWorth === 0) return null;
+    return ((newest.netWorth - oldest.netWorth) / Math.abs(oldest.netWorth)) * 100;
+  }, [netWorthHistory]);
+
+  if (netWorthLoading || accountsLoading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 w-48 bg-[var(--color-surface-alt)] rounded" />
+        <div className="space-y-2.5">
+          <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full" />
+          <div className="h-2 w-1/3 bg-[var(--color-surface-alt)] rounded-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!breakdown || (breakdown.totalAssets === 0 && breakdown.totalLiabilities === 0)) {
+    return null;
+  }
+
+  const netWorth = currentNetWorth?.netWorth ?? 0;
+  const maxScale = Math.max(breakdown.totalAssets, breakdown.totalLiabilities, 1);
+
+  return (
+    <Link
+      href="/accounts"
+      className="block group"
+      aria-label="Open accounts breakdown"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          Net worth
+        </span>
+        {percentChange !== null && (
+          <span
+            className={`text-xs font-semibold tabular-nums ${
+              percentChange >= 0 ? "text-emerald-500" : "text-rose-500"
+            }`}
+          >
+            {percentChange >= 0 ? "▲" : "▼"}{" "}
+            {Math.abs(percentChange).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
+          </span>
+        )}
+      </div>
+
+      <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-5 group-hover:opacity-90 transition-opacity">
+        {formatCurrency(netWorth)}
+      </div>
+
+      <div className="space-y-3">
+        <ProportionBar
+          label="Assets"
+          total={breakdown.totalAssets}
+          maxScale={maxScale}
+          segments={breakdown.assetSegments}
+        />
+        <ProportionBar
+          label="Liabilities"
+          total={breakdown.totalLiabilities}
+          maxScale={maxScale}
+          segments={breakdown.liabilitySegments}
+        />
+      </div>
+    </Link>
+  );
+}
+
+function ProportionBar({
+  label,
+  total,
+  maxScale,
+  segments,
+}: {
+  label: string;
+  total: number;
+  maxScale: number;
+  segments: Segment[];
+}) {
+  const widthPct = maxScale > 0 ? (total / maxScale) * 100 : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wider">
+          {label}
+        </span>
+        <span className="text-xs text-[var(--color-fg)] tabular-nums font-medium">
+          {formatCurrency(total)}
+        </span>
+      </div>
+      <div className="w-full h-2 rounded-full bg-[var(--color-surface-alt)]/70 overflow-hidden">
+        <div className="h-full flex" style={{ width: `${widthPct}%` }}>
+          {segments.map((seg) => {
+            const segPct = total > 0 ? (seg.amount / total) * 100 : 0;
+            if (segPct === 0) return null;
+            return (
+              <div
+                key={seg.label}
+                className="h-full"
+                style={{ width: `${segPct}%`, backgroundColor: seg.color }}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+        {segments.map((seg) => {
+          if (seg.amount === 0) return null;
+          return (
+            <span
+              key={seg.label}
+              className="inline-flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]"
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: seg.color }}
+                aria-hidden
+              />
+              {seg.label}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
