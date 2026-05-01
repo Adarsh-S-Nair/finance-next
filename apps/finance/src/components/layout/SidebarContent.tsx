@@ -8,7 +8,7 @@ import { LuSettings } from "react-icons/lu";
 import { NAV_GROUPS, type NavItem } from "../nav";
 import { isFeatureEnabled } from "../../lib/tierConfig";
 import { SidebarSection, SidebarItem } from "@zervo/ui";
-import { HouseholdRailBubbleTrigger } from "../households/HouseholdRailExpander";
+import HouseholdScopePopover from "../households/HouseholdScopePopover";
 import ScopeSwitcher from "../households/ScopeSwitcher";
 
 /** Subset of personal nav items that are meaningful in household scope. */
@@ -78,7 +78,7 @@ export default function SidebarContent({ onNavigate, isCollapsed }: { onNavigate
           instead of relying on a separate left rail. */}
       {isCollapsed ? (
         <div className="flex justify-center pt-4 pb-2">
-          <HouseholdRailBubbleTrigger />
+          <HouseholdScopePopover />
         </div>
       ) : (
         <ScopeSwitcher />

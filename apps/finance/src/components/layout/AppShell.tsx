@@ -3,10 +3,6 @@
 import Sidebar from "./Sidebar";
 import ProfileBar from "./ProfileBar";
 import AppTopbar from "./AppTopbar";
-import {
-  HouseholdRailPanel,
-  HouseholdRailProvider,
-} from "../households/HouseholdRailExpander";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -222,8 +218,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <HouseholdRailProvider>
-    <HouseholdRailPanel />
     <div className="min-h-screen bg-[var(--color-shell-bg)] relative">
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
@@ -254,16 +248,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               defines the navigation/work split. No border, no radius,
               no margin. The card has NO transform — `transform` creates
               a containing block which breaks `position: sticky` on the
-              topbar. Rail-offset is applied to the content wrapper
-              below the topbar so only content slides. */}
+              topbar. */}
           <div className="flex-1 bg-[var(--color-content-bg)] flex flex-col">
             <AppTopbar />
             <div
-              style={{
-                transform: "translateY(var(--rail-offset, 0px))",
-                transition: "transform 0.22s cubic-bezier(0.25, 0.1, 0.25, 1)",
-                willChange: "transform",
-              }}
               className={
                 pathname === "/dashboard"
                   ? "mx-auto w-full max-w-[1600px] px-4 md:px-6 lg:px-10"
@@ -297,6 +285,5 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <PlaidOAuthHandler />
     </div>
-    </HouseholdRailProvider>
   );
 }

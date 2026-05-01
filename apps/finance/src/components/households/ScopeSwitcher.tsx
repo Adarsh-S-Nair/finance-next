@@ -36,43 +36,34 @@ type HouseholdContextMenu = {
 const MENU_WIDTH = 208;
 const MENU_MARGIN = 6;
 
-// Rounded-square Personal tile — fg-on-bg inversion so it reads as
-// black-on-white in light mode and white-on-black in dark mode,
-// matching the tablet bubble's visual weight. Border radius is
-// relative to the tile size so both 40px and 28px tiles look like
-// the same family of shape.
-function PersonalTile({ size }: { size: number }) {
-  const inner = Math.round(size * 0.72);
-  const radius = Math.max(6, Math.round(size * 0.28));
+// Personal scope avatar — just the Zervo mark in fg color, no background
+// tile. Renders white in dark mode and black in light mode (`var(--color-fg)`)
+// and fills its slot so the logo reads as the largest possible glyph in
+// whatever space the caller allocates.
+export function PersonalTile({ size }: { size: number }) {
   return (
     <span
-      className="flex items-center justify-center flex-shrink-0 bg-[var(--color-fg)]"
-      style={{ width: size, height: size, borderRadius: radius }}
-    >
-      <span
-        aria-hidden
-        className="block bg-[var(--color-bg)]"
-        style={{
-          width: inner,
-          height: inner,
-          maskImage: "url(/logo.svg)",
-          maskSize: "contain",
-          maskRepeat: "no-repeat",
-          maskPosition: "center",
-          WebkitMaskImage: "url(/logo.svg)",
-          WebkitMaskSize: "contain",
-          WebkitMaskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-        }}
-      />
-    </span>
+      aria-hidden
+      className="block flex-shrink-0 bg-[var(--color-fg)]"
+      style={{
+        width: size,
+        height: size,
+        maskImage: "url(/logo.svg)",
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskImage: "url(/logo.svg)",
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+      }}
+    />
   );
 }
 
-// Rounded-square household tile — matches PersonalTile's shape but
-// uses a subtle surface-alt backdrop so the avatar stack inside
-// doesn't float unanchored on the sidebar background.
-function HouseholdTile({
+// Rounded-square household tile — uses a subtle surface-alt backdrop so the
+// avatar stack inside doesn't float unanchored on the sidebar background.
+export function HouseholdTile({
   household,
   size,
 }: {
@@ -98,7 +89,7 @@ function HouseholdTile({
   );
 }
 
-function ScopeAvatar({
+export function ScopeAvatar({
   household,
   size,
 }: {
