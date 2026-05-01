@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { formatCurrency } from "../../../lib/formatCurrency";
+import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
 
 type Account = {
   id: string;
@@ -50,92 +50,74 @@ const CATEGORY_COLOR: Record<Account["category"], string> = {
 };
 
 export default function AccountListWidget({ data }: { data: AccountListData }) {
-  if (data.error) {
-    return (
-      <div className="my-3 px-4 py-3 rounded-xl border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 text-xs text-[var(--color-danger)]">
-        {data.error}
-      </div>
-    );
-  }
+  if (data.error) return <WidgetError message={data.error} />;
 
   // Group accounts by category, preserving the global order.
   const grouped = new Map<Account["category"], Account[]>();
   for (const cat of CATEGORY_ORDER) grouped.set(cat, []);
-  for (const acc of data.accounts) {
-    grouped.get(acc.category)?.push(acc);
-  }
+  for (const acc of data.accounts) grouped.get(acc.category)?.push(acc);
+
+  // Track a running global index so the magic stagger flows across all
+  // categories rather than restarting at 0 in each section.
+  let runningIndex = 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="my-3 rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-content-bg)] overflow-hidden"
-    >
-      <div className="px-4 py-2 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-muted)] border-b border-[var(--color-border)]/30 bg-[var(--color-surface-alt)]/30 flex items-center justify-between">
-        <span>Accounts</span>
-        <span className="normal-case tracking-normal text-[var(--color-muted)]/80 tabular-nums">
-          Net worth {formatCurrency(data.totals.net_worth)}
-        </span>
-      </div>
+    <WidgetFrame>
+      <WidgetLabel
+        left="Accounts"
+        right={`Net worth ${formatCurrency(data.totals.net_worth)}`}
+      />
 
       {data.accounts.length === 0 ? (
-        <div className="px-4 py-6 text-xs text-[var(--color-muted)] text-center">
-          No accounts connected.
-        </div>
+        <div className="text-xs text-[var(--color-muted)]">No accounts connected.</div>
       ) : (
-        <div className="divide-y divide-[var(--color-border)]/40">
+        <div className="space-y-4">
           {CATEGORY_ORDER.map((cat) => {
             const items = grouped.get(cat) ?? [];
             if (items.length === 0) return null;
+
             return (
-              <div key={cat} className="py-1">
-                <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[var(--color-muted)] flex items-center gap-2">
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-1.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
                   <span
-                    className="w-1.5 h-1.5 rounded-full"
+                    className="w-1 h-1 rounded-full"
                     style={{ backgroundColor: CATEGORY_COLOR[cat] }}
                     aria-hidden
                   />
                   {CATEGORY_LABEL[cat]}
                 </div>
-                {items.map((acc, i) => (
-                  <motion.div
-                    key={acc.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.025 * i, duration: 0.2 }}
-                    className="px-4 py-1.5 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm text-[var(--color-fg)] truncate">
-                        {acc.name}
-                        {acc.mask && (
-                          <span className="text-[var(--color-muted)]"> ··{acc.mask}</span>
-                        )}
-                      </div>
-                      {acc.institution && (
-                        <div className="text-[11px] text-[var(--color-muted)] truncate">
-                          {acc.institution}
+                <div className="space-y-1">
+                  {items.map((acc) => {
+                    const idx = runningIndex++;
+                    return (
+                      <MagicItem key={acc.id} index={idx}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm text-[var(--color-fg)] truncate">
+                              {acc.name}
+                              {acc.mask && (
+                                <span className="text-[var(--color-muted)]"> ··{acc.mask}</span>
+                              )}
+                            </div>
+                            {acc.institution && (
+                              <div className="text-[11px] text-[var(--color-muted)] truncate">
+                                {acc.institution}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
+                            {formatCurrency(acc.current_balance)}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
-                      {formatCurrency(acc.current_balance)}
-                    </div>
-                  </motion.div>
-                ))}
+                      </MagicItem>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
         </div>
       )}
-
-      <div className="px-4 py-2 flex items-center justify-between text-xs bg-[var(--color-surface-alt)]/30">
-        <span className="text-[var(--color-muted)]">
-          Assets {formatCurrency(data.totals.total_assets)} · Liabilities{" "}
-          {formatCurrency(data.totals.total_liabilities)}
-        </span>
-      </div>
-    </motion.div>
+    </WidgetFrame>
   );
 }

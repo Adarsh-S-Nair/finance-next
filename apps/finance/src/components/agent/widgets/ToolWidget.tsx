@@ -22,10 +22,10 @@ export type ToolBlock = {
 };
 
 /**
- * Maps a tool name + result onto the matching widget. Renders a tasteful
- * loading row if the result hasn't arrived yet (the round-trip can take a
- * few hundred ms even for cheap reads). Falls back to a generic display
- * for unknown tools so future additions don't crash the UI.
+ * Maps a tool name + result onto the matching widget. Renders a quiet
+ * loading row if the result hasn't arrived yet (the round-trip can take
+ * a few hundred ms even for cheap reads). Falls back to a generic
+ * display for unknown tools so future additions don't crash the UI.
  */
 export default function ToolWidget({ tool }: { tool: ToolBlock }) {
   if (!tool.output) {
@@ -37,7 +37,7 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
       (tool.output as { error?: string } | null)?.error ??
       "Something went wrong running this tool.";
     return (
-      <div className="my-3 px-4 py-3 rounded-xl border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 text-xs text-[var(--color-danger)]">
+      <div className="my-5 text-xs text-[var(--color-danger)]">
         {TOOL_LABELS[tool.name] ?? tool.name} failed: {msg}
       </div>
     );
@@ -64,7 +64,7 @@ function ToolLoadingRow({ name }: { name: string }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
-      className="my-3 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[var(--color-surface-alt)]/40 text-xs text-[var(--color-muted)]"
+      className="my-5 flex items-center gap-2 text-xs text-[var(--color-muted)]"
     >
       <ShimmerDots />
       <span>{label}…</span>
@@ -94,11 +94,11 @@ function ShimmerDots() {
 
 function UnknownToolFallback({ name, output }: { name: string; output: unknown }) {
   return (
-    <details className="my-3 rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-content-bg)] overflow-hidden">
-      <summary className="px-4 py-2.5 text-xs text-[var(--color-muted)] cursor-pointer hover:bg-[var(--color-surface-alt)]/30">
+    <details className="my-5 text-xs">
+      <summary className="text-[var(--color-muted)] cursor-pointer hover:text-[var(--color-fg)] transition-colors">
         Tool: {name}
       </summary>
-      <pre className="px-4 py-3 text-[11px] font-mono overflow-x-auto text-[var(--color-muted)] bg-[var(--color-surface-alt)]/20">
+      <pre className="mt-2 px-3 py-2 rounded-md font-mono overflow-x-auto text-[11px] text-[var(--color-muted)] bg-[var(--color-surface-alt)]/40">
         {JSON.stringify(output, null, 2)}
       </pre>
     </details>

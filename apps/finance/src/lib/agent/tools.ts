@@ -223,6 +223,7 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         merchant_name,
         date,
         category_id,
+        icon_url,
         accounts!inner(user_id, name),
         system_categories(label, hex_color)
       `,
@@ -256,6 +257,7 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
       category: cat?.label ?? 'Uncategorized',
       category_color: cat?.hex_color ?? '#71717a',
       account_name: acc?.name ?? 'Account',
+      icon_url: t.icon_url ?? null,
     };
   });
 

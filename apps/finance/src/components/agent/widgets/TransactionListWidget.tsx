@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState } from "react";
 import { formatCurrency } from "../../../lib/formatCurrency";
+import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
 
 type Transaction = {
   id: string;
@@ -12,6 +13,7 @@ type Transaction = {
   category: string;
   category_color: string;
   account_name: string;
+  icon_url: string | null;
 };
 
 export type TransactionListData = {
@@ -24,79 +26,101 @@ export type TransactionListData = {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default function TransactionListWidget({ data }: { data: TransactionListData }) {
-  if (data.error) {
-    return (
-      <div className="my-3 px-4 py-3 rounded-xl border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 text-xs text-[var(--color-danger)]">
-        {data.error}
-      </div>
-    );
-  }
+  if (data.error) return <WidgetError message={data.error} />;
 
-  const labelParts: string[] = ["Transactions"];
+  const labelParts: string[] = [];
   if (data.merchant_query) labelParts.push(`"${data.merchant_query}"`);
-  if (data.days_searched) labelParts.push(`last ${data.days_searched}d`);
-  const label = labelParts.join(" · ");
+  labelParts.push(`Last ${data.days_searched ?? 30} days`);
+  const left = labelParts.join(" · ");
+  const right = `${data.count} ${data.count === 1 ? "match" : "matches"}`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="my-3 rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-content-bg)] overflow-hidden"
-    >
-      <div className="px-4 py-2 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-muted)] border-b border-[var(--color-border)]/30 bg-[var(--color-surface-alt)]/30 flex items-center justify-between">
-        <span>{label}</span>
-        <span className="text-[10px] normal-case tracking-normal text-[var(--color-muted)]/70">
-          {data.count} {data.count === 1 ? "match" : "matches"}
-        </span>
-      </div>
-
+    <WidgetFrame>
+      <WidgetLabel left={left} right={right} />
       {data.transactions.length === 0 ? (
-        <div className="px-4 py-6 text-xs text-[var(--color-muted)] text-center">
-          No transactions match.
-        </div>
+        <div className="text-xs text-[var(--color-muted)]">No transactions match.</div>
       ) : (
-        <div className="divide-y divide-[var(--color-border)]/40">
+        <div className="space-y-1">
           {data.transactions.map((tx, i) => (
-            <motion.div
-              key={tx.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: Math.min(i * 0.025, 0.4), duration: 0.2 }}
-              className="px-4 py-2.5 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tx.category_color }}
-                  aria-hidden
-                />
-                <div className="min-w-0">
-                  <div className="text-sm text-[var(--color-fg)] truncate">
-                    {tx.merchant_name || tx.description}
-                  </div>
-                  <div className="text-[11px] text-[var(--color-muted)] truncate">
-                    {formatDate(tx.date)} · {tx.category}
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`text-sm tabular-nums flex-shrink-0 ${
-                  tx.amount < 0 ? "text-emerald-500" : "text-[var(--color-fg)]"
-                }`}
-              >
-                {tx.amount < 0 ? "+" : ""}
-                {formatCurrency(Math.abs(tx.amount))}
-              </div>
-            </motion.div>
+            <MagicItem key={tx.id} index={i}>
+              <TransactionRow tx={tx} />
+            </MagicItem>
           ))}
         </div>
       )}
-    </motion.div>
+    </WidgetFrame>
+  );
+}
+
+function TransactionRow({ tx }: { tx: Transaction }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5 group">
+      <div className="flex items-center gap-3 min-w-0">
+        <MerchantIcon
+          iconUrl={tx.icon_url}
+          name={tx.merchant_name || tx.description}
+          color={tx.category_color}
+        />
+        <div className="min-w-0">
+          <div className="text-sm text-[var(--color-fg)] truncate">
+            {tx.merchant_name || tx.description}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] truncate">
+            {formatDate(tx.date)} · {tx.category}
+          </div>
+        </div>
+      </div>
+      <div
+        className={`text-sm tabular-nums flex-shrink-0 ${
+          tx.amount < 0 ? "text-emerald-500" : "text-[var(--color-fg)]"
+        }`}
+      >
+        {tx.amount < 0 ? "+" : ""}
+        {formatCurrency(Math.abs(tx.amount))}
+      </div>
+    </div>
+  );
+}
+
+function MerchantIcon({
+  iconUrl,
+  name,
+  color,
+}: {
+  iconUrl: string | null;
+  name: string;
+  color: string;
+}) {
+  // Track image load failure so we can fall back gracefully without
+  // calling the `onError` repeatedly. Plaid's icon URLs are reliable
+  // but occasionally 404 for niche merchants.
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (iconUrl && !imageFailed) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+        className="w-7 h-7 rounded-full bg-[var(--color-surface-alt)] flex-shrink-0 object-cover"
+      />
+    );
+  }
+
+  // Fallback: a small filled circle with the merchant initial. Color
+  // borrows the category's color for a subtle hint at category type.
+  const initial = (name || "·").trim().charAt(0).toUpperCase();
+  return (
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium text-white flex-shrink-0"
+      style={{ backgroundColor: color }}
+    >
+      {initial}
+    </div>
   );
 }
