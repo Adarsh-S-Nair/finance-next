@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { FiSend } from "react-icons/fi";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
+import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 
 type Message = {
   id: string;
@@ -19,8 +18,6 @@ type Conversation = {
   last_message_at: string;
   created_at: string;
 };
-
-type SeriesPoint = { date: string; netWorth: number };
 
 type StoredContent = { text?: unknown };
 
@@ -46,14 +43,6 @@ function greeting(hour: number): string {
   return "Good evening";
 }
 
-function formatNetWorth(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 10_000) return `${sign}$${(abs / 1_000).toFixed(1)}k`;
-  return `${sign}$${abs.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
-
 export default function AgentPage() {
   const userCtx = useUser() as { profile?: { first_name?: string | null } | null };
   const firstName = userCtx?.profile?.first_name ?? null;
@@ -64,10 +53,6 @@ export default function AgentPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Net worth data — best-effort, never blocks chat
-  const [netWorth, setNetWorth] = useState<number | null>(null);
-  const [netWorthSeries, setNetWorthSeries] = useState<SeriesPoint[] | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const localIdRef = useRef(0);
@@ -96,41 +81,6 @@ export default function AgentPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-
-    (async () => {
-      try {
-        const res = await authFetch("/api/net-worth/current");
-        if (!res.ok) return;
-        const body = await res.json();
-        const value = typeof body?.netWorth === "number" ? body.netWorth : null;
-        if (!cancelled) setNetWorth(value);
-      } catch {
-        // Silent — the widget is decorative.
-      }
-    })();
-
-    (async () => {
-      try {
-        const res = await authFetch("/api/net-worth/by-date?maxDays=30&minimal=1");
-        if (!res.ok) return;
-        const body = await res.json();
-        const data = Array.isArray(body?.data)
-          ? body.data.filter(
-              (p: unknown): p is SeriesPoint =>
-                Boolean(
-                  p &&
-                    typeof p === "object" &&
-                    typeof (p as SeriesPoint).date === "string" &&
-                    typeof (p as SeriesPoint).netWorth === "number",
-                ),
-            )
-          : [];
-        if (!cancelled && data.length > 0) setNetWorthSeries(data);
-      } catch {
-        // Silent.
-      }
-    })();
-
     return () => {
       cancelled = true;
     };
@@ -242,7 +192,6 @@ export default function AgentPage() {
   }
 
   const hasMessages = messages.length > 0;
-  const showNetWorthCard = netWorth !== null && netWorth !== 0;
 
   return (
     <div
@@ -287,11 +236,9 @@ export default function AgentPage() {
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
               <>
-                {showNetWorthCard && (
-                  <NetWorthCard value={netWorth} series={netWorthSeries} />
-                )}
+                <NetWorthBanner />
 
-                <h1 className="text-2xl font-medium text-[var(--color-fg)] mt-8 mb-5">
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] mt-10 mb-5">
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
@@ -307,7 +254,7 @@ export default function AgentPage() {
                   autoFocus
                 />
 
-                <div className="mt-8 flex flex-col items-start gap-3">
+                <div className="mt-10 flex flex-col items-start gap-6">
                   {STARTER_PROMPTS.map((p) => (
                     <button
                       key={p}
@@ -328,59 +275,10 @@ export default function AgentPage() {
   );
 }
 
-function NetWorthCard({
-  value,
-  series,
-}: {
-  value: number;
-  series: SeriesPoint[] | null;
-}) {
-  // Compute 30-day delta if we have at least two points.
-  const oldest = series?.[0]?.netWorth ?? null;
-  const hasDelta = oldest != null && oldest !== 0 && series && series.length > 1;
-  const deltaPct = hasDelta ? ((value - oldest) / Math.abs(oldest)) * 100 : null;
-  const isUp = deltaPct != null && deltaPct >= 0;
-
-  return (
-    <Link
-      href="/dashboard"
-      className="block group rounded-2xl bg-[var(--color-surface-alt)]/60 hover:bg-[var(--color-surface-alt)] transition-colors px-5 py-4"
-    >
-      <div className="flex items-center justify-between gap-6">
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)] mb-1">
-            Net worth
-          </div>
-          <div className="text-3xl font-medium text-[var(--color-fg)] tabular-nums leading-tight">
-            {formatNetWorth(value)}
-          </div>
-          {deltaPct != null && (
-            <div className="text-xs text-[var(--color-muted)] mt-1 tabular-nums">
-              <span aria-hidden>{isUp ? "↑" : "↓"}</span>{" "}
-              {Math.abs(deltaPct).toFixed(1)}% · last 30 days
-            </div>
-          )}
-        </div>
-        {series && series.length > 1 && (
-          <div className="flex-shrink-0 h-12 w-36 -my-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series}>
-                <Line
-                  type="monotone"
-                  dataKey="netWorth"
-                  stroke="var(--color-fg)"
-                  strokeWidth={1.5}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-    </Link>
-  );
-}
+// Hard cap for the auto-grow textarea before it switches to scrolling.
+// ~6 lines at typical line-height; tall enough to compose a thought,
+// short enough to never push the send button off-screen.
+const INPUT_MAX_HEIGHT_PX = 160;
 
 function ChatInputForm({
   input,
@@ -397,9 +295,22 @@ function ChatInputForm({
   canSend: boolean;
   autoFocus?: boolean;
 }) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow: re-measure scrollHeight on every input change and pin the
+  // height to that (capped at INPUT_MAX_HEIGHT_PX). Above the cap the
+  // textarea's own overflow-y-auto takes over.
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, INPUT_MAX_HEIGHT_PX)}px`;
+  }, [input]);
+
   return (
     <form onSubmit={onSubmit} className="flex items-end gap-2">
       <textarea
+        ref={taRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => {
@@ -412,7 +323,8 @@ function ChatInputForm({
         autoFocus={autoFocus}
         placeholder="Ask anything…"
         rows={1}
-        className="flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60"
+        style={{ maxHeight: `${INPUT_MAX_HEIGHT_PX}px` }}
+        className="flex-1 min-w-0 resize-none px-4 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
       />
       <button
         type="submit"
