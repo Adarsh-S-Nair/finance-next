@@ -220,6 +220,102 @@ Centered, minimal text with an optional CTA:
 
 Always add `transition-colors` to elements with hover color/background changes. Never leave a hover state without a transition.
 
+## Agent widgets
+
+Inline widgets rendered inside the `/agent` chat (anything under
+`apps/finance/src/components/agent/widgets/`) follow the same core
+principles as the rest of the app — **flat, minimal, no card chrome**
+— but with a few widget-specific conventions that exist because
+they sit inside a streamed message.
+
+### Frame and chrome
+
+- Wrap every widget in `<WidgetFrame>` (from `primitives.tsx`). It
+  provides the `my-5` vertical rhythm and the optional first-mount
+  fade. **Never add a border, background, padding, or shadow on top
+  of WidgetFrame.** A widget should sit directly on the chat
+  background just like dashboard sections sit on the page background.
+- No `bg-[var(--color-surface-alt)]/30`, no `border`, no
+  `rounded-xl p-4` outer wrapper. If you reach for those, look at
+  `TransactionListWidget` or `BudgetListWidget` instead — they're the
+  reference style.
+
+### Row pattern (use everywhere)
+
+The list-row pattern across `TransactionListWidget`, `BudgetListWidget`,
+`AccountListWidget`, and `RecategorizationWidget` is intentionally the
+same shape. Match it for any new widget that displays a transaction-,
+account-, or category-flavored row:
+
+```tsx
+<div className="flex items-center justify-between gap-3 py-2.5">
+  <div className="flex items-center gap-3 min-w-0">
+    <Icon /* 7×7, rounded-full, group color bg */ />
+    <div className="min-w-0">
+      <div className="text-sm text-[var(--color-fg)] truncate">{primary}</div>
+      <div className="text-[11px] text-[var(--color-muted)] truncate">{meta}</div>
+    </div>
+  </div>
+  <div className="text-sm tabular-nums flex-shrink-0">{trailing}</div>
+</div>
+```
+
+### Category icons
+
+Always use the **category group's** `icon_lib` / `icon_name` /
+`hex_color`, not the leaf category's. The transactions page does the
+same — group color and group icon read consistently across the app.
+Render with `<DynamicIcon>` and `fallback={FiTag}` so missing data
+falls back to a tag glyph instead of crashing.
+
+### No badge pills
+
+Do not render category names (or anything else) as colored pill-shaped
+badges. Use a small colored dot/circle with the group icon plus plain
+text, the same way `CategoryLine` in `RecategorizationWidget` does.
+Pills add visual weight without information.
+
+### Confirmation actions
+
+For accept/decline-style widgets, use **icon-only circular buttons in
+the bottom-right** with sentiment colors **only on hover** — neutral
+muted by default so they don't compete with the body of the message.
+emerald-500 for accept, rose-500 for decline:
+
+```tsx
+<button className="inline-flex items-center justify-center w-8 h-8 rounded-full text-[var(--color-muted)] hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors">
+  <FiCheck className="h-4 w-4" strokeWidth={2.5} />
+</button>
+```
+
+Do not use full-width filled buttons for accept/decline inside a chat
+widget — they read as a form, not as a quick interaction.
+
+### Animations
+
+- **First mount of a fresh message**: each row uses `<MagicItem>` for
+  the scattered-stagger blur entrance. The chat page sets
+  `<AnimateProvider animate>` on messages whose id starts with `local-`
+  (just streamed in). Historical messages render instantly.
+- **State swaps within a widget** (proposal → accepted, page N → N+1):
+  use `<AnimatePresence>` with directional motion. Suppress per-row
+  `MagicItem` during a swap by wrapping the new state in
+  `<AnimateProvider animate={false}>` — otherwise the slide and the
+  stagger compound and feel busy.
+- **Pagination**: see `TransactionListWidget`'s split between first
+  render (MagicItem stagger) and page-swap (slide + small per-row
+  fade-up). Mirror that split for any future paginated widget.
+
+### What to avoid in widgets
+
+- Card-style outer wrappers (border / bg / padding / shadow / radius).
+- Pill-shaped colored badges around category labels.
+- Full-width filled buttons for inline accept/decline.
+- Saturated colors anywhere except sentiment (emerald = accept/positive,
+  rose = decline/negative).
+- Hardcoded colors — always go through CSS variables or sentiment Tailwind classes.
+- Skipping `WidgetFrame` (every widget needs that wrapper for vertical rhythm).
+
 ## What to Avoid
 
 - **Card wrappers with backgrounds** — no `bg-white`, no `bg-[var(--glass-bg)]`, no box shadows on section containers
