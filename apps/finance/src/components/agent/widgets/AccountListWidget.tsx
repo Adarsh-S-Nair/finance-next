@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { FiCreditCard } from "react-icons/fi";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
 
@@ -11,6 +13,7 @@ type Account = {
   subtype: string | null;
   category: "cash" | "credit" | "loan" | "investment" | "other";
   institution: string | null;
+  institution_logo: string | null;
   current_balance: number;
   available_balance: number | null;
 };
@@ -41,13 +44,15 @@ const CATEGORY_LABEL: Record<Account["category"], string> = {
   other: "Other",
 };
 
-const CATEGORY_COLOR: Record<Account["category"], string> = {
-  cash: "#059669",
-  investment: "var(--color-neon-green)",
-  credit: "#ef4444",
-  loan: "#b91c1c",
-  other: "#71717a",
-};
+// Title-case the account subtype/type for the row subtitle. Plaid uses
+// snake_case (e.g. "credit_card", "money_market"); we want "Credit Card".
+function formatType(type: string | null, subtype: string | null): string {
+  const raw = (subtype || type || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function AccountListWidget({ data }: { data: AccountListData }) {
   if (data.error) return <WidgetError message={data.error} />;
@@ -66,44 +71,24 @@ export default function AccountListWidget({ data }: { data: AccountListData }) {
       {data.accounts.length === 0 ? (
         <div className="text-xs text-[var(--color-muted)]">No accounts connected.</div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-7">
           {CATEGORY_ORDER.map((cat) => {
             const items = grouped.get(cat) ?? [];
             if (items.length === 0) return null;
 
             return (
               <div key={cat}>
-                <div className="flex items-center gap-2 mb-2 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
-                  <span
-                    className="w-1 h-1 rounded-full"
-                    style={{ backgroundColor: CATEGORY_COLOR[cat] }}
-                    aria-hidden
-                  />
+                {/* Plain section label — no colored dot. The category is
+                    already implied by the accounts inside it. */}
+                <div className="mb-3 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
                   {CATEGORY_LABEL[cat]}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {items.map((acc) => {
                     const idx = runningIndex++;
                     return (
                       <MagicItem key={acc.id} index={idx}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm text-[var(--color-fg)] truncate">
-                              {acc.name}
-                              {acc.mask && (
-                                <span className="text-[var(--color-muted)]"> ··{acc.mask}</span>
-                              )}
-                            </div>
-                            {acc.institution && (
-                              <div className="text-[11px] text-[var(--color-muted)] truncate">
-                                {acc.institution}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
-                            {formatCurrency(acc.current_balance)}
-                          </div>
-                        </div>
+                        <AccountRow acc={acc} />
                       </MagicItem>
                     );
                   })}
@@ -114,5 +99,58 @@ export default function AccountListWidget({ data }: { data: AccountListData }) {
         </div>
       )}
     </WidgetFrame>
+  );
+}
+
+function AccountRow({ acc }: { acc: Account }) {
+  const subtitle = [formatType(acc.type, acc.subtype), acc.mask ? `··${acc.mask}` : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <div className="flex items-center gap-3 min-w-0">
+        <InstitutionIcon
+          logo={acc.institution_logo}
+          name={acc.institution || acc.name}
+        />
+        <div className="min-w-0">
+          <div className="text-sm text-[var(--color-fg)] truncate">{acc.name}</div>
+          {subtitle && (
+            <div className="text-[11px] text-[var(--color-muted)] truncate">
+              {subtitle}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
+        {formatCurrency(acc.current_balance)}
+      </div>
+    </div>
+  );
+}
+
+function InstitutionIcon({ logo, name }: { logo: string | null; name: string }) {
+  // Plaid logos can be either data URIs (data:image/png;base64,...) or
+  // hosted URLs. Either works as an <img src>. Track failure so we can
+  // fall back to a generic credit-card glyph if the logo 404s.
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (logo && !imageFailed) {
+    return (
+      <img
+        src={logo}
+        alt={name}
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+        className="w-8 h-8 rounded-full bg-[var(--color-surface-alt)] flex-shrink-0 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--color-surface-alt)] flex-shrink-0">
+      <FiCreditCard className="h-4 w-4 text-[var(--color-muted)]" />
+    </div>
   );
 }

@@ -168,24 +168,64 @@ async function getBudgets(userId: string, input: BudgetsInput) {
   const monthDate = input.month ? new Date(input.month) : new Date();
   const progress = await getBudgetProgress(supabaseAdmin, userId, monthDate);
 
-  const budgets = progress.map((b) => {
-    // Normalize: getBudgetProgress returns BudgetProgress (extends BudgetRow
-    // with relations + computed totals). The shape varies a bit across
-    // category vs group budgets; pick out the bits the model + UI need.
+  // getBudgetProgress joins category_groups directly (for group-budgets)
+  // and system_categories directly (for category-budgets) — but a
+  // category-budget's category_groups relation is null since the
+  // relation key is on the budget table. To render category icons for
+  // category-budgets, we need to look up their category's group_id and
+  // fetch the group separately. One round-trip total.
+  const categoryGroupIds = new Set<string>();
+  for (const b of progress) {
     const rec = b as unknown as Record<string, unknown>;
+    const cat = rec.system_categories as
+      | { group_id?: string | null }
+      | null
+      | undefined;
+    if (cat?.group_id) categoryGroupIds.add(cat.group_id);
+  }
+  const groupIconMap = new Map<
+    string,
+    { icon_lib: string | null; icon_name: string | null; hex_color: string | null }
+  >();
+  if (categoryGroupIds.size > 0) {
+    const { data: groups } = await supabaseAdmin
+      .from('category_groups')
+      .select('id, icon_lib, icon_name, hex_color')
+      .in('id', Array.from(categoryGroupIds));
+    for (const g of groups ?? []) {
+      groupIconMap.set(g.id, {
+        icon_lib: g.icon_lib ?? null,
+        icon_name: g.icon_name ?? null,
+        hex_color: g.hex_color ?? null,
+      });
+    }
+  }
+
+  const budgets = progress.map((b) => {
+    const rec = b as unknown as Record<string, unknown>;
+    const directGroup = rec.category_groups as
+      | { name?: string; icon_name?: string; icon_lib?: string; hex_color?: string }
+      | null
+      | undefined;
+    const cat = rec.system_categories as
+      | { label?: string; hex_color?: string; group_id?: string | null }
+      | null
+      | undefined;
+    // Group-budget: directGroup is populated.
+    // Category-budget: directGroup is null, look up via category's group_id.
+    const fallbackGroup =
+      !directGroup && cat?.group_id ? groupIconMap.get(cat.group_id) ?? null : null;
+
     return {
       id: rec.id,
-      label:
-        (rec.category_groups as { name?: string } | undefined)?.name ??
-        (rec.system_categories as { label?: string } | undefined)?.label ??
-        'Uncategorized',
+      label: directGroup?.name ?? cat?.label ?? 'Uncategorized',
       hex_color:
-        (rec.category_groups as { hex_color?: string } | undefined)?.hex_color ??
-        (rec.system_categories as { hex_color?: string } | undefined)?.hex_color ??
+        directGroup?.hex_color ??
+        cat?.hex_color ??
+        fallbackGroup?.hex_color ??
         '#71717a',
-      icon:
-        (rec.category_groups as { icon_name?: string } | undefined)?.icon_name ??
-        null,
+      icon_lib: directGroup?.icon_lib ?? fallbackGroup?.icon_lib ?? null,
+      icon_name: directGroup?.icon_name ?? fallbackGroup?.icon_name ?? null,
       budget_amount: Number(rec.amount ?? 0),
       spent: Number(rec.totalSpent ?? 0),
       remaining: Number(rec.amount ?? 0) - Number(rec.totalSpent ?? 0),
@@ -363,7 +403,7 @@ async function getAccountBalances(userId: string) {
   const { data, error } = await supabaseAdmin
     .from('accounts')
     .select(
-      'id, name, type, subtype, plaid_balance_current, plaid_balance_available, mask, institutions(name)',
+      'id, name, type, subtype, plaid_balance_current, plaid_balance_available, mask, institutions(name, logo)',
     )
     .eq('user_id', userId)
     .order('name', { ascending: true });
@@ -379,7 +419,7 @@ async function getAccountBalances(userId: string) {
     else if (/investment|brokerage|401k|ira|retirement/.test(t)) category = 'investment';
     else if (/checking|savings|cash|depository/.test(t)) category = 'cash';
 
-    const inst = a.institutions as { name?: string } | null;
+    const inst = a.institutions as { name?: string; logo?: string } | null;
 
     return {
       id: a.id,
@@ -389,6 +429,7 @@ async function getAccountBalances(userId: string) {
       subtype: a.subtype,
       category,
       institution: inst?.name ?? null,
+      institution_logo: inst?.logo ?? null,
       current_balance: Number(a.plaid_balance_current ?? 0),
       available_balance:
         a.plaid_balance_available !== null
