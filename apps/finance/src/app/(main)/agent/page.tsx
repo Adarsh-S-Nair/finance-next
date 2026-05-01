@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
-import { useNetWorth } from "../../../components/providers/NetWorthProvider";
-import { formatCurrency } from "../../../lib/formatCurrency";
+import NetWorthCard from "../../../components/dashboard/NetWorthCard";
+import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
+import CalendarCard from "../../../components/dashboard/CalendarCard";
 
 type Message = {
   id: string;
@@ -233,20 +233,21 @@ export default function AgentPage() {
           </div>
         </>
       ) : (
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
-          <div className="max-w-2xl w-full">
+        // Empty / welcome state: chat composer on the left (vertically
+        // centered as a column), widget rail on the right (top-aligned).
+        // The rail collapses below xl breakpoints so mobile + tablet
+        // get a focused chat surface; on wide screens the rail provides
+        // ambient "what's going on with my money" context.
+        <div className="flex-1 flex justify-center gap-10 px-4 overflow-y-auto">
+          <div className="w-full max-w-xl flex flex-col justify-center py-12">
             {loading ? (
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
               <>
-                <h1 className="text-2xl font-medium text-[var(--color-fg)] mb-2">
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] mb-8">
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
-
-                <AgentNetWorthLine />
-
-                <div className="mt-8" />
 
                 {error && <ErrorBanner message={error} />}
 
@@ -274,106 +275,17 @@ export default function AgentPage() {
               </>
             )}
           </div>
+
+          <aside className="w-80 flex-shrink-0 hidden xl:block py-12 space-y-8">
+            <NetWorthCard width="full" />
+            <TopCategoriesCard />
+            {/* mockData={undefined} satisfies the JSX-inferred prop typing
+                without changing runtime behaviour — defaults to live data. */}
+            <CalendarCard mockData={undefined} />
+          </aside>
         </div>
       )}
     </div>
-  );
-}
-
-// One-line net worth indicator: label · number · inline sparkline · delta.
-// Reads as a sentence/subtitle under the greeting. The inline SVG chart
-// is so small it works as punctuation, not as a widget.
-function AgentNetWorthLine() {
-  const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
-
-  const series = useMemo(() => {
-    if (!netWorthHistory) return [] as number[];
-    return netWorthHistory
-      .map((p) => (typeof p?.netWorth === "number" ? p.netWorth : null))
-      .filter((v): v is number => v !== null);
-  }, [netWorthHistory]);
-
-  const percentChange = useMemo(() => {
-    if (series.length < 2) return null;
-    const oldest = series[0];
-    const newest = series[series.length - 1];
-    if (!oldest) return null;
-    return ((newest - oldest) / Math.abs(oldest)) * 100;
-  }, [series]);
-
-  if (loading) {
-    return (
-      <div className="h-5 w-64 bg-[var(--color-surface-alt)]/60 rounded animate-pulse" />
-    );
-  }
-
-  const netWorth = currentNetWorth?.netWorth;
-  if (typeof netWorth !== "number" || netWorth === 0) return null;
-
-  const isUp = percentChange === null ? null : percentChange >= 0;
-
-  return (
-    <Link
-      href="/dashboard"
-      className="inline-flex items-center gap-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors group"
-      aria-label="Open dashboard"
-    >
-      <span>Net worth</span>
-      <span aria-hidden className="text-[var(--color-muted)]/50">·</span>
-      <span className="font-medium text-[var(--color-fg)] tabular-nums">
-        {formatCurrency(netWorth)}
-      </span>
-      {series.length >= 2 && (
-        <InlineSparkline values={series} up={isUp ?? true} />
-      )}
-      {percentChange !== null && (
-        <span
-          className={`tabular-nums ${
-            isUp ? "text-emerald-500" : "text-rose-500"
-          }`}
-        >
-          {isUp ? "↑" : "↓"} {Math.abs(percentChange).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
-        </span>
-      )}
-    </Link>
-  );
-}
-
-// Tiny inline chart sized like punctuation — 80×16, 1.25px stroke. Uses
-// currentColor so it inherits the parent text color (muted by default,
-// fg on group-hover). Pure SVG keeps it lightweight; no Recharts.
-function InlineSparkline({ values, up }: { values: number[]; up: boolean }) {
-  const width = 80;
-  const height = 16;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 2) - 1;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className={`flex-shrink-0 ${
-        up ? "text-emerald-500/70" : "text-rose-500/70"
-      }`}
-      aria-hidden
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.25}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -412,7 +324,17 @@ function ChatInputForm({
   const hasText = input.trim().length > 0;
 
   return (
-    <form onSubmit={onSubmit} className="relative">
+    // Flex composer: textarea fills width, button sits in a fixed slot to
+    // the right. items-end keeps the button anchored to the textarea's
+    // bottom edge — for a single-line input both children are the same
+    // height so it reads as centered; for multi-line input the button
+    // stays at the bottom-right corner (matching ChatGPT / Claude.ai).
+    // Form padding + bg gives the whole composer the rounded-pill look
+    // without the textarea needing its own background.
+    <form
+      onSubmit={onSubmit}
+      className="flex items-end gap-2 rounded-2xl bg-[var(--color-surface-alt)] px-2 py-1.5 focus-within:ring-2 focus-within:ring-[var(--color-fg)]/15 transition-shadow"
+    >
       <textarea
         ref={taRef}
         value={input}
@@ -428,48 +350,36 @@ function ChatInputForm({
         placeholder="Ask anything…"
         rows={1}
         style={{ maxHeight: `${INPUT_MAX_HEIGHT_PX}px` }}
-        // pr-12 reserves a 48px column on the right for the absolutely
-        // positioned send button so long lines don't underrun it.
-        className="w-full resize-none pl-4 pr-12 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
+        className="flex-1 min-w-0 resize-none px-2 py-1 text-sm bg-transparent text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none disabled:opacity-60 overflow-y-auto"
       />
-      {/* Vertically centered via top-1/2 + translateY(-50%) — the previous
-          bottom-1.5 was mathematically perfect for a 40px single-line
-          textarea but the rendered height varies slightly with browser
-          font metrics, so the button drifted a couple px above center.
-          translate-based centering is height-agnostic. For multi-line
-          inputs the button stays at the visual middle of the composer,
-          which (paired with pr-12 reserving the right column) keeps it
-          clear of the text. AnimatePresence drives a subtle scale +
-          spring entrance and a fast tween exit so the button doesn't
-          appear to bounce-back during dismount. */}
-      <AnimatePresence>
-        {hasText && (
-          <motion.button
-            key="send"
-            type="submit"
-            disabled={!canSend}
-            aria-label="Send"
-            // y stays pinned at -50% so the button remains vertically
-            // centered on top: 50% across all three keyframes; scale +
-            // opacity animate the entrance/exit.
-            initial={{ opacity: 0, scale: 0.85, y: "-50%" }}
-            animate={{ opacity: 1, scale: 1, y: "-50%" }}
-            exit={{
-              opacity: 0,
-              scale: 0.85,
-              y: "-50%",
-              // Tween (not spring) on exit prevents framer-motion's
-              // overshoot from briefly bouncing the button back into
-              // view before dismount.
-              transition: { type: "tween", duration: 0.1, ease: "easeOut" },
-            }}
-            transition={{ type: "spring", stiffness: 500, damping: 28 }}
-            className="absolute right-2 top-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
-          >
-            <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {/* Fixed-size slot keeps the textarea from reflowing when the
+          button mounts/unmounts. AnimatePresence drives a subtle
+          scale+opacity entrance via spring; exit is a fast linear tween
+          so framer-motion can't overshoot back into view during
+          dismount. */}
+      <div className="w-7 h-7 flex-shrink-0 relative">
+        <AnimatePresence>
+          {hasText && (
+            <motion.button
+              key="send"
+              type="submit"
+              disabled={!canSend}
+              aria-label="Send"
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{
+                opacity: 0,
+                scale: 0.85,
+                transition: { type: "tween", duration: 0.1, ease: "easeOut" },
+              }}
+              transition={{ type: "spring", stiffness: 500, damping: 28 }}
+              className="absolute inset-0 inline-flex items-center justify-center rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
+            >
+              <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
     </form>
   );
 }
