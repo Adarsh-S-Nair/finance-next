@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { FiSend } from "react-icons/fi";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 
@@ -17,6 +19,8 @@ type Conversation = {
   last_message_at: string;
   created_at: string;
 };
+
+type SeriesPoint = { date: string; netWorth: number };
 
 type StoredContent = { text?: unknown };
 
@@ -43,7 +47,6 @@ function greeting(hour: number): string {
 }
 
 function formatNetWorth(value: number): string {
-  // Compact for large numbers ($1.2M, $147k), full for under $10k.
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
@@ -62,8 +65,9 @@ export default function AgentPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Net worth — fetched in parallel with conversation, never blocks chat.
+  // Net worth data — best-effort, never blocks chat
   const [netWorth, setNetWorth] = useState<number | null>(null);
+  const [netWorthSeries, setNetWorthSeries] = useState<SeriesPoint[] | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const localIdRef = useRef(0);
@@ -71,8 +75,6 @@ export default function AgentPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Conversation load drives the loading spinner; net worth is
-      // best-effort and won't block.
       try {
         const res = await authFetch("/api/agent/conversation");
         if (!res.ok) throw new Error(`Conversation load failed (${res.status})`);
@@ -103,7 +105,29 @@ export default function AgentPage() {
         const value = typeof body?.netWorth === "number" ? body.netWorth : null;
         if (!cancelled) setNetWorth(value);
       } catch {
-        // Silent — the stat is decorative.
+        // Silent — the widget is decorative.
+      }
+    })();
+
+    (async () => {
+      try {
+        const res = await authFetch("/api/net-worth/by-date?maxDays=30&minimal=1");
+        if (!res.ok) return;
+        const body = await res.json();
+        const data = Array.isArray(body?.data)
+          ? body.data.filter(
+              (p: unknown): p is SeriesPoint =>
+                Boolean(
+                  p &&
+                    typeof p === "object" &&
+                    typeof (p as SeriesPoint).date === "string" &&
+                    typeof (p as SeriesPoint).netWorth === "number",
+                ),
+            )
+          : [];
+        if (!cancelled && data.length > 0) setNetWorthSeries(data);
+      } catch {
+        // Silent.
       }
     })();
 
@@ -112,7 +136,6 @@ export default function AgentPage() {
     };
   }, []);
 
-  // Autoscroll to bottom on new messages (only relevant in chat-mode layout).
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -219,6 +242,7 @@ export default function AgentPage() {
   }
 
   const hasMessages = messages.length > 0;
+  const showNetWorthCard = netWorth !== null && netWorth !== 0;
 
   return (
     <div
@@ -229,7 +253,6 @@ export default function AgentPage() {
     >
       {hasMessages ? (
         <>
-          {/* Chat mode: messages scroll, input docked at bottom */}
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
               {messages.map((m) => (
@@ -244,7 +267,7 @@ export default function AgentPage() {
                 )}
             </div>
           </div>
-          <div className="flex-shrink-0 border-t border-[var(--color-border)]/50 bg-[var(--color-content-bg)]">
+          <div className="flex-shrink-0 bg-[var(--color-content-bg)]">
             <div className="max-w-2xl mx-auto px-4 py-3">
               {error && <ErrorBanner message={error} />}
               <ChatInputForm
@@ -258,44 +281,39 @@ export default function AgentPage() {
           </div>
         </>
       ) : (
-        // Empty mode: input centered vertically, suggestions listed beneath
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="max-w-xl w-full">
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <div className="max-w-2xl w-full">
             {loading ? (
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
               <>
-                {netWorth !== null && netWorth !== 0 && (
-                  <div className="text-center mb-10">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)] mb-1">
-                      Net worth
-                    </div>
-                    <div className="text-3xl font-medium text-[var(--color-fg)] tabular-nums">
-                      {formatNetWorth(netWorth)}
-                    </div>
-                  </div>
+                {showNetWorthCard && (
+                  <NetWorthCard value={netWorth} series={netWorthSeries} />
                 )}
-                <h1 className="text-2xl font-medium text-[var(--color-fg)] text-center mb-6">
+
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] mt-8 mb-5">
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
+
                 {error && <ErrorBanner message={error} />}
+
                 <ChatInputForm
                   input={input}
                   setInput={setInput}
                   onSubmit={handleSubmit}
                   disabled={sending || loading}
                   canSend={!sending && !loading && Boolean(input.trim())}
-                  size="lg"
                   autoFocus
                 />
-                <div className="mt-6 flex flex-col items-center gap-2">
+
+                <div className="mt-8 flex flex-col items-start gap-3">
                   {STARTER_PROMPTS.map((p) => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => sendStarter(p)}
-                      className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+                      className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors text-left"
                     >
                       {p}
                     </button>
@@ -310,13 +328,66 @@ export default function AgentPage() {
   );
 }
 
+function NetWorthCard({
+  value,
+  series,
+}: {
+  value: number;
+  series: SeriesPoint[] | null;
+}) {
+  // Compute 30-day delta if we have at least two points.
+  const oldest = series?.[0]?.netWorth ?? null;
+  const hasDelta = oldest != null && oldest !== 0 && series && series.length > 1;
+  const deltaPct = hasDelta ? ((value - oldest) / Math.abs(oldest)) * 100 : null;
+  const isUp = deltaPct != null && deltaPct >= 0;
+
+  return (
+    <Link
+      href="/dashboard"
+      className="block group rounded-2xl bg-[var(--color-surface-alt)]/60 hover:bg-[var(--color-surface-alt)] transition-colors px-5 py-4"
+    >
+      <div className="flex items-center justify-between gap-6">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)] mb-1">
+            Net worth
+          </div>
+          <div className="text-3xl font-medium text-[var(--color-fg)] tabular-nums leading-tight">
+            {formatNetWorth(value)}
+          </div>
+          {deltaPct != null && (
+            <div className="text-xs text-[var(--color-muted)] mt-1 tabular-nums">
+              <span aria-hidden>{isUp ? "↑" : "↓"}</span>{" "}
+              {Math.abs(deltaPct).toFixed(1)}% · last 30 days
+            </div>
+          )}
+        </div>
+        {series && series.length > 1 && (
+          <div className="flex-shrink-0 h-12 w-36 -my-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={series}>
+                <Line
+                  type="monotone"
+                  dataKey="netWorth"
+                  stroke="var(--color-fg)"
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 function ChatInputForm({
   input,
   setInput,
   onSubmit,
   disabled,
   canSend,
-  size = "md",
   autoFocus = false,
 }: {
   input: string;
@@ -324,10 +395,8 @@ function ChatInputForm({
   onSubmit: (e: FormEvent | null) => void;
   disabled: boolean;
   canSend: boolean;
-  size?: "md" | "lg";
   autoFocus?: boolean;
 }) {
-  const isLg = size === "lg";
   return (
     <form onSubmit={onSubmit} className="flex items-end gap-2">
       <textarea
@@ -343,23 +412,15 @@ function ChatInputForm({
         autoFocus={autoFocus}
         placeholder="Ask anything…"
         rows={1}
-        className={
-          isLg
-            ? "flex-1 min-w-0 resize-none px-5 py-4 max-h-40 text-base rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)]/60 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60"
-            : "flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/20 disabled:opacity-60"
-        }
+        className="flex-1 min-w-0 resize-none px-4 py-2.5 max-h-32 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60"
       />
       <button
         type="submit"
         disabled={!canSend}
-        className={
-          isLg
-            ? "flex-shrink-0 inline-flex items-center justify-center h-12 w-12 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
-            : "flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
-        }
+        className="flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
         aria-label="Send"
       >
-        <FiSend className={isLg ? "h-5 w-5" : "h-4 w-4"} />
+        <FiSend className="h-4 w-4" />
       </button>
     </form>
   );
