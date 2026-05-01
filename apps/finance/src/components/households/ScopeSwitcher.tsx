@@ -248,7 +248,7 @@ function HouseholdContextMenuView({
   );
 }
 
-export default function ScopeSwitcher() {
+export default function ScopeSwitcher({ hideChevron = false }: { hideChevron?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const { households, refresh } = useHouseholds();
@@ -335,7 +335,7 @@ export default function ScopeSwitcher() {
         <ScopeRow
           size="lg"
           label={activeHousehold ? activeHousehold.name : "Personal"}
-          showChevron
+          showChevron={!hideChevron}
           expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >

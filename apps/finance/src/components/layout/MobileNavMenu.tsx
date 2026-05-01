@@ -13,10 +13,15 @@ import { supabase } from "../../lib/supabase/client";
 import { isFeatureEnabled } from "../../lib/tierConfig";
 import ScopeSwitcher from "../households/ScopeSwitcher";
 
-// The toggle is a 36px circular button. When the drawer is open we slide
-// it from `left-4` to a position 16px from the right edge — that delta is
-// `viewport_width - (left:16) - (button:36) - (right:16)` = `100vw - 68px`.
+// The toggle is a 36px circular button anchored at top:14 / left:16 (so it
+// reads as centered in the 64px topbar). When the drawer opens we shift it
+// to align with the household row's avatar at the top of the scope switcher
+// (16px from the right edge, vertically centered on the 32px scope avatar).
+//
+// Horizontal delta: viewport_width − left(16) − button(36) − right(16) = 100vw − 68px
+// Vertical delta:   header(32) + pt-3(12) + py-2(8) + half-avatar(16) − button-center(32) = 36px
 const TOGGLE_OPEN_X = "calc(100vw - 68px)";
+const TOGGLE_OPEN_Y = 36;
 
 export default function MobileNavMenu() {
   const pathname = usePathname();
@@ -59,7 +64,10 @@ export default function MobileNavMenu() {
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         className="md:hidden fixed top-3.5 left-4 z-[90] inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors cursor-pointer"
-        animate={{ x: open ? TOGGLE_OPEN_X : "0px" }}
+        animate={{
+          x: open ? TOGGLE_OPEN_X : "0px",
+          y: open ? TOGGLE_OPEN_Y : 0,
+        }}
         transition={{ type: "tween", duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <MorphingMenuIcon open={open} />
@@ -73,7 +81,7 @@ export default function MobileNavMenu() {
         hideCloseButton
       >
         <div className="-mx-5 -mb-5 h-full flex flex-col">
-          <ScopeSwitcher />
+          <ScopeSwitcher hideChevron />
 
           <nav className="flex-1 overflow-y-auto px-3 pt-3 space-y-0.5">
             {mainItems.map((item) => {
@@ -139,27 +147,29 @@ export default function MobileNavMenu() {
 
 // Three stacked bars that morph into an X. Top + bottom rotate ±45° and
 // converge to the middle row; the middle bar fades out. Driven entirely
-// by the `open` prop so framer-motion can interpolate smoothly.
+// by the `open` prop so framer-motion can interpolate smoothly. Sized
+// small + thin (14px wide, 1px strokes) so it reads as restrained chrome
+// rather than a chunky control.
 function MorphingMenuIcon({ open }: { open: boolean }) {
   const transition = { type: "tween" as const, duration: 0.22, ease: [0.25, 0.1, 0.25, 1] as const };
   return (
-    <span className="relative block w-4 h-4" aria-hidden="true">
+    <span className="relative block w-3.5 h-2.5" aria-hidden="true">
       <motion.span
-        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
+        className="absolute left-0 right-0 h-px rounded-full bg-current"
         style={{ top: 0 }}
-        animate={{ y: open ? 7 : 0, rotate: open ? 45 : 0 }}
+        animate={{ y: open ? 5 : 0, rotate: open ? 45 : 0 }}
         transition={transition}
       />
       <motion.span
-        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
-        style={{ top: 7 }}
+        className="absolute left-0 right-0 h-px rounded-full bg-current"
+        style={{ top: 5 }}
         animate={{ opacity: open ? 0 : 1, scaleX: open ? 0 : 1 }}
         transition={transition}
       />
       <motion.span
-        className="absolute left-0 right-0 h-[1.5px] rounded-full bg-current"
-        style={{ top: 14 }}
-        animate={{ y: open ? -7 : 0, rotate: open ? -45 : 0 }}
+        className="absolute left-0 right-0 h-px rounded-full bg-current"
+        style={{ top: 10 }}
+        animate={{ y: open ? -5 : 0, rotate: open ? -45 : 0 }}
         transition={transition}
       />
     </span>
