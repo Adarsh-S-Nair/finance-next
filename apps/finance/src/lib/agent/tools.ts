@@ -49,7 +49,9 @@ export const TOOLS: ToolDefinition[] = [
       "Pull recent transactions, most recent first. Use this when the user " +
       "asks about specific spending events, recent activity, transactions " +
       "from a particular merchant, or wants to see what they've been " +
-      "spending money on lately.",
+      "spending money on lately. Use `merchant_query` for merchant-style " +
+      "questions (\"what did I spend at Starbucks?\") and `category_query` " +
+      "for category-style questions (\"what did I spend on food and drink?\").",
     input_schema: {
       type: 'object',
       properties: {
@@ -70,7 +72,14 @@ export const TOOLS: ToolDefinition[] = [
           type: 'string',
           description:
             'Optional case-insensitive substring match against the merchant name or description. ' +
-            'E.g. "starbucks", "amazon".',
+            'E.g. "starbucks", "amazon". Use this when the user names a specific business.',
+        },
+        category_query: {
+          type: 'string',
+          description:
+            'Optional case-insensitive substring match against the category label or category group name. ' +
+            'E.g. "food and drink", "groceries", "transportation". Use this when the user asks about ' +
+            'a category of spending rather than a specific merchant.',
         },
       },
     },
@@ -124,6 +133,7 @@ interface RecentTransactionsInput {
   limit?: number;
   days?: number;
   merchant_query?: string;
+  category_query?: string;
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
@@ -258,6 +268,16 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
   const days = Math.min(Math.max(input.days ?? 30, 1), 365);
   const since = format(subDays(new Date(), days), 'yyyy-MM-dd');
 
+  const categoryQuery = input.category_query?.trim() ?? '';
+  const merchantQuery = input.merchant_query?.trim() ?? '';
+
+  // When the model asks for a category match we over-fetch (no DB-side
+  // filter on the joined category) and apply the substring match in JS
+  // before slicing to `limit`. Postgrest's `.or()` doesn't support
+  // filtering across embedded relations cleanly, and the windows here
+  // (≤365 days for one user) are small enough that this is fine.
+  const overFetch = categoryQuery.length > 0;
+
   let query = supabaseAdmin
     .from('transactions')
     .select(
@@ -273,61 +293,76 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         system_categories(
           label,
           hex_color,
-          category_groups(icon_lib, icon_name, hex_color)
+          category_groups(name, icon_lib, icon_name, hex_color)
         )
       `,
     )
     .eq('accounts.user_id', userId)
     .gte('date', since)
-    .order('date', { ascending: false })
-    .limit(limit);
+    .order('date', { ascending: false });
 
-  if (input.merchant_query && input.merchant_query.trim().length > 0) {
-    const q = input.merchant_query.trim();
+  if (!overFetch) {
+    query = query.limit(limit);
+  }
+
+  if (merchantQuery.length > 0) {
     query = query.or(
-      `description.ilike.%${q}%,merchant_name.ilike.%${q}%`,
+      `description.ilike.%${merchantQuery}%,merchant_name.ilike.%${merchantQuery}%`,
     );
   }
 
   const { data, error } = await query;
   if (error) throw error;
 
-  const transactions = (data ?? []).map((t) => {
-    const cat = t.system_categories as
-      | {
-          label?: string;
-          hex_color?: string;
-          category_groups?: {
-            icon_lib?: string | null;
-            icon_name?: string | null;
-            hex_color?: string | null;
-          } | null;
-        }
-      | null;
-    const group = cat?.category_groups ?? null;
-    const acc = t.accounts as { name?: string } | null;
-    return {
-      id: t.id,
-      date: t.date,
-      description: t.description,
-      merchant_name: t.merchant_name,
-      amount: Number(t.amount ?? 0),
-      category: cat?.label ?? 'Uncategorized',
-      // Prefer the group's color (matches the chip on the transactions
-      // page); fall back to the category-level color, then a neutral.
-      category_color: group?.hex_color ?? cat?.hex_color ?? '#71717a',
-      category_icon_lib: group?.icon_lib ?? null,
-      category_icon_name: group?.icon_name ?? null,
-      account_name: acc?.name ?? 'Account',
-      icon_url: t.icon_url ?? null,
-    };
-  });
+  const catNeedle = categoryQuery.toLowerCase();
+
+  const transactions = (data ?? [])
+    .map((t) => {
+      const cat = t.system_categories as
+        | {
+            label?: string;
+            hex_color?: string;
+            category_groups?: {
+              name?: string | null;
+              icon_lib?: string | null;
+              icon_name?: string | null;
+              hex_color?: string | null;
+            } | null;
+          }
+        | null;
+      const group = cat?.category_groups ?? null;
+      const acc = t.accounts as { name?: string } | null;
+      return {
+        id: t.id,
+        date: t.date,
+        description: t.description,
+        merchant_name: t.merchant_name,
+        amount: Number(t.amount ?? 0),
+        category: cat?.label ?? 'Uncategorized',
+        category_group: group?.name ?? null,
+        // Prefer the group's color (matches the chip on the transactions
+        // page); fall back to the category-level color, then a neutral.
+        category_color: group?.hex_color ?? cat?.hex_color ?? '#71717a',
+        category_icon_lib: group?.icon_lib ?? null,
+        category_icon_name: group?.icon_name ?? null,
+        account_name: acc?.name ?? 'Account',
+        icon_url: t.icon_url ?? null,
+      };
+    })
+    .filter((t) => {
+      if (catNeedle.length === 0) return true;
+      const cat = t.category?.toLowerCase() ?? '';
+      const grp = t.category_group?.toLowerCase() ?? '';
+      return cat.includes(catNeedle) || grp.includes(catNeedle);
+    })
+    .slice(0, limit);
 
   return {
     transactions,
     count: transactions.length,
     days_searched: days,
-    merchant_query: input.merchant_query ?? null,
+    merchant_query: merchantQuery || null,
+    category_query: categoryQuery || null,
   };
 }
 
@@ -358,8 +393,14 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
       break;
   }
 
-  // Pull spending transactions in window. Negative amounts (refunds) are
-  // ignored to avoid muddling the picture; this matches the dashboard.
+  // Pull transactions in window. In this app's sign convention (Plaid's
+  // standard), NEGATIVE amounts are spending and POSITIVE amounts are
+  // income / refunds / transfers in. We want the spending picture only —
+  // the previous version had this inverted (`if amount <= 0 continue`),
+  // which silently produced an *income* breakdown labelled as spending,
+  // so the widget would show Salary / Account Transfer / Tax Refund as
+  // the user's "top spending categories". This matches the convention
+  // already in getBudgetProgress: skip non-negative, sum |amount|.
   const { data, error } = await supabaseAdmin
     .from('transactions')
     .select(
@@ -367,7 +408,7 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
         amount,
         category_id,
         accounts!inner(user_id),
-        system_categories(label, hex_color)
+        system_categories(label, hex_color, category_groups(name, hex_color))
       `,
     )
     .eq('accounts.user_id', userId)
@@ -380,16 +421,25 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
   let totalSpending = 0;
   for (const tx of data ?? []) {
     const amount = Number(tx.amount ?? 0);
-    if (amount <= 0) continue;
+    if (amount >= 0) continue; // skip income/refunds/transfers in
+    const spend = Math.abs(amount);
     const cat = tx.system_categories as
-      | { label?: string; hex_color?: string }
+      | {
+          label?: string;
+          hex_color?: string;
+          category_groups?: { name?: string; hex_color?: string } | null;
+        }
       | null;
-    const label = cat?.label ?? 'Uncategorized';
-    const color = cat?.hex_color ?? '#71717a';
+    // Prefer the category group label so spending bucket matches the
+    // user's mental model of how the app organises categories ("Food and
+    // Drink" rather than the leaf "Coffee Shops" / "Fast Food").
+    const group = cat?.category_groups ?? null;
+    const label = group?.name ?? cat?.label ?? 'Uncategorized';
+    const color = group?.hex_color ?? cat?.hex_color ?? '#71717a';
     const existing = buckets.get(label) ?? { label, total: 0, color };
-    existing.total += amount;
+    existing.total += spend;
     buckets.set(label, existing);
-    totalSpending += amount;
+    totalSpending += spend;
   }
 
   const categories = Array.from(buckets.values())
