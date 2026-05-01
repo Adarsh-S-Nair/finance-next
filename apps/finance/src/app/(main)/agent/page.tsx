@@ -445,8 +445,32 @@ export default function AgentPage() {
     setTimeout(() => handleSubmit(null), 0);
   }
 
-  const hasMessages = messages.length > 0;
-  const lastMsg = messages[messages.length - 1];
+  // The chat route persists each tool-use iteration as its own assistant
+  // row (assistant with [tool_use] → tool result row → assistant with
+  // [text] → ...). For rendering purposes those iterations are one
+  // logical turn — the user thinks "I asked one thing, the agent did
+  // some work, and answered". Merge consecutive assistant rows so the
+  // text-first / tools-after reorder inside AssistantMessageRow has all
+  // the blocks of the turn to work with. Keeps the optimistic streaming
+  // case (single assistant message) a no-op.
+  const displayMessages = useMemo(() => {
+    const out: Message[] = [];
+    for (const msg of messages) {
+      const last = out[out.length - 1];
+      if (msg.role === "assistant" && last?.role === "assistant") {
+        out[out.length - 1] = {
+          ...last,
+          blocks: [...last.blocks, ...msg.blocks],
+        };
+      } else {
+        out.push(msg);
+      }
+    }
+    return out;
+  }, [messages]);
+
+  const hasMessages = displayMessages.length > 0;
+  const lastMsg = displayMessages[displayMessages.length - 1];
   // Show typing dots while sending AND the assistant message is empty
   // (no blocks yet, or only an empty text block).
   const showTypingDots =
@@ -487,7 +511,7 @@ export default function AgentPage() {
         <>
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-4 pt-12 pb-6 space-y-6">
-              {messages.map((m) =>
+              {displayMessages.map((m) =>
                 m.role === "user" ? (
                   <UserMessageRow key={m.id} text={m.text} />
                 ) : (
