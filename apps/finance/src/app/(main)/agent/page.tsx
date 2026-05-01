@@ -217,7 +217,6 @@ export default function AgentPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
   const localIdRef = useRef(0);
 
   // Topbar portal for the conversation-history button.
@@ -262,10 +261,14 @@ export default function AgentPage() {
     };
   }, []);
 
+  // Auto-scroll the window to the bottom on new content. Previously this
+  // scrolled an inner overflow-y-auto chat region, but that meant the
+  // page had its own scrollbar separate from the rest of the app —
+  // weird and inconsistent with /transactions etc. Now scrolling lives
+  // at the document level, with the chat input pinned via sticky bottom.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    if (typeof window === "undefined") return;
+    window.scrollTo(0, document.documentElement.scrollHeight);
   }, [messages, sending]);
 
   async function handleSubmit(e: FormEvent | null) {
@@ -523,13 +526,18 @@ export default function AgentPage() {
         lastMsg.blocks[0].kind === "text" &&
         lastMsg.blocks[0].text.length === 0));
 
+  // Both states use the same vertical anchor: at least viewport-tall
+  // minus the topbar minus the impersonation banner. That makes the
+  // empty-state welcome center itself in the visible area, and gives the
+  // messages-state's flex column something to fill so the sticky input
+  // settles at the bottom of the viewport on first paint (before the
+  // user has scrolled).
+  const fullHeight = {
+    minHeight: "calc(100dvh - 64px - var(--impersonation-banner-h, 0px))",
+  } as const;
+
   return (
-    <div
-      className="flex flex-col w-full"
-      style={{
-        height: "calc(100dvh - 64px - var(--impersonation-banner-h, 0px))",
-      }}
-    >
+    <div className="w-full">
       {/* Conversation switcher portaled into AppTopbar's tools slot — only
           rendered when the agent page is mounted, so it cleanly disappears
           on navigation away. */}
@@ -550,56 +558,58 @@ export default function AgentPage() {
         )}
 
       {hasMessages ? (
-        <>
-          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-4 pt-12 pb-6 space-y-6">
-              {displayMessages.map((m, i) => {
-                const isLastAssistant =
-                  m.role === "assistant" && i === displayMessages.length - 1;
-                // Hide the timestamp on the currently-streaming response —
-                // it's distracting next to typing dots and would just say
-                // "just now / X:YY PM" before the content has even arrived.
-                const showStamp = !(isLastAssistant && sending);
-                if (m.role === "user") {
-                  return (
-                    <div key={m.id}>
-                      <UserMessageRow text={m.text} />
-                      {showStamp && nowAtMount !== null && (
-                        <MessageTimestamp
-                          ts={m.created_at}
-                          now={nowAtMount}
-                          align="right"
-                        />
-                      )}
-                    </div>
-                  );
-                }
+        <div className="flex flex-col" style={fullHeight}>
+          <div className="flex-1 max-w-2xl w-full mx-auto px-4 pt-12 pb-6 space-y-6">
+            {displayMessages.map((m, i) => {
+              const isLastAssistant =
+                m.role === "assistant" && i === displayMessages.length - 1;
+              // Hide the timestamp on the currently-streaming response —
+              // it's distracting next to typing dots and would just say
+              // "just now / X:YY PM" before the content has even arrived.
+              const showStamp = !(isLastAssistant && sending);
+              if (m.role === "user") {
                 return (
-                  // Animate widgets only for messages that arrived this
-                  // session (optimistic ids start with `local-`). Messages
-                  // loaded from the DB — page reload, conversation switch,
-                  // history hydration — render instantly so the user isn't
-                  // watching the same stagger replay every time.
-                  <AnimateProvider
-                    key={m.id}
-                    animate={m.id.startsWith("local-")}
-                  >
-                    <AssistantMessageRow blocks={m.blocks} />
+                  <div key={m.id}>
+                    <UserMessageRow text={m.text} />
                     {showStamp && nowAtMount !== null && (
                       <MessageTimestamp
                         ts={m.created_at}
                         now={nowAtMount}
-                        align="left"
+                        align="right"
                       />
                     )}
-                  </AnimateProvider>
+                  </div>
                 );
-              })}
-              {showTypingDots && <TypingDots />}
-            </div>
+              }
+              return (
+                // Animate widgets only for messages that arrived this
+                // session (optimistic ids start with `local-`). Messages
+                // loaded from the DB — page reload, conversation switch,
+                // history hydration — render instantly so the user isn't
+                // watching the same stagger replay every time.
+                <AnimateProvider
+                  key={m.id}
+                  animate={m.id.startsWith("local-")}
+                >
+                  <AssistantMessageRow blocks={m.blocks} />
+                  {showStamp && nowAtMount !== null && (
+                    <MessageTimestamp
+                      ts={m.created_at}
+                      now={nowAtMount}
+                      align="left"
+                    />
+                  )}
+                </AnimateProvider>
+              );
+            })}
+            {showTypingDots && <TypingDots />}
           </div>
-          <div className="flex-shrink-0 bg-[var(--color-content-bg)]">
-            <div className="max-w-2xl mx-auto px-4 py-3">
+          {/* Sticky input bar — stays pinned to the viewport bottom while
+              the rest of the chat scrolls with the document. The bg
+              + slight top padding keep messages from visually bleeding
+              into the input when scrolled. */}
+          <div className="sticky bottom-0 z-30 bg-[var(--color-content-bg)] pt-2">
+            <div className="max-w-2xl mx-auto px-4 pb-3">
               {error && <ErrorBanner message={error} />}
               <ChatInputForm
                 input={input}
@@ -610,9 +620,12 @@ export default function AgentPage() {
               />
             </div>
           </div>
-        </>
+        </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div
+          className="flex items-center justify-center px-4 py-8"
+          style={fullHeight}
+        >
           <div className="max-w-xl w-full">
             {loading ? (
               <div className="flex justify-center"><TypingDots /></div>
@@ -877,15 +890,10 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
-  // Split text vs tool blocks. On desktop we float the widgets to the
-  // right and let the response text wrap around them magazine-style;
-  // on mobile we leave them as a normal block stack. CSS float requires
-  // the widget element to come BEFORE the text in source order for the
-  // text to wrap around it — so the widgets are rendered first here.
-  // On mobile (no float), that means widgets visually appear above the
-  // text. With per-widget pagination (5 rows max) this is acceptable;
-  // the alternative (text-first → no wrap on desktop) loses the magazine
-  // effect entirely.
+  // Render text first, then tool widgets. The model is prompted to call
+  // tools first then write — so in DOM order text would appear after the
+  // widget, which puts the response below the data. Reordering on render
+  // gives us "answer then evidence" without changing the wire format.
   const textBlocks: TextBlock[] = [];
   const toolBlocks: ToolBlock[] = [];
   for (const b of blocks) {
@@ -895,20 +903,12 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
 
   return (
     <div className="text-sm text-[var(--color-fg)]">
-      {toolBlocks.map((b) => (
-        <div
-          key={b.id}
-          className="md:float-right md:w-[280px] md:max-w-[45%] md:ml-5 md:clear-right"
-        >
-          <ToolWidget tool={b as ToolBlockData} />
-        </div>
-      ))}
       {textBlocks.map((b, i) => (
         <MarkdownText key={`t-${i}`} text={b.text} />
       ))}
-      {/* Clear floats so the timestamp + the next message in the stack
-          don't get pulled into the float column. */}
-      <div className="md:clear-both" />
+      {toolBlocks.map((b) => (
+        <ToolWidget key={b.id} tool={b as ToolBlockData} />
+      ))}
     </div>
   );
 }

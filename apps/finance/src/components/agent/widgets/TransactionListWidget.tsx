@@ -144,7 +144,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
   const isIncome = tx.amount > 0;
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
+    <div className="flex items-center justify-between gap-3 py-2.5">
       <div className="flex items-center gap-3 min-w-0">
         <MerchantIcon
           iconUrl={tx.icon_url}
