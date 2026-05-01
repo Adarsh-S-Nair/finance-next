@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FiSend } from "react-icons/fi";
+import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
@@ -307,8 +307,10 @@ function ChatInputForm({
     ta.style.height = `${Math.min(ta.scrollHeight, INPUT_MAX_HEIGHT_PX)}px`;
   }, [input]);
 
+  const hasText = input.trim().length > 0;
+
   return (
-    <form onSubmit={onSubmit} className="flex items-end gap-2">
+    <form onSubmit={onSubmit} className="relative">
       <textarea
         ref={taRef}
         value={input}
@@ -324,15 +326,26 @@ function ChatInputForm({
         placeholder="Ask anything…"
         rows={1}
         style={{ maxHeight: `${INPUT_MAX_HEIGHT_PX}px` }}
-        className="flex-1 min-w-0 resize-none px-4 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
+        // pr-12 reserves a 48px column on the right for the absolutely
+        // positioned send button so long lines don't underrun it.
+        className="w-full resize-none pl-4 pr-12 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
       />
+      {/* Send button is anchored to the bottom-right of the textarea so it
+          stays put as the textarea auto-grows. Faded out (rather than
+          unmounted) when there's nothing to send to avoid a layout pop. */}
       <button
         type="submit"
         disabled={!canSend}
-        className="flex-shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-30 transition-opacity"
         aria-label="Send"
+        aria-hidden={!hasText}
+        tabIndex={hasText ? 0 : -1}
+        className={`absolute right-2 bottom-2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] transition-opacity duration-150 ${
+          hasText
+            ? "opacity-100 hover:opacity-90"
+            : "opacity-0 pointer-events-none"
+        }`}
       >
-        <FiSend className="h-4 w-4" />
+        <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
       </button>
     </form>
   );
