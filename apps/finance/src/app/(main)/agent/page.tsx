@@ -7,7 +7,6 @@ import { FiArrowUp } from "react-icons/fi";
 import { authFetch } from "../../../lib/api/fetch";
 import { useUser } from "../../../components/providers/UserProvider";
 import { useNetWorth } from "../../../components/providers/NetWorthProvider";
-import { useAccounts } from "../../../components/providers/AccountsProvider";
 import { formatCurrency } from "../../../lib/formatCurrency";
 
 type Message = {
@@ -240,14 +239,14 @@ export default function AgentPage() {
               <div className="text-center text-sm text-[var(--color-muted)]">Loading…</div>
             ) : (
               <>
-                <h1 className="text-2xl font-medium text-[var(--color-fg)] mb-6">
+                <h1 className="text-2xl font-medium text-[var(--color-fg)] mb-2">
                   {greeting(new Date().getHours())}
                   {firstName ? `, ${firstName}` : ""}
                 </h1>
 
-                <div className="mb-8">
-                  <AgentNetWorthWidget />
-                </div>
+                <AgentNetWorthLine />
+
+                <div className="mt-8" />
 
                 {error && <ErrorBanner message={error} />}
 
@@ -281,185 +280,100 @@ export default function AgentPage() {
   );
 }
 
-// Net-worth widget tailored to the agent chat home: tighter, no card
-// chrome, two slim proportion bars at the same scale (max of assets vs
-// liabilities) so the visual ratio reads at a glance. Uses the same
-// AccountsProvider / NetWorthProvider data as the dashboard.
-type AccountLike = { type?: string; subtype?: string; balance: number };
+// One-line net worth indicator: label · number · inline sparkline · delta.
+// Reads as a sentence/subtitle under the greeting. The inline SVG chart
+// is so small it works as punctuation, not as a widget.
+function AgentNetWorthLine() {
+  const { currentNetWorth, netWorthHistory, loading } = useNetWorth();
 
-function categorizeAccount(account: AccountLike): "cash" | "investments" | "credit" | "loans" {
-  const t = `${account.type || ""} ${account.subtype || ""}`.toLowerCase();
-  const liabilityKeywords = ["credit", "loan", "mortgage", "line of credit", "overdraft"];
-  const investmentKeywords = [
-    "investment", "brokerage", "401k", "ira", "retirement",
-    "mutual fund", "stock", "bond",
-  ];
-  if (liabilityKeywords.some((k) => t.includes(k))) {
-    return t.includes("loan") || t.includes("mortgage") || t.includes("line of credit")
-      ? "loans"
-      : "credit";
-  }
-  if (investmentKeywords.some((k) => t.includes(k))) return "investments";
-  return "cash";
-}
-
-type Segment = { label: string; amount: number; color: string };
-
-function AgentNetWorthWidget() {
-  const { currentNetWorth, netWorthHistory, loading: netWorthLoading } = useNetWorth();
-  const { allAccounts, loading: accountsLoading } = useAccounts() as {
-    allAccounts: AccountLike[] | null;
-    loading: boolean;
-  };
-
-  const breakdown = useMemo(() => {
-    if (!allAccounts) return null;
-    const totals = { cash: 0, investments: 0, credit: 0, loans: 0 };
-    for (const acc of allAccounts) {
-      const cat = categorizeAccount(acc);
-      totals[cat] += Math.abs(acc.balance);
-    }
-    return {
-      totalAssets: totals.cash + totals.investments,
-      totalLiabilities: totals.credit + totals.loans,
-      assetSegments: [
-        { label: "Cash", amount: totals.cash, color: "#059669" },
-        { label: "Investments", amount: totals.investments, color: "var(--color-neon-green)" },
-      ] as Segment[],
-      liabilitySegments: [
-        { label: "Credit", amount: totals.credit, color: "#ef4444" },
-        { label: "Loans", amount: totals.loans, color: "#b91c1c" },
-      ] as Segment[],
-    };
-  }, [allAccounts]);
-
-  const percentChange = useMemo(() => {
-    if (!netWorthHistory || netWorthHistory.length < 2) return null;
-    const oldest = netWorthHistory[0];
-    const newest = netWorthHistory[netWorthHistory.length - 1];
-    if (!oldest?.netWorth || oldest.netWorth === 0) return null;
-    return ((newest.netWorth - oldest.netWorth) / Math.abs(oldest.netWorth)) * 100;
+  const series = useMemo(() => {
+    if (!netWorthHistory) return [] as number[];
+    return netWorthHistory
+      .map((p) => (typeof p?.netWorth === "number" ? p.netWorth : null))
+      .filter((v): v is number => v !== null);
   }, [netWorthHistory]);
 
-  if (netWorthLoading || accountsLoading) {
+  const percentChange = useMemo(() => {
+    if (series.length < 2) return null;
+    const oldest = series[0];
+    const newest = series[series.length - 1];
+    if (!oldest) return null;
+    return ((newest - oldest) / Math.abs(oldest)) * 100;
+  }, [series]);
+
+  if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 w-48 bg-[var(--color-surface-alt)] rounded" />
-        <div className="space-y-2.5">
-          <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full" />
-          <div className="h-2 w-1/3 bg-[var(--color-surface-alt)] rounded-full" />
-        </div>
-      </div>
+      <div className="h-5 w-64 bg-[var(--color-surface-alt)]/60 rounded animate-pulse" />
     );
   }
 
-  if (!breakdown || (breakdown.totalAssets === 0 && breakdown.totalLiabilities === 0)) {
-    return null;
-  }
+  const netWorth = currentNetWorth?.netWorth;
+  if (typeof netWorth !== "number" || netWorth === 0) return null;
 
-  const netWorth = currentNetWorth?.netWorth ?? 0;
-  const maxScale = Math.max(breakdown.totalAssets, breakdown.totalLiabilities, 1);
+  const isUp = percentChange === null ? null : percentChange >= 0;
 
   return (
     <Link
-      href="/accounts"
-      className="block group"
-      aria-label="Open accounts breakdown"
+      href="/dashboard"
+      className="inline-flex items-center gap-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors group"
+      aria-label="Open dashboard"
     >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
-          Net worth
-        </span>
-        {percentChange !== null && (
-          <span
-            className={`text-xs font-semibold tabular-nums ${
-              percentChange >= 0 ? "text-emerald-500" : "text-rose-500"
-            }`}
-          >
-            {percentChange >= 0 ? "▲" : "▼"}{" "}
-            {Math.abs(percentChange).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
-          </span>
-        )}
-      </div>
-
-      <div className="text-3xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums mb-5 group-hover:opacity-90 transition-opacity">
+      <span>Net worth</span>
+      <span aria-hidden className="text-[var(--color-muted)]/50">·</span>
+      <span className="font-medium text-[var(--color-fg)] tabular-nums">
         {formatCurrency(netWorth)}
-      </div>
-
-      <div className="space-y-3">
-        <ProportionBar
-          label="Assets"
-          total={breakdown.totalAssets}
-          maxScale={maxScale}
-          segments={breakdown.assetSegments}
-        />
-        <ProportionBar
-          label="Liabilities"
-          total={breakdown.totalLiabilities}
-          maxScale={maxScale}
-          segments={breakdown.liabilitySegments}
-        />
-      </div>
+      </span>
+      {series.length >= 2 && (
+        <InlineSparkline values={series} up={isUp ?? true} />
+      )}
+      {percentChange !== null && (
+        <span
+          className={`tabular-nums ${
+            isUp ? "text-emerald-500" : "text-rose-500"
+          }`}
+        >
+          {isUp ? "↑" : "↓"} {Math.abs(percentChange).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
+        </span>
+      )}
     </Link>
   );
 }
 
-function ProportionBar({
-  label,
-  total,
-  maxScale,
-  segments,
-}: {
-  label: string;
-  total: number;
-  maxScale: number;
-  segments: Segment[];
-}) {
-  const widthPct = maxScale > 0 ? (total / maxScale) * 100 : 0;
+// Tiny inline chart sized like punctuation — 80×16, 1.25px stroke. Uses
+// currentColor so it inherits the parent text color (muted by default,
+// fg on group-hover). Pure SVG keeps it lightweight; no Recharts.
+function InlineSparkline({ values, up }: { values: number[]; up: boolean }) {
+  const width = 80;
+  const height = 16;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * width;
+      const y = height - ((v - min) / range) * (height - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wider">
-          {label}
-        </span>
-        <span className="text-xs text-[var(--color-fg)] tabular-nums font-medium">
-          {formatCurrency(total)}
-        </span>
-      </div>
-      <div className="w-full h-2 rounded-full bg-[var(--color-surface-alt)]/70 overflow-hidden">
-        <div className="h-full flex" style={{ width: `${widthPct}%` }}>
-          {segments.map((seg) => {
-            const segPct = total > 0 ? (seg.amount / total) * 100 : 0;
-            if (segPct === 0) return null;
-            return (
-              <div
-                key={seg.label}
-                className="h-full"
-                style={{ width: `${segPct}%`, backgroundColor: seg.color }}
-              />
-            );
-          })}
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
-        {segments.map((seg) => {
-          if (seg.amount === 0) return null;
-          return (
-            <span
-              key={seg.label}
-              className="inline-flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]"
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: seg.color }}
-                aria-hidden
-              />
-              {seg.label}
-            </span>
-          );
-        })}
-      </div>
-    </div>
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={`flex-shrink-0 ${
+        up ? "text-emerald-500/70" : "text-rose-500/70"
+      }`}
+      aria-hidden
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -518,12 +432,16 @@ function ChatInputForm({
         // positioned send button so long lines don't underrun it.
         className="w-full resize-none pl-4 pr-12 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
       />
-      {/* Send button anchored to the bottom-right of the textarea. The
-          bottom offset (6px = bottom-1.5) is chosen so the button is
-          vertically centered when the textarea is single-line height
-          (40px = py-2.5 + 20px line-height); when the textarea grows it
-          stays anchored at the bottom-right corner. AnimatePresence
-          drives a snappy spring entrance + exit that feels alive. */}
+      {/* Vertically centered via top-1/2 + translateY(-50%) — the previous
+          bottom-1.5 was mathematically perfect for a 40px single-line
+          textarea but the rendered height varies slightly with browser
+          font metrics, so the button drifted a couple px above center.
+          translate-based centering is height-agnostic. For multi-line
+          inputs the button stays at the visual middle of the composer,
+          which (paired with pr-12 reserving the right column) keeps it
+          clear of the text. AnimatePresence drives a subtle scale +
+          spring entrance and a fast tween exit so the button doesn't
+          appear to bounce-back during dismount. */}
       <AnimatePresence>
         {hasText && (
           <motion.button
@@ -531,11 +449,22 @@ function ChatInputForm({
             type="submit"
             disabled={!canSend}
             aria-label="Send"
-            initial={{ opacity: 0, scale: 0.4, y: 6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.4, y: 6 }}
-            transition={{ type: "spring", stiffness: 600, damping: 18 }}
-            className="absolute right-2 bottom-1.5 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
+            // y stays pinned at -50% so the button remains vertically
+            // centered on top: 50% across all three keyframes; scale +
+            // opacity animate the entrance/exit.
+            initial={{ opacity: 0, scale: 0.85, y: "-50%" }}
+            animate={{ opacity: 1, scale: 1, y: "-50%" }}
+            exit={{
+              opacity: 0,
+              scale: 0.85,
+              y: "-50%",
+              // Tween (not spring) on exit prevents framer-motion's
+              // overshoot from briefly bouncing the button back into
+              // view before dismount.
+              transition: { type: "tween", duration: 0.1, ease: "easeOut" },
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 28 }}
+            className="absolute right-2 top-1/2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90 disabled:opacity-50"
           >
             <FiArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
           </motion.button>
