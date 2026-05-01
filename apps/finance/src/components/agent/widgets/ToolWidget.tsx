@@ -5,13 +5,25 @@ import BudgetListWidget, { type BudgetListData } from "./BudgetListWidget";
 import TransactionListWidget, { type TransactionListData } from "./TransactionListWidget";
 import SpendingBreakdownWidget, { type SpendingBreakdownData } from "./SpendingBreakdownWidget";
 import AccountListWidget, { type AccountListData } from "./AccountListWidget";
+import RecategorizationWidget, {
+  type RecategorizationData,
+} from "./RecategorizationWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
   get_recent_transactions: "Pulling recent transactions",
   get_spending_by_category: "Computing spending breakdown",
   get_account_balances: "Loading account balances",
+  list_categories: "Loading categories",
+  propose_recategorization: "Preparing suggestion",
 };
+
+// Tools that produce data the model uses internally but isn't useful to
+// render. We skip the loading row entirely so the user doesn't see a
+// "loading categories…" flash that vanishes a beat later. The loading
+// row IS still shown for tools whose results render — it provides
+// a visible "thinking" indicator while a real widget is on its way.
+const HIDDEN_TOOLS = new Set<string>(["list_categories"]);
 
 export type ToolBlock = {
   id: string;
@@ -28,6 +40,11 @@ export type ToolBlock = {
  * display for unknown tools so future additions don't crash the UI.
  */
 export default function ToolWidget({ tool }: { tool: ToolBlock }) {
+  // Hidden tools render nothing — neither during execution nor after.
+  // This avoids a "Loading categories" row that briefly appears then
+  // disappears for tools whose result the user shouldn't see.
+  if (HIDDEN_TOOLS.has(tool.name)) return null;
+
   if (!tool.output) {
     return <ToolLoadingRow name={tool.name} />;
   }
@@ -52,6 +69,12 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
       return <SpendingBreakdownWidget data={tool.output as SpendingBreakdownData} />;
     case "get_account_balances":
       return <AccountListWidget data={tool.output as AccountListData} />;
+    case "propose_recategorization":
+      return (
+        <RecategorizationWidget
+          data={tool.output as RecategorizationData}
+        />
+      );
     default:
       return <UnknownToolFallback name={tool.name} output={tool.output} />;
   }

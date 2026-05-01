@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { FiTag, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame } from "./primitives";
+import {
+  MagicItem,
+  WidgetError,
+  WidgetFrame,
+  AnimateProvider,
+} from "./primitives";
 
 // Cap visible rows so a "show me 30 transactions" call doesn't paint a
 // wall of items in the chat. The user can flip pages to see more — same
@@ -48,16 +54,25 @@ export default function TransactionListWidget({ data }: { data: TransactionListD
   // Page state lives here so resetting it on conversation switch (widget
   // remounts) puts the user back on page 1 — feels right.
   const [page, setPage] = useState(0);
+  // Track which way the user is paging so the entrance/exit animations
+  // can match: clicking next slides the new page in from the right,
+  // clicking prev slides it in from the left. Initial mount uses 0
+  // (no slide; the per-row stagger handles entrance).
+  const [direction, setDirection] = useState<-1 | 0 | 1>(0);
 
   if (data.error) return <WidgetError message={data.error} />;
 
   const total = data.transactions.length;
   const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
-  // Clamp in case the data shape changes underneath us (defensive).
   const safePage = Math.min(page, totalPages - 1);
   const start = safePage * ITEMS_PER_PAGE;
   const end = Math.min(start + ITEMS_PER_PAGE, total);
   const visible = data.transactions.slice(start, end);
+
+  function handlePageChange(next: number) {
+    setDirection(next > safePage ? 1 : -1);
+    setPage(next);
+  }
 
   return (
     <WidgetFrame>
@@ -65,15 +80,11 @@ export default function TransactionListWidget({ data }: { data: TransactionListD
         <div className="text-xs text-[var(--color-muted)]">No transactions match.</div>
       ) : (
         <>
-          <div>
-            {visible.map((tx, i) => (
-              // Index by position-in-page so the magic stagger restarts
-              // cleanly each page (no growing delay across pages).
-              <MagicItem key={tx.id} index={i}>
-                <TransactionRow tx={tx} />
-              </MagicItem>
-            ))}
-          </div>
+          <PaginatedRows
+            visible={visible}
+            page={safePage}
+            direction={direction}
+          />
           {totalPages > 1 && (
             <PaginationFooter
               page={safePage}
@@ -81,12 +92,96 @@ export default function TransactionListWidget({ data }: { data: TransactionListD
               start={start + 1}
               end={end}
               total={total}
-              onChange={setPage}
+              onChange={handlePageChange}
             />
           )}
         </>
       )}
     </WidgetFrame>
+  );
+}
+
+/**
+ * Two animation modes share this list:
+ *
+ * - First render (direction === 0): inherit the parent's animate
+ *   context (MagicItem's scattered stagger plays for fresh messages,
+ *   nothing for history). This preserves the "magical entrance" the
+ *   widget had before pagination existed.
+ *
+ * - Pagination (direction !== 0): swap the whole page out with a
+ *   directional slide+blur, in via AnimatePresence keyed on `page`.
+ *   Per-row MagicItem animations are suppressed during a page swap
+ *   (we wrap the new page in AnimateProvider value=false) so the
+ *   slide reads as one cohesive motion instead of double-animating.
+ */
+function PaginatedRows({
+  visible,
+  page,
+  direction,
+}: {
+  visible: Transaction[];
+  page: number;
+  direction: -1 | 0 | 1;
+}) {
+  // First-render path: no AnimatePresence wrapper, no slide. Lets the
+  // parent's MagicItem stagger play unchanged.
+  if (direction === 0) {
+    return (
+      <div>
+        {visible.map((tx, i) => (
+          <MagicItem key={tx.id} index={i}>
+            <TransactionRow tx={tx} />
+          </MagicItem>
+        ))}
+      </div>
+    );
+  }
+
+  // Paging path: animated swap. mode="popLayout" lets the outgoing and
+  // incoming pages overlap for a moment so the slide reads as movement
+  // rather than a wipe. The slide distance is small (12px) — the goal
+  // is "this list shifted" not "this list flew across".
+  return (
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.div
+        key={page}
+        initial={{ opacity: 0, x: direction * 16, filter: "blur(3px)" }}
+        animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+        exit={{ opacity: 0, x: -direction * 16, filter: "blur(3px)" }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {/* Suppress per-row stagger during page swaps — the page-level
+            slide already carries the motion. Otherwise rows would
+            animate-in twice (slide + scattered stagger), which feels
+            busy and slightly disorients the eye. */}
+        <AnimateProvider animate={false}>
+          {visible.map((tx, i) => (
+            <ChildRowWithDelay key={tx.id} tx={tx} index={i} />
+          ))}
+        </AnimateProvider>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Per-row motion inside a paginated swap. Rows get a small staggered
+ * fade-up on top of the page-level slide, so the page reads as
+ * "assembling" rather than a flat slab. The MagicItem blur+scatter is
+ * deliberately off here — it would compound with the slide and feel
+ * busy. We're inside an AnimateProvider value={false} parent, so
+ * MagicItem itself wouldn't animate even if we used it.
+ */
+function ChildRowWithDelay({ tx, index }: { tx: Transaction; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.25, ease: "easeOut" }}
+    >
+      <TransactionRow tx={tx} />
+    </motion.div>
   );
 }
 

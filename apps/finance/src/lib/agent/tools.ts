@@ -175,6 +175,56 @@ export const TOOLS: ToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'list_categories',
+    description:
+      "List every category the user can assign a transaction to, grouped by " +
+      "category group. Call this before propose_recategorization so you have " +
+      "the valid category_id values to suggest. The response is small (~50 " +
+      "categories) and not rendered to the user — it's metadata for you. " +
+      "If the user just asks 'what categories exist?' you can summarise the " +
+      "groups in prose without rendering anything.",
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'propose_recategorization',
+    description:
+      "Suggest a category change for a single transaction. Renders an inline " +
+      "confirmation widget with accept/decline buttons — this tool does NOT " +
+      "write to the database; the user has to click accept for the change to " +
+      "happen. Use this when you have a concrete category suggestion that's " +
+      "better than the transaction's current category. If you think the " +
+      "current category is already best, do NOT call this tool — just say so " +
+      "in prose. Always call list_categories first so you know the valid " +
+      "category_id values.\n\n" +
+      "Example: user asks 'what could Claude.ai be recategorized to?' and " +
+      "you find it's currently 'Other General Service'. Call list_categories, " +
+      "find the 'Software' category id, then propose_recategorization with " +
+      "{ transaction_id, new_category_id, reasoning: \"It's a SaaS subscription\" }.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        transaction_id: {
+          type: 'string',
+          description: 'UUID of the transaction to recategorize. From get_recent_transactions.',
+        },
+        new_category_id: {
+          type: 'string',
+          description: 'UUID of the suggested category. From list_categories.',
+        },
+        reasoning: {
+          type: 'string',
+          description:
+            'One short sentence explaining why this category is a better fit. ' +
+            'Shown in the widget so the user understands the suggestion.',
+        },
+      },
+      required: ['transaction_id', 'new_category_id'],
+    },
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -185,7 +235,9 @@ type ToolName =
   | 'get_budgets'
   | 'get_recent_transactions'
   | 'get_spending_by_category'
-  | 'get_account_balances';
+  | 'get_account_balances'
+  | 'list_categories'
+  | 'propose_recategorization';
 
 interface BudgetsInput {
   month?: string;
@@ -206,6 +258,11 @@ interface RecentTransactionsInput {
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
+}
+interface ProposeRecategorizationInput {
+  transaction_id?: string;
+  new_category_id?: string;
+  reasoning?: string;
 }
 
 export async function executeTool(
@@ -229,6 +286,13 @@ export async function executeTool(
         );
       case 'get_account_balances':
         return await getAccountBalances(userId);
+      case 'list_categories':
+        return await listCategories();
+      case 'propose_recategorization':
+        return await proposeRecategorization(
+          userId,
+          (input as ProposeRecategorizationInput) ?? {},
+        );
       default:
         return { error: `Unknown tool: ${name}` };
     }
@@ -704,5 +768,182 @@ async function getAccountBalances(userId: string) {
       total_liabilities: Math.round(totals.liabilities * 100) / 100,
       net_worth: Math.round((totals.assets - totals.liabilities) * 100) / 100,
     },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Categorization tools
+// ──────────────────────────────────────────────────────────────────────────
+
+async function listCategories() {
+  // Categories are global (system_categories), so no userId scope needed.
+  // The user picks from the same set everyone else does.
+  const { data, error } = await supabaseAdmin
+    .from('system_categories')
+    .select(
+      `id, label, hex_color, group_id,
+       category_groups(id, name, icon_lib, icon_name, hex_color)`,
+    )
+    .order('label');
+
+  if (error) throw error;
+
+  // Group by category_group so the response shape matches how the user
+  // sees categories in the app (group → leaf categories).
+  type GroupBucket = {
+    id: string;
+    name: string;
+    icon_lib: string | null;
+    icon_name: string | null;
+    hex_color: string | null;
+    categories: { id: string; label: string; hex_color: string }[];
+  };
+  const buckets = new Map<string, GroupBucket>();
+
+  for (const cat of data ?? []) {
+    const group = cat.category_groups as
+      | {
+          id?: string;
+          name?: string;
+          icon_lib?: string | null;
+          icon_name?: string | null;
+          hex_color?: string | null;
+        }
+      | null;
+    if (!group?.id) continue;
+    const existing = buckets.get(group.id);
+    if (!existing) {
+      buckets.set(group.id, {
+        id: group.id,
+        name: group.name ?? 'Uncategorized',
+        icon_lib: group.icon_lib ?? null,
+        icon_name: group.icon_name ?? null,
+        hex_color: group.hex_color ?? null,
+        categories: [],
+      });
+    }
+    buckets.get(group.id)!.categories.push({
+      id: cat.id,
+      label: cat.label,
+      hex_color: cat.hex_color,
+    });
+  }
+
+  return {
+    groups: Array.from(buckets.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+  };
+}
+
+async function proposeRecategorization(
+  userId: string,
+  input: ProposeRecategorizationInput,
+) {
+  if (!input.transaction_id) {
+    return { error: 'transaction_id is required' };
+  }
+  if (!input.new_category_id) {
+    return { error: 'new_category_id is required' };
+  }
+
+  // Fetch the transaction with current category. The accounts!inner +
+  // accounts.user_id filter is the auth check — admin client bypasses
+  // RLS, so we have to scope by user_id ourselves.
+  const { data: tx, error: txError } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      `
+        id, amount, description, merchant_name, date, icon_url, category_id,
+        accounts!inner(user_id, name),
+        system_categories(
+          id, label, hex_color,
+          category_groups(name, icon_lib, icon_name, hex_color)
+        )
+      `,
+    )
+    .eq('id', input.transaction_id)
+    .eq('accounts.user_id', userId)
+    .maybeSingle();
+
+  if (txError) throw txError;
+  if (!tx) {
+    return {
+      error: `Transaction not found, or doesn't belong to this user: ${input.transaction_id}`,
+    };
+  }
+
+  // No-op detection — if the suggested category equals the current one,
+  // the model has nothing useful to propose. Surface that as an error so
+  // the model can self-correct rather than rendering a confusing "from
+  // X to X" widget.
+  if (tx.category_id === input.new_category_id) {
+    return {
+      error:
+        'The transaction is already in that category. If the current category is correct, just say so in your response without calling this tool.',
+    };
+  }
+
+  const { data: newCat, error: catError } = await supabaseAdmin
+    .from('system_categories')
+    .select(
+      `id, label, hex_color,
+       category_groups(name, icon_lib, icon_name, hex_color)`,
+    )
+    .eq('id', input.new_category_id)
+    .maybeSingle();
+
+  if (catError) throw catError;
+  if (!newCat) {
+    return { error: `Suggested category not found: ${input.new_category_id}` };
+  }
+
+  type CatGroup = {
+    name?: string | null;
+    icon_lib?: string | null;
+    icon_name?: string | null;
+    hex_color?: string | null;
+  };
+  const currentSysCat = tx.system_categories as
+    | {
+        id?: string;
+        label?: string;
+        hex_color?: string;
+        category_groups?: CatGroup | null;
+      }
+    | null;
+  const currentGroup = currentSysCat?.category_groups ?? null;
+  const newGroup = newCat.category_groups as CatGroup | null;
+
+  return {
+    transaction: {
+      id: tx.id,
+      description: tx.description,
+      merchant_name: tx.merchant_name,
+      amount: Number(tx.amount ?? 0),
+      date: tx.date,
+      icon_url: tx.icon_url ?? null,
+    },
+    current_category: currentSysCat
+      ? {
+          id: currentSysCat.id ?? null,
+          label: currentSysCat.label ?? 'Uncategorized',
+          hex_color: currentSysCat.hex_color ?? '#71717a',
+          group_name: currentGroup?.name ?? null,
+          group_color: currentGroup?.hex_color ?? null,
+          icon_lib: currentGroup?.icon_lib ?? null,
+          icon_name: currentGroup?.icon_name ?? null,
+        }
+      : null,
+    suggested_category: {
+      id: newCat.id,
+      label: newCat.label,
+      hex_color: newCat.hex_color ?? '#71717a',
+      group_name: newGroup?.name ?? null,
+      group_color: newGroup?.hex_color ?? null,
+      icon_lib: newGroup?.icon_lib ?? null,
+      icon_name: newGroup?.icon_name ?? null,
+    },
+    reasoning: input.reasoning ?? null,
   };
 }
