@@ -234,6 +234,116 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'get_recurring_transactions',
+    description:
+      "List recurring payments the user has, detected by Plaid (rent/mortgage, " +
+      "subscriptions, utilities, etc). Each has a merchant, frequency, average " +
+      "amount, and the last/next predicted dates. Useful when consulting on " +
+      "budgets — recurring expenses are the obvious candidates for category " +
+      "budgets, and surfacing them helps the user see commitments they might " +
+      "have forgotten about. Note: only includes recurring streams that have " +
+      "transactions in connected accounts. The user may have other commitments " +
+      "(e.g. mortgage paid from an unconnected account) that won't appear here " +
+      "— ask about those when consulting.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        active_only: {
+          type: 'boolean',
+          description: 'If true, only return active recurring streams. Defaults to true.',
+        },
+      },
+    },
+  },
+  {
+    name: 'propose_budget_create',
+    description:
+      "Propose a NEW budget. Renders an inline accept/decline widget; does NOT " +
+      "write until the user accepts.\n\n" +
+      "Set EITHER category_group_id (preferred — covers all leaf categories " +
+      "under that group, e.g. all Food and Drink) OR category_id (specific " +
+      "leaf, e.g. just Coffee Shops). NOT both.\n\n" +
+      "Use during budget consultation: after gathering context (current " +
+      "budgets, spending breakdown, recurring streams, user's commitments), " +
+      "propose budgets one at a time so the user can accept each on its own. " +
+      "Don't dump 8 widgets in a single response — that's overwhelming.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        category_group_id: {
+          type: 'string',
+          description: 'UUID of the category group. From list_categories.',
+        },
+        category_id: {
+          type: 'string',
+          description:
+            'UUID of a specific leaf category. Use category_group_id instead unless the user wants a budget on just one leaf.',
+        },
+        amount: {
+          type: 'number',
+          description: 'Monthly budget amount in dollars (positive number).',
+          minimum: 0.01,
+        },
+        reasoning: {
+          type: 'string',
+          description:
+            'Optional one-sentence explanation of why this amount. The widget does not currently render it but pass it through anyway.',
+        },
+      },
+      required: ['amount'],
+    },
+  },
+  {
+    name: 'propose_budget_update',
+    description:
+      "Propose changing an EXISTING budget's amount. Renders an inline " +
+      "accept/decline widget showing OLD → NEW. Pass the budget_id from " +
+      "get_budgets, plus the new amount.\n\n" +
+      "Use when the user says things like 'raise my dining budget to $600' " +
+      "or 'lower my groceries budget'. If they want to change which category " +
+      "a budget tracks, propose a delete + create instead.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        budget_id: {
+          type: 'string',
+          description: 'UUID of the existing budget. From get_budgets.',
+        },
+        new_amount: {
+          type: 'number',
+          description: 'New monthly amount (positive number).',
+          minimum: 0.01,
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Optional one-sentence explanation.',
+        },
+      },
+      required: ['budget_id', 'new_amount'],
+    },
+  },
+  {
+    name: 'propose_budget_delete',
+    description:
+      "Propose removing an existing budget. Renders an inline accept/decline " +
+      "widget. Pass the budget_id from get_budgets. Use when the user wants to " +
+      "stop tracking a category, or when a budget no longer fits their life.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        budget_id: {
+          type: 'string',
+          description: 'UUID of the budget to delete. From get_budgets.',
+        },
+        reasoning: {
+          type: 'string',
+          description: 'Optional one-sentence explanation.',
+        },
+      },
+      required: ['budget_id'],
+    },
+  },
+  {
     name: 'propose_category_rule',
     description:
       "Propose a permanent category rule that auto-categorizes future " +
@@ -312,8 +422,12 @@ type ToolName =
   | 'get_spending_by_category'
   | 'get_account_balances'
   | 'list_categories'
+  | 'get_recurring_transactions'
   | 'propose_recategorization'
-  | 'propose_category_rule';
+  | 'propose_category_rule'
+  | 'propose_budget_create'
+  | 'propose_budget_update'
+  | 'propose_budget_delete';
 
 interface BudgetsInput {
   month?: string;
@@ -353,6 +467,28 @@ interface ProposeCategoryRuleInput {
   reasoning?: string;
 }
 
+interface GetRecurringTransactionsInput {
+  active_only?: boolean;
+}
+
+interface ProposeBudgetCreateInput {
+  category_id?: string;
+  category_group_id?: string;
+  amount?: number;
+  reasoning?: string;
+}
+
+interface ProposeBudgetUpdateInput {
+  budget_id?: string;
+  new_amount?: number;
+  reasoning?: string;
+}
+
+interface ProposeBudgetDeleteInput {
+  budget_id?: string;
+  reasoning?: string;
+}
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -385,6 +521,26 @@ export async function executeTool(
         return await proposeCategoryRule(
           userId,
           (input as ProposeCategoryRuleInput) ?? {},
+        );
+      case 'get_recurring_transactions':
+        return await getRecurringTransactions(
+          userId,
+          (input as GetRecurringTransactionsInput) ?? {},
+        );
+      case 'propose_budget_create':
+        return await proposeBudgetCreate(
+          userId,
+          (input as ProposeBudgetCreateInput) ?? {},
+        );
+      case 'propose_budget_update':
+        return await proposeBudgetUpdate(
+          userId,
+          (input as ProposeBudgetUpdateInput) ?? {},
+        );
+      case 'propose_budget_delete':
+        return await proposeBudgetDelete(
+          userId,
+          (input as ProposeBudgetDeleteInput) ?? {},
         );
       default:
         return { error: `Unknown tool: ${name}` };
@@ -1156,5 +1312,270 @@ async function proposeCategoryRule(
     conditions: normalized,
     reasoning: input.reasoning ?? null,
     approx_match_count: approxMatchCount,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Recurring transactions — read tool surfacing detected recurring streams
+// ──────────────────────────────────────────────────────────────────────────
+
+async function getRecurringTransactions(
+  userId: string,
+  input: GetRecurringTransactionsInput,
+) {
+  const activeOnly = input.active_only ?? true;
+
+  let query = supabaseAdmin
+    .from('recurring_streams')
+    .select(
+      `
+        id, merchant_name, description, average_amount, last_amount,
+        frequency, last_date, predicted_next_date, status, stream_type,
+        is_active, category_primary, category_detailed
+      `,
+    )
+    .eq('user_id', userId)
+    .order('last_date', { ascending: false });
+
+  if (activeOnly) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const streams = (data ?? []).map((s) => ({
+    id: s.id,
+    merchant: s.merchant_name ?? s.description,
+    average_amount: Number(s.average_amount ?? 0),
+    last_amount: Number(s.last_amount ?? 0),
+    frequency: s.frequency,
+    last_date: s.last_date,
+    next_predicted_date: s.predicted_next_date,
+    direction: (Number(s.average_amount) >= 0 ? 'inflow' : 'outflow') as
+      | 'inflow'
+      | 'outflow',
+    plaid_category: s.category_detailed ?? s.category_primary ?? null,
+    is_active: s.is_active,
+  }));
+
+  // Sort outflows by absolute amount descending so the model sees the
+  // biggest recurring expenses first when consulting on budgets.
+  streams.sort((a, b) => Math.abs(b.average_amount) - Math.abs(a.average_amount));
+
+  return {
+    count: streams.length,
+    streams,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Budget proposals — create / update / delete (gated by user accept)
+// ──────────────────────────────────────────────────────────────────────────
+
+type BudgetTargetCategory = {
+  id: string;
+  label: string;
+  hex_color: string;
+  // For group-budgets, group_* fields are the same as the top-level
+  // identity (since the group IS the target). For category-budgets,
+  // group_* describes the parent group. Lets the widget render
+  // consistent visuals (colored dot from group color, label from
+  // group/leaf as appropriate).
+  group_name: string | null;
+  group_color: string | null;
+  icon_lib: string | null;
+  icon_name: string | null;
+  scope: 'group' | 'category';
+};
+
+async function fetchBudgetTargetByGroup(
+  groupId: string,
+): Promise<BudgetTargetCategory | { error: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('category_groups')
+    .select('id, name, hex_color, icon_lib, icon_name')
+    .eq('id', groupId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { error: `Category group not found: ${groupId}` };
+  return {
+    id: data.id,
+    label: data.name,
+    hex_color: data.hex_color ?? '#71717a',
+    group_name: data.name,
+    group_color: data.hex_color ?? null,
+    icon_lib: data.icon_lib ?? null,
+    icon_name: data.icon_name ?? null,
+    scope: 'group',
+  };
+}
+
+async function fetchBudgetTargetByCategory(
+  categoryId: string,
+): Promise<BudgetTargetCategory | { error: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('system_categories')
+    .select(
+      `id, label, hex_color,
+       category_groups(name, hex_color, icon_lib, icon_name)`,
+    )
+    .eq('id', categoryId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { error: `Category not found: ${categoryId}` };
+  const group = data.category_groups as
+    | {
+        name?: string | null;
+        hex_color?: string | null;
+        icon_lib?: string | null;
+        icon_name?: string | null;
+      }
+    | null;
+  return {
+    id: data.id,
+    label: data.label,
+    hex_color: data.hex_color ?? '#71717a',
+    group_name: group?.name ?? null,
+    group_color: group?.hex_color ?? null,
+    icon_lib: group?.icon_lib ?? null,
+    icon_name: group?.icon_name ?? null,
+    scope: 'category',
+  };
+}
+
+async function proposeBudgetCreate(
+  userId: string,
+  input: ProposeBudgetCreateInput,
+) {
+  if (typeof input.amount !== 'number' || !(input.amount > 0)) {
+    return { error: 'amount must be a positive number' };
+  }
+  if (!input.category_group_id && !input.category_id) {
+    return {
+      error:
+        'Set either category_group_id (preferred) or category_id. Neither was provided.',
+    };
+  }
+  if (input.category_group_id && input.category_id) {
+    return {
+      error:
+        'Set EITHER category_group_id OR category_id, not both. Pick one scope.',
+    };
+  }
+
+  // Reject duplicates — a user shouldn't have two budgets for the same
+  // category/group. Direct them toward propose_budget_update instead.
+  const dupQuery = supabaseAdmin
+    .from('budgets')
+    .select('id, amount')
+    .eq('user_id', userId);
+  const { data: existing } = input.category_group_id
+    ? await dupQuery.eq('category_group_id', input.category_group_id).maybeSingle()
+    : await dupQuery.eq('category_id', input.category_id!).maybeSingle();
+
+  if (existing) {
+    return {
+      error:
+        `A budget for this category already exists (id: ${existing.id}, amount: $${existing.amount}). ` +
+        `Use propose_budget_update to change the amount, or propose_budget_delete to remove it.`,
+    };
+  }
+
+  const target = input.category_group_id
+    ? await fetchBudgetTargetByGroup(input.category_group_id)
+    : await fetchBudgetTargetByCategory(input.category_id!);
+  if ('error' in target) return target;
+
+  return {
+    action: 'create' as const,
+    target,
+    amount: input.amount,
+    reasoning: input.reasoning ?? null,
+  };
+}
+
+async function proposeBudgetUpdate(
+  userId: string,
+  input: ProposeBudgetUpdateInput,
+) {
+  if (!input.budget_id) {
+    return { error: 'budget_id is required' };
+  }
+  if (typeof input.new_amount !== 'number' || !(input.new_amount > 0)) {
+    return { error: 'new_amount must be a positive number' };
+  }
+
+  const { data: budget, error } = await supabaseAdmin
+    .from('budgets')
+    .select('id, amount, category_id, category_group_id, period, user_id')
+    .eq('id', input.budget_id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!budget) {
+    return { error: `Budget not found, or doesn't belong to this user: ${input.budget_id}` };
+  }
+
+  if (Math.abs(Number(budget.amount) - input.new_amount) < 0.01) {
+    return {
+      error:
+        `That's already the budget's current amount ($${budget.amount}). Nothing to change.`,
+    };
+  }
+
+  const target = budget.category_group_id
+    ? await fetchBudgetTargetByGroup(budget.category_group_id)
+    : budget.category_id
+      ? await fetchBudgetTargetByCategory(budget.category_id)
+      : null;
+  if (!target || 'error' in (target ?? {})) {
+    return { error: "Budget's target category could not be loaded" };
+  }
+
+  return {
+    action: 'update' as const,
+    budget_id: budget.id,
+    target: target as BudgetTargetCategory,
+    current_amount: Number(budget.amount),
+    amount: input.new_amount,
+    reasoning: input.reasoning ?? null,
+  };
+}
+
+async function proposeBudgetDelete(
+  userId: string,
+  input: ProposeBudgetDeleteInput,
+) {
+  if (!input.budget_id) {
+    return { error: 'budget_id is required' };
+  }
+
+  const { data: budget, error } = await supabaseAdmin
+    .from('budgets')
+    .select('id, amount, category_id, category_group_id, period, user_id')
+    .eq('id', input.budget_id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!budget) {
+    return { error: `Budget not found, or doesn't belong to this user: ${input.budget_id}` };
+  }
+
+  const target = budget.category_group_id
+    ? await fetchBudgetTargetByGroup(budget.category_group_id)
+    : budget.category_id
+      ? await fetchBudgetTargetByCategory(budget.category_id)
+      : null;
+  if (!target || 'error' in (target ?? {})) {
+    return { error: "Budget's target category could not be loaded" };
+  }
+
+  return {
+    action: 'delete' as const,
+    budget_id: budget.id,
+    target: target as BudgetTargetCategory,
+    current_amount: Number(budget.amount),
+    reasoning: input.reasoning ?? null,
   };
 }

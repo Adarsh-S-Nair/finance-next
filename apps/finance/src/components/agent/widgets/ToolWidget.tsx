@@ -11,6 +11,9 @@ import RecategorizationWidget, {
 import CategoryRuleWidget, {
   type CategoryRuleData,
 } from "./CategoryRuleWidget";
+import BudgetProposalWidget, {
+  type BudgetProposalData,
+} from "./BudgetProposalWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -18,8 +21,12 @@ const TOOL_LABELS: Record<string, string> = {
   get_spending_by_category: "Computing spending breakdown",
   get_account_balances: "Loading account balances",
   list_categories: "Loading categories",
+  get_recurring_transactions: "Looking up recurring payments",
   propose_recategorization: "Preparing suggestion",
   propose_category_rule: "Preparing rule",
+  propose_budget_create: "Preparing budget proposal",
+  propose_budget_update: "Preparing budget update",
+  propose_budget_delete: "Preparing budget removal",
 };
 
 // Tools that produce data the model uses internally but isn't useful to
@@ -27,7 +34,10 @@ const TOOL_LABELS: Record<string, string> = {
 // "loading categories…" flash that vanishes a beat later. The loading
 // row IS still shown for tools whose results render — it provides
 // a visible "thinking" indicator while a real widget is on its way.
-const HIDDEN_TOOLS = new Set<string>(["list_categories"]);
+const HIDDEN_TOOLS = new Set<string>([
+  "list_categories",
+  "get_recurring_transactions",
+]);
 
 export type ToolBlock = {
   id: string;
@@ -88,6 +98,15 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
         <CategoryRuleWidget
           toolUseId={tool.id}
           data={tool.output as CategoryRuleData}
+        />
+      );
+    case "propose_budget_create":
+    case "propose_budget_update":
+    case "propose_budget_delete":
+      return (
+        <BudgetProposalWidget
+          toolUseId={tool.id}
+          data={tool.output as BudgetProposalData}
         />
       );
     default:
