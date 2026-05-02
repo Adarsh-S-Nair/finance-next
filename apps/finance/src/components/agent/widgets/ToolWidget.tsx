@@ -8,6 +8,9 @@ import AccountListWidget, { type AccountListData } from "./AccountListWidget";
 import RecategorizationWidget, {
   type RecategorizationData,
 } from "./RecategorizationWidget";
+import CategoryRuleWidget, {
+  type CategoryRuleData,
+} from "./CategoryRuleWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -16,6 +19,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_account_balances: "Loading account balances",
   list_categories: "Loading categories",
   propose_recategorization: "Preparing suggestion",
+  propose_category_rule: "Preparing rule",
 };
 
 // Tools that produce data the model uses internally but isn't useful to
@@ -77,6 +81,13 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
         <RecategorizationWidget
           toolUseId={tool.id}
           data={tool.output as RecategorizationData}
+        />
+      );
+    case "propose_category_rule":
+      return (
+        <CategoryRuleWidget
+          toolUseId={tool.id}
+          data={tool.output as CategoryRuleData}
         />
       );
     default:

@@ -192,24 +192,31 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: 'propose_recategorization',
     description:
-      "Suggest a category change for a single transaction. Renders an inline " +
+      "Suggest a category change for one OR MORE transactions. Renders an inline " +
       "confirmation widget with accept/decline buttons — this tool does NOT " +
       "write to the database; the user has to click accept for the change to " +
-      "happen. Use this when you have a concrete category suggestion that's " +
-      "better than the transaction's current category. If you think the " +
-      "current category is already best, do NOT call this tool — just say so " +
-      "in prose. Always call list_categories first so you know the valid " +
+      "happen. Always call list_categories first so you know the valid " +
       "category_id values.\n\n" +
-      "Example: user asks 'what could Claude.ai be recategorized to?' and " +
-      "you find it's currently 'Other General Service'. Call list_categories, " +
-      "find the 'Software' category id, then propose_recategorization with " +
-      "{ transaction_id, new_category_id, reasoning: \"It's a SaaS subscription\" }.",
+      "Pass an array of transaction_ids. The widget adapts:\n" +
+      "- 1 id → single-row layout showing FROM → TO\n" +
+      "- N ids → bulk layout listing all transactions, one accept button applies to all\n\n" +
+      "Reach for the bulk shape when the user wants to fix a recurring merchant " +
+      "(e.g. 'recategorize all my Dunkin transactions', or 'change my Coffee " +
+      "transactions to Fast Food'). Pull the matching transactions with " +
+      "get_recent_transactions first, then pass all matching ids in one call. " +
+      "Do NOT call this tool multiple times in a row for the same merchant — " +
+      "that produces multiple widgets when one bulk widget reads better.\n\n" +
+      "If the current category is already best, don't call this tool — just say so.",
     input_schema: {
       type: 'object',
       properties: {
-        transaction_id: {
-          type: 'string',
-          description: 'UUID of the transaction to recategorize. From get_recent_transactions.',
+        transaction_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'UUIDs of the transactions to recategorize. From get_recent_transactions. ' +
+            'Pass one for a single-row widget, multiple for a bulk widget.',
+          minItems: 1,
         },
         new_category_id: {
           type: 'string',
@@ -218,11 +225,79 @@ export const TOOLS: ToolDefinition[] = [
         reasoning: {
           type: 'string',
           description:
-            'One short sentence explaining why this category is a better fit. ' +
-            'Shown in the widget so the user understands the suggestion.',
+            'One short sentence explaining why. Shown in the widget so the ' +
+            'user understands the suggestion. (Currently not rendered, but ' +
+            'still passed through for future use — feel free to provide it.)',
         },
       },
-      required: ['transaction_id', 'new_category_id'],
+      required: ['transaction_ids', 'new_category_id'],
+    },
+  },
+  {
+    name: 'propose_category_rule',
+    description:
+      "Propose a permanent category rule that auto-categorizes future " +
+      "transactions matching a pattern. Renders an inline accept/decline widget; " +
+      "does NOT write until the user accepts.\n\n" +
+      "Use this in two situations:\n" +
+      "1. AFTER a successful bulk recategorization, when the user says they'd " +
+      "   like the same change to apply going forward.\n" +
+      "2. When the user explicitly asks for automation up front (e.g. " +
+      "   'always categorize Dunkin as Fast Food', 'every Spotify charge is " +
+      "   entertainment').\n\n" +
+      "Rules apply to FUTURE transactions automatically (during Plaid sync). " +
+      "They do NOT retroactively touch existing transactions — pair with " +
+      "propose_recategorization (in a separate turn or earlier in this turn) " +
+      "if the user wants to fix existing ones too.\n\n" +
+      "Conditions are AND-ed together. The most common shape is a single " +
+      "merchant_name match: [{ field: 'merchant_name', operator: 'contains', " +
+      "value: 'Dunkin' }]. Match on 'merchant_name' when available; fall back " +
+      "to 'description' for transactions where merchant_name is null.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        category_id: {
+          type: 'string',
+          description: 'UUID of the target category for the rule. From list_categories.',
+        },
+        conditions: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            properties: {
+              field: {
+                type: 'string',
+                enum: ['merchant_name', 'description', 'amount'],
+              },
+              operator: {
+                type: 'string',
+                enum: [
+                  'is',
+                  'equals',
+                  'contains',
+                  'starts_with',
+                  'is_greater_than',
+                  'is_less_than',
+                ],
+              },
+              value: {
+                description: 'Match value. String for text fields, number for amount.',
+              },
+            },
+            required: ['field', 'operator', 'value'],
+          },
+          description:
+            'Match conditions. ALL must match for the rule to apply. Most rules ' +
+            'are a single merchant_name contains check.',
+        },
+        reasoning: {
+          type: 'string',
+          description:
+            'Optional short sentence explaining the rule. Shown in the widget so the user understands what they\'re accepting.',
+        },
+      },
+      required: ['category_id', 'conditions'],
     },
   },
 ];
@@ -237,7 +312,8 @@ type ToolName =
   | 'get_spending_by_category'
   | 'get_account_balances'
   | 'list_categories'
-  | 'propose_recategorization';
+  | 'propose_recategorization'
+  | 'propose_category_rule';
 
 interface BudgetsInput {
   month?: string;
@@ -260,8 +336,20 @@ interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
 }
 interface ProposeRecategorizationInput {
-  transaction_id?: string;
+  transaction_ids?: string[];
   new_category_id?: string;
+  reasoning?: string;
+}
+
+interface CategoryRuleCondition {
+  field?: string;
+  operator?: string;
+  value?: string | number;
+}
+
+interface ProposeCategoryRuleInput {
+  category_id?: string;
+  conditions?: CategoryRuleCondition[];
   reasoning?: string;
 }
 
@@ -292,6 +380,11 @@ export async function executeTool(
         return await proposeRecategorization(
           userId,
           (input as ProposeRecategorizationInput) ?? {},
+        );
+      case 'propose_category_rule':
+        return await proposeCategoryRule(
+          userId,
+          (input as ProposeCategoryRuleInput) ?? {},
         );
       default:
         return { error: `Unknown tool: ${name}` };
@@ -836,21 +929,59 @@ async function listCategories() {
   };
 }
 
+type CatGroupRow = {
+  name?: string | null;
+  icon_lib?: string | null;
+  icon_name?: string | null;
+  hex_color?: string | null;
+};
+
+type CategoryShape = {
+  id: string | null;
+  label: string;
+  hex_color: string;
+  group_name: string | null;
+  group_color: string | null;
+  icon_lib: string | null;
+  icon_name: string | null;
+};
+
+function shapeCategory(
+  cat: {
+    id?: string | null;
+    label?: string | null;
+    hex_color?: string | null;
+    category_groups?: CatGroupRow | null;
+  } | null,
+): CategoryShape | null {
+  if (!cat) return null;
+  const group = cat.category_groups ?? null;
+  return {
+    id: cat.id ?? null,
+    label: cat.label ?? 'Uncategorized',
+    hex_color: cat.hex_color ?? '#71717a',
+    group_name: group?.name ?? null,
+    group_color: group?.hex_color ?? null,
+    icon_lib: group?.icon_lib ?? null,
+    icon_name: group?.icon_name ?? null,
+  };
+}
+
 async function proposeRecategorization(
   userId: string,
   input: ProposeRecategorizationInput,
 ) {
-  if (!input.transaction_id) {
-    return { error: 'transaction_id is required' };
+  const ids = input.transaction_ids ?? [];
+  if (ids.length === 0) {
+    return { error: 'transaction_ids must be a non-empty array' };
   }
   if (!input.new_category_id) {
     return { error: 'new_category_id is required' };
   }
 
-  // Fetch the transaction with current category. The accounts!inner +
-  // accounts.user_id filter is the auth check — admin client bypasses
-  // RLS, so we have to scope by user_id ourselves.
-  const { data: tx, error: txError } = await supabaseAdmin
+  // Fetch all the transactions in one query, scoped to the user via
+  // accounts!inner. The .in() filter accepts the array directly.
+  const { data: txs, error: txError } = await supabaseAdmin
     .from('transactions')
     .select(
       `
@@ -862,25 +993,31 @@ async function proposeRecategorization(
         )
       `,
     )
-    .eq('id', input.transaction_id)
-    .eq('accounts.user_id', userId)
-    .maybeSingle();
+    .in('id', ids)
+    .eq('accounts.user_id', userId);
 
   if (txError) throw txError;
-  if (!tx) {
+  if (!txs || txs.length === 0) {
     return {
-      error: `Transaction not found, or doesn't belong to this user: ${input.transaction_id}`,
+      error: 'No matching transactions found, or none belong to this user.',
     };
   }
+  if (txs.length !== ids.length) {
+    const found = new Set(txs.map((t) => t.id));
+    const missing = ids.filter((id) => !found.has(id));
+    return { error: `Some transactions not found: ${missing.join(', ')}` };
+  }
 
-  // No-op detection — if the suggested category equals the current one,
-  // the model has nothing useful to propose. Surface that as an error so
-  // the model can self-correct rather than rendering a confusing "from
-  // X to X" widget.
-  if (tx.category_id === input.new_category_id) {
+  // No-op detection — if every transaction is already in the target,
+  // there's nothing to do. Surface as error so the model self-corrects
+  // rather than rendering a confusing "from X to X" widget.
+  const allInTarget = txs.every(
+    (t) => t.category_id === input.new_category_id,
+  );
+  if (allInTarget) {
     return {
       error:
-        'The transaction is already in that category. If the current category is correct, just say so in your response without calling this tool.',
+        'All transactions are already in that category. Nothing to recategorize. Just say so in your response.',
     };
   }
 
@@ -898,52 +1035,126 @@ async function proposeRecategorization(
     return { error: `Suggested category not found: ${input.new_category_id}` };
   }
 
-  type CatGroup = {
-    name?: string | null;
-    icon_lib?: string | null;
-    icon_name?: string | null;
-    hex_color?: string | null;
-  };
-  const currentSysCat = tx.system_categories as
-    | {
-        id?: string;
-        label?: string;
-        hex_color?: string;
-        category_groups?: CatGroup | null;
-      }
-    | null;
-  const currentGroup = currentSysCat?.category_groups ?? null;
-  const newGroup = newCat.category_groups as CatGroup | null;
+  // If every transaction shares the same current category, we can show
+  // a meaningful FROM in the widget. If categories differ across the
+  // batch, FROM is genuinely "mixed" — leave it null and the widget
+  // will only render the TO line.
+  const currentCategoryIds = new Set(
+    txs.map((t) => t.category_id ?? '__null__'),
+  );
+  const sharedCurrent =
+    currentCategoryIds.size === 1
+      ? (txs[0].system_categories as Parameters<typeof shapeCategory>[0])
+      : null;
 
   return {
-    transaction: {
-      id: tx.id,
-      description: tx.description,
-      merchant_name: tx.merchant_name,
-      amount: Number(tx.amount ?? 0),
-      date: tx.date,
-      icon_url: tx.icon_url ?? null,
-    },
-    current_category: currentSysCat
-      ? {
-          id: currentSysCat.id ?? null,
-          label: currentSysCat.label ?? 'Uncategorized',
-          hex_color: currentSysCat.hex_color ?? '#71717a',
-          group_name: currentGroup?.name ?? null,
-          group_color: currentGroup?.hex_color ?? null,
-          icon_lib: currentGroup?.icon_lib ?? null,
-          icon_name: currentGroup?.icon_name ?? null,
-        }
-      : null,
-    suggested_category: {
-      id: newCat.id,
-      label: newCat.label,
-      hex_color: newCat.hex_color ?? '#71717a',
-      group_name: newGroup?.name ?? null,
-      group_color: newGroup?.hex_color ?? null,
-      icon_lib: newGroup?.icon_lib ?? null,
-      icon_name: newGroup?.icon_name ?? null,
-    },
+    transactions: txs.map((t) => ({
+      id: t.id,
+      description: t.description,
+      merchant_name: t.merchant_name,
+      amount: Number(t.amount ?? 0),
+      date: t.date,
+      icon_url: t.icon_url ?? null,
+    })),
+    current_category: shapeCategory(sharedCurrent),
+    suggested_category: shapeCategory(
+      newCat as Parameters<typeof shapeCategory>[0],
+    )!,
     reasoning: input.reasoning ?? null,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Category rules — propose a permanent auto-categorization rule
+// ──────────────────────────────────────────────────────────────────────────
+
+const ALLOWED_RULE_FIELDS = new Set([
+  'merchant_name',
+  'description',
+  'amount',
+]);
+const ALLOWED_RULE_OPERATORS = new Set([
+  'is',
+  'equals',
+  'contains',
+  'starts_with',
+  'is_greater_than',
+  'is_less_than',
+]);
+
+async function proposeCategoryRule(
+  userId: string,
+  input: ProposeCategoryRuleInput,
+) {
+  if (!input.category_id) {
+    return { error: 'category_id is required' };
+  }
+  const conditions = input.conditions ?? [];
+  if (conditions.length === 0) {
+    return { error: 'conditions must be a non-empty array' };
+  }
+
+  // Validate each condition — sanitize so the widget and downstream
+  // upsert get clean data and the model can't smuggle in unexpected
+  // operators or fields.
+  const normalized: { field: string; operator: string; value: string | number }[] = [];
+  for (const c of conditions) {
+    if (!c.field || !ALLOWED_RULE_FIELDS.has(c.field)) {
+      return {
+        error: `Invalid field: ${c.field}. Allowed: ${Array.from(ALLOWED_RULE_FIELDS).join(', ')}`,
+      };
+    }
+    if (!c.operator || !ALLOWED_RULE_OPERATORS.has(c.operator)) {
+      return {
+        error: `Invalid operator: ${c.operator}. Allowed: ${Array.from(ALLOWED_RULE_OPERATORS).join(', ')}`,
+      };
+    }
+    if (c.value === undefined || c.value === null || c.value === '') {
+      return { error: `Condition is missing a value: ${c.field} ${c.operator} ?` };
+    }
+    normalized.push({
+      field: c.field,
+      operator: c.operator,
+      value: c.value,
+    });
+  }
+
+  const { data: cat, error: catError } = await supabaseAdmin
+    .from('system_categories')
+    .select(
+      `id, label, hex_color,
+       category_groups(name, icon_lib, icon_name, hex_color)`,
+    )
+    .eq('id', input.category_id)
+    .maybeSingle();
+
+  if (catError) throw catError;
+  if (!cat) return { error: `Category not found: ${input.category_id}` };
+
+  // Optional — count the user's existing transactions that match the
+  // FIRST condition (cheap, indicative). Skipped for amount-based rules
+  // since those need numeric handling we don't bother with here.
+  let approxMatchCount: number | null = null;
+  const head = normalized[0];
+  if (head.field !== 'amount') {
+    const { count } = await supabaseAdmin
+      .from('transactions')
+      .select('id, accounts!inner(user_id)', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('accounts.user_id', userId)
+      .ilike(head.field, `%${head.value}%`);
+    approxMatchCount = count ?? null;
+  }
+
+  // Mark which user_id this rule is FOR — useful for the rule-creation
+  // endpoint, harmless to expose to the widget (it's the caller's id).
+  return {
+    user_id: userId,
+    category: shapeCategory(cat as Parameters<typeof shapeCategory>[0])!,
+    conditions: normalized,
+    reasoning: input.reasoning ?? null,
+    approx_match_count: approxMatchCount,
   };
 }

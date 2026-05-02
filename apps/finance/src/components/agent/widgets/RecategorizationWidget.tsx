@@ -29,12 +29,25 @@ type Transaction = {
 };
 
 export type RecategorizationData = {
-  transaction: Transaction;
+  // The new tool shape returns an array. Keeping `transaction` here
+  // (singular, optional) for backward compat — historical conversations
+  // were persisted before this change and the widget needs to render
+  // them without crashing. normalizeTransactions() unifies the two.
+  transactions?: Transaction[];
+  transaction?: Transaction;
   current_category: Category | null;
   suggested_category: Category;
   reasoning: string | null;
   error?: string;
 };
+
+function normalizeTransactions(data: RecategorizationData): Transaction[] {
+  if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+    return data.transactions;
+  }
+  if (data.transaction) return [data.transaction];
+  return [];
+}
 
 // Local widget state. The `silent` flag on accepted/declined skips the
 // entrance animation when the widget is rehydrating an action that
@@ -118,16 +131,21 @@ export default function RecategorizationWidget({
 
   if (data.error) return <WidgetError message={data.error} />;
 
+  const transactions = normalizeTransactions(data);
+  if (transactions.length === 0) {
+    return <WidgetError message="No transactions to recategorize" />;
+  }
+
   async function handleAccept() {
     setState({ kind: "committing" });
     try {
-      // Step 1: actually move the transaction to the suggested category.
+      // Step 1: actually move the transaction(s) to the suggested category.
       // This is the durable side effect the user is consenting to.
       const recatRes = await authFetch("/api/agent/recategorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          transaction_id: data.transaction.id,
+          transaction_ids: transactions.map((t) => t.id),
           category_id: data.suggested_category.id,
         }),
       });
@@ -188,7 +206,7 @@ export default function RecategorizationWidget({
           <ResolvedState
             key="accepted"
             tone="accepted"
-            tx={data.transaction}
+            transactions={transactions}
             resolvedCategory={data.suggested_category}
             silent={state.silent}
           />
@@ -196,14 +214,14 @@ export default function RecategorizationWidget({
           <ResolvedState
             key="declined"
             tone="declined"
-            tx={data.transaction}
+            transactions={transactions}
             resolvedCategory={data.current_category ?? data.suggested_category}
             silent={state.silent}
           />
         ) : (
           <ProposalState
             key="proposal"
-            tx={data.transaction}
+            transactions={transactions}
             current={data.current_category}
             suggested={data.suggested_category}
             committing={state.kind === "committing"}
@@ -222,7 +240,7 @@ export default function RecategorizationWidget({
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
-  tx,
+  transactions,
   current,
   suggested,
   committing,
@@ -230,7 +248,7 @@ function ProposalState({
   onAccept,
   onDecline,
 }: {
-  tx: Transaction;
+  transactions: Transaction[];
   current: Category | null;
   suggested: Category;
   committing: boolean;
@@ -238,6 +256,11 @@ function ProposalState({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const isBulk = transactions.length > 1;
+  // Single-transaction layout uses the current category color/icon for
+  // the merchant chip. Bulk layout uses a smaller per-row icon and
+  // doesn't paint each one with the current category — that'd be
+  // visually noisy when there are 5+ rows.
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -246,21 +269,23 @@ function ProposalState({
       transition={{ duration: 0.2 }}
       className="space-y-5"
     >
-      <TransactionHeader
-        tx={tx}
-        iconColor={categoryColor(current)}
-        iconLib={current?.icon_lib ?? null}
-        iconName={current?.icon_name ?? null}
-      />
+      {isBulk ? (
+        <BulkTransactionList transactions={transactions} />
+      ) : (
+        <TransactionHeader
+          tx={transactions[0]}
+          iconColor={categoryColor(current)}
+          iconLib={current?.icon_lib ?? null}
+          iconName={current?.icon_name ?? null}
+        />
+      )}
 
-      {/* FROM stays on its own row. TO sits in a flex row that pulls
-          the buttons up next to it on desktop — visually "should we
-          change to Fast Food? [yes/no]" reads as one decision. On
-          mobile the buttons drop below; the chat is too narrow to
-          fit a category line + two buttons on one row without
-          either truncating the category or pinching the buttons. */}
-      <div className="pl-14 space-y-2.5">
-        <ChangeLine label="From" cat={current} muted />
+      {/* FROM/TO + buttons. FROM is hidden in bulk if the transactions
+          have mixed current categories (current is null from the tool).
+          The TO row inlines with buttons on md+ so the decision reads
+          as a single horizontal beat; mobile stacks. */}
+      <div className={`space-y-2.5 ${isBulk ? "" : "pl-14"}`}>
+        {current && <ChangeLine label="From" cat={current} muted />}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
           <div className="min-w-0 md:flex-1">
             <ChangeLine label="To" cat={suggested} />
@@ -292,6 +317,63 @@ function ProposalState({
   );
 }
 
+/**
+ * Compact list of transactions for the bulk recategorization layout.
+ * Mirrors TransactionListWidget's row pattern (icon + name + meta +
+ * amount) so the user reads it as "the same thing as a transactions
+ * widget, but it's the set we're about to change".
+ */
+function BulkTransactionList({ transactions }: { transactions: Transaction[] }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+        {transactions.length} transactions
+      </div>
+      <div className="space-y-1.5">
+        {transactions.map((tx) => (
+          <div key={tx.id} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <BulkRowIcon tx={tx} />
+              <div className="min-w-0">
+                <div className="text-sm text-[var(--color-fg)] truncate">
+                  {tx.merchant_name || tx.description}
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)] truncate">
+                  {formatDate(tx.date)}
+                </div>
+              </div>
+            </div>
+            <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0">
+              {tx.amount > 0 ? "+" : ""}
+              {formatCurrency(tx.amount)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BulkRowIcon({ tx }: { tx: Transaction }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (tx.icon_url && !imageFailed) {
+    return (
+      <img
+        src={tx.icon_url}
+        alt=""
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+        className="w-7 h-7 rounded-full flex-shrink-0 object-cover bg-[var(--color-surface-alt)]"
+      />
+    );
+  }
+  return (
+    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--color-surface-alt)]">
+      <FiTag className="h-3.5 w-3.5 text-[var(--color-muted)]" />
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Resolved state (accepted or declined) — preserves the transaction
 // header, replaces the FROM/TO + buttons with a status line. On the
@@ -301,15 +383,16 @@ function ProposalState({
 
 function ResolvedState({
   tone,
-  tx,
+  transactions,
   resolvedCategory,
   silent,
 }: {
   tone: "accepted" | "declined";
-  tx: Transaction;
+  transactions: Transaction[];
   resolvedCategory: Category;
   silent: boolean;
 }) {
+  const isBulk = transactions.length > 1;
   const iconColor = categoryColor(resolvedCategory);
   return (
     <motion.div
@@ -318,18 +401,22 @@ function ResolvedState({
       transition={{ duration: 0.25 }}
       className="space-y-5"
     >
-      <TransactionHeader
-        tx={tx}
-        iconColor={iconColor}
-        iconLib={resolvedCategory.icon_lib}
-        iconName={resolvedCategory.icon_name}
-        burst={tone === "accepted" && !silent}
-      />
+      {isBulk ? (
+        <BulkTransactionList transactions={transactions} />
+      ) : (
+        <TransactionHeader
+          tx={transactions[0]}
+          iconColor={iconColor}
+          iconLib={resolvedCategory.icon_lib}
+          iconName={resolvedCategory.icon_name}
+          burst={tone === "accepted" && !silent}
+        />
+      )}
 
       {/* Status indicator sits in the spot the buttons used to occupy:
           inline-right of the category row. Keeps the resolved layout
           on the same horizontal rhythm as the proposal. */}
-      <div className="pl-14">
+      <div className={isBulk ? "" : "pl-14"}>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
           <div className="min-w-0 md:flex-1">
             <ChangeLine

@@ -22,39 +22,48 @@ export const POST = withAuth(
   'agent:recategorize',
   async (req: NextRequest, userId: string) => {
     const body = (await req.json().catch(() => ({}))) as {
+      // Backward compat: single id is still accepted.
       transaction_id?: string;
+      transaction_ids?: string[];
       category_id?: string;
     };
 
-    const transactionId = body.transaction_id?.trim();
+    const ids = Array.isArray(body.transaction_ids)
+      ? body.transaction_ids.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      : body.transaction_id
+        ? [body.transaction_id.trim()]
+        : [];
     const categoryId = body.category_id?.trim();
-    if (!transactionId || !categoryId) {
+
+    if (ids.length === 0 || !categoryId) {
       return NextResponse.json(
-        { error: 'transaction_id and category_id are required' },
+        {
+          error:
+            'transaction_ids (or transaction_id) and category_id are required',
+        },
         { status: 400 },
       );
     }
 
-    // Auth check: confirm the transaction belongs to the calling user.
-    // The admin client bypasses RLS, so we have to scope manually.
-    const { data: tx, error: txError } = await supabaseAdmin
+    // Auth check: every transaction must belong to one of the caller's
+    // accounts. Doing this in a single query rather than N round trips.
+    const { data: ownedTxs, error: txError } = await supabaseAdmin
       .from('transactions')
       .select('id, accounts!inner(user_id)')
-      .eq('id', transactionId)
-      .eq('accounts.user_id', userId)
-      .maybeSingle();
+      .in('id', ids)
+      .eq('accounts.user_id', userId);
 
     if (txError) {
       console.error('[agent:recategorize] tx lookup failed', txError);
-      return NextResponse.json({ error: 'Failed to load transaction' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to load transactions' }, { status: 500 });
     }
-    if (!tx) {
-      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    if (!ownedTxs || ownedTxs.length !== ids.length) {
+      return NextResponse.json(
+        { error: 'One or more transactions not found' },
+        { status: 404 },
+      );
     }
 
-    // Verify the target category exists. system_categories is a global
-    // table — every user picks from the same set — so we don't need to
-    // scope by user_id.
     const { data: cat, error: catError } = await supabaseAdmin
       .from('system_categories')
       .select('id, label')
@@ -69,6 +78,9 @@ export const POST = withAuth(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
+    // Bulk update — same field set as a single update would use, just
+    // applied to all ids in one round trip. The .in() filter combined
+    // with the auth check above means we only touch the user's rows.
     const { error: updateError } = await supabaseAdmin
       .from('transactions')
       .update({
@@ -76,13 +88,13 @@ export const POST = withAuth(
         is_user_categorized: true,
         is_unmatched_transfer: false,
       })
-      .eq('id', transactionId);
+      .in('id', ids);
 
     if (updateError) {
       console.error('[agent:recategorize] update failed', updateError);
-      return NextResponse.json({ error: 'Failed to update transaction' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update transactions' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, count: ids.length });
   },
 );
