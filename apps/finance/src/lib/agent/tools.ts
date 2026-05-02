@@ -142,6 +142,19 @@ export const TOOLS: ToolDefinition[] = [
             '"checking", "amex". Use when the user asks about a specific account or institution. ' +
             'Call get_account_balances first if you need the exact account names.',
         },
+        exclude_transfers: {
+          type: 'boolean',
+          description:
+            'When true, exclude transfer-type categories (credit card ' +
+            'payments, account transfers in/out). These are NOT real ' +
+            'spending: credit card payments are paying off money already ' +
+            "spent in other categories, and account transfers move money " +
+            "between the user's own accounts. Recommended when the user " +
+            'is talking about spending or budgets, e.g. "what are my loan ' +
+            'payments?" should typically show real loan payments (mortgage, ' +
+            'auto, student) and exclude credit card payments. Defaults to ' +
+            'false (show everything) so the model has to opt in.',
+        },
       },
     },
   },
@@ -172,6 +185,15 @@ export const TOOLS: ToolDefinition[] = [
             'When true, run the query but do NOT render a widget. Use when ' +
             'you need the data for context but a visible breakdown would feel ' +
             "redundant next to what you're going to say in prose.",
+        },
+        exclude_transfers: {
+          type: 'boolean',
+          description:
+            'When true, exclude transfer-type categories (credit card ' +
+            'payments, account transfers). These are NOT real spending and ' +
+            'inflate the breakdown. Strongly recommended for budget / ' +
+            'spending discussions. Defaults to true since the natural ' +
+            'reading of "spending breakdown" excludes transfers.',
         },
       },
     },
@@ -457,10 +479,31 @@ interface RecentTransactionsInput {
   merchant_query?: string;
   category_query?: string;
   account_query?: string;
+  exclude_transfers?: boolean;
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
   silent?: boolean;
+  exclude_transfers?: boolean;
+}
+
+// Category labels we treat as "transfers" / non-spending. Both directions
+// of credit card payments and account transfers count. We match by
+// case-insensitive substring against the leaf category label so common
+// variants ("Credit Card Payment", "credit card payments", "Transfer Out")
+// all hit. Group-level matches (e.g. parent group "Loan Payments")
+// are NOT excluded — only the specific transfer-flavored leaves.
+const TRANSFER_CATEGORY_NEEDLES = [
+  'credit card payment',
+  'account transfer',
+  'transfer in',
+  'transfer out',
+];
+
+function isTransferCategory(label: string | null | undefined): boolean {
+  if (!label) return false;
+  const lower = label.toLowerCase();
+  return TRANSFER_CATEGORY_NEEDLES.some((n) => lower.includes(n));
 }
 interface ProposeRecategorizationInput {
   transaction_ids?: string[];
@@ -866,6 +909,13 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         const inst = t.institution?.toLowerCase() ?? '';
         if (!name.includes(accNeedle) && !inst.includes(accNeedle)) return false;
       }
+      // Drop transfer-type categories when the model opts in. This is
+      // a leaf-label match (e.g. "Credit Card Payment", "Account
+      // Transfer Out") so the parent group ("Loan Payments") still
+      // contains real loan rows.
+      if (input.exclude_transfers && isTransferCategory(t.category)) {
+        return false;
+      }
       return true;
     })
     .slice(0, limit);
@@ -940,6 +990,11 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
 
   if (error) throw error;
 
+  // Default true for the spending breakdown: the natural reading of
+  // "spending breakdown" excludes transfers. The model can opt back in
+  // by passing exclude_transfers: false.
+  const excludeTransfers = input.exclude_transfers !== false;
+
   const buckets = new Map<string, { label: string; total: number; color: string }>();
   let totalSpending = 0;
   for (const tx of data ?? []) {
@@ -953,6 +1008,12 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
           category_groups?: { name?: string; hex_color?: string } | null;
         }
       | null;
+    // Drop transfer-flavored leaf categories (credit card payments,
+    // account transfers). They double-count spending the user already
+    // incurred elsewhere (CC payments) or move money between owned
+    // buckets (transfers), so a "spending breakdown" that includes
+    // them inflates totals and clutters the top-categories list.
+    if (excludeTransfers && isTransferCategory(cat?.label)) continue;
     // Prefer the category group label so spending bucket matches the
     // user's mental model of how the app organises categories ("Food and
     // Drink" rather than the leaf "Coffee Shops" / "Fast Food").
@@ -980,6 +1041,7 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
     end: format(end, 'yyyy-MM-dd'),
     categories,
     total_spending: Math.round(totalSpending * 100) / 100,
+    excluded_transfers: excludeTransfers,
   };
 }
 
