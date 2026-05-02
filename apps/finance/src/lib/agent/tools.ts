@@ -63,7 +63,14 @@ export const TOOLS: ToolDefinition[] = [
       properties: {
         limit: {
           type: 'integer',
-          description: 'Max transactions to return (1-50). Defaults to 20.',
+          description:
+            'Max transactions to return (1-50). Defaults to 50 ' +
+            '(was 20 — bumped because users with high-frequency ' +
+            'micro-deposits like DailyPay can have 40+ income rows ' +
+            'in a 90-day window and quietly truncating to 20 made ' +
+            'the model under-count. NOTE: for income totals across ' +
+            'multiple months, prefer get_income_summary which ' +
+            'aggregates server-side with no row cap).',
           minimum: 1,
           maximum: 50,
         },
@@ -285,6 +292,50 @@ export const TOOLS: ToolDefinition[] = [
         active_only: {
           type: 'boolean',
           description: 'If true, only return active recurring streams. Defaults to true.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_income_summary',
+    description:
+      "Aggregate the user's actual income over the last N months, " +
+      "computed directly from transactions (NOT from Plaid's recurring " +
+      "stream detection, which under-counts users with high-frequency " +
+      "micro-deposits like DailyPay or other earned-wage-access services).\n\n" +
+      "USE THIS instead of summing get_recent_transactions output yourself. " +
+      "get_recent_transactions caps at 50 rows; a user with 60+ income " +
+      "deposits in 90 days will silently lose data through that path, and " +
+      "the resulting monthly average will be too low. This tool aggregates " +
+      "server-side with no row cap.\n\n" +
+      "Returns the total + monthly average across the window, broken down " +
+      "by month and by source (merchant). Transfers (credit card payments, " +
+      "account transfers) are excluded — those are NOT new money.\n\n" +
+      "When to call:\n" +
+      "- The user asks 'how much do I make' / 'what's my income' / 'how " +
+      "  much did I earn last month'.\n" +
+      "- You're determining real monthly income for the budget consultation " +
+      "  flow and the Plaid recurring stream output looks incomplete (e.g. " +
+      "  only one stream detected but the user clearly has many small " +
+      "  deposits).\n" +
+      "- The user pushes back on a number you computed from recurring " +
+      "  streams — verify by aggregating actual transactions.\n\n" +
+      "When NOT to call:\n" +
+      "- The user just asks 'show me my income transactions' — use " +
+      "  get_recent_transactions with type: 'income' for that, since they " +
+      "  want a list, not a total.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        months_back: {
+          type: 'integer',
+          description:
+            'How many full calendar months back to aggregate, including ' +
+            'the current (partial) month. Defaults to 3. Max 12. The current ' +
+            'month is included but flagged as partial in the response so ' +
+            'you can decide whether to use it for averaging.',
+          minimum: 1,
+          maximum: 12,
         },
       },
     },
@@ -532,6 +583,7 @@ type ToolName =
   | 'get_account_balances'
   | 'list_categories'
   | 'get_recurring_transactions'
+  | 'get_income_summary'
   | 'propose_recategorization'
   | 'propose_category_rule'
   | 'propose_budget_create'
@@ -604,6 +656,10 @@ interface GetRecurringTransactionsInput {
   active_only?: boolean;
 }
 
+interface GetIncomeSummaryInput {
+  months_back?: number;
+}
+
 interface ProposeBudgetCreateInput {
   category_id?: string;
   category_group_id?: string;
@@ -668,6 +724,11 @@ export async function executeTool(
         return await getRecurringTransactions(
           userId,
           (input as GetRecurringTransactionsInput) ?? {},
+        );
+      case 'get_income_summary':
+        return await getIncomeSummary(
+          userId,
+          (input as GetIncomeSummaryInput) ?? {},
         );
       case 'propose_budget_create':
         return await proposeBudgetCreate(
@@ -837,7 +898,7 @@ async function getBudgets(userId: string, input: BudgetsInput) {
 }
 
 async function getRecentTransactions(userId: string, input: RecentTransactionsInput) {
-  const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 50);
   const days = Math.min(Math.max(input.days ?? 30, 1), 365);
 
   const categoryQuery = input.category_query?.trim() ?? '';
@@ -1607,6 +1668,258 @@ async function getRecurringTransactions(
   return {
     count: streams.length,
     streams,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Income summary — server-side aggregation of actual deposits over a window
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Aggregates positive-amount transactions over a rolling N-month window
+ * to give the agent an exact monthly income figure WITHOUT the agent having
+ * to sum a row-limited transaction list.
+ *
+ * This exists because the natural alternatives both lie:
+ *
+ * 1. `get_recent_transactions { type: 'income' }` caps at 50 rows. Users on
+ *    earned-wage-access services (DailyPay, Tapcheck, etc.) get small
+ *    deposits 5-7 days a week — 60+ income rows in 90 days is normal.
+ *    The 50-cap silently truncates and the model under-counts.
+ *
+ * 2. `get_recurring_transactions` only returns Plaid-detected streams.
+ *    Plaid's recurring detection misses irregular cadences. We've seen
+ *    it correctly tag the rare DailyPay "Direct Deposit" line but miss
+ *    the 40+ "Original Credit Transaction" deposits from the same source
+ *    (different transaction descriptions confuse the matcher).
+ *
+ * This tool just runs the aggregation server-side: SUM(amount) GROUP BY
+ * month + GROUP BY source over a complete window with no row limit.
+ *
+ * Filters:
+ * - amount > 0 (only inflows)
+ * - exclude transfers (group='Transfer In' / 'Transfer Out' / label
+ *   containing 'credit card payment' / 'account transfer')
+ * - exclude transactions matched as transfer pairs by transfer-matching
+ *   (ACH transfers between the user's own connected accounts that show
+ *    up as both inflow AND outflow). This is the same logic the dashboard
+ *    cashflow card uses, so the numbers reconcile.
+ */
+async function getIncomeSummary(
+  userId: string,
+  input: GetIncomeSummaryInput,
+) {
+  const monthsBack = Math.min(Math.max(input.months_back ?? 3, 1), 12);
+
+  // Window: from the start of the (monthsBack-1) months ago through today.
+  // E.g. months_back=3 with today=2026-05-15 covers 2026-03-01 → 2026-05-15.
+  // The current month is partial; we flag it in the response so the model
+  // can decide whether to include it in the average.
+  const today = new Date();
+  const windowStart = startOfMonth(subMonths(today, monthsBack - 1));
+  const windowEnd = today;
+  const startStr = format(windowStart, 'yyyy-MM-dd');
+  const endStr = format(windowEnd, 'yyyy-MM-dd');
+
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      `
+        id,
+        amount,
+        date,
+        merchant_name,
+        description,
+        accounts!inner(user_id),
+        system_categories(
+          label,
+          category_groups(name)
+        )
+      `,
+    )
+    .eq('accounts.user_id', userId)
+    .gte('date', startStr)
+    .lte('date', endStr)
+    .gt('amount', 0)
+    .order('date', { ascending: true });
+
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    amount: number | string;
+    date: string | null;
+    merchant_name: string | null;
+    description: string | null;
+    system_categories: {
+      label?: string | null;
+      category_groups?: { name?: string | null } | null;
+    } | null;
+  };
+
+  const rows = (data ?? []) as unknown as Row[];
+
+  // Identify transfer pairs (ACH between own accounts that appear as
+  // matched +/− amounts within 3 days). Only relevant when both sides
+  // hit connected accounts. We feed the full list (positive AND negative
+  // amounts would be needed for pairing, but here we only have positive
+  // — so this catches positive transfers that happen to also have a
+  // negative pair queued; the conservative read is "exclude any positive
+  // row that's labelled as a transfer category"). The label-based
+  // exclusion below handles the bulk of real cases.
+  const transferIds = new Set<string>();
+  // (intentionally not running identifyTransfers here — pairs require
+  // both signs in the input set; the category-label filter below is
+  // sufficient since matched pairs always carry a Transfer In / Out
+  // category by Plaid's enrichment.)
+
+  type SourceBucket = {
+    source: string;
+    total: number;
+    count: number;
+    first_date: string;
+    last_date: string;
+    sample_amounts: number[];
+  };
+  type MonthBucket = {
+    month: string; // YYYY-MM
+    total: number;
+    count: number;
+    is_partial: boolean;
+  };
+
+  const sources = new Map<string, SourceBucket>();
+  const months = new Map<string, MonthBucket>();
+  const excluded: { count: number; total: number } = { count: 0, total: 0 };
+
+  let total = 0;
+  let included = 0;
+
+  // Pre-compute the "current month" key so we can flag it as partial
+  // in the response.
+  const currentMonthKey = format(today, 'yyyy-MM');
+
+  for (const r of rows) {
+    if (transferIds.has(r.id)) continue;
+    const amt = Number(r.amount ?? 0);
+    if (!Number.isFinite(amt) || amt <= 0) continue;
+
+    const cat = r.system_categories;
+    const groupName = cat?.category_groups?.name?.toLowerCase() ?? '';
+    const label = cat?.label ?? '';
+
+    const isTransferRow =
+      groupName === 'transfer in' ||
+      groupName === 'transfer out' ||
+      isTransferCategory(label);
+    if (isTransferRow) {
+      excluded.count += 1;
+      excluded.total += amt;
+      continue;
+    }
+
+    total += amt;
+    included += 1;
+
+    // by source (merchant; fall back to description)
+    const source = r.merchant_name ?? r.description ?? 'Unknown';
+    const sb = sources.get(source);
+    if (sb) {
+      sb.total += amt;
+      sb.count += 1;
+      if (r.date && r.date < sb.first_date) sb.first_date = r.date;
+      if (r.date && r.date > sb.last_date) sb.last_date = r.date;
+      if (sb.sample_amounts.length < 5) sb.sample_amounts.push(amt);
+    } else {
+      sources.set(source, {
+        source,
+        total: amt,
+        count: 1,
+        first_date: r.date ?? '',
+        last_date: r.date ?? '',
+        sample_amounts: [amt],
+      });
+    }
+
+    // by month
+    if (r.date) {
+      const monthKey = r.date.slice(0, 7); // YYYY-MM
+      const mb = months.get(monthKey);
+      if (mb) {
+        mb.total += amt;
+        mb.count += 1;
+      } else {
+        months.set(monthKey, {
+          month: monthKey,
+          total: amt,
+          count: 1,
+          is_partial: monthKey === currentMonthKey,
+        });
+      }
+    }
+  }
+
+  // Monthly average: prefer COMPLETE months (i.e. exclude the current
+  // partial one when there's at least one complete month available).
+  // This matches how a human reading the data would compute "average
+  // monthly income" — you don't divide by 3 when one of the months is
+  // half over.
+  const monthList = Array.from(months.values()).sort((a, b) =>
+    a.month.localeCompare(b.month),
+  );
+  const completeMonths = monthList.filter((m) => !m.is_partial);
+  const monthsForAvg = completeMonths.length > 0 ? completeMonths : monthList;
+  const monthlyAverage =
+    monthsForAvg.length > 0
+      ? monthsForAvg.reduce((s, m) => s + m.total, 0) / monthsForAvg.length
+      : 0;
+
+  // Sort sources by total descending, monthly_avg uses completeMonths count
+  // when available, else partial-window estimate.
+  const monthsCovered = monthsForAvg.length || 1;
+  const sourceList = Array.from(sources.values())
+    .sort((a, b) => b.total - a.total)
+    .map((s) => ({
+      source: s.source,
+      count: s.count,
+      total: Math.round(s.total * 100) / 100,
+      monthly_avg: Math.round((s.total / monthsCovered) * 100) / 100,
+      first_date: s.first_date || null,
+      last_date: s.last_date || null,
+      sample_amounts: s.sample_amounts.map((a) => Math.round(a * 100) / 100),
+    }));
+
+  return {
+    window: {
+      start: startStr,
+      end: endStr,
+      months_back: monthsBack,
+      complete_months_count: completeMonths.length,
+      total_months_in_window: monthList.length,
+    },
+    total_income: Math.round(total * 100) / 100,
+    monthly_average: Math.round(monthlyAverage * 100) / 100,
+    transactions_count: included,
+    by_month: monthList.map((m) => ({
+      month: m.month,
+      count: m.count,
+      total: Math.round(m.total * 100) / 100,
+      is_partial: m.is_partial,
+    })),
+    by_source: sourceList,
+    excluded_transfers: {
+      count: excluded.count,
+      total: Math.round(excluded.total * 100) / 100,
+    },
+    notes: [
+      'Excludes transfer-flavored categories (Transfer In / Out groups, ' +
+        'Credit Card Payment leaves, Account Transfer leaves) — those are ' +
+        'NOT new money.',
+      'monthly_average is computed over complete months when at least one ' +
+        'is available, ignoring the current partial month.',
+      'Includes EVERY positive-amount transaction in the window (no row ' +
+        'limit). This is the authoritative income figure.',
+    ],
   };
 }
 

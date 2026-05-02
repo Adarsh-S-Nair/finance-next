@@ -45,6 +45,10 @@ const TOOL_LABELS: Record<string, string> = {
 const HIDDEN_TOOLS = new Set<string>([
   "list_categories",
   "get_recurring_transactions",
+  // Internal aggregator the model uses to compute monthly income totals.
+  // Result is dense JSON the user shouldn't see — the agent narrates the
+  // findings in prose and follows up with an income proposal widget.
+  "get_income_summary",
 ]);
 
 export type ToolBlock = {
