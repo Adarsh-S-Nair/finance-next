@@ -299,31 +299,41 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: 'get_income_summary',
     description:
-      "Aggregate the user's actual income over the last N months, " +
-      "computed directly from transactions (NOT from Plaid's recurring " +
-      "stream detection, which under-counts users with high-frequency " +
-      "micro-deposits like DailyPay or other earned-wage-access services).\n\n" +
-      "USE THIS instead of summing get_recent_transactions output yourself. " +
-      "get_recent_transactions caps at 50 rows; a user with 60+ income " +
-      "deposits in 90 days will silently lose data through that path, and " +
-      "the resulting monthly average will be too low. This tool aggregates " +
-      "server-side with no row cap.\n\n" +
-      "Returns the total + monthly average across the window, broken down " +
-      "by month and by source (merchant). Transfers (credit card payments, " +
-      "account transfers) are excluded — those are NOT new money.\n\n" +
+      "Aggregate the user's actual income over the last N months and " +
+      "classify each source as a recurring STREAM, a ONE-OFF deposit, " +
+      "an UNIDENTIFIED inflow (suspected self-transfer), or MICRO noise " +
+      "(small refunds). Server-side aggregation, no row cap.\n\n" +
+      "WHY THIS EXISTS instead of summing get_recent_transactions:\n" +
+      "1. get_recent_transactions caps at 50 rows. A user with 60+ income " +
+      "deposits in 90 days (DailyPay, Tapcheck, etc.) silently loses data.\n" +
+      "2. Plaid's recurring detection misses irregular cadences and " +
+      "under-counts. Don't trust get_recurring_transactions for totals.\n" +
+      "3. Plaid mislabels self-transfers (Cash App / Venmo / Zelle to the " +
+      "user's own accounts) as INCOME, not TRANSFER_IN. A naive sum of " +
+      "category-INCOME rows over-counts because of this.\n\n" +
+      "RESPONSE SHAPE — three pre-computed views, in order of preference:\n" +
+      "- streams_only: recurring named-merchant income. The default " +
+      "  number to set on user_profiles.monthly_income.\n" +
+      "- streams_plus_one_offs: streams + single named-merchant deposits " +
+      "  (gifts, refunds, side payments). Use if the user says one-offs " +
+      "  matter to them.\n" +
+      "- all_inflows: everything positive that wasn't a category-tagged " +
+      "  transfer, including unidentified self-transfers. Sanity check, " +
+      "  not a recommendation.\n\n" +
+      "Plus per-classification slices: streams, one_offs, " +
+      "unidentified_sources, micro_sources. Look at unidentified_sources " +
+      "before recommending a number — if there are large unidentified " +
+      "inflows the user might have meant to count, ASK them about it " +
+      "explicitly rather than silently including or excluding.\n\n" +
       "When to call:\n" +
-      "- The user asks 'how much do I make' / 'what's my income' / 'how " +
-      "  much did I earn last month'.\n" +
-      "- You're determining real monthly income for the budget consultation " +
-      "  flow and the Plaid recurring stream output looks incomplete (e.g. " +
-      "  only one stream detected but the user clearly has many small " +
-      "  deposits).\n" +
-      "- The user pushes back on a number you computed from recurring " +
-      "  streams — verify by aggregating actual transactions.\n\n" +
+      "- 'How much do I make' / 'what's my income' / 'how much did I " +
+      "  earn last month'.\n" +
+      "- Determining monthly income for the budget consultation flow.\n" +
+      "- The user pushes back on an income number you stated. Verify " +
+      "  with this tool's actual aggregation.\n\n" +
       "When NOT to call:\n" +
-      "- The user just asks 'show me my income transactions' — use " +
-      "  get_recent_transactions with type: 'income' for that, since they " +
-      "  want a list, not a total.",
+      "- 'Show me my income transactions' — that wants a list of rows, " +
+      "  not a total. Use get_recent_transactions with type: 'income'.",
     input_schema: {
       type: 'object',
       properties: {
@@ -332,8 +342,9 @@ export const TOOLS: ToolDefinition[] = [
           description:
             'How many full calendar months back to aggregate, including ' +
             'the current (partial) month. Defaults to 3. Max 12. The current ' +
-            'month is included but flagged as partial in the response so ' +
-            'you can decide whether to use it for averaging.',
+            'month is included but flagged as partial in the response, and ' +
+            'monthly_average is computed over complete months only when at ' +
+            'least one is available.',
           minimum: 1,
           maximum: 12,
         },
@@ -1776,10 +1787,25 @@ async function getIncomeSummary(
   type SourceBucket = {
     source: string;
     total: number;
+    // Subtotal restricted to rows in COMPLETE months only — used for
+    // monthly_average computation so we don't dilute averages with
+    // partial-month data while still letting `total` represent the
+    // user's full window honestly.
+    total_complete: number;
     count: number;
+    count_complete: number;
     first_date: string;
     last_date: string;
     sample_amounts: number[];
+    sample_descriptions: string[];
+    // True if AT LEAST ONE row in this bucket has a non-null
+    // merchant_name. Plaid populates merchant_name when it can match a
+    // recognised merchant (DailyPay, Amazon, etc.). Self-transfers and
+    // ad-hoc P2P deposits typically come back with merchant_name=null
+    // and a raw description like "Original Credit Transaction From
+    // (••CASH APP*FIRSTNAME LASTNAME)" — we use this as the primary
+    // signal that a source is suspicious.
+    has_named_merchant: boolean;
   };
   type MonthBucket = {
     month: string; // YYYY-MM
@@ -1792,11 +1818,14 @@ async function getIncomeSummary(
   const months = new Map<string, MonthBucket>();
   const excluded: { count: number; total: number } = { count: 0, total: 0 };
 
-  let total = 0;
+  let totalAll = 0;
+  let totalAllComplete = 0;
   let included = 0;
 
   // Pre-compute the "current month" key so we can flag it as partial
-  // in the response.
+  // in the response. Rows from this month are EXCLUDED from
+  // total_complete / count_complete so monthly averages aren't diluted
+  // by half a month of data.
   const currentMonthKey = format(today, 'yyyy-MM');
 
   for (const r of rows) {
@@ -1818,32 +1847,50 @@ async function getIncomeSummary(
       continue;
     }
 
-    total += amt;
+    const monthKey = r.date ? r.date.slice(0, 7) : null;
+    const isPartial = monthKey === currentMonthKey;
+
+    totalAll += amt;
+    if (!isPartial) totalAllComplete += amt;
     included += 1;
 
-    // by source (merchant; fall back to description)
+    // by source (merchant; fall back to description). When merchant_name
+    // is null we group by description so each unique self-transfer line
+    // collapses into one bucket.
     const source = r.merchant_name ?? r.description ?? 'Unknown';
     const sb = sources.get(source);
     if (sb) {
       sb.total += amt;
       sb.count += 1;
+      if (!isPartial) {
+        sb.total_complete += amt;
+        sb.count_complete += 1;
+      }
       if (r.date && r.date < sb.first_date) sb.first_date = r.date;
       if (r.date && r.date > sb.last_date) sb.last_date = r.date;
       if (sb.sample_amounts.length < 5) sb.sample_amounts.push(amt);
+      if (sb.sample_descriptions.length < 3 && r.description) {
+        const seen = sb.sample_descriptions.includes(r.description);
+        if (!seen) sb.sample_descriptions.push(r.description);
+      }
+      if (r.merchant_name) sb.has_named_merchant = true;
     } else {
       sources.set(source, {
         source,
         total: amt,
+        total_complete: isPartial ? 0 : amt,
         count: 1,
+        count_complete: isPartial ? 0 : 1,
         first_date: r.date ?? '',
         last_date: r.date ?? '',
         sample_amounts: [amt],
+        sample_descriptions: r.description ? [r.description] : [],
+        has_named_merchant: r.merchant_name != null,
       });
     }
 
     // by month
-    if (r.date) {
-      const monthKey = r.date.slice(0, 7); // YYYY-MM
+    if (monthKey) {
       const mb = months.get(monthKey);
       if (mb) {
         mb.total += amt;
@@ -1853,41 +1900,104 @@ async function getIncomeSummary(
           month: monthKey,
           total: amt,
           count: 1,
-          is_partial: monthKey === currentMonthKey,
+          is_partial: isPartial,
         });
       }
     }
   }
 
-  // Monthly average: prefer COMPLETE months (i.e. exclude the current
-  // partial one when there's at least one complete month available).
-  // This matches how a human reading the data would compute "average
-  // monthly income" — you don't divide by 3 when one of the months is
-  // half over.
+  // Monthly average is computed over COMPLETE months only (we ignore
+  // the current partial month when at least one complete month exists).
+  // Otherwise we'd dilute averages early in any given month.
   const monthList = Array.from(months.values()).sort((a, b) =>
     a.month.localeCompare(b.month),
   );
   const completeMonths = monthList.filter((m) => !m.is_partial);
   const monthsForAvg = completeMonths.length > 0 ? completeMonths : monthList;
-  const monthlyAverage =
-    monthsForAvg.length > 0
-      ? monthsForAvg.reduce((s, m) => s + m.total, 0) / monthsForAvg.length
-      : 0;
-
-  // Sort sources by total descending, monthly_avg uses completeMonths count
-  // when available, else partial-window estimate.
   const monthsCovered = monthsForAvg.length || 1;
-  const sourceList = Array.from(sources.values())
-    .sort((a, b) => b.total - a.total)
-    .map((s) => ({
-      source: s.source,
-      count: s.count,
-      total: Math.round(s.total * 100) / 100,
-      monthly_avg: Math.round((s.total / monthsCovered) * 100) / 100,
-      first_date: s.first_date || null,
-      last_date: s.last_date || null,
-      sample_amounts: s.sample_amounts.map((a) => Math.round(a * 100) / 100),
-    }));
+
+  // ── Source classification ──────────────────────────────────────────
+  //
+  // Goal: surface the model's actual recurring income (the "streams")
+  // separately from one-off gifts, refunds, and self-transfers — so it
+  // can confidently propose a monthly income figure without including
+  // noise.
+  //
+  // Heuristics, in order:
+  //
+  // 1. MICRO — small total, small per-deposit average. Catches things
+  //    like 7 McDonald's $0.60 cashback refunds. Even if recurring,
+  //    these aren't "income".
+  //
+  // 2. UNIDENTIFIED — at least one row has a real merchant_name?
+  //    Self-transfers from Cash App / Venmo / Zelle to the user's own
+  //    accounts almost always come back with merchant_name=null and a
+  //    raw description carrying the user's own name. Real merchants
+  //    (DailyPay, employer ACH, any retailer) get a populated
+  //    merchant_name. We surface unidentified sources separately so
+  //    the model can ask the user about them rather than silently
+  //    counting them as income.
+  //
+  // 3. STREAM — recurring (count >= STREAM_MIN_COUNT) named-merchant
+  //    source. Reliable income.
+  //
+  // 4. ONE_OFF — single named-merchant deposit. Likely a gift,
+  //    reimbursement, or irregular side payment. Worth mentioning to
+  //    the user but excluded from the recurring-income figure.
+  //
+  // The model gets all four classifications back along with
+  // pre-computed monthly_average buckets for each view, so it can
+  // narrate the picture honestly without having to apply these
+  // heuristics itself.
+  const STREAM_MIN_COUNT = 2;
+  const MICRO_MAX_TOTAL = 20; // dollars
+  const MICRO_MAX_AVG = 5; // dollars per deposit
+
+  type Classification = 'stream' | 'one_off' | 'unidentified' | 'micro';
+  function classify(b: SourceBucket): Classification {
+    const avg = b.count > 0 ? b.total / b.count : 0;
+    if (b.total < MICRO_MAX_TOTAL && avg < MICRO_MAX_AVG) return 'micro';
+    if (!b.has_named_merchant) return 'unidentified';
+    if (b.count >= STREAM_MIN_COUNT) return 'stream';
+    return 'one_off';
+  }
+
+  type ClassifiedSource = SourceBucket & { classification: Classification };
+  const classifiedSources: ClassifiedSource[] = Array.from(sources.values())
+    .map((s) => ({ ...s, classification: classify(s) }))
+    .sort((a, b) => b.total - a.total);
+
+  const fmt = (s: ClassifiedSource) => ({
+    source: s.source,
+    classification: s.classification,
+    count: s.count,
+    total: Math.round(s.total * 100) / 100,
+    // monthly_avg uses complete-month data only so a half-finished
+    // current month doesn't drag down the per-source average.
+    monthly_avg: Math.round((s.total_complete / monthsCovered) * 100) / 100,
+    first_date: s.first_date || null,
+    last_date: s.last_date || null,
+    sample_amounts: s.sample_amounts.map((a) => Math.round(a * 100) / 100),
+    sample_descriptions: s.sample_descriptions,
+    has_named_merchant: s.has_named_merchant,
+  });
+
+  // Aggregate by classification using COMPLETE-MONTH totals only, so
+  // the monthly_average for each view reconciles with by_month's
+  // complete entries (March + April), not by_month + the partial
+  // current month. The model can still see the partial month under
+  // by_month for transparency.
+  const sumCompleteTotal = (cs: ClassifiedSource[]) =>
+    cs.reduce((acc, x) => acc + x.total_complete, 0);
+  const streams = classifiedSources.filter((s) => s.classification === 'stream');
+  const oneOffs = classifiedSources.filter((s) => s.classification === 'one_off');
+  const unidentified = classifiedSources.filter(
+    (s) => s.classification === 'unidentified',
+  );
+  const micro = classifiedSources.filter((s) => s.classification === 'micro');
+
+  const streamsTotal = sumCompleteTotal(streams);
+  const oneOffTotal = sumCompleteTotal(oneOffs);
 
   return {
     window: {
@@ -1896,29 +2006,64 @@ async function getIncomeSummary(
       months_back: monthsBack,
       complete_months_count: completeMonths.length,
       total_months_in_window: monthList.length,
+      months_used_for_average: monthsCovered,
     },
-    total_income: Math.round(total * 100) / 100,
-    monthly_average: Math.round(monthlyAverage * 100) / 100,
-    transactions_count: included,
+
+    // PRIMARY: recurring named-merchant income. Default for
+    // propose_income_update in 90% of cases.
+    streams_only: {
+      total: Math.round(streamsTotal * 100) / 100,
+      monthly_average: Math.round((streamsTotal / monthsCovered) * 100) / 100,
+      source_count: streams.length,
+    },
+
+    // SECONDARY: streams plus single named-merchant deposits (gifts,
+    // refunds, side payments). Useful when the user has lumpy but
+    // real extra income.
+    streams_plus_one_offs: {
+      total: Math.round((streamsTotal + oneOffTotal) * 100) / 100,
+      monthly_average:
+        Math.round(((streamsTotal + oneOffTotal) / monthsCovered) * 100) / 100,
+    },
+
+    // FULL: every positive-amount row that wasn't a category-tagged
+    // transfer. Includes unidentified sources (suspected self-
+    // transfers) and micro refunds. Sanity check, not a recommendation.
+    // Uses complete-month totals for the average so it lines up with
+    // by_month entries; `total` shows the entire window for context.
+    all_inflows: {
+      total: Math.round(totalAll * 100) / 100,
+      monthly_average:
+        Math.round((totalAllComplete / monthsCovered) * 100) / 100,
+      transactions_count: included,
+    },
+
     by_month: monthList.map((m) => ({
       month: m.month,
       count: m.count,
       total: Math.round(m.total * 100) / 100,
       is_partial: m.is_partial,
     })),
-    by_source: sourceList,
+
+    by_source: classifiedSources.map(fmt),
+
+    // Convenience slices so the model doesn't have to filter by_source
+    // by classification itself.
+    streams: streams.map(fmt),
+    one_offs: oneOffs.map(fmt),
+    unidentified_sources: unidentified.map(fmt),
+    micro_sources: micro.map(fmt),
+
     excluded_transfers: {
       count: excluded.count,
       total: Math.round(excluded.total * 100) / 100,
     },
+
     notes: [
-      'Excludes transfer-flavored categories (Transfer In / Out groups, ' +
-        'Credit Card Payment leaves, Account Transfer leaves) — those are ' +
-        'NOT new money.',
-      'monthly_average is computed over complete months when at least one ' +
-        'is available, ignoring the current partial month.',
-      'Includes EVERY positive-amount transaction in the window (no row ' +
-        'limit). This is the authoritative income figure.',
+      "streams_only.monthly_average is the authoritative monthly income figure for almost every user. Use it as the default for propose_income_update unless the user tells you otherwise.",
+      "Sources are classified into stream / one_off / unidentified / micro based on count + has_named_merchant + per-deposit average. See the sample_descriptions on unidentified sources to spot self-transfers (Cash App / Venmo / Zelle to the user's own accounts often appear here with the user's own name in the description).",
+      "monthly_average across all buckets is computed over complete months only — the current partial month is excluded when at least one complete month exists in the window.",
+      "Excludes category-tagged transfers (Transfer In/Out groups, Credit Card Payment / Account Transfer leaves) up front. Unidentified self-transfers usually slip past that filter because Plaid mislabels them as INCOME — that's why we surface them separately under unidentified_sources.",
     ],
   };
 }
