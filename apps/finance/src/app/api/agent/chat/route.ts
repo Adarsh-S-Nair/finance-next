@@ -47,6 +47,29 @@ type StoredContent = {
   blocks?: unknown;
 };
 
+/**
+ * Strip em dashes (and en dashes) from agent prose. The system prompt
+ * already tells the model not to use them, but models pattern-match on
+ * em dashes from training data and produce them anyway. This is the
+ * deterministic backstop — applied to both the streamed text deltas
+ * (so the user sees clean text live) and the persisted message blocks
+ * (so reload shows the same clean text). Spaces are normalized so
+ * "word — word" cleanly becomes "word, word", not "word ,  word".
+ */
+function stripEmDashes(text: string): string {
+  if (!text) return text;
+  return (
+    text
+      // Spaced em/en dash → comma + single space.
+      .replace(/\s+[—–]\s+/g, ', ')
+      // Unspaced or one-sided em/en dash → bare comma. Rarer in agent
+      // output, but covers cases like "word—word" if they slip through.
+      .replace(/[—–]/g, ',')
+      // Collapse any accidental double-comma artefacts.
+      .replace(/,\s*,/g, ',')
+  );
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Persistence helpers
 // ──────────────────────────────────────────────────────────────────────────
@@ -227,23 +250,34 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
 
           // Stream text deltas + tool_use starts to client. Tool input
           // arrives as JSON deltas inside content_block_delta of type
-          // input_json_delta — for simplicity we don't stream those
+          // input_json_delta. For simplicity we don't stream those
           // through; we just capture the final input from finalMessage().
           for await (const event of anthropicStream) {
             if (
               event.type === 'content_block_delta' &&
               event.delta.type === 'text_delta'
             ) {
-              send({ type: 'text_delta', text: event.delta.text });
+              send({ type: 'text_delta', text: stripEmDashes(event.delta.text) });
             }
           }
 
           const finalMessage = await anthropicStream.finalMessage();
           const blocks = finalMessage.content as AnthropicContentBlock[];
 
+          // Strip em dashes from any text blocks before persisting too,
+          // so reloading the conversation shows the same clean text the
+          // user already saw. Skips tool_use blocks (they're structured
+          // input/output, not prose; em dashes there would be data).
+          const cleanedBlocks = blocks.map((block) => {
+            if (block.type === 'text') {
+              return { ...block, text: stripEmDashes(block.text) };
+            }
+            return block;
+          }) as AnthropicContentBlock[];
+
           // Persist the assistant turn (raw blocks).
           await insertMessage(conversationId, 'assistant', {
-            blocks,
+            blocks: cleanedBlocks,
           } as unknown as Json);
 
           // Find any tool_use blocks the model emitted.

@@ -111,6 +111,15 @@ A good consultation looks like:
 
 2. **Ask about commitments the data won't show**. This is the key thing. The connected-account data only shows what flowed through accounts you can see. The user may pay rent, mortgage, insurance, tuition, child support, alimony, or other recurring expenses from accounts that AREN'T connected, or transfer money in chunks that don't categorize cleanly. Always explicitly ask: "Are there other recurring expenses you cover that might not show up here? Mortgage, rent, insurance, anything you pay in cash or from another account?"
 
+   **Mentally exclude double-counted spending when summarising what they spend.** Two categories are notorious for inflating the "total spending" number even though they're not real expenses:
+
+   - **Credit card payments** (e.g. "Gold Card payment", "Amex payment"). These are payoffs of money already spent in OTHER categories (dining, gas, shopping, etc). Treating them as a separate expense double-counts.
+   - **Account transfers between the user's own accounts** (e.g. "Transfer Out to Personal Savings", "Transfer In from Checking"). These move money between the user's accounts; nothing actually leaves their pocket.
+
+   When you summarise spending in prose, exclude or call these out. DON'T say "$5,676 in Loan Payments" if $817 of that is a credit card payment, you'll mislead the user. Either subtract those out and say so ("$4,858 in real loan payments, plus $817 paying off the credit card which double-counts other categories"), or call out the breakdown explicitly. When proposing budgets, never suggest budgeting for "Credit Card Payments" or "Account Transfer Out", those aren't budgetable.
+
+   Real loan payments DO belong in budgets: mortgage, auto loan, student loan, personal loan, etc. Those represent money actually leaving the user's net worth.
+
 3. **Propose budgets one at a time, conversationally**. Talk about ONE budget at a time and call propose_budget_create. Wait for the accept/decline (or a follow-up message), then move to the next. This is more like a guided setup than a form. Never call multiple propose_budget_* tools in the same response.
 
 4. **Suggest realistic amounts based on actual data + buffer**. If they spent $480 on dining last month, $500/month is a tight target; $600 has breathing room. Mention the past number when proposing: "You've been averaging about $480 here, so $550 gives you a little headroom. Sound reasonable?" It's also fine to ask the user what they think the right number is.
