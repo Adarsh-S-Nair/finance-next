@@ -149,8 +149,13 @@ export const TOOLS: ToolDefinition[] = [
     name: 'get_spending_by_category',
     description:
       "Get a breakdown of spending grouped by category for a given period. " +
-      "Use this when the user asks 'where is my money going', wants to see " +
-      "their top spending categories, or asks about spending trends.",
+      "Use this when the user asks where their money is going, wants to see " +
+      "their top spending categories, or asks about spending trends.\n\n" +
+      "By default the result renders as a stacked-bar widget with category " +
+      "rows. If you only need the data for your own reasoning (e.g. during " +
+      "budget consultation, where the breakdown widget would feel redundant " +
+      "next to your prose), pass silent: true. The data still comes back to " +
+      "you, but no widget renders to the user.",
     input_schema: {
       type: 'object',
       properties: {
@@ -158,8 +163,15 @@ export const TOOLS: ToolDefinition[] = [
           type: 'string',
           enum: ['this_month', 'last_month', 'last_30_days', 'last_90_days'],
           description:
-            'Time window. `this_month` and `last_month` use calendar-month boundaries; ' +
-            '`last_30_days` and `last_90_days` are rolling. Defaults to this_month.',
+            'Time window. this_month and last_month use calendar-month boundaries; ' +
+            'last_30_days and last_90_days are rolling. Defaults to this_month.',
+        },
+        silent: {
+          type: 'boolean',
+          description:
+            'When true, run the query but do NOT render a widget. Use when ' +
+            'you need the data for context but a visible breakdown would feel ' +
+            "redundant next to what you're going to say in prose.",
         },
       },
     },
@@ -448,6 +460,7 @@ interface RecentTransactionsInput {
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
+  silent?: boolean;
 }
 interface ProposeRecategorizationInput {
   transaction_ids?: string[];

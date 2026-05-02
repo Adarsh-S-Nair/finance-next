@@ -59,6 +59,15 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
   // disappears for tools whose result the user shouldn't see.
   if (HIDDEN_TOOLS.has(tool.name)) return null;
 
+  // Per-call silent flag. Some tools (currently get_spending_by_category)
+  // accept `silent: true` in their input — the model uses the data for
+  // reasoning but doesn't want the widget rendered to the user. We treat
+  // a silent call exactly like a hidden tool: no loading row, no widget.
+  // Reading the input rather than the output so the loading row is also
+  // suppressed while the call is in flight.
+  const input = tool.input as { silent?: boolean } | null | undefined;
+  if (input?.silent) return null;
+
   if (!tool.output) {
     return <ToolLoadingRow name={tool.name} />;
   }
