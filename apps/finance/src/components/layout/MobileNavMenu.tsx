@@ -43,6 +43,20 @@ export default function MobileNavMenu() {
     setOpen(false);
   }, [pathname]);
 
+  // Close when the viewport grows past the mobile breakpoint. The toggle
+  // button is `md:hidden`, so once it hides at md+ the user has no way
+  // to dismiss a drawer that was opened on mobile and then resized — we
+  // do it for them.
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px)");
+    const handler = () => {
+      if (mql.matches) setOpen(false);
+    };
+    handler();
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   const mainItems = NAV_GROUPS
     .flatMap((g) => g.items)
     .filter((item) => !item.disabled)
@@ -99,46 +113,30 @@ export default function MobileNavMenu() {
           <ScopeSwitcher hideChevron />
 
           <nav className="flex-1 overflow-y-auto px-3 pt-3 space-y-0.5">
-            {mainItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={clsx(
-                    "flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
-                    isActive
-                      ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)]"
-                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
-                  )}
-                >
-                  {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+            {mainItems.map((item) => (
+              <NavRow
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                Icon={item.icon}
+                active={pathname.startsWith(item.href)}
+              />
+            ))}
           </nav>
 
           <div className="px-3 pt-3 pb-3 border-t border-[var(--color-fg)]/[0.06] space-y-0.5">
-            <Link
+            <NavRow
               href="/settings"
-              className={clsx(
-                "flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
-                pathname.startsWith("/settings")
-                  ? "bg-[var(--color-sidebar-active)] text-[var(--color-fg)]"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60",
-              )}
-            >
-              <LuSettings className="w-4 h-4 flex-shrink-0" />
-              <span>Settings</span>
-            </Link>
+              label="Settings"
+              Icon={LuSettings}
+              active={pathname.startsWith("/settings")}
+            />
             <button
               type="button"
               onClick={() => setShowLogout(true)}
-              className="w-full flex items-center gap-3 px-2.5 py-2 rounded-md text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05] transition-colors"
             >
-              <LuLogOut className="w-4 h-4 flex-shrink-0" />
+              <LuLogOut className="w-[18px] h-[18px] flex-shrink-0" />
               <span>Sign out</span>
             </button>
           </div>
@@ -157,6 +155,48 @@ export default function MobileNavMenu() {
         busy={isSigningOut}
       />
     </>
+  );
+}
+
+// Drawer nav row — visually matches the desktop SidebarItem (square
+// corners, 3px left accent bar on active, fg-tinted bg) so navigating
+// between viewports doesn't change the rendering of the active state.
+// We don't share SidebarItem itself because its framer-motion layoutIds
+// would compete with the desktop sidebar's items (they're mounted on
+// every viewport via display:none) and end up syncing animations across
+// two unrelated lists.
+function NavRow({
+  href,
+  label,
+  Icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  Icon?: import("react-icons").IconType;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={clsx(
+        "group relative flex items-center gap-3 px-3 py-2 text-sm transition-colors",
+        active
+          ? "text-[var(--color-fg)] font-medium"
+          : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+      )}
+    >
+      {active && (
+        <>
+          <span className="absolute inset-0 bg-[var(--color-fg)]/[0.08]" />
+          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-fg)]" />
+        </>
+      )}
+      {Icon && (
+        <Icon className="w-[18px] h-[18px] flex-shrink-0 relative z-[1]" />
+      )}
+      <span className="relative z-[1]">{label}</span>
+    </Link>
   );
 }
 

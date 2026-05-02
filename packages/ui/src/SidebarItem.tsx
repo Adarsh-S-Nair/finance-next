@@ -41,7 +41,7 @@ export default function SidebarItem({
         }}
         aria-disabled={disabled || undefined}
         className={clsx(
-          "group relative flex items-center text-[13px] rounded-md",
+          "group relative flex items-center text-[13px]",
           isCollapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
           disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
           active
@@ -58,12 +58,12 @@ export default function SidebarItem({
           <>
             <motion.span
               layoutId="sidebar-active-bg"
-              className="absolute inset-0 rounded-md bg-[var(--color-fg)]/[0.08]"
+              className="absolute inset-0 bg-[var(--color-fg)]/[0.08]"
               transition={{ type: "spring", stiffness: 420, damping: 36 }}
             />
             <motion.span
               layoutId="sidebar-active-bar"
-              className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r-full bg-[var(--color-fg)]"
+              className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-fg)]"
               transition={{ type: "spring", stiffness: 420, damping: 36 }}
             />
           </>
