@@ -221,6 +221,22 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     ? `${basePrompt}\n\nUser's custom instructions:\n${profile.custom_instructions}`
     : basePrompt;
 
+  // Two prompt-cache breakpoints. The tools array is identical across all
+  // users so the breakpoint on its last entry produces a globally shared
+  // cache. The system block adds a second breakpoint that covers
+  // tools+system, which gets reused across the 2-3 round-trips a single
+  // tool-use turn does (and across a user's recent messages within the
+  // 5-minute TTL). Cache reads cost 10% of base input — Haiku 4.5 input
+  // drops from $1/MTok to $0.10/MTok on the cached prefix.
+  const cachedSystem: Anthropic.Messages.TextBlockParam[] = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  ];
+  const cachedTools: Anthropic.Messages.Tool[] = TOOLS.map((tool, i) =>
+    i === TOOLS.length - 1
+      ? { ...tool, cache_control: { type: 'ephemeral' } }
+      : tool,
+  );
+
   const client = new Anthropic({ apiKey: agentConfig.apiKey });
   const encoder = new TextEncoder();
 
@@ -256,8 +272,8 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
           const anthropicStream = client.messages.stream({
             model: agentConfig.model,
             max_tokens: MAX_RESPONSE_TOKENS,
-            system: systemPrompt,
-            tools: TOOLS,
+            system: cachedSystem,
+            tools: cachedTools,
             messages: trimmed,
           });
 
