@@ -253,31 +253,40 @@ function ProposalState({
         iconName={current?.icon_name ?? null}
       />
 
-      <div className="space-y-2.5 pl-14">
+      {/* FROM stays on its own row. TO sits in a flex row that pulls
+          the buttons up next to it on desktop — visually "should we
+          change to Fast Food? [yes/no]" reads as one decision. On
+          mobile the buttons drop below; the chat is too narrow to
+          fit a category line + two buttons on one row without
+          either truncating the category or pinching the buttons. */}
+      <div className="pl-14 space-y-2.5">
         <ChangeLine label="From" cat={current} muted />
-        <ChangeLine label="To" cat={suggested} />
-      </div>
-
-      <div className="flex items-center justify-end gap-2 pt-1">
-        {error && (
-          <span className="text-[11px] text-rose-500 mr-2">{error}</span>
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onDecline}
-          disabled={committing}
-        >
-          Decline
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onAccept}
-          loading={committing}
-        >
-          Accept
-        </Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+          <div className="min-w-0 md:flex-1">
+            <ChangeLine label="To" cat={suggested} />
+          </div>
+          <div className="flex items-center justify-end gap-2 flex-shrink-0">
+            {error && (
+              <span className="text-[11px] text-rose-500 mr-2">{error}</span>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onDecline}
+              disabled={committing}
+            >
+              Decline
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onAccept}
+              loading={committing}
+            >
+              Accept
+            </Button>
+          </div>
+        </div>
       </div>
     </motion.div>
   );
@@ -317,27 +326,36 @@ function ResolvedState({
         burst={tone === "accepted" && !silent}
       />
 
-      <div className="space-y-2 pl-14">
-        <ChangeLine
-          label={tone === "accepted" ? "Now" : "Stays"}
-          cat={resolvedCategory}
-          muted={tone === "declined"}
-        />
-        <motion.div
-          initial={silent ? false : { opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
-          className={`flex items-center gap-1.5 text-xs ${
-            tone === "accepted" ? "text-emerald-500" : "text-[var(--color-muted)]"
-          }`}
-        >
-          {tone === "accepted" ? (
-            <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
-          ) : (
-            <FiX className="h-3.5 w-3.5" strokeWidth={3} />
-          )}
-          {tone === "accepted" ? "Recategorized" : "Suggestion declined"}
-        </motion.div>
+      {/* Status indicator sits in the spot the buttons used to occupy:
+          inline-right of the category row. Keeps the resolved layout
+          on the same horizontal rhythm as the proposal. */}
+      <div className="pl-14">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
+          <div className="min-w-0 md:flex-1">
+            <ChangeLine
+              label={tone === "accepted" ? "Now" : "Stays"}
+              cat={resolvedCategory}
+              muted={tone === "declined"}
+            />
+          </div>
+          <motion.div
+            initial={silent ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
+            className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
+              tone === "accepted"
+                ? "text-emerald-500"
+                : "text-[var(--color-muted)]"
+            }`}
+          >
+            {tone === "accepted" ? (
+              <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+            ) : (
+              <FiX className="h-3.5 w-3.5" strokeWidth={3} />
+            )}
+            {tone === "accepted" ? "Recategorized" : "Suggestion declined"}
+          </motion.div>
+        </div>
       </div>
     </motion.div>
   );
