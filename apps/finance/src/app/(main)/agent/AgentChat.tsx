@@ -65,7 +65,19 @@ type ToolBlock = {
 type Block = TextBlock | ToolBlock;
 
 type Message =
-  | { id: string; role: "user"; text: string; created_at: string }
+  | {
+      id: string;
+      role: "user";
+      text: string;
+      created_at: string;
+      // Synthetic user messages are widget-fired continuations
+      // ("[user accepted...]") that drive the agent's next turn.
+      // They live in the messages array as turn boundaries so the
+      // displayMessages merge logic doesn't fuse two separate
+      // assistant turns into one block, but they're filtered out
+      // of the rendered chat.
+      synthetic?: boolean;
+    }
   | { id: string; role: "assistant"; blocks: Block[]; created_at: string };
 
 type Conversation = {
@@ -154,16 +166,21 @@ function rowsToMessages(rows: DbRow[]): Message[] {
   const messages: Message[] = [];
   for (const row of rows) {
     if (row.role === "user") {
-      // Synthetic user messages are widget-fired continuations like
-      // "[user accepted the proposal above]". They live in the DB and
-      // get sent to Anthropic as turn context, but the chat UI hides
-      // them so the user doesn't see "[user accepted]" bubbles
-      // cluttering up the thread.
-      if (row.content?.synthetic === true) continue;
       const text = typeof row.content?.text === "string" ? row.content.text : "";
-      if (text) {
-        messages.push({ id: row.id, role: "user", text, created_at: row.created_at });
-      }
+      if (!text) continue;
+      const synthetic = row.content?.synthetic === true;
+      // Synthetic user messages stay in the messages stream so the
+      // displayMessages merge logic sees a boundary between
+      // consecutive assistant turns. The render path filters them
+      // out of the visible chat — they're context for the agent,
+      // not text the user sees.
+      messages.push({
+        id: row.id,
+        role: "user",
+        text,
+        created_at: row.created_at,
+        ...(synthetic ? { synthetic: true } : {}),
+      });
     } else if (row.role === "assistant") {
       const blocks: Block[] = [];
       // Legacy text-only assistant rows.
@@ -390,10 +407,11 @@ export default function AgentChat({
 
   /**
    * Continuation path: a widget fired this on the user's behalf after
-   * they clicked accept/decline. We DON'T add a visible user bubble
-   * (the chat would clutter with "[user accepted]" lines); the message
-   * is sent synthetic so it persists in DB and reaches Anthropic but
-   * the UI hides it.
+   * they clicked accept/decline. The synthetic user message is added
+   * to the messages array as a turn boundary (so displayMessages won't
+   * merge the previous assistant block with the new one), but it gets
+   * filtered out of the rendered chat — the user never sees the
+   * "[user accepted...]" text. The agent sees it as turn context.
    */
   async function handleContinuation(message: string) {
     if (sending) return; // Don't fire if a turn is already in flight.
@@ -401,10 +419,19 @@ export default function AgentChat({
     setSending(true);
 
     localIdRef.current += 1;
+    const userMsgId = `local-syn-${localIdRef.current}`;
+    localIdRef.current += 1;
     const assistantMsgId = `local-asst-${localIdRef.current}`;
     const nowIso = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
+      {
+        id: userMsgId,
+        role: "user",
+        text: message,
+        created_at: nowIso,
+        synthetic: true,
+      },
       { id: assistantMsgId, role: "assistant", blocks: [], created_at: nowIso },
     ]);
 
@@ -734,6 +761,10 @@ export default function AgentChat({
         <div className="flex flex-col" style={fullHeight}>
           <div className="flex-1 max-w-2xl w-full mx-auto px-4 pt-12 pb-6 space-y-6">
             {displayMessages.map((m, i) => {
+              // Synthetic user messages exist only as turn boundaries
+              // for the merge logic — they're widget continuation
+              // triggers, not text the user typed. Skip rendering.
+              if (m.role === "user" && m.synthetic) return null;
               const isLastAssistant =
                 m.role === "assistant" && i === displayMessages.length - 1;
               // Hide the timestamp on the currently-streaming response —
