@@ -35,16 +35,30 @@ export type RecategorizationData = {
   error?: string;
 };
 
-// Local widget state. The "accepted_silent" variant skips the magic
-// burst — used when the widget detects on mount that the change was
-// already accepted in a previous session.
+// Local widget state.
+//   - checking: hitting the API on mount to see if the change was
+//     already accepted in a previous session
+//   - idle: showing the proposal with accept/decline buttons
+//   - committing: API call in flight after user clicked accept
+//   - accepted: success state. silent=true skips the magic burst
+//     (the burst already played when the user originally accepted;
+//     a remount that detects "already accepted" shouldn't replay it)
+//   - declining: brief "Suggestion dismissed" state visible for ~1.2s
+//   - dismissed: post-decline collapse to nothing
+//   - failed: accept call failed; show error and let the user retry
 type WidgetState =
   | { kind: "checking" }
   | { kind: "idle" }
   | { kind: "committing" }
   | { kind: "accepted"; silent: boolean }
-  | { kind: "declined" }
+  | { kind: "declining" }
+  | { kind: "dismissed" }
   | { kind: "failed"; message: string };
+
+// How long the "Suggestion dismissed" view stays visible before the
+// widget collapses. Long enough for the user to register that they
+// declined; short enough not to feel like the chat is stuck.
+const DISMISS_HOLD_MS = 1200;
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -79,7 +93,11 @@ export default function RecategorizationWidget({
   // immediately get replaced by the success state.
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
 
+  // Mount-time check: is this proposal already accepted? Hooks must
+  // run unconditionally on every render — keep this above any early
+  // return so the hook order stays stable.
   useEffect(() => {
+    if (data.error) return;
     let cancelled = false;
     async function check() {
       try {
@@ -105,7 +123,16 @@ export default function RecategorizationWidget({
     return () => {
       cancelled = true;
     };
-  }, [data.transaction.id, data.suggested_category.id]);
+  }, [data.transaction.id, data.suggested_category.id, data.error]);
+
+  // Auto-transition declining → dismissed after the dismiss confirmation
+  // has had time to read. Same hook-order discipline — declared up front,
+  // bails out internally when state isn't relevant.
+  useEffect(() => {
+    if (state.kind !== "declining") return;
+    const t = setTimeout(() => setState({ kind: "dismissed" }), DISMISS_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [state.kind]);
 
   if (data.error) return <WidgetError message={data.error} />;
 
@@ -134,11 +161,11 @@ export default function RecategorizationWidget({
   }
 
   function handleDecline() {
-    setState({ kind: "declined" });
+    setState({ kind: "declining" });
   }
 
-  // Declined → collapse to nothing.
-  if (state.kind === "declined") {
+  // Dismissed → collapse to nothing.
+  if (state.kind === "dismissed") {
     return (
       <motion.div
         initial={{ opacity: 1, height: "auto" }}
@@ -165,6 +192,12 @@ export default function RecategorizationWidget({
             tx={data.transaction}
             suggested={data.suggested_category}
             silent={state.silent}
+          />
+        ) : state.kind === "declining" ? (
+          <DismissedState
+            key="dismissed"
+            tx={data.transaction}
+            current={data.current_category}
           />
         ) : (
           <ProposalState
@@ -363,6 +396,49 @@ function AcceptedState({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Dismissed — brief "Suggestion dismissed" view that holds for a
+// moment before the widget collapses. Preserves the transaction header
+// (consistent with the accept path) so the user still has context for
+// what they declined.
+// ──────────────────────────────────────────────────────────────────────────
+
+function DismissedState({
+  tx,
+  current,
+}: {
+  tx: Transaction;
+  current: Category | null;
+}) {
+  // Use the CURRENT category for the icon — the transaction stays where
+  // it was, since the change was declined.
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-5"
+    >
+      <TransactionHeader
+        tx={tx}
+        iconColor={categoryColor(current)}
+        iconLib={current?.icon_lib ?? null}
+        iconName={current?.icon_name ?? null}
+      />
+      <motion.div
+        initial={{ opacity: 0, x: -4 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.15, duration: 0.25 }}
+        className="flex items-center gap-2 pl-14 text-sm text-[var(--color-muted)]"
+      >
+        <FiX className="h-4 w-4 text-rose-500" strokeWidth={2.75} />
+        Suggestion dismissed
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Shared bits
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -471,17 +547,15 @@ function ActionButton({
   tone: "accept" | "decline";
 } & React.AriaAttributes) {
   const colorClasses =
-    tone === "accept"
-      ? "text-emerald-500 hover:bg-emerald-500/10"
-      : "text-rose-500 hover:bg-rose-500/10";
+    tone === "accept" ? "text-emerald-500" : "text-rose-500";
   return (
     <motion.button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.05 }}
-      whileTap={{ scale: disabled ? 1 : 0.92 }}
-      className={`inline-flex items-center justify-center w-9 h-9 rounded-full ${colorClasses} disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors`}
+      whileHover={{ scale: disabled ? 1 : 1.12 }}
+      whileTap={{ scale: disabled ? 1 : 0.9 }}
+      className={`inline-flex items-center justify-center w-9 h-9 ${colorClasses} disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-transform`}
       {...rest}
     >
       {children}
