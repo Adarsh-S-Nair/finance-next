@@ -151,6 +151,7 @@ export default function ToolWidget({
         <IncomeProposalWidget
           toolUseId={tool.id}
           data={tool.output as IncomeProposalData}
+          onContinue={onContinue}
         />
       );
     default:

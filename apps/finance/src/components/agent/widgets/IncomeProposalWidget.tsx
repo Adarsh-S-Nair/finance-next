@@ -44,9 +44,15 @@ type WidgetState =
 export default function IncomeProposalWidget({
   toolUseId,
   data,
+  onContinue,
 }: {
   toolUseId: string;
   data: IncomeProposalData;
+  // Optional: auto-continue the agent's flow after accept/decline.
+  // Mirrors BudgetProposalWidget — declining is the natural moment to
+  // ask "what would you correct it to?" rather than ending the turn
+  // with an unresolved proposal.
+  onContinue?: (message: string) => void;
 }) {
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
 
@@ -109,6 +115,13 @@ export default function IncomeProposalWidget({
         }),
       });
       setState({ kind: "accepted", silent: false });
+      // Continue the conversation. After confirming income the agent
+      // typically transitions to whatever it was doing (e.g. budget
+      // consultation), so we let it pick up rather than ending the
+      // turn on the proposal.
+      onContinue?.(
+        `[user accepted the monthly income proposal above; continue with whatever you were doing or wrap up]`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
       setState({ kind: "failed", message });
@@ -129,6 +142,12 @@ export default function IncomeProposalWidget({
     } catch {
       // Silent.
     }
+    // Decline is rarely the end of the conversation — usually the
+    // user disagrees with the number. Prompt the agent to ask what
+    // the correct amount is so they can re-propose.
+    onContinue?.(
+      `[user declined the monthly income proposal above; acknowledge briefly, ask what their actual monthly take-home is, and propose again with the corrected number]`,
+    );
   }
 
   if (state.kind === "checking") {
