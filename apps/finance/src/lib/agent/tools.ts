@@ -756,9 +756,22 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
   }
 
   if (merchantQuery.length > 0) {
-    query = query.or(
-      `description.ilike.%${merchantQuery}%,merchant_name.ilike.%${merchantQuery}%`,
-    );
+    // Multi-word merchant queries are surprisingly fragile. The user
+    // says "loan depot" but the data has "loanDepot" (no space) because
+    // that's how the company brands itself. ILIKE doesn't fuzzy-match
+    // whitespace, so a literal "loan depot" search misses the
+    // unspaced form entirely. To catch both, OR in a second pair of
+    // ilikes against the de-spaced query when the original has any
+    // whitespace. No-op for single-word queries.
+    const compactQuery = merchantQuery.replace(/\s+/g, '');
+    const variations =
+      compactQuery && compactQuery !== merchantQuery
+        ? [merchantQuery, compactQuery]
+        : [merchantQuery];
+    const orClauses = variations
+      .flatMap((v) => [`description.ilike.%${v}%`, `merchant_name.ilike.%${v}%`])
+      .join(',');
+    query = query.or(orClauses);
   }
 
   // Type → sign filter. Plaid convention used throughout this codebase:
