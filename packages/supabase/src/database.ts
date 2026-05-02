@@ -1213,6 +1213,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_agent_widget_actions: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          tool_use_id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          tool_use_id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          tool_use_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           accent_color: string | null

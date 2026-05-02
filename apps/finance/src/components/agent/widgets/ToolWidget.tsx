@@ -70,8 +70,12 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
     case "get_account_balances":
       return <AccountListWidget data={tool.output as AccountListData} />;
     case "propose_recategorization":
+      // tool.id is Anthropic's tool_use_id — globally unique per
+      // proposal. The widget uses it to persist accept/decline state
+      // to user_agent_widget_actions so the choice survives reloads.
       return (
         <RecategorizationWidget
+          toolUseId={tool.id}
           data={tool.output as RecategorizationData}
         />
       );

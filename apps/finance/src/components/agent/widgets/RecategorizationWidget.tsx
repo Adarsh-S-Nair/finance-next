@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiX, FiTag } from "react-icons/fi";
+import { Button } from "@zervo/ui";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { authFetch } from "../../../lib/api/fetch";
@@ -35,30 +36,17 @@ export type RecategorizationData = {
   error?: string;
 };
 
-// Local widget state.
-//   - checking: hitting the API on mount to see if the change was
-//     already accepted in a previous session
-//   - idle: showing the proposal with accept/decline buttons
-//   - committing: API call in flight after user clicked accept
-//   - accepted: success state. silent=true skips the magic burst
-//     (the burst already played when the user originally accepted;
-//     a remount that detects "already accepted" shouldn't replay it)
-//   - declining: brief "Suggestion dismissed" state visible for ~1.2s
-//   - dismissed: post-decline collapse to nothing
-//   - failed: accept call failed; show error and let the user retry
+// Local widget state. The `silent` flag on accepted/declined skips the
+// entrance animation when the widget is rehydrating an action that
+// happened in a previous session — the user already saw the animation
+// the first time around.
 type WidgetState =
   | { kind: "checking" }
   | { kind: "idle" }
   | { kind: "committing" }
   | { kind: "accepted"; silent: boolean }
-  | { kind: "declining" }
-  | { kind: "dismissed" }
+  | { kind: "declined"; silent: boolean }
   | { kind: "failed"; message: string };
-
-// How long the "Suggestion dismissed" view stays visible before the
-// widget collapses. Long enough for the user to register that they
-// declined; short enough not to feel like the chat is stuck.
-const DISMISS_HOLD_MS = 1200;
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -70,11 +58,9 @@ function formatDate(iso: string | null): string {
 }
 
 /**
- * Pick the display color for a category. Mirrors how /api/plaid/transactions/get
- * resolves color: leaf system_category's hex_color first, parent
- * category_group's color as fallback. Inverting this (group first)
- * paints everything in the parent group's color and breaks distinct
- * leaves like Education (orange leaf inside the generic Other group).
+ * Pick the display color for a category. Mirrors how
+ * /api/plaid/transactions/get resolves color: leaf system_category's
+ * hex_color first, parent category_group's color as fallback.
  */
 function categoryColor(cat: Category | null | undefined): string {
   if (!cat) return "#71717a";
@@ -82,34 +68,39 @@ function categoryColor(cat: Category | null | undefined): string {
 }
 
 export default function RecategorizationWidget({
+  toolUseId,
   data,
 }: {
+  toolUseId: string;
   data: RecategorizationData;
 }) {
-  // Start in "checking" — we hit the API to see if the transaction is
-  // already in the suggested category (i.e. the user accepted this
-  // proposal in a previous session). While that's in flight, render
-  // nothing visible to avoid a flash of accept/decline buttons that
-  // immediately get replaced by the success state.
+  // checking: hitting /api/agent/widget-actions to see if the user
+  // already accepted/declined this proposal in a previous session.
+  // While that's in flight we render an empty WidgetFrame to reserve
+  // space and avoid a flash of accept/decline buttons that immediately
+  // get replaced.
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
 
-  // Mount-time check: is this proposal already accepted? Hooks must
-  // run unconditionally on every render — keep this above any early
-  // return so the hook order stays stable.
+  // Mount-time: fetch the persisted action for this tool_use_id.
+  // Source of truth = the database; the widget UI just renders it.
   useEffect(() => {
     if (data.error) return;
     let cancelled = false;
     async function check() {
       try {
         const res = await authFetch(
-          `/api/agent/transaction-category?id=${encodeURIComponent(data.transaction.id)}`,
+          `/api/agent/widget-actions/${encodeURIComponent(toolUseId)}`,
         );
         if (cancelled) return;
         if (res.ok) {
-          const body = (await res.json()) as { category_id?: string | null };
+          const body = (await res.json()) as { action?: string | null };
           if (cancelled) return;
-          if (body.category_id === data.suggested_category.id) {
+          if (body.action === "accepted") {
             setState({ kind: "accepted", silent: true });
+            return;
+          }
+          if (body.action === "declined") {
+            setState({ kind: "declined", silent: true });
             return;
           }
         }
@@ -123,23 +114,16 @@ export default function RecategorizationWidget({
     return () => {
       cancelled = true;
     };
-  }, [data.transaction.id, data.suggested_category.id, data.error]);
-
-  // Auto-transition declining → dismissed after the dismiss confirmation
-  // has had time to read. Same hook-order discipline — declared up front,
-  // bails out internally when state isn't relevant.
-  useEffect(() => {
-    if (state.kind !== "declining") return;
-    const t = setTimeout(() => setState({ kind: "dismissed" }), DISMISS_HOLD_MS);
-    return () => clearTimeout(t);
-  }, [state.kind]);
+  }, [toolUseId, data.error]);
 
   if (data.error) return <WidgetError message={data.error} />;
 
   async function handleAccept() {
     setState({ kind: "committing" });
     try {
-      const res = await authFetch("/api/agent/recategorize", {
+      // Step 1: actually move the transaction to the suggested category.
+      // This is the durable side effect the user is consenting to.
+      const recatRes = await authFetch("/api/agent/recategorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -147,12 +131,24 @@ export default function RecategorizationWidget({
           category_id: data.suggested_category.id,
         }),
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+      if (!recatRes.ok) {
+        const body = await recatRes.json().catch(() => ({}));
         throw new Error(
-          (body as { error?: string })?.error || `Failed (${res.status})`,
+          (body as { error?: string })?.error || `Failed (${recatRes.status})`,
         );
       }
+      // Step 2: record the widget action so reload shows accepted state.
+      // If this fails after the recategorize succeeded, the user sees
+      // the proposal again on reload but accepting it is a harmless
+      // no-op (tx already in target category) — we just retry then.
+      await authFetch("/api/agent/widget-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool_use_id: toolUseId,
+          action: "accepted",
+        }),
+      });
       setState({ kind: "accepted", silent: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
@@ -160,25 +156,27 @@ export default function RecategorizationWidget({
     }
   }
 
-  function handleDecline() {
-    setState({ kind: "declining" });
+  async function handleDecline() {
+    // Optimistically flip to declined state — the API call below just
+    // persists the choice. No durable side effect to roll back if it
+    // fails; we'll re-record on next click.
+    setState({ kind: "declined", silent: false });
+    try {
+      await authFetch("/api/agent/widget-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool_use_id: toolUseId,
+          action: "declined",
+        }),
+      });
+    } catch {
+      // Silent. The state stays declined locally; on reload the user
+      // sees the proposal again, can decline again. Acceptable.
+    }
   }
 
-  // Dismissed → collapse to nothing.
-  if (state.kind === "dismissed") {
-    return (
-      <motion.div
-        initial={{ opacity: 1, height: "auto" }}
-        animate={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        style={{ overflow: "hidden" }}
-      />
-    );
-  }
-
-  // Checking → reserve space without flashing buttons. We render an
-  // empty WidgetFrame at the same height as the proposal so the layout
-  // doesn't jump when state resolves.
+  // Reserve space while we're checking persistent state.
   if (state.kind === "checking") {
     return <WidgetFrame>{null}</WidgetFrame>;
   }
@@ -187,17 +185,20 @@ export default function RecategorizationWidget({
     <WidgetFrame>
       <AnimatePresence mode="wait" initial={false}>
         {state.kind === "accepted" ? (
-          <AcceptedState
+          <ResolvedState
             key="accepted"
+            tone="accepted"
             tx={data.transaction}
-            suggested={data.suggested_category}
+            resolvedCategory={data.suggested_category}
             silent={state.silent}
           />
-        ) : state.kind === "declining" ? (
-          <DismissedState
-            key="dismissed"
+        ) : state.kind === "declined" ? (
+          <ResolvedState
+            key="declined"
+            tone="declined"
             tx={data.transaction}
-            current={data.current_category}
+            resolvedCategory={data.current_category ?? data.suggested_category}
+            silent={state.silent}
           />
         ) : (
           <ProposalState
@@ -205,7 +206,6 @@ export default function RecategorizationWidget({
             tx={data.transaction}
             current={data.current_category}
             suggested={data.suggested_category}
-            reasoning={data.reasoning}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
             onAccept={handleAccept}
@@ -218,14 +218,13 @@ export default function RecategorizationWidget({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Proposal — bigger, more obvious, FROM/TO labels
+// Proposal state — accept/decline + FROM/TO change preview
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
   tx,
   current,
   suggested,
-  reasoning,
   committing,
   error,
   onAccept,
@@ -234,19 +233,11 @@ function ProposalState({
   tx: Transaction;
   current: Category | null;
   suggested: Category;
-  reasoning: string | null;
   committing: boolean;
   error: string | null;
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  // Color resolution matches /api/plaid/transactions/get: prefer the
-  // LEAF category's hex_color, fall back to the parent group. Earlier
-  // versions had this inverted (group first), which painted everything
-  // in the parent group's color — e.g. Education's leaf is orange, but
-  // its parent group's color is generic purple, so we were showing
-  // purple. The transactions page uses leaf-first; widgets should too.
-  const proposalIconColor = categoryColor(current);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -257,55 +248,104 @@ function ProposalState({
     >
       <TransactionHeader
         tx={tx}
-        iconColor={proposalIconColor}
+        iconColor={categoryColor(current)}
         iconLib={current?.icon_lib ?? null}
         iconName={current?.icon_name ?? null}
       />
 
-      {/* FROM / TO change. Two rows with leading labels so the change
-          reads as a deliberate before/after rather than a tossed-off
-          chevron. Generous vertical spacing keeps it from feeling
-          cramped. The colored dot does the visual lifting; the label
-          is plain text. */}
       <div className="space-y-2.5 pl-14">
         <ChangeLine label="From" cat={current} muted />
         <ChangeLine label="To" cat={suggested} />
       </div>
 
-      {reasoning && (
-        <p className="text-[13px] text-[var(--color-muted)] leading-relaxed pl-14">
-          {reasoning}
-        </p>
-      )}
-
       <div className="flex items-center justify-end gap-2 pt-1">
         {error && (
           <span className="text-[11px] text-rose-500 mr-2">{error}</span>
         )}
-        <ActionButton
-          tone="decline"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onDecline}
           disabled={committing}
-          aria-label="Decline suggestion"
         >
-          <FiX className="h-4 w-4" strokeWidth={2.75} />
-        </ActionButton>
-        <ActionButton
-          tone="accept"
+          Decline
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={onAccept}
-          disabled={committing}
-          aria-label="Accept suggestion"
+          loading={committing}
         >
-          {committing ? (
-            <SpinnerDot />
-          ) : (
-            <FiCheck className="h-4 w-4" strokeWidth={2.75} />
-          )}
-        </ActionButton>
+          Accept
+        </Button>
       </div>
     </motion.div>
   );
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Resolved state (accepted or declined) — preserves the transaction
+// header, replaces the FROM/TO + buttons with a status line. On the
+// accepted path the merchant icon morphs color and bursts; on the
+// declined path it stays in the current category's color.
+// ──────────────────────────────────────────────────────────────────────────
+
+function ResolvedState({
+  tone,
+  tx,
+  resolvedCategory,
+  silent,
+}: {
+  tone: "accepted" | "declined";
+  tx: Transaction;
+  resolvedCategory: Category;
+  silent: boolean;
+}) {
+  const iconColor = categoryColor(resolvedCategory);
+  return (
+    <motion.div
+      initial={silent ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      className="space-y-5"
+    >
+      <TransactionHeader
+        tx={tx}
+        iconColor={iconColor}
+        iconLib={resolvedCategory.icon_lib}
+        iconName={resolvedCategory.icon_name}
+        burst={tone === "accepted" && !silent}
+      />
+
+      <div className="space-y-2 pl-14">
+        <ChangeLine
+          label={tone === "accepted" ? "Now" : "Stays"}
+          cat={resolvedCategory}
+          muted={tone === "declined"}
+        />
+        <motion.div
+          initial={silent ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
+          className={`flex items-center gap-1.5 text-xs ${
+            tone === "accepted" ? "text-emerald-500" : "text-[var(--color-muted)]"
+          }`}
+        >
+          {tone === "accepted" ? (
+            <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+          ) : (
+            <FiX className="h-3.5 w-3.5" strokeWidth={3} />
+          )}
+          {tone === "accepted" ? "Recategorized" : "Suggestion declined"}
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Shared bits
+// ──────────────────────────────────────────────────────────────────────────
 
 function ChangeLine({
   label,
@@ -318,7 +358,7 @@ function ChangeLine({
 }) {
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-8 flex-shrink-0">
+      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-12 flex-shrink-0">
         {label}
       </span>
       {cat ? (
@@ -345,112 +385,27 @@ function ChangeLine({
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Accepted — keep the transaction visible; show the new category +
-// recategorized confirmation. Magic burst plays on first acceptance;
-// a remount that detects "already accepted" skips it (silent=true).
-// ──────────────────────────────────────────────────────────────────────────
-
-function AcceptedState({
-  tx,
-  suggested,
-  silent,
-}: {
-  tx: Transaction;
-  suggested: Category;
-  silent: boolean;
-}) {
-  // Same leaf-first resolution as the proposal — see comment in
-  // ProposalState. The icon morphs to the suggested category's identity
-  // on accept, with the merchant icon picking up the new color/icon.
-  const burstColor = categoryColor(suggested);
+/**
+ * Solid colored dot for category identity. Color carries identity;
+ * label carries meaning. We tried embedding a per-category icon
+ * earlier, but adjacent leaves often share a parent group's icon, so
+ * two different categories rendered identical icons.
+ */
+function CategoryDot({ color }: { color: string }) {
   return (
-    <motion.div
-      initial={silent ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.25 }}
-      className="space-y-5"
-    >
-      <TransactionHeader
-        tx={tx}
-        iconColor={burstColor}
-        iconLib={suggested.icon_lib}
-        iconName={suggested.icon_name}
-        burst={!silent}
-      />
-
-      <div className="space-y-2 pl-14">
-        <ChangeLine label="Now" cat={suggested} />
-        <motion.div
-          initial={silent ? false : { opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
-          className="flex items-center gap-1.5 text-xs text-emerald-500"
-        >
-          <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
-          Recategorized
-        </motion.div>
-      </div>
-    </motion.div>
+    <span
+      className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+      style={{ backgroundColor: color }}
+    />
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────
-// Dismissed — brief "Suggestion dismissed" view that holds for a
-// moment before the widget collapses. Preserves the transaction header
-// (consistent with the accept path) so the user still has context for
-// what they declined.
-// ──────────────────────────────────────────────────────────────────────────
-
-function DismissedState({
-  tx,
-  current,
-}: {
-  tx: Transaction;
-  current: Category | null;
-}) {
-  // Use the CURRENT category for the icon — the transaction stays where
-  // it was, since the change was declined.
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className="space-y-5"
-    >
-      <TransactionHeader
-        tx={tx}
-        iconColor={categoryColor(current)}
-        iconLib={current?.icon_lib ?? null}
-        iconName={current?.icon_name ?? null}
-      />
-      <motion.div
-        initial={{ opacity: 0, x: -4 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.15, duration: 0.25 }}
-        className="flex items-center gap-2 pl-14 text-sm text-[var(--color-muted)]"
-      >
-        <FiX className="h-4 w-4 text-rose-500" strokeWidth={2.75} />
-        Suggestion dismissed
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Shared bits
-// ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Transaction header used by both proposal and accepted states.
- * Bigger merchant icon (10×10 = 40px, vs 7×7 elsewhere) because this
- * is a confirmation widget — we want the user to clearly see what
- * they're acting on, not skim past it.
- *
- * `burst=true` plays the magic acceptance animation on the icon:
- * a soft color aura scales out, six sparkles fly in a radial pattern,
- * and the icon itself springs in.
+ * Transaction header with optional magic burst on the merchant icon.
+ * 10×10 icon (vs 7×7 in the transaction list widget) because this is
+ * a confirmation widget — we want the user to clearly see what
+ * they're acting on. `burst=true` plays the radial color aura +
+ * sparkle particles + spring entrance on accept.
  */
 function TransactionHeader({
   tx,
@@ -509,57 +464,6 @@ function TransactionHeader({
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * Solid colored dot for category identity. We tried embedding the
- * group icon inside, but leaves don't have icons in the schema and
- * adjacent leaves often share a parent group — so two different
- * categories rendered identical icons. A clean colored dot avoids
- * that confusion: color carries identity, label carries meaning.
- */
-function CategoryDot({ color }: { color: string }) {
-  return (
-    <span
-      className="w-3.5 h-3.5 rounded-full flex-shrink-0"
-      style={{ backgroundColor: color }}
-    />
-  );
-}
-
-/**
- * Accept (✓ emerald) and decline (✕ rose) icon-only buttons. Per
- * feedback: sentiment color is on by default, not just on hover —
- * makes the action obvious. Hover adds a subtle tinted background;
- * tap gives a small scale press.
- */
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  tone,
-  ...rest
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  tone: "accept" | "decline";
-} & React.AriaAttributes) {
-  const colorClasses =
-    tone === "accept" ? "text-emerald-500" : "text-rose-500";
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.12 }}
-      whileTap={{ scale: disabled ? 1 : 0.9 }}
-      className={`inline-flex items-center justify-center w-9 h-9 ${colorClasses} disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-transform`}
-      {...rest}
-    >
-      {children}
-    </motion.button>
   );
 }
 
@@ -627,15 +531,5 @@ function Sparkles({ color }: { color: string }) {
         );
       })}
     </>
-  );
-}
-
-function SpinnerDot() {
-  return (
-    <motion.div
-      className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent"
-      animate={{ rotate: 360 }}
-      transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-    />
   );
 }
