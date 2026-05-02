@@ -48,24 +48,37 @@ type StoredContent = {
 };
 
 /**
- * Strip em dashes (and en dashes) from agent prose. The system prompt
- * already tells the model not to use them, but models pattern-match on
- * em dashes from training data and produce them anyway. This is the
- * deterministic backstop — applied to both the streamed text deltas
- * (so the user sees clean text live) and the persisted message blocks
- * (so reload shows the same clean text). Spaces are normalized so
- * "word — word" cleanly becomes "word, word", not "word ,  word".
+ * Strip em-dash-style punctuation from agent prose, including the
+ * spaced-hyphen substitute the model reaches for when told not to use
+ * actual em dashes. Visually a spaced hyphen ("X - Y") reads the same
+ * as an em dash, so the user-experience problem is identical.
+ *
+ * Stripped:
+ * - " — " / " – " (em / en dash with whitespace) → ", "
+ * - " - " (HYPHEN with whitespace, used as em-dash substitute) → ", "
+ * - "—" / "–" without surrounding whitespace → "," (rare; covers stuff
+ *   like "word—word" that the model occasionally produces)
+ *
+ * NOT stripped:
+ * - Unspaced hyphens (compounds: "self-driving", ranges: "$130-180").
+ *   These are legitimate.
+ *
+ * Run on both streamed text deltas and the persisted text blocks so
+ * the user sees clean text live AND on reload.
  */
 function stripEmDashes(text: string): string {
   if (!text) return text;
   return (
     text
-      // Spaced em/en dash → comma + single space.
-      .replace(/\s+[—–]\s+/g, ', ')
-      // Unspaced or one-sided em/en dash → bare comma. Rarer in agent
-      // output, but covers cases like "word—word" if they slip through.
+      // Spaced em-dash, en-dash, OR hyphen used as a sentence break.
+      // The spacing is what marks intent: "self-driving" stays alone,
+      // "X - Y" gets normalized.
+      .replace(/\s+[—–-]\s+/g, ', ')
+      // Bare em/en dash (no spaces). Rare. Don't include hyphen here
+      // since compounds are legitimate.
       .replace(/[—–]/g, ',')
-      // Collapse any accidental double-comma artefacts.
+      // Collapse any accidental double-comma artefacts from chained
+      // replacements.
       .replace(/,\s*,/g, ',')
   );
 }

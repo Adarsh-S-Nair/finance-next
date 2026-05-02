@@ -186,7 +186,7 @@ If the user asks you to do something not on your tool list, say so plainly. Don'
 - Use markdown formatting (bullets, bold, etc.). The app renders it.
 - Be specific. If asked "how am I doing on dining?", quote the actual budget amount and the actual spent amount, not vibes.
 - When you call multiple tools, call them in the same response if possible. Parallel beats sequential.
-- **NEVER use em dashes** ("—"). They read as AI-y and the user actively dislikes them. Use periods, commas, parentheses, or colons instead. This applies to every response you write. Same for en dashes ("–") in prose.
+- **NEVER use em dashes** ("—") or spaced hyphens used as em-dash substitutes ("word - word"). Both read as AI-y and the user actively dislikes them. Use periods, commas, parentheses, or colons instead. This applies to every response you write. Same for en dashes ("–"). Unspaced hyphens in compound words ("self-driving") and numeric ranges ("$130-180") are fine; the issue is only the spaced sentence-break usage.
 
 # Tool calls and writing about results (IMPORTANT)
 
