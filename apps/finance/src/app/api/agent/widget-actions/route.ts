@@ -33,6 +33,42 @@ export const POST = withAuth(
       );
     }
 
+    // Look up the message that contains this tool_use so we can FK to
+    // it (cascade delete on conversation removal). Two-step query:
+    // first the user's conversation ids, then the assistant messages
+    // in those conversations. Falls back to NULL if unmatched, since
+    // the schema permits NULL message_id (backwards compat) and the
+    // action recording is still useful even without the FK.
+    let messageId: string | null = null;
+    const { data: convs } = await supabaseAdmin
+      .from('user_agent_conversations')
+      .select('id')
+      .eq('user_id', userId);
+    const convIds = (convs ?? []).map((c) => c.id);
+    if (convIds.length > 0) {
+      // Cap at 200 recent assistant rows. The tool_use we're looking
+      // for is almost always in the very latest assistant message
+      // (user just clicked accept/decline on a freshly streamed
+      // widget); the cap is just a safety bound for unusual paths.
+      const { data: messages } = await supabaseAdmin
+        .from('user_agent_messages')
+        .select('id, content')
+        .in('conversation_id', convIds)
+        .eq('role', 'assistant')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      for (const row of messages ?? []) {
+        const content = row.content as { blocks?: Array<{ type?: string; id?: string }> } | null;
+        const found = content?.blocks?.find(
+          (b) => b.type === 'tool_use' && b.id === toolUseId,
+        );
+        if (found) {
+          messageId = row.id;
+          break;
+        }
+      }
+    }
+
     const { error } = await supabaseAdmin
       .from('user_agent_widget_actions')
       .upsert(
@@ -40,6 +76,7 @@ export const POST = withAuth(
           user_id: userId,
           tool_use_id: toolUseId,
           action,
+          message_id: messageId,
         },
         { onConflict: 'user_id,tool_use_id' },
       );

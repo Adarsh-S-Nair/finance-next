@@ -378,6 +378,44 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'remember_user_fact',
+    description:
+      "Save a short fact about the user that should persist across " +
+      "conversations. Loaded into your system prompt at the start of " +
+      "every chat so you don't have to ask the user to repeat themselves.\n\n" +
+      "USE for things that are:\n" +
+      "- Durable: commitments, preferences, household composition, financial setup\n" +
+      "- NOT visible in connected-account data (e.g. mortgage paid from an unconnected account)\n" +
+      "- Volunteered by the user in the current conversation\n\n" +
+      "DON'T use for things that are:\n" +
+      "- Already in the database (account names, transactions, budgets — call the read tools)\n" +
+      "- Temporary or contradictable (\"I'm trying to spend less this month\")\n" +
+      "- Conversational filler\n\n" +
+      "Keep each fact short and standalone (under 200 characters). " +
+      "Phrase in third person (\"User has...\"). One fact per call. " +
+      "If you saved something the user disagrees with, they can delete " +
+      "it from the agent settings page; you can also be told to forget " +
+      "specific things in conversation.\n\n" +
+      "Examples:\n" +
+      "- 'User has a $4,858/mo mortgage with LoanDepot, paid from an unconnected account.'\n" +
+      "- 'User has 2 kids in elementary school.'\n" +
+      "- 'User prefers brief, casual responses over thorough explanations.'\n" +
+      "- 'User\\'s side hustle income is roughly $1,500/mo, deposited to their primary checking.'",
+    input_schema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description:
+            'The fact to remember. One short standalone sentence in third person. Max 1000 chars but aim for under 200.',
+          minLength: 1,
+          maxLength: 1000,
+        },
+      },
+      required: ['content'],
+    },
+  },
+  {
     name: 'propose_category_rule',
     description:
       "Propose a permanent category rule that auto-categorizes future " +
@@ -461,7 +499,8 @@ type ToolName =
   | 'propose_category_rule'
   | 'propose_budget_create'
   | 'propose_budget_update'
-  | 'propose_budget_delete';
+  | 'propose_budget_delete'
+  | 'remember_user_fact';
 
 interface BudgetsInput {
   month?: string;
@@ -545,6 +584,10 @@ interface ProposeBudgetDeleteInput {
   reasoning?: string;
 }
 
+interface RememberUserFactInput {
+  content?: string;
+}
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -597,6 +640,11 @@ export async function executeTool(
         return await proposeBudgetDelete(
           userId,
           (input as ProposeBudgetDeleteInput) ?? {},
+        );
+      case 'remember_user_fact':
+        return await rememberUserFact(
+          userId,
+          (input as RememberUserFactInput) ?? {},
         );
       default:
         return { error: `Unknown tool: ${name}` };
@@ -1704,5 +1752,61 @@ async function proposeBudgetDelete(
     target: target as BudgetTargetCategory,
     current_amount: Number(budget.amount),
     reasoning: input.reasoning ?? null,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Memories — persistent facts the agent saves about the user
+// ──────────────────────────────────────────────────────────────────────────
+
+async function rememberUserFact(userId: string, input: RememberUserFactInput) {
+  const content = input.content?.trim() ?? '';
+  if (content.length === 0) {
+    return { error: 'content is required' };
+  }
+  if (content.length > 1000) {
+    return { error: 'content must be 1000 characters or fewer' };
+  }
+
+  // Soft dedupe — if the user already has the exact same active memory,
+  // don't insert a second copy. The model occasionally calls the tool
+  // with slight variations, but exact duplicates would just clutter.
+  const { data: existing } = await supabaseAdmin
+    .from('user_agent_memories')
+    .select('id, content')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .eq('content', content)
+    .maybeSingle();
+
+  if (existing) {
+    return {
+      action: 'remember' as const,
+      memory_id: existing.id,
+      content: existing.content,
+      duplicate: true,
+    };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('user_agent_memories')
+    .insert({
+      user_id: userId,
+      content,
+      source: 'agent',
+    })
+    .select('id, content')
+    .single();
+
+  if (error) {
+    console.error('[agent:remember_user_fact] insert failed', error);
+    return { error: 'Failed to save memory' };
+  }
+
+  return {
+    action: 'remember' as const,
+    memory_id: data.id,
+    content: data.content,
+    duplicate: false,
   };
 }

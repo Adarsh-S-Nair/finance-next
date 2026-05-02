@@ -216,7 +216,29 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     `resolve them against this date. For tools that take a \`month\` parameter (YYYY-MM-DD), pass any ` +
     `date inside the target month — the tool normalizes to month boundaries internally.`;
 
-  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}`;
+  // Load active memories — facts the agent has saved (or the user has
+  // added) that should persist across conversations. Prepended to the
+  // prompt so the agent doesn't have to re-ask things like "do you
+  // have a mortgage paid from an unconnected account?" every chat.
+  // Source of truth is user_agent_memories; the user manages the list
+  // via /settings/agent.
+  const { data: memories } = await supabaseAdmin
+    .from('user_agent_memories')
+    .select('content, created_at')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true });
+
+  const memoriesBlock =
+    memories && memories.length > 0
+      ? `\n\n# What you know about the user (from past conversations)\n\n` +
+        `These facts have been saved across sessions. Treat them as ` +
+        `current context. If the user contradicts something here, prefer ` +
+        `what they say now and call remember_user_fact to update.\n\n` +
+        memories.map((m) => `- ${m.content}`).join('\n')
+      : '';
+
+  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}${memoriesBlock}`;
   const systemPrompt = profile?.custom_instructions
     ? `${basePrompt}\n\nUser's custom instructions:\n${profile.custom_instructions}`
     : basePrompt;

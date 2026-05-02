@@ -1218,6 +1218,7 @@ export type Database = {
           action: string
           created_at: string
           id: string
+          message_id: string | null
           tool_use_id: string
           user_id: string
         }
@@ -1225,6 +1226,7 @@ export type Database = {
           action: string
           created_at?: string
           id?: string
+          message_id?: string | null
           tool_use_id: string
           user_id: string
         }
@@ -1232,7 +1234,43 @@ export type Database = {
           action?: string
           created_at?: string
           id?: string
+          message_id?: string | null
           tool_use_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_agent_widget_actions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "user_agent_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_agent_memories: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          source: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          source?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          source?: string
           user_id?: string
         }
         Relationships: []

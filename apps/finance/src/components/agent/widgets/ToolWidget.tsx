@@ -14,6 +14,9 @@ import CategoryRuleWidget, {
 import BudgetProposalWidget, {
   type BudgetProposalData,
 } from "./BudgetProposalWidget";
+import MemoryWidget, {
+  type MemoryWidgetData,
+} from "./MemoryWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -27,6 +30,7 @@ const TOOL_LABELS: Record<string, string> = {
   propose_budget_create: "Preparing budget proposal",
   propose_budget_update: "Preparing budget update",
   propose_budget_delete: "Preparing budget removal",
+  remember_user_fact: "Saving to memory",
 };
 
 // Tools that produce data the model uses internally but isn't useful to
@@ -118,6 +122,8 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
           data={tool.output as BudgetProposalData}
         />
       );
+    case "remember_user_fact":
+      return <MemoryWidget data={tool.output as MemoryWidgetData} />;
     default:
       return <UnknownToolFallback name={tool.name} output={tool.output} />;
   }
