@@ -76,10 +76,13 @@ type Conversation = {
 };
 
 // Persisted content shapes — we accept both legacy {text: string} and
-// new {blocks: ...} on assistant rows.
+// new {blocks: ...} on assistant rows. `synthetic` flags user
+// messages fired by widgets (continuation triggers) so the chat UI
+// can hide them.
 type StoredContent = {
   text?: unknown;
   blocks?: unknown;
+  synthetic?: unknown;
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -151,6 +154,12 @@ function rowsToMessages(rows: DbRow[]): Message[] {
   const messages: Message[] = [];
   for (const row of rows) {
     if (row.role === "user") {
+      // Synthetic user messages are widget-fired continuations like
+      // "[user accepted the proposal above]". They live in the DB and
+      // get sent to Anthropic as turn context, but the chat UI hides
+      // them so the user doesn't see "[user accepted]" bubbles
+      // cluttering up the thread.
+      if (row.content?.synthetic === true) continue;
       const text = typeof row.content?.text === "string" ? row.content.text : "";
       if (text) {
         messages.push({ id: row.id, role: "user", text, created_at: row.created_at });
@@ -357,6 +366,9 @@ export default function AgentChat({
     setInput("");
     setSending(true);
 
+    // Optimistic user bubble + assistant placeholder. The user-facing
+    // submit path always shows the user's message so the chat reflects
+    // exactly what they typed.
     localIdRef.current += 1;
     const userMsgId = `local-user-${localIdRef.current}`;
     localIdRef.current += 1;
@@ -368,12 +380,67 @@ export default function AgentChat({
       { id: assistantMsgId, role: "assistant", blocks: [], created_at: nowIso },
     ]);
 
+    await streamChatTurn({
+      message: text,
+      synthetic: false,
+      assistantMsgId,
+      submittedText: text,
+    });
+  }
+
+  /**
+   * Continuation path: a widget fired this on the user's behalf after
+   * they clicked accept/decline. We DON'T add a visible user bubble
+   * (the chat would clutter with "[user accepted]" lines); the message
+   * is sent synthetic so it persists in DB and reaches Anthropic but
+   * the UI hides it.
+   */
+  async function handleContinuation(message: string) {
+    if (sending) return; // Don't fire if a turn is already in flight.
+    setError(null);
+    setSending(true);
+
+    localIdRef.current += 1;
+    const assistantMsgId = `local-asst-${localIdRef.current}`;
+    const nowIso = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantMsgId, role: "assistant", blocks: [], created_at: nowIso },
+    ]);
+
+    await streamChatTurn({
+      message,
+      synthetic: true,
+      assistantMsgId,
+      submittedText: message,
+    });
+  }
+
+  /**
+   * Shared streaming logic for both handleSubmit (user typed) and
+   * handleContinuation (widget fired). Builds the request, reads the
+   * SSE stream, dispatches events. Caller is responsible for the
+   * optimistic UI updates beforehand and for whatever cleanup makes
+   * sense on error.
+   */
+  async function streamChatTurn({
+    message,
+    synthetic,
+    assistantMsgId,
+    submittedText,
+  }: {
+    message: string;
+    synthetic: boolean;
+    assistantMsgId: string;
+    submittedText: string;
+  }) {
     try {
       const res = await authFetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: text,
+          message,
+          synthetic,
           conversation_id: conversation?.id ?? null,
         }),
       });
@@ -404,7 +471,7 @@ export default function AgentChat({
           }
           if (typeof evt !== "object" || !evt) continue;
           const ev = evt as Record<string, unknown>;
-          handleStreamEvent(ev, assistantMsgId, text);
+          handleStreamEvent(ev, assistantMsgId, submittedText);
           if (ev.type === "error") {
             streamErr = (ev.message as string | undefined) ?? "Stream error";
           }
@@ -414,8 +481,8 @@ export default function AgentChat({
 
       void refreshConversationList();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to send";
-      setError(message);
+      const errMessage = err instanceof Error ? err.message : "Failed to send";
+      setError(errMessage);
       setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
     } finally {
       setSending(false);
@@ -697,7 +764,10 @@ export default function AgentChat({
                   key={m.id}
                   animate={m.id.startsWith("local-")}
                 >
-                  <AssistantMessageRow blocks={m.blocks} />
+                  <AssistantMessageRow
+                    blocks={m.blocks}
+                    onContinue={handleContinuation}
+                  />
                   {showStamp && nowAtMount !== null && (
                     <MessageTimestamp
                       ts={m.created_at}
@@ -991,7 +1061,17 @@ function MessageTimestamp({
   );
 }
 
-function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
+function AssistantMessageRow({
+  blocks,
+  onContinue,
+}: {
+  blocks: Block[];
+  // Fired by widgets after a successful accept/decline so the agent
+  // can take the next turn without the user having to type "continue".
+  // Optional because not every render path passes one (e.g. test
+  // harnesses, future read-only viewers).
+  onContinue?: (message: string) => void;
+}) {
   if (blocks.length === 0) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
@@ -1013,7 +1093,7 @@ function AssistantMessageRow({ blocks }: { blocks: Block[] }) {
         <MarkdownText key={`t-${i}`} text={b.text} />
       ))}
       {toolBlocks.map((b) => (
-        <ToolWidget key={b.id} tool={b as ToolBlockData} />
+        <ToolWidget key={b.id} tool={b as ToolBlockData} onContinue={onContinue} />
       ))}
     </div>
   );

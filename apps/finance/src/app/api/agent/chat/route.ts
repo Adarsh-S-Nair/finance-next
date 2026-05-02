@@ -37,6 +37,13 @@ import type { Json } from '../../../../types/database';
 interface ChatBody {
   message?: string;
   conversation_id?: string | null;
+  // When true, the user-role message is marked synthetic in the DB
+  // and won't be displayed in the chat UI — but is still passed to
+  // Anthropic so the agent has the turn-trigger context. Used by
+  // widgets to fire a continuation message after the user clicks
+  // accept/decline so the agent moves to the next step automatically
+  // without the user having to type "what's next?".
+  synthetic?: boolean;
 }
 
 type AnthropicContentBlock = Anthropic.Messages.ContentBlock;
@@ -45,6 +52,11 @@ type AnthropicMessageParam = Anthropic.Messages.MessageParam;
 type StoredContent = {
   text?: unknown;
   blocks?: unknown;
+  // Optional flag on user messages. When true, the message was sent
+  // by a widget on the user's behalf (after they clicked accept or
+  // decline) — the chat UI filters these out of display, but they
+  // remain in DB / Anthropic context so the agent has continuity.
+  synthetic?: unknown;
 };
 
 /**
@@ -203,8 +215,14 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
     conversationId = created.id;
   }
 
-  // Persist the user message.
-  await insertMessage(conversationId, 'user', { text: userMessage } as unknown as Json);
+  // Persist the user message. Synthetic messages get tagged so the
+  // chat UI can filter them out of display; the agent still sees them
+  // when the conversation history is replayed to Anthropic on the
+  // next turn.
+  const userContent: StoredContent = body.synthetic
+    ? { text: userMessage, synthetic: true }
+    : { text: userMessage };
+  await insertMessage(conversationId, 'user', userContent as unknown as Json);
 
   // Anchor the model in time. Without this it has no idea what "today" is
   // and starts inventing months — calling get_budgets with `month: 2024-01-15`

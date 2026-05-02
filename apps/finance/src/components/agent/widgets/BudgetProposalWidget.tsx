@@ -66,9 +66,15 @@ function categoryColor(t: BudgetTarget): string {
 export default function BudgetProposalWidget({
   toolUseId,
   data,
+  onContinue,
 }: {
   toolUseId: string;
   data: BudgetProposalData;
+  // Called after a successful accept/decline so the agent can
+  // continue the consultation without the user having to type a
+  // follow-up. Optional — if absent, the widget resolves silently
+  // and the user has to drive the next turn manually.
+  onContinue?: (message: string) => void;
 }) {
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
 
@@ -157,6 +163,14 @@ export default function BudgetProposalWidget({
         }),
       });
       setState({ kind: "accepted", silent: false });
+      // Auto-continue the agent's flow. The synthetic message is
+      // descriptive enough that the agent knows what just happened
+      // without needing widget-action lookups in mid-turn.
+      if (data.action) {
+        onContinue?.(
+          `[user accepted the ${data.action} budget proposal above; continue the consultation if there's a next step or wrap up]`,
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
       setState({ kind: "failed", message });
@@ -176,6 +190,13 @@ export default function BudgetProposalWidget({
       });
     } catch {
       // Silent.
+    }
+    // Continue regardless of whether the persistence succeeded — the
+    // user's intent (decline) is clear and the agent should react.
+    if (data.action) {
+      onContinue?.(
+        `[user declined the ${data.action} budget proposal above; acknowledge briefly, then either propose an alternative amount, move to the next category, or ask what they'd prefer]`,
+      );
     }
   }
 

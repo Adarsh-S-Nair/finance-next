@@ -60,8 +60,21 @@ export type ToolBlock = {
  * loading row if the result hasn't arrived yet (the round-trip can take
  * a few hundred ms even for cheap reads). Falls back to a generic
  * display for unknown tools so future additions don't crash the UI.
+ *
+ * onContinue: optional callback that confirmation widgets fire after a
+ * successful accept/decline. Triggers a synthetic continuation chat
+ * turn so the agent can keep going (e.g. propose the next budget) without
+ * the user having to type "what's next?". Currently only wired to the
+ * BudgetProposalWidget since that's the multi-step flow; other widgets
+ * accept once and stop.
  */
-export default function ToolWidget({ tool }: { tool: ToolBlock }) {
+export default function ToolWidget({
+  tool,
+  onContinue,
+}: {
+  tool: ToolBlock;
+  onContinue?: (message: string) => void;
+}) {
   // Hidden tools render nothing — neither during execution nor after.
   // This avoids a "Loading categories" row that briefly appears then
   // disappears for tools whose result the user shouldn't see.
@@ -124,6 +137,7 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
         <BudgetProposalWidget
           toolUseId={tool.id}
           data={tool.output as BudgetProposalData}
+          onContinue={onContinue}
         />
       );
     case "remember_user_fact":
