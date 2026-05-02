@@ -49,6 +49,11 @@ const HIDDEN_TOOLS = new Set<string>([
   // Result is dense JSON the user shouldn't see — the agent narrates the
   // findings in prose and follows up with an income proposal widget.
   "get_income_summary",
+  // Same idea: drilled merchant rollup the agent uses to size category
+  // budgets accurately (catches quarterly/annual bills that recurring
+  // streams misses). The user sees the resulting budget proposal,
+  // not the raw breakdown.
+  "get_category_breakdown",
 ]);
 
 export type ToolBlock = {

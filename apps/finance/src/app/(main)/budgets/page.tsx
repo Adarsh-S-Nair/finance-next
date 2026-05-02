@@ -6,6 +6,7 @@ import { useUser } from '../../../components/providers/UserProvider';
 import { useAuthedQuery } from '../../../lib/api/useAuthedQuery';
 import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
+import IncomeEditor from '../../../components/budgets/IncomeEditor';
 import DynamicIcon from '../../../components/DynamicIcon';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { FiTag } from 'react-icons/fi';
@@ -283,6 +284,15 @@ export default function BudgetsPage() {
       ) : (
         <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
           <div className="lg:w-2/3 flex flex-col gap-10">
+            <div className="-mb-4">
+              <IncomeEditor
+                savedIncome={savedIncome}
+                fallbackIncome={Number(fallbackIncome || 0)}
+                onChanged={async () => {
+                  await refreshProfile?.();
+                }}
+              />
+            </div>
             <BurnDownChart
               series={burnSeries}
               totalAllocated={totalAllocated}

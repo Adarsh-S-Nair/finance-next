@@ -231,6 +231,59 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'get_category_breakdown',
+    description:
+      "Drill into a category and get a per-merchant breakdown over a long " +
+      "window (default 365 days). Server-side aggregation, no row cap. " +
+      "Each merchant comes back with count, total_in_window, " +
+      "monthly_avg (total / months in window — already amortized for " +
+      "irregular cadences), first/last date, and a cadence_estimate.\n\n" +
+      "USE THIS instead of get_recent_transactions when you need to know " +
+      "what the user actually spends in a category and how much to budget. " +
+      "Categories like Utilities, Insurance, and Professional Services " +
+      "have irregular cadences — quarterly water bills, annual sewer " +
+      "fees, semi-annual auto insurance. A 30-day or 90-day window of " +
+      "raw transactions misses those entirely. This tool's monthly_avg " +
+      "is amortized over the full window so a single $400 annual " +
+      "payment correctly contributes ~$33/month to your budget math.\n\n" +
+      "REQUIRED before proposing a budget for any category whose cadence " +
+      "isn't obviously monthly (utilities, insurance, professional " +
+      "services, household maintenance, medical). The recurring streams " +
+      "tool only catches monthly-ish patterns; this catches everything.\n\n" +
+      "DO NOT ask the user 'should I drill into utilities?' or 'want me " +
+      "to check?'. The user has implicitly authorized read-only data " +
+      "lookups by asking for budget help. Just call this tool.\n\n" +
+      "category_query matches case-insensitive against either the leaf " +
+      "category label OR the parent category group name. 'utilities' " +
+      "matches the 'Rent and Utilities' group; 'insurance' matches " +
+      "anything insurance-flavored; 'food' matches the 'Food and Drink' " +
+      "group. Be generous — the tool returns matched_categories so you " +
+      "can confirm what hit.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        category_query: {
+          type: 'string',
+          description:
+            'Case-insensitive substring matched against leaf category labels ' +
+            'AND parent category group names. E.g. "utilities" matches the ' +
+            '"Rent and Utilities" group; "insurance" matches insurance-related ' +
+            'leaves and groups.',
+        },
+        days: {
+          type: 'integer',
+          description:
+            'Window size in days. Defaults to 365, max 730. Use 365 by ' +
+            'default — annual cadences (sewer, some insurance) need a full ' +
+            'year of history to show up.',
+          minimum: 30,
+          maximum: 730,
+        },
+      },
+      required: ['category_query'],
+    },
+  },
+  {
     name: 'propose_recategorization',
     description:
       "Suggest a category change for one OR MORE transactions. Renders an inline " +
@@ -593,6 +646,7 @@ type ToolName =
   | 'get_spending_by_category'
   | 'get_account_balances'
   | 'list_categories'
+  | 'get_category_breakdown'
   | 'get_recurring_transactions'
   | 'get_income_summary'
   | 'propose_recategorization'
@@ -671,6 +725,11 @@ interface GetIncomeSummaryInput {
   months_back?: number;
 }
 
+interface GetCategoryBreakdownInput {
+  category_query?: string;
+  days?: number;
+}
+
 interface ProposeBudgetCreateInput {
   category_id?: string;
   category_group_id?: string;
@@ -721,6 +780,11 @@ export async function executeTool(
         return await getAccountBalances(userId);
       case 'list_categories':
         return await listCategories();
+      case 'get_category_breakdown':
+        return await getCategoryBreakdown(
+          userId,
+          (input as GetCategoryBreakdownInput) ?? {},
+        );
       case 'propose_recategorization':
         return await proposeRecategorization(
           userId,
@@ -2064,6 +2128,270 @@ async function getIncomeSummary(
       "Sources are classified into stream / one_off / unidentified / micro based on count + has_named_merchant + per-deposit average. See the sample_descriptions on unidentified sources to spot self-transfers (Cash App / Venmo / Zelle to the user's own accounts often appear here with the user's own name in the description).",
       "monthly_average across all buckets is computed over complete months only — the current partial month is excluded when at least one complete month exists in the window.",
       "Excludes category-tagged transfers (Transfer In/Out groups, Credit Card Payment / Account Transfer leaves) up front. Unidentified self-transfers usually slip past that filter because Plaid mislabels them as INCOME — that's why we surface them separately under unidentified_sources.",
+    ],
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Category breakdown — server-side merchant rollup over a long window
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * For categories with irregular cadences (utilities, insurance,
+ * professional services), a 30-day or 90-day window of raw transactions
+ * misses the long-tail bills entirely. National Grid bills annually;
+ * water bills sometimes quarterly; sewer once a year. The agent
+ * needs to know about those when proposing a budget.
+ *
+ * This tool aggregates server-side over a 365-day window by default,
+ * groups by merchant, and amortizes each merchant's total to a
+ * monthly_avg by dividing by the months in the window. So an annual
+ * $400 sewer bill correctly contributes ~$33/month to the user's
+ * utilities budget instead of being missed.
+ *
+ * The category_query matches case-insensitive against either the leaf
+ * label (e.g. "Gas and Electricity") or the parent group name (e.g.
+ * "Rent and Utilities") — agent doesn't have to know the exact label,
+ * just a substring like "utilities".
+ */
+async function getCategoryBreakdown(
+  userId: string,
+  input: GetCategoryBreakdownInput,
+) {
+  const days = Math.min(Math.max(input.days ?? 365, 30), 730);
+  const query = (input.category_query ?? '').trim().toLowerCase();
+  if (!query) return { error: 'category_query is required' };
+
+  const today = new Date();
+  const windowStart = subDays(today, days);
+  const windowEnd = today;
+  const startStr = format(windowStart, 'yyyy-MM-dd');
+  const endStr = format(windowEnd, 'yyyy-MM-dd');
+  // months_in_window: continuous fractional months. For days=365 this
+  // is 12.0, so a single $372 annual payment contributes $31/mo.
+  const monthsInWindow = days / 30.4375;
+
+  // Pull all expense rows in the window, joined to category metadata.
+  // We post-filter in JS by query against label OR group name, since
+  // the substring match isn't expressible cleanly in postgrest's
+  // filter language.
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      `
+        amount,
+        date,
+        merchant_name,
+        description,
+        accounts!inner(user_id),
+        system_categories(
+          label,
+          category_groups(name)
+        )
+      `,
+    )
+    .eq('accounts.user_id', userId)
+    .lt('amount', 0)
+    .gte('date', startStr)
+    .lte('date', endStr);
+
+  if (error) throw error;
+
+  type Row = {
+    amount: number | string;
+    date: string | null;
+    merchant_name: string | null;
+    description: string | null;
+    system_categories: {
+      label?: string | null;
+      category_groups?: { name?: string | null } | null;
+    } | null;
+  };
+
+  const rows = (data ?? []) as unknown as Row[];
+
+  type MerchantBucket = {
+    merchant: string;
+    total: number;
+    count: number;
+    first_date: string;
+    last_date: string;
+    months_billed: Set<string>; // distinct YYYY-MM with at least one bill
+    leaf_labels: Set<string>;
+    group_names: Set<string>;
+  };
+
+  const buckets = new Map<string, MerchantBucket>();
+  const matchedLabels = new Set<string>();
+  const matchedGroups = new Set<string>();
+  let totalSpent = 0;
+  let matchedCount = 0;
+
+  for (const r of rows) {
+    const cat = r.system_categories;
+    const label = cat?.label ?? '';
+    const groupName = cat?.category_groups?.name ?? '';
+
+    // Match against either label or group name (case-insensitive
+    // substring). Skip transfer leaves entirely — they're not real
+    // category spending and would inflate every category total.
+    if (isTransferCategory(label)) continue;
+
+    const labelMatches = label.toLowerCase().includes(query);
+    const groupMatches = groupName.toLowerCase().includes(query);
+    if (!labelMatches && !groupMatches) continue;
+
+    if (labelMatches) matchedLabels.add(label);
+    if (groupMatches) matchedGroups.add(groupName);
+
+    const amt = Math.abs(Number(r.amount ?? 0));
+    if (!Number.isFinite(amt) || amt <= 0) continue;
+
+    const merchant = r.merchant_name ?? r.description ?? 'Unknown';
+    matchedCount += 1;
+    totalSpent += amt;
+
+    const monthKey = r.date ? r.date.slice(0, 7) : null;
+    const b = buckets.get(merchant);
+    if (b) {
+      b.total += amt;
+      b.count += 1;
+      if (r.date && r.date < b.first_date) b.first_date = r.date;
+      if (r.date && r.date > b.last_date) b.last_date = r.date;
+      if (monthKey) b.months_billed.add(monthKey);
+      if (label) b.leaf_labels.add(label);
+      if (groupName) b.group_names.add(groupName);
+    } else {
+      buckets.set(merchant, {
+        merchant,
+        total: amt,
+        count: 1,
+        first_date: r.date ?? '',
+        last_date: r.date ?? '',
+        months_billed: new Set(monthKey ? [monthKey] : []),
+        leaf_labels: new Set(label ? [label] : []),
+        group_names: new Set(groupName ? [groupName] : []),
+      });
+    }
+  }
+
+  // Cadence estimate: how often does this merchant bill?
+  //
+  // We compute the AVERAGE GAP between consecutive bills, which is
+  // robust to partial-history windows. If the user connected their
+  // bank 4 months ago and PSEG has billed 4 times since at ~30-day
+  // intervals, that's clearly monthly — even though months_billed (4)
+  // is only 33% of the 12-month window. A count-vs-window heuristic
+  // would mis-tag this as "quarterly" and recommend $44/mo when the
+  // user actually pays $130/mo.
+  //
+  // Buckets:
+  //   monthly:           avg gap <= 40 days
+  //   quarterly:         avg gap <= 100 days
+  //   semi_annual:       avg gap <= 200 days
+  //   irregular:         avg gap > 200 days with 2+ bills
+  //   one_off_or_annual: only one bill — can't compute a gap
+  function estimateCadence(b: MerchantBucket): string {
+    if (b.count < 2) return 'one_off_or_annual';
+    const first = b.first_date ? Date.parse(b.first_date) : NaN;
+    const last = b.last_date ? Date.parse(b.last_date) : NaN;
+    if (!Number.isFinite(first) || !Number.isFinite(last)) {
+      return 'irregular';
+    }
+    const spanDays = (last - first) / (1000 * 60 * 60 * 24);
+    const avgGap = spanDays / (b.count - 1);
+    if (avgGap <= 40) return 'monthly';
+    if (avgGap <= 100) return 'quarterly';
+    if (avgGap <= 200) return 'semi_annual';
+    return 'irregular';
+  }
+
+  // Recommended monthly contribution for a budget.
+  //
+  // Cadence-aware so monthly billers with partial history aren't
+  // under-counted by naive amortization.
+  //
+  //   monthly:           bill_avg (~ what the next bill costs)
+  //   quarterly:         bill_avg / 3
+  //   semi_annual:       bill_avg / 6
+  //   irregular:         total / months_in_window (amortize what we saw)
+  //   one_off_or_annual: total / 12 (assume ~annual cadence)
+  function monthlyContribution(b: MerchantBucket, cadence: string): number {
+    const billAvg = b.total / b.count;
+    if (cadence === 'monthly') return billAvg;
+    if (cadence === 'quarterly') return billAvg / 3;
+    if (cadence === 'semi_annual') return billAvg / 6;
+    if (cadence === 'one_off_or_annual') return b.total / 12;
+    // irregular: amortize across what we observed
+    return b.total / monthsInWindow;
+  }
+
+  const byMerchant = Array.from(buckets.values())
+    .sort((a, b) => b.total - a.total)
+    .map((b) => {
+      const monthsBilled = b.months_billed.size;
+      const cadence = estimateCadence(b);
+      const recMonthly = monthlyContribution(b, cadence);
+      return {
+        merchant: b.merchant,
+        count: b.count,
+        months_billed: monthsBilled,
+        // Actual dollars spent over the window (no smoothing).
+        total_in_window: Math.round(b.total * 100) / 100,
+        // Average per individual bill (= total / count). Useful for
+        // narrating "your typical NGrid bill is ~$372".
+        bill_avg: Math.round((b.total / b.count) * 100) / 100,
+        // Naive amortization (total / months_in_window). Kept for
+        // transparency; usually NOT what you want for budget math.
+        monthly_avg_amortized:
+          Math.round((b.total / monthsInWindow) * 100) / 100,
+        // CADENCE-AWARE monthly contribution. This is the right
+        // number to sum across merchants for a monthly budget. For
+        // monthly-cadence billers it's their real billing rate
+        // (ignoring missing-data gaps); for annual/quarterly it's
+        // the amortized share. Sum these across by_merchant to get
+        // the recommended budget total.
+        monthly_contribution: Math.round(recMonthly * 100) / 100,
+        first_date: b.first_date || null,
+        last_date: b.last_date || null,
+        cadence_estimate: cadence,
+        leaf_categories: Array.from(b.leaf_labels),
+        groups: Array.from(b.group_names),
+      };
+    });
+
+  // Recommended monthly budget = sum of cadence-aware contributions.
+  // This gives a number the agent can confidently propose.
+  const recommendedMonthlyBudget = byMerchant.reduce(
+    (acc, m) => acc + m.monthly_contribution,
+    0,
+  );
+
+  return {
+    category_query: query,
+    matched_categories: {
+      leaf_labels: Array.from(matchedLabels).sort(),
+      groups: Array.from(matchedGroups).sort(),
+    },
+    window: {
+      start: startStr,
+      end: endStr,
+      days,
+      months_in_window: Math.round(monthsInWindow * 100) / 100,
+    },
+    total_spent_in_window: Math.round(totalSpent * 100) / 100,
+    monthly_avg_total_amortized:
+      Math.round((totalSpent / monthsInWindow) * 100) / 100,
+    // PRIMARY: this is what to propose as the monthly budget. Sums
+    // each merchant's cadence-aware monthly contribution.
+    recommended_monthly_budget: Math.round(recommendedMonthlyBudget * 100) / 100,
+    transactions_count: matchedCount,
+    by_merchant: byMerchant,
+    notes: [
+      "Use recommended_monthly_budget as the proposed budget amount. It's the sum of by_merchant.monthly_contribution, which is cadence-aware: monthly billers contribute their actual billing rate (e.g. PSEG ~$130/mo even if only 4 months of data exist), annual/quarterly billers contribute their amortized monthly share.",
+      "monthly_avg_total_amortized is the naive total/12 number. Usually too low for budget math when monthly billers have partial data — that's why we expose it separately and recommend recommended_monthly_budget instead.",
+      "When narrating, read by_merchant left-to-right: list each merchant with cadence ('PSEG bills monthly at ~$130; NGrid once a year at $372 ≈ $31/mo amortized; water $28/yr ≈ $2/mo'). Then sum and propose.",
+      "Transfer-flavored leaves (Credit Card Payment, Account Transfer) are excluded.",
     ],
   };
 }
