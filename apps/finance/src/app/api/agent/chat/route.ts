@@ -284,16 +284,26 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   // users so the breakpoint on its last entry produces a globally shared
   // cache. The system block adds a second breakpoint that covers
   // tools+system, which gets reused across the 2-3 round-trips a single
-  // tool-use turn does (and across a user's recent messages within the
-  // 5-minute TTL). Cache reads cost 10% of base input — Haiku 4.5 input
-  // drops from $1/MTok to $0.10/MTok on the cached prefix.
+  // tool-use turn does and across a user's chat session.
+  //
+  // TTL set to 1h instead of the 5-minute default. The 5-min window is
+  // too short for two real cases:
+  //   1. Dev iteration — code change → deploy → retry — easily exceeds 5
+  //      minutes between consecutive prompts. Each iteration would be a
+  //      cache miss otherwise.
+  //   2. Real-user usage that's bursty — open the chat, ask one thing,
+  //      close, come back later. 5 minutes misses any "later than that"
+  //      revisit.
+  // Trade-off: 1h cache writes cost 2x base rate vs 1.25x for 5-min, but
+  // reads are the same 0.1x. For any user who comes back within an hour
+  // (or any dev iteration), this is a net win. For one-and-done users
+  // it's a small premium on the single request.
+  const cacheControl = { type: 'ephemeral' as const, ttl: '1h' as const };
   const cachedSystem: Anthropic.Messages.TextBlockParam[] = [
-    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: systemPrompt, cache_control: cacheControl },
   ];
   const cachedTools: Anthropic.Messages.Tool[] = TOOLS.map((tool, i) =>
-    i === TOOLS.length - 1
-      ? { ...tool, cache_control: { type: 'ephemeral' } }
-      : tool,
+    i === TOOLS.length - 1 ? { ...tool, cache_control: cacheControl } : tool,
   );
 
   const client = new Anthropic({ apiKey: agentConfig.apiKey });
