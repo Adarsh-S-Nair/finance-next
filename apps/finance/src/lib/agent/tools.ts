@@ -604,9 +604,48 @@ export async function executeTool(
   } catch (err) {
     console.error(`[agent:tool:${name}] failed`, err);
     return {
-      error: err instanceof Error ? err.message : 'Tool execution failed',
+      error: extractErrorMessage(err, name),
     };
   }
+}
+
+/**
+ * Best-effort error message extraction. Handles three common shapes:
+ * - Real Error instances (rare for our codebase but possible)
+ * - Supabase / postgrest errors: plain objects with { message, code,
+ *   details, hint }. These are NOT Error instances, so a naive
+ *   `err instanceof Error` check skips them and falls through to a
+ *   generic message.
+ * - Anything else: stringify or fall back to a tool-tagged generic.
+ *
+ * Without this, Supabase failures surface to the user as the unhelpful
+ * "Tool execution failed" instead of the actual postgres error
+ * ("relation 'budgets' does not exist", "duplicate key value violates
+ * unique constraint", etc).
+ */
+function extractErrorMessage(err: unknown, toolName: string): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object') {
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.message === 'string' && obj.message.length > 0) {
+      // Postgres errors often include a hint that's more helpful than
+      // the bare message. Append it when it adds value.
+      const hint =
+        typeof obj.hint === 'string' && obj.hint.length > 0
+          ? ` (${obj.hint})`
+          : '';
+      return `${obj.message}${hint}`;
+    }
+    // Fallback: try to stringify, but cap length so we don't spew JSON
+    // into the chat.
+    try {
+      const json = JSON.stringify(err);
+      if (json && json !== '{}') return json.slice(0, 200);
+    } catch {
+      // ignore
+    }
+  }
+  return `${toolName} failed`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
