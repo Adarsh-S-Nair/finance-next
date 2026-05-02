@@ -17,6 +17,9 @@ import BudgetProposalWidget, {
 import MemoryWidget, {
   type MemoryWidgetData,
 } from "./MemoryWidget";
+import IncomeProposalWidget, {
+  type IncomeProposalData,
+} from "./IncomeProposalWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -30,6 +33,7 @@ const TOOL_LABELS: Record<string, string> = {
   propose_budget_create: "Preparing budget proposal",
   propose_budget_update: "Preparing budget update",
   propose_budget_delete: "Preparing budget removal",
+  propose_income_update: "Preparing income update",
   remember_user_fact: "Saving to memory",
 };
 
@@ -124,6 +128,13 @@ export default function ToolWidget({ tool }: { tool: ToolBlock }) {
       );
     case "remember_user_fact":
       return <MemoryWidget data={tool.output as MemoryWidgetData} />;
+    case "propose_income_update":
+      return (
+        <IncomeProposalWidget
+          toolUseId={tool.id}
+          data={tool.output as IncomeProposalData}
+        />
+      );
     default:
       return <UnknownToolFallback name={tool.name} output={tool.output} />;
   }

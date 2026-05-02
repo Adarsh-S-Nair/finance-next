@@ -378,6 +378,43 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'propose_income_update',
+    description:
+      "Propose setting (or updating) the user's monthly take-home income. " +
+      "Renders an inline accept/decline widget; does NOT write until the user " +
+      "accepts. Once accepted, the value lands on user_profiles.monthly_income " +
+      "and is visible to both you (in the User profile block at the top of " +
+      "this prompt every chat) and the existing budgets page UI.\n\n" +
+      "Use this when:\n" +
+      "- The user's monthly_income is NOT SET and you need it for budget consultation\n" +
+      "- The user mentions a raise, job change, or correction to their income\n" +
+      "- You've inferred income from get_recurring_transactions and want to confirm\n\n" +
+      "Pass take-home (post-tax) income unless the user explicitly says gross. " +
+      "See the 'Determining real monthly income' section of this prompt for " +
+      "how to compute the right number from recurring streams (filter out tax " +
+      "refunds, account transfers, credit card payments — all show as inflows " +
+      "but aren't real income).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        amount: {
+          type: 'number',
+          description:
+            "The monthly take-home income amount in dollars (positive number). " +
+            'Pass the whole number, e.g. 6400 for $6,400/month.',
+          minimum: 0.01,
+        },
+        reasoning: {
+          type: 'string',
+          description:
+            'One short sentence explaining how you arrived at this number ' +
+            '(e.g. "Two biweekly paychecks averaging $2,950 each from your employer").',
+        },
+      },
+      required: ['amount'],
+    },
+  },
+  {
     name: 'remember_user_fact',
     description:
       "Save a short fact about the user that should persist across " +
@@ -500,6 +537,7 @@ type ToolName =
   | 'propose_budget_create'
   | 'propose_budget_update'
   | 'propose_budget_delete'
+  | 'propose_income_update'
   | 'remember_user_fact';
 
 interface BudgetsInput {
@@ -588,6 +626,11 @@ interface RememberUserFactInput {
   content?: string;
 }
 
+interface ProposeIncomeUpdateInput {
+  amount?: number;
+  reasoning?: string;
+}
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -645,6 +688,11 @@ export async function executeTool(
         return await rememberUserFact(
           userId,
           (input as RememberUserFactInput) ?? {},
+        );
+      case 'propose_income_update':
+        return await proposeIncomeUpdate(
+          userId,
+          (input as ProposeIncomeUpdateInput) ?? {},
         );
       default:
         return { error: `Unknown tool: ${name}` };
@@ -1808,5 +1856,49 @@ async function rememberUserFact(userId: string, input: RememberUserFactInput) {
     memory_id: data.id,
     content: data.content,
     duplicate: false,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Income — propose updating user_profiles.monthly_income
+// ──────────────────────────────────────────────────────────────────────────
+
+async function proposeIncomeUpdate(
+  userId: string,
+  input: ProposeIncomeUpdateInput,
+) {
+  if (typeof input.amount !== 'number' || !(input.amount > 0)) {
+    return { error: 'amount must be a positive number' };
+  }
+
+  // Pull the current income so the widget can show OLD → NEW when the
+  // user already has a value set. First-time set just shows the new
+  // value.
+  const { data: profile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('monthly_income')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const currentAmount =
+    typeof profile?.monthly_income === 'number'
+      ? Number(profile.monthly_income)
+      : null;
+
+  // No-op detection — if the proposed amount exactly matches what's
+  // already set, surface as error so the model can self-correct
+  // rather than rendering a confusing "from X to X" widget.
+  if (currentAmount !== null && Math.abs(currentAmount - input.amount) < 0.01) {
+    return {
+      error:
+        `That's already the user's monthly income ($${currentAmount}). Nothing to change.`,
+    };
+  }
+
+  return {
+    action: currentAmount === null ? ('set' as const) : ('update' as const),
+    current_amount: currentAmount,
+    amount: input.amount,
+    reasoning: input.reasoning ?? null,
   };
 }
