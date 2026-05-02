@@ -164,6 +164,17 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
       .upsert({ user_id: userId }, { onConflict: 'user_id' });
   }
 
+  // Load core user_profile facts the agent should always know about.
+  // monthly_income is the big one for budget consultation: proposing a
+  // $5k/mo housing budget without knowing total income is meaningless.
+  // first_name lets the agent address the user without re-asking. Both
+  // get prepended to the system prompt below.
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('first_name, monthly_income')
+    .eq('id', userId)
+    .maybeSingle();
+
   // Resolve / create conversation.
   let conversationId = body.conversation_id ?? null;
   if (conversationId) {
@@ -238,7 +249,33 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
         memories.map((m) => `- ${m.content}`).join('\n')
       : '';
 
-  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}${memoriesBlock}`;
+  // Build a small "user profile" block from user_profiles columns we
+  // care about. Right now that's just first name + monthly income, but
+  // it's where future profile facts (savings goals, household size) can
+  // land without adding another tool call. monthly_income is critical
+  // for budget consultation: lets the agent compute things like
+  // "savings rate" or "housing as % of income" without asking.
+  const profileLines: string[] = [];
+  if (userProfile?.first_name) {
+    profileLines.push(`Name: ${userProfile.first_name}`);
+  }
+  if (
+    typeof userProfile?.monthly_income === 'number' &&
+    userProfile.monthly_income > 0
+  ) {
+    profileLines.push(
+      `Monthly take-home income: $${Number(userProfile.monthly_income).toLocaleString('en-US')}`,
+    );
+  } else {
+    // If income isn't set, tell the agent so it knows to ask before
+    // committing to budget recommendations that depend on it.
+    profileLines.push(
+      `Monthly income: NOT SET. Ask the user before recommending budget percentages or income-based ratios.`,
+    );
+  }
+  const profileBlock = `\n\n# User profile\n\n${profileLines.join('\n')}`;
+
+  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}${profileBlock}${memoriesBlock}`;
   const systemPrompt = profile?.custom_instructions
     ? `${basePrompt}\n\nUser's custom instructions:\n${profile.custom_instructions}`
     : basePrompt;
