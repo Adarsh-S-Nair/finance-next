@@ -987,38 +987,57 @@ function TransactionsContent() {
     }
 
     // Date filtering
+    //
+    // The API expects YYYY-MM-DD and filters against a DATE column.
+    // We MUST send the user's local-calendar date, not a UTC one. The
+    // earlier version `new Date(string).toISOString()` round-tripped the
+    // input through UTC midnight and shifted it back by one day for any
+    // user east of UTC — picking "Apr 1" sent "2026-03-31" to the API,
+    // which then included Mar 31 transactions in the result. Format
+    // local Date objects via getFullYear/getMonth/getDate, and pass
+    // <input type="date"> values through verbatim (they're already
+    // YYYY-MM-DD with no timezone).
     if (dateRange !== 'all') {
-      const now = new Date();
-      let startDate, endDate;
+      const formatLocalDate = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      let startStr, endStr;
 
       if (dateRange === 'today') {
-        startDate = new Date(now.setHours(0, 0, 0, 0));
-        endDate = new Date(now.setHours(23, 59, 59, 999));
+        const now = new Date();
+        startStr = formatLocalDate(now);
+        endStr = formatLocalDate(now);
       } else if (dateRange === 'week') {
-        const firstDayOfWeek = now.getDate() - now.getDay();
-        startDate = new Date(now.setDate(firstDayOfWeek));
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date();
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        startStr = formatLocalDate(start);
+        endStr = formatLocalDate(now);
       } else if (dateRange === 'month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        startStr = formatLocalDate(start);
+        endStr = formatLocalDate(end);
       } else if (dateRange === '30days') {
-        startDate = new Date(now.setDate(now.getDate() - 30));
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date();
+        const now = new Date();
+        const start = new Date(now);
+        start.setDate(now.getDate() - 30);
+        startStr = formatLocalDate(start);
+        endStr = formatLocalDate(now);
       } else if (dateRange === 'custom') {
-        if (customDateRange.start) {
-          startDate = new Date(customDateRange.start);
-          startDate.setHours(0, 0, 0, 0);
-        }
-        if (customDateRange.end) {
-          endDate = new Date(customDateRange.end);
-          endDate.setHours(23, 59, 59, 999);
-        }
+        // <input type="date"> values are already YYYY-MM-DD with no
+        // timezone — pass through, never round-trip through Date.
+        if (customDateRange.start) startStr = customDateRange.start;
+        if (customDateRange.end) endStr = customDateRange.end;
       }
 
-      if (startDate) params.append('startDate', startDate.toISOString());
-      if (endDate) params.append('endDate', endDate.toISOString());
+      if (startStr) params.append('startDate', startStr);
+      if (endStr) params.append('endDate', endStr);
     }
 
     const response = await authFetch(`/api/plaid/transactions/get?${params.toString()}`);
