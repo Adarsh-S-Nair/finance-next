@@ -1567,20 +1567,38 @@ async function getRecurringTransactions(
   const { data, error } = await query;
   if (error) throw error;
 
-  const streams = (data ?? []).map((s) => ({
-    id: s.id,
-    merchant: s.merchant_name ?? s.description,
-    average_amount: Number(s.average_amount ?? 0),
-    last_amount: Number(s.last_amount ?? 0),
-    frequency: s.frequency,
-    last_date: s.last_date,
-    next_predicted_date: s.predicted_next_date,
-    direction: (Number(s.average_amount) >= 0 ? 'inflow' : 'outflow') as
-      | 'inflow'
-      | 'outflow',
-    plaid_category: s.category_detailed ?? s.category_primary ?? null,
-    is_active: s.is_active,
-  }));
+  const streams = (data ?? []).map((s) => {
+    // Direction comes from Plaid's stream_type, NOT from the amount
+    // sign. Plaid stores all recurring stream amounts as positive
+    // magnitudes regardless of direction; the inflow/outflow tag is
+    // in stream_type. (Earlier versions of this tool keyed off amount
+    // sign and incorrectly labelled every subscription as 'inflow',
+    // which fed nonsense to the income-detection workflow.)
+    const rawDirection = String(s.stream_type ?? '').toLowerCase();
+    const direction: 'inflow' | 'outflow' =
+      rawDirection === 'inflow'
+        ? 'inflow'
+        : rawDirection === 'outflow'
+          ? 'outflow'
+          : // Fall back to amount sign if stream_type is missing/unknown.
+            // Plaid's contract is positive amounts, so this branch is
+            // really for defensive purposes only.
+            Number(s.average_amount) >= 0
+            ? 'inflow'
+            : 'outflow';
+    return {
+      id: s.id,
+      merchant: s.merchant_name ?? s.description,
+      average_amount: Number(s.average_amount ?? 0),
+      last_amount: Number(s.last_amount ?? 0),
+      frequency: s.frequency,
+      last_date: s.last_date,
+      next_predicted_date: s.predicted_next_date,
+      direction,
+      plaid_category: s.category_detailed ?? s.category_primary ?? null,
+      is_active: s.is_active,
+    };
+  });
 
   // Sort outflows by absolute amount descending so the model sees the
   // biggest recurring expenses first when consulting on budgets.
