@@ -7,6 +7,11 @@ import { Button, ConfirmOverlay, Drawer } from "@zervo/ui";
 import { createClient } from "@/lib/supabase/client";
 import { billableLinesForItem, formatUsd } from "@/lib/plaidPricing";
 import {
+  cacheHitRatio,
+  formatTokens,
+  formatUsd as formatAgentUsd,
+} from "@/lib/agentPricing";
+import {
   type AdminUserRow,
   type ImpersonationGrant as Grant,
   formatDate,
@@ -449,6 +454,84 @@ export default function UserDrawer({
             </section>
 
             <section>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
+                  Agent usage
+                </h3>
+                <span className="text-[11px] text-[var(--color-muted)]/60 tabular-nums">
+                  {user.agent_total_turns > 0 ? (
+                    <>
+                      {formatAgentUsd(user.agent_total_cost)} lifetime
+                      <span className="mx-1.5 text-[var(--color-muted)]/40">·</span>
+                      {user.agent_total_turns} turn{user.agent_total_turns === 1 ? "" : "s"}
+                    </>
+                  ) : (
+                    "no activity"
+                  )}
+                </span>
+              </div>
+              {user.agent_usage_totals.length === 0 ? (
+                <div className="border-t border-b border-[var(--color-fg)]/[0.06] py-4 text-xs text-[var(--color-muted)]">
+                  This user hasn&apos;t chatted with the agent yet.
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
+                  {user.agent_usage_totals
+                    .slice()
+                    .sort((a, b) => b.cost - a.cost)
+                    .map((row) => {
+                      const ratio = cacheHitRatio(row);
+                      const ratioPct =
+                        ratio === null ? null : `${Math.round(ratio * 100)}%`;
+                      return (
+                        <li key={row.model} className="py-3">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="font-mono text-[11px] text-[var(--color-fg)] truncate">
+                              {row.model}
+                            </span>
+                            <span className="text-xs tabular-nums text-[var(--color-fg)] flex-shrink-0">
+                              {formatAgentUsd(row.cost)}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+                            {row.turns} turn{row.turns === 1 ? "" : "s"}
+                            <span className="text-[var(--color-muted)]/60">
+                              {" · "}
+                              last {formatRelative(row.last_used_at)}
+                            </span>
+                            {ratioPct && (
+                              <span className="text-[var(--color-muted)]/60">
+                                {" · "}
+                                cache hit {ratioPct}
+                              </span>
+                            )}
+                          </div>
+                          <ul className="mt-2 space-y-0.5 text-[11px]">
+                            <UsageLine
+                              label="Input (uncached)"
+                              value={formatTokens(row.input_tokens)}
+                            />
+                            <UsageLine
+                              label="Cache read"
+                              value={formatTokens(row.cache_read_tokens)}
+                            />
+                            <UsageLine
+                              label="Cache write"
+                              value={formatTokens(row.cache_write_tokens)}
+                            />
+                            <UsageLine
+                              label="Output"
+                              value={formatTokens(row.output_tokens)}
+                            />
+                          </ul>
+                        </li>
+                      );
+                    })}
+                </ul>
+              )}
+            </section>
+
+            <section>
               <h3 className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/60 mb-3">
                 Impersonation
               </h3>
@@ -615,5 +698,14 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
         {value}
       </dd>
     </div>
+  );
+}
+
+function UsageLine({ label, value }: { label: string; value: string }) {
+  return (
+    <li className="flex items-baseline justify-between gap-3 text-[var(--color-muted)]">
+      <span>{label}</span>
+      <span className="tabular-nums text-[var(--color-fg)]">{value}</span>
+    </li>
   );
 }

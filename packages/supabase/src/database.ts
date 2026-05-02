@@ -1151,6 +1151,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_agent_memories: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          source: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          source?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_agent_messages: {
         Row: {
           content: Json
@@ -1213,6 +1240,96 @@ export type Database = {
         }
         Relationships: []
       }
+      user_agent_usage: {
+        Row: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          conversation_id: string
+          created_at: string
+          id: string
+          input_tokens: number
+          message_id: string | null
+          model: string
+          output_tokens: number
+          user_id: string
+        }
+        Insert: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          conversation_id: string
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          message_id?: string | null
+          model: string
+          output_tokens?: number
+          user_id: string
+        }
+        Update: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          message_id?: string | null
+          model?: string
+          output_tokens?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_agent_usage_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "user_agent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_agent_usage_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "user_agent_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_agent_usage_totals: {
+        Row: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          first_used_at: string
+          input_tokens: number
+          last_used_at: string
+          model: string
+          output_tokens: number
+          turns: number
+          user_id: string
+        }
+        Insert: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          first_used_at?: string
+          input_tokens?: number
+          last_used_at?: string
+          model: string
+          output_tokens?: number
+          turns?: number
+          user_id: string
+        }
+        Update: {
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          first_used_at?: string
+          input_tokens?: number
+          last_used_at?: string
+          model?: string
+          output_tokens?: number
+          turns?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_agent_widget_actions: {
         Row: {
           action: string
@@ -1247,33 +1364,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      user_agent_memories: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          is_active: boolean
-          source: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          source?: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          source?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       user_profiles: {
         Row: {

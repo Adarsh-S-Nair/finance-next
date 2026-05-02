@@ -21,6 +21,22 @@ export type ImpersonationGrant = {
   reason: string | null;
 };
 
+// Lifetime usage counters per (user, model). Survives conversation
+// deletion via the trigger on user_agent_usage. `cost` is computed
+// server-side using agentPricing rates so the drawer can render
+// dollars without re-doing the math.
+export type AgentUsageTotal = {
+  model: string;
+  input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  output_tokens: number;
+  turns: number;
+  first_used_at: string;
+  last_used_at: string;
+  cost: number;
+};
+
 export type AdminUserRow = {
   id: string;
   email: string | null;
@@ -34,6 +50,10 @@ export type AdminUserRow = {
   plaid_items: PlaidItemWithCost[];
   plaid_monthly_cost: number;
   impersonation_grants: ImpersonationGrant[];
+  agent_usage_totals: AgentUsageTotal[];
+  agent_total_cost: number;
+  agent_total_turns: number;
+  agent_last_used_at: string | null;
 };
 
 function formatDate(iso: string | null): string {

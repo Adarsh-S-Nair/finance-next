@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { withAuth } from '../../../../lib/api/withAuth';
+import { createLogger } from '../../../../lib/logger';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import {
   MAX_PRIOR_MESSAGES,
@@ -147,6 +148,7 @@ function rowToAnthropicMessage(row: {
 // ──────────────────────────────────────────────────────────────────────────
 
 export const POST = withAuth('agent:chat', async (req: NextRequest, userId: string) => {
+  const logger = createLogger('agent:chat');
   const body = (await req.json().catch(() => ({}))) as ChatBody;
   const userMessage = (body.message ?? '').trim();
   if (!userMessage) {
@@ -293,16 +295,28 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   }
   const profileBlock = `\n\n# User profile\n\n${profileLines.join('\n')}`;
 
-  const basePrompt = `${SYSTEM_PROMPT}\n\n${dateContext}${profileBlock}${memoriesBlock}`;
-  const systemPrompt = profile?.custom_instructions
-    ? `${basePrompt}\n\nUser's custom instructions:\n${profile.custom_instructions}`
-    : basePrompt;
+  // Split the system block into a STATIC prefix and a DYNAMIC suffix so
+  // the cache breakpoint sits at the boundary between them. The static
+  // prefix (SYSTEM_PROMPT, ~7k tokens) almost never changes, so it stays
+  // a globally shared cache hit. The dynamic suffix (today's date,
+  // user's profile, saved memories, custom instructions) changes
+  // routinely — daily for the date, per-write for memory/profile — but
+  // it's small (~500 tokens) so sending it uncached every turn is cheap.
+  //
+  // Before this split, the entire 7k system block was concatenated into
+  // ONE cached entry. Adding a memory or crossing midnight UTC would
+  // bust the cache and force a full ~10k re-write that day.
+  const dynamicSuffix =
+    `${dateContext}${profileBlock}${memoriesBlock}` +
+    (profile?.custom_instructions
+      ? `\n\nUser's custom instructions:\n${profile.custom_instructions}`
+      : '');
 
   // Two prompt-cache breakpoints. The tools array is identical across all
   // users so the breakpoint on its last entry produces a globally shared
-  // cache. The system block adds a second breakpoint that covers
-  // tools+system, which gets reused across the 2-3 round-trips a single
-  // tool-use turn does and across a user's chat session.
+  // cache. The system block adds a second breakpoint at the end of the
+  // STATIC prefix; everything after that (the dynamic suffix) is sent
+  // uncached.
   //
   // TTL set to 1h instead of the 5-minute default. The 5-min window is
   // too short for two real cases:
@@ -318,7 +332,8 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   // it's a small premium on the single request.
   const cacheControl = { type: 'ephemeral' as const, ttl: '1h' as const };
   const cachedSystem: Anthropic.Messages.TextBlockParam[] = [
-    { type: 'text', text: systemPrompt, cache_control: cacheControl },
+    { type: 'text', text: SYSTEM_PROMPT, cache_control: cacheControl },
+    { type: 'text', text: dynamicSuffix },
   ];
   const cachedTools: Anthropic.Messages.Tool[] = TOOLS.map((tool, i) =>
     i === TOOLS.length - 1 ? { ...tool, cache_control: cacheControl } : tool,
@@ -391,10 +406,58 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
             return block;
           }) as AnthropicContentBlock[];
 
-          // Persist the assistant turn (raw blocks).
-          await insertMessage(conversationId, 'assistant', {
-            blocks: cleanedBlocks,
-          } as unknown as Json);
+          // Persist the assistant turn (raw blocks). Inline insert here
+          // (rather than the helper) so we can capture the row id and
+          // attach it to the usage row below — gives admin per-message
+          // drill-down on cost.
+          const { data: assistantRow } = await supabaseAdmin
+            .from('user_agent_messages')
+            .insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: { blocks: cleanedBlocks } as unknown as Json,
+            })
+            .select('id')
+            .single();
+          const assistantMessageId = assistantRow?.id ?? null;
+
+          // Record usage for this round-trip. One row per Anthropic API
+          // call, so a single user message that triggers N tool
+          // iterations writes N rows. The trigger on this table
+          // accumulates lifetime totals into user_agent_usage_totals
+          // automatically — totals survive conversation/message
+          // deletion, detail rows cascade with the conversation.
+          const usage = finalMessage.usage;
+          const inputTokens = usage.input_tokens ?? 0;
+          const cacheRead = usage.cache_read_input_tokens ?? 0;
+          const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+          const outputTokens = usage.output_tokens ?? 0;
+
+          await supabaseAdmin.from('user_agent_usage').insert({
+            user_id: userId,
+            conversation_id: conversationId,
+            message_id: assistantMessageId,
+            model: agentConfig.model,
+            input_tokens: inputTokens,
+            cache_read_tokens: cacheRead,
+            cache_write_tokens: cacheWrite,
+            output_tokens: outputTokens,
+          });
+
+          // Also log to Axiom so cache health can be eyeballed in the
+          // dashboard without querying the DB. info-level via createLogger
+          // (vs console.log which only reaches Vercel runtime logs).
+          logger.info('turn complete', {
+            iter,
+            conversation_id: conversationId,
+            message_id: assistantMessageId,
+            model: agentConfig.model,
+            input_tokens: inputTokens,
+            cache_read_tokens: cacheRead,
+            cache_write_tokens: cacheWrite,
+            output_tokens: outputTokens,
+            stop_reason: finalMessage.stop_reason,
+          });
 
           // Find any tool_use blocks the model emitted.
           const toolUses = blocks.filter(
@@ -466,7 +529,7 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
 
         send({ type: 'done' });
       } catch (err) {
-        console.error('[agent:chat] stream error', err);
+        logger.error('stream error', err as Error);
         const message =
           err instanceof Anthropic.APIError
             ? `Anthropic error: ${err.message}`
@@ -475,6 +538,11 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
               : 'Unknown error';
         send({ type: 'error', message });
       } finally {
+        // Flush queued log lines (turn-complete entries, errors) to
+        // Axiom before the function exits. next-axiom buffers writes —
+        // without an explicit flush a serverless cold-stop can drop the
+        // most recent batch.
+        await logger.flush();
         controller.close();
       }
     },
