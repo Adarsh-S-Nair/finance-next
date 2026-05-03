@@ -1848,7 +1848,7 @@ async function getIncomeSummary(
   // sufficient since matched pairs always carry a Transfer In / Out
   // category by Plaid's enrichment.)
 
-  type AmountEntry = { amount: number; is_complete: boolean };
+  type AmountEntry = { amount: number; date: string | null; is_complete: boolean };
 
   type SourceBucket = {
     source: string;
@@ -1943,7 +1943,7 @@ async function getIncomeSummary(
       }
       if (r.date && r.date < sb.first_date) sb.first_date = r.date;
       if (r.date && r.date > sb.last_date) sb.last_date = r.date;
-      sb.all_amounts.push({ amount: amt, is_complete: !isPartial });
+      sb.all_amounts.push({ amount: amt, date: r.date ?? null, is_complete: !isPartial });
       if (sb.sample_descriptions.length < 3 && r.description) {
         const seen = sb.sample_descriptions.includes(r.description);
         if (!seen) sb.sample_descriptions.push(r.description);
@@ -1958,7 +1958,7 @@ async function getIncomeSummary(
         count_complete: isPartial ? 0 : 1,
         first_date: r.date ?? '',
         last_date: r.date ?? '',
-        all_amounts: [{ amount: amt, is_complete: !isPartial }],
+        all_amounts: [{ amount: amt, date: r.date ?? null, is_complete: !isPartial }],
         sample_descriptions: r.description ? [r.description] : [],
         has_named_merchant: r.merchant_name != null,
         leaf_label: label,
@@ -2105,11 +2105,12 @@ async function getIncomeSummary(
       : sorted[mid];
   }
 
+  type OutlierEntry = { amount: number; date: string | null };
   type OutlierInfo = {
     has_outlier: boolean;
     outlier_threshold: number | null;
     median: number;
-    outliers: number[]; // amount values that exceeded the threshold
+    outliers: OutlierEntry[]; // amount + date for narration ("the $5,193 on Apr 13")
     regular_total: number; // sum of amounts EXCLUDING outliers
     regular_total_complete: number; // same but complete-month rows only
     regular_count: number;
@@ -2132,10 +2133,10 @@ async function getIncomeSummary(
     let regular_total = 0;
     let regular_total_complete = 0;
     let regular_count = 0;
-    const outliers: number[] = [];
+    const outliers: OutlierEntry[] = [];
     for (const entry of b.all_amounts) {
       if (entry.amount > threshold) {
-        outliers.push(entry.amount);
+        outliers.push({ amount: entry.amount, date: entry.date });
       } else {
         regular_total += entry.amount;
         if (entry.is_complete) regular_total_complete += entry.amount;
@@ -2281,7 +2282,10 @@ async function getIncomeSummary(
       Math.round((s.outliers.regular_total_complete / monthsCovered) * 100) /
       100,
     has_outlier: s.outliers.has_outlier,
-    outlier_amounts: s.outliers.outliers.map((a) => Math.round(a * 100) / 100),
+    outliers: s.outliers.outliers.map((o) => ({
+      amount: Math.round(o.amount * 100) / 100,
+      date: o.date,
+    })),
     typical_amount: Math.round(s.outliers.median * 100) / 100,
     first_date: s.first_date || null,
     last_date: s.last_date || null,
