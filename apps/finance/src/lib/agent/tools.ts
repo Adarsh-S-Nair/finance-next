@@ -2117,18 +2117,45 @@ async function getIncomeSummary(
   };
   function detectOutliers(b: SourceBucket): OutlierInfo {
     const amounts = b.all_amounts.map((a) => a.amount);
-    if (amounts.length < 4) {
-      return {
-        has_outlier: false,
-        outlier_threshold: null,
-        median: median(amounts),
-        outliers: [],
-        regular_total: b.total,
-        regular_total_complete: b.total_complete,
-        regular_count: b.count,
-      };
-    }
     const m = median(amounts);
+    const noOutliers: OutlierInfo = {
+      has_outlier: false,
+      outlier_threshold: null,
+      median: m,
+      outliers: [],
+      regular_total: b.total,
+      regular_total_complete: b.total_complete,
+      regular_count: b.count,
+    };
+
+    // Need a meaningful sample to even reason about outliers.
+    if (amounts.length < 4) return noOutliers;
+
+    // Coefficient of variation: stddev / mean. A bonus mixed into a
+    // tight cluster of paychecks has low CV (< 0.25); naturally
+    // variable income (DailyPay, hourly tips, freelance) has high CV
+    // (often 0.4+). Running outlier detection on high-CV streams
+    // mis-flags the upper half of a wide distribution as "bonuses"
+    // and silently strips them from the recurring figure — which is
+    // what happened on a user with 28 DailyPay deposits ranging $60
+    // to $368, where the rule flagged 6 deposits and undercounted
+    // her real income by ~$1,000/mo. Skip outlier detection above
+    // the CV threshold; the distribution is genuinely noisy and
+    // every deposit is "regular" pay.
+    const HIGH_VARIANCE_CV = 0.3;
+    const n = amounts.length;
+    const mean = amounts.reduce((s, a) => s + a, 0) / n;
+    if (mean <= 0) return noOutliers;
+    const variance =
+      amounts.reduce((s, a) => s + (a - mean) ** 2, 0) / Math.max(1, n - 1);
+    const stddev = Math.sqrt(variance);
+    const cv = stddev / mean;
+    if (cv > HIGH_VARIANCE_CV) return noOutliers;
+
+    // Low-variance distribution. A single deposit > 1.5× the median
+    // is almost certainly a bonus, RSU vest, or back-pay. Strip it
+    // from the recurring figure but expose it so the agent can
+    // narrate honestly.
     const threshold = m * 1.5;
     let regular_total = 0;
     let regular_total_complete = 0;
