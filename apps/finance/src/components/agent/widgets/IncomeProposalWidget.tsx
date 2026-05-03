@@ -324,9 +324,12 @@ function IncomeHeader({ action }: { action: "set" | "update" }) {
     action === "update" ? "Update monthly income" : "Set monthly income";
   return (
     <div className="flex items-start gap-4">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--color-surface-alt)]">
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: "var(--color-neon-green)" }}
+      >
         <FiDollarSign
-          className="h-5 w-5 text-[var(--color-fg)]"
+          className="h-5 w-5 text-white"
           strokeWidth={2.5}
         />
       </div>

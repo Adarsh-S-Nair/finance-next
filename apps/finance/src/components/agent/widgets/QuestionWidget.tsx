@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheck, FiHelpCircle } from "react-icons/fi";
+import { FiCheck, FiHelpCircle, FiChevronRight } from "react-icons/fi";
 import { Button } from "@zervo/ui";
 import { authFetch } from "../../../lib/api/fetch";
 import { WidgetError, WidgetFrame } from "./primitives";
@@ -211,7 +211,7 @@ function IdleState({
             {context}
           </div>
         )}
-        <div className="flex flex-col gap-1.5 pt-1">
+        <div className="flex flex-col pt-1 -mx-2">
           {options.map((opt, i) => {
             const value = opt.value ?? opt.label;
             const isSelected = submitting && selectedValue === value;
@@ -221,13 +221,20 @@ function IdleState({
                 type="button"
                 onClick={() => onPick(value)}
                 disabled={submitting}
-                className={`text-left text-[13px] px-3 py-2 rounded-md border transition-colors disabled:opacity-50 ${
+                className={`group flex items-center justify-between gap-3 text-left text-[13px] px-2 py-2 rounded-md transition-colors disabled:opacity-50 ${
                   isSelected
-                    ? "border-[var(--color-fg)] bg-[var(--color-surface-alt)] text-[var(--color-fg)]"
-                    : "border-[var(--color-border)] hover:border-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/40 text-[var(--color-fg)]"
+                    ? "bg-[var(--color-surface-alt)] text-[var(--color-fg)]"
+                    : "text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/40"
                 }`}
               >
-                {opt.label}
+                <span className="flex-1 min-w-0">{opt.label}</span>
+                <FiChevronRight
+                  className={`h-3.5 w-3.5 flex-shrink-0 transition-colors ${
+                    isSelected
+                      ? "text-[var(--color-fg)]"
+                      : "text-[var(--color-muted)] group-hover:text-[var(--color-fg)]"
+                  }`}
+                />
               </button>
             );
           })}
@@ -236,7 +243,7 @@ function IdleState({
               type="button"
               onClick={onCustom}
               disabled={submitting}
-              className="text-left text-[12px] text-[var(--color-muted)] hover:text-[var(--color-fg)] px-3 py-1 rounded-md transition-colors disabled:opacity-50"
+              className="text-left text-[12px] text-[var(--color-muted)] hover:text-[var(--color-fg)] px-2 py-2 transition-colors disabled:opacity-50"
             >
               Something else…
             </button>
@@ -368,9 +375,12 @@ function AnsweredState({
 function Header() {
   return (
     <div className="flex items-start gap-4">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--color-surface-alt)]">
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: "var(--color-neon-blue)" }}
+      >
         <FiHelpCircle
-          className="h-5 w-5 text-[var(--color-fg)]"
+          className="h-5 w-5 text-white"
           strokeWidth={2.5}
         />
       </div>
