@@ -1866,10 +1866,17 @@ async function getIncomeSummary(
     // merchant_name. Plaid populates merchant_name when it can match a
     // recognised merchant (DailyPay, Amazon, etc.). Self-transfers and
     // ad-hoc P2P deposits typically come back with merchant_name=null
-    // and a raw description like "Original Credit Transaction From
-    // (••CASH APP*FIRSTNAME LASTNAME)" — we use this as the primary
-    // signal that a source is suspicious.
+    // — we use this as a signal when the category is generic ("Other
+    // Income"). Doesn't apply when the category is specific like
+    // "Salary"; Plaid often leaves merchant_name null on real
+    // paychecks too.
     has_named_merchant: boolean;
+    // First-encountered leaf label and group name. Used by the
+    // classifier to trust specific Plaid categories: a row tagged
+    // "Salary" is real income even with merchant_name=null, while a
+    // row tagged "Other Income" with no merchant is suspicious.
+    leaf_label: string;
+    group_name: string;
   };
   type MonthBucket = {
     month: string; // YYYY-MM
@@ -1950,6 +1957,8 @@ async function getIncomeSummary(
         sample_amounts: [amt],
         sample_descriptions: r.description ? [r.description] : [],
         has_named_merchant: r.merchant_name != null,
+        leaf_label: label,
+        group_name: cat?.category_groups?.name ?? '',
       });
     }
 
@@ -2017,13 +2026,65 @@ async function getIncomeSummary(
   const MICRO_MAX_TOTAL = 20; // dollars
   const MICRO_MAX_AVG = 5; // dollars per deposit
 
+  // Category leaves Plaid uses for actual ongoing income. When a bucket
+  // sits under one of these, we trust it as real income even if
+  // merchant_name is null (which Plaid often does on direct-deposit
+  // paychecks where the description is just "From Inc." or similar).
+  const SPECIFIC_INCOME_LEAVES = [
+    'salary',
+    'wages',
+    'dividends',
+    'interest earned',
+    'retirement',
+    'pension',
+  ];
+
+  // Category leaves that are categorically NOT recurring income.
+  // A tax refund is annual at best and shouldn't anchor a monthly
+  // income figure.
+  const ONE_OFF_INCOME_LEAVES = ['tax refund'];
+
   type Classification = 'stream' | 'one_off' | 'unidentified' | 'micro';
   function classify(b: SourceBucket): Classification {
     const avg = b.count > 0 ? b.total / b.count : 0;
+    const labelL = b.leaf_label.toLowerCase();
+
+    // 1. Hard one-offs — tax refunds aren't recurring even if the user
+    // gets one every April.
+    if (ONE_OFF_INCOME_LEAVES.some((s) => labelL.includes(s))) return 'one_off';
+
+    // 2. Micro: tiny refund-like inflows (cashback, micro-rewards).
     if (b.total < MICRO_MAX_TOTAL && avg < MICRO_MAX_AVG) return 'micro';
+
+    // 3. Specific income leaves: trust Plaid's category. A "Salary"
+    // row IS real income even if Plaid couldn't enrich a merchant
+    // name, which it often can't for direct-deposit paychecks where
+    // the description is just "From Inc." or "Direct Deposit". We
+    // classify these as stream EVEN AT count=1, because:
+    //
+    // (a) Plaid often labels paychecks inconsistently across pay
+    //     periods ("Inc." → "From X INC." → "Direct Deposit From X
+    //     INC."), so the same employer ends up split across multiple
+    //     buckets and each bucket has a low count. Only flagging
+    //     multi-deposit buckets as stream would let the single-
+    //     deposit ones drop to one_off and silently get excluded
+    //     from streams_only.
+    // (b) Even one paycheck-tagged deposit means the user is paid
+    //     by that employer and it's recurring income in nature.
+    //
+    // The agent should sum across all Salary-classified buckets to
+    // get total monthly income (see the prompt notes).
+    if (SPECIFIC_INCOME_LEAVES.some((s) => labelL.includes(s))) {
+      return 'stream';
+    }
+
+    // 4. Generic income (e.g. "Other Income") or non-Income groups:
+    // fall back to merchant_name as the primary signal. Self-
+    // transfers from Cash App / Venmo / Zelle to the user's own
+    // accounts come back with merchant_name=null AND label="Other
+    // Income" — those land here and get flagged as unidentified.
     if (!b.has_named_merchant) return 'unidentified';
-    if (b.count >= STREAM_MIN_COUNT) return 'stream';
-    return 'one_off';
+    return b.count >= STREAM_MIN_COUNT ? 'stream' : 'one_off';
   }
 
   type ClassifiedSource = SourceBucket & { classification: Classification };
@@ -2044,6 +2105,13 @@ async function getIncomeSummary(
     sample_amounts: s.sample_amounts.map((a) => Math.round(a * 100) / 100),
     sample_descriptions: s.sample_descriptions,
     has_named_merchant: s.has_named_merchant,
+    // Plaid leaf label (e.g. "Salary", "Other Income", "Tax Refund").
+    // Multiple buckets with the same specific-income leaf almost
+    // always represent the same employer with inconsistent
+    // descriptions — sum across them when computing total monthly
+    // income.
+    category: s.leaf_label || null,
+    category_group: s.group_name || null,
   });
 
   // Aggregate by classification using COMPLETE-MONTH totals only, so
@@ -2125,7 +2193,8 @@ async function getIncomeSummary(
 
     notes: [
       "streams_only.monthly_average is the authoritative monthly income figure for almost every user. Use it as the default for propose_income_update unless the user tells you otherwise.",
-      "Sources are classified into stream / one_off / unidentified / micro based on count + has_named_merchant + per-deposit average. See the sample_descriptions on unidentified sources to spot self-transfers (Cash App / Venmo / Zelle to the user's own accounts often appear here with the user's own name in the description).",
+      "Classification logic, in priority order: (1) Tax Refund leaf → one_off (annual at best, never recurring). (2) Tiny totals → micro (cashback noise). (3) Specific-income leaves (Salary, Wages, Dividends, Interest Earned, Retirement, Pension) → stream when count >= 2, regardless of merchant_name. Plaid often leaves merchant_name null on real paychecks, so we trust the leaf label here. (4) Generic income (Other Income) or non-Income groups → fall back to merchant_name: named merchant + recurring → stream; no merchant → unidentified.",
+      "When you see MULTIPLE stream-classified buckets with the same `category` field (e.g. three Salary buckets from descriptions 'Inc.', 'From X INC.', 'Direct Deposit From X'), they're almost always the same employer with inconsistent labels. Sum across them for total monthly income. The differing descriptions are just Plaid's enrichment being lossy across pay periods.",
       "monthly_average across all buckets is computed over complete months only — the current partial month is excluded when at least one complete month exists in the window.",
       "Excludes category-tagged transfers (Transfer In/Out groups, Credit Card Payment / Account Transfer leaves) up front. Unidentified self-transfers usually slip past that filter because Plaid mislabels them as INCOME — that's why we surface them separately under unidentified_sources.",
     ],

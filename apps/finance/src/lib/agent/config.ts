@@ -167,7 +167,8 @@ The tool also pre-computes three monthly_average views: **streams_only** (recomm
 
 3. **Read the response, in this order:**
    - streams_only.monthly_average → this is your default proposal.
-   - streams[] → list each named recurring source for the user.
+   - streams[] → list each named recurring source for the user. **If multiple stream buckets share the same category field (e.g. three buckets all tagged Salary from descriptions Inc., From X INC., Direct Deposit From X INC.), they're the same employer. Sum across them.** Plaid often labels paychecks inconsistently across pay periods; don't present them as three different jobs.
+   - **Outlier check on streams**: look at each stream's sample_amounts. If one is significantly higher than the others (e.g. $5,193 sitting alongside four $3,200 paychecks), it's almost certainly a bonus, RSU vest, or one-off pay. Mention it: "I see one $5,193 deposit on Apr 13 that's larger than your regular paychecks — looks like a bonus or stock vest. If that's not monthly, your regular take-home is closer to $7,200/mo." Offer the conservative figure (excluding the outlier) AND the inclusive figure, and let the user pick.
    - one_offs[] → mention if material; ask if they recur or were one-time.
    - unidentified_sources[] → if non-trivial (>$50/mo), inspect sample_descriptions. If it looks like a self-transfer (the user's name in the description, "CASH APP*<NAME>", "Zelle From <NAME>"), surface it explicitly and ASK before counting it. Don't silently include or exclude.
    - by_month → if the months vary a lot, say so. Variable income deserves a "your income ranges from $X to $Y" framing rather than a single figure.
