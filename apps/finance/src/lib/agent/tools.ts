@@ -1848,6 +1848,8 @@ async function getIncomeSummary(
   // sufficient since matched pairs always carry a Transfer In / Out
   // category by Plaid's enrichment.)
 
+  type AmountEntry = { amount: number; is_complete: boolean };
+
   type SourceBucket = {
     source: string;
     total: number;
@@ -1860,7 +1862,9 @@ async function getIncomeSummary(
     count_complete: number;
     first_date: string;
     last_date: string;
-    sample_amounts: number[];
+    // Full list of amounts (no cap). Used for median + outlier
+    // detection; sample_amounts in the response is a 5-item slice.
+    all_amounts: AmountEntry[];
     sample_descriptions: string[];
     // True if AT LEAST ONE row in this bucket has a non-null
     // merchant_name. Plaid populates merchant_name when it can match a
@@ -1939,7 +1943,7 @@ async function getIncomeSummary(
       }
       if (r.date && r.date < sb.first_date) sb.first_date = r.date;
       if (r.date && r.date > sb.last_date) sb.last_date = r.date;
-      if (sb.sample_amounts.length < 5) sb.sample_amounts.push(amt);
+      sb.all_amounts.push({ amount: amt, is_complete: !isPartial });
       if (sb.sample_descriptions.length < 3 && r.description) {
         const seen = sb.sample_descriptions.includes(r.description);
         if (!seen) sb.sample_descriptions.push(r.description);
@@ -1954,7 +1958,7 @@ async function getIncomeSummary(
         count_complete: isPartial ? 0 : 1,
         first_date: r.date ?? '',
         last_date: r.date ?? '',
-        sample_amounts: [amt],
+        all_amounts: [{ amount: amt, is_complete: !isPartial }],
         sample_descriptions: r.description ? [r.description] : [],
         has_named_merchant: r.merchant_name != null,
         leaf_label: label,
@@ -1988,6 +1992,166 @@ async function getIncomeSummary(
   const completeMonths = monthList.filter((m) => !m.is_partial);
   const monthsForAvg = completeMonths.length > 0 ? completeMonths : monthList;
   const monthsCovered = monthsForAvg.length || 1;
+
+  // ── Merge specific-income buckets that share a leaf ────────────────
+  //
+  // Plaid frequently labels a single employer's paychecks
+  // inconsistently across pay periods — same Salesforce direct
+  // deposit might come back as "Inc.", "From 100-SFDC INC.", and
+  // "Direct deposit from 100-SFDC INC." across three pay cycles.
+  // These end up as three separate buckets even though they're the
+  // same employer, and an agent that doesn't combine them ends up
+  // misreading the total.
+  //
+  // Pre-merging at the tool level guarantees the agent sees ONE
+  // "Salary" stream with the full deposit history, which also makes
+  // outlier detection (next step) work on the real distribution.
+  // We only merge for SPECIFIC_INCOME_LEAVES — generic leaves like
+  // "Other Income" can legitimately host multiple distinct sources
+  // (DailyPay, side hustle, etc.) so we leave those alone.
+  const SPECIFIC_INCOME_LEAVES_LOWER = [
+    'salary',
+    'wages',
+    'dividends',
+    'interest earned',
+    'retirement',
+    'pension',
+  ];
+  function isSpecificIncomeLeaf(label: string): boolean {
+    const l = label.toLowerCase();
+    return SPECIFIC_INCOME_LEAVES_LOWER.some((s) => l.includes(s));
+  }
+
+  const mergedSources = new Map<string, SourceBucket>();
+  const specificGroups = new Map<string, SourceBucket[]>();
+  for (const b of sources.values()) {
+    if (isSpecificIncomeLeaf(b.leaf_label)) {
+      const key = b.leaf_label;
+      const list = specificGroups.get(key) ?? [];
+      list.push(b);
+      specificGroups.set(key, list);
+    } else {
+      mergedSources.set(b.source, b);
+    }
+  }
+  for (const [leaf, group] of specificGroups) {
+    if (group.length === 1) {
+      mergedSources.set(group[0].source, group[0]);
+      continue;
+    }
+    // Combine N buckets sharing this specific-income leaf.
+    const combined: SourceBucket = {
+      source: leaf,
+      total: 0,
+      total_complete: 0,
+      count: 0,
+      count_complete: 0,
+      first_date: '',
+      last_date: '',
+      all_amounts: [],
+      sample_descriptions: [],
+      has_named_merchant: false,
+      leaf_label: leaf,
+      group_name: group[0].group_name,
+    };
+    for (const b of group) {
+      combined.total += b.total;
+      combined.total_complete += b.total_complete;
+      combined.count += b.count;
+      combined.count_complete += b.count_complete;
+      if (
+        b.first_date &&
+        (!combined.first_date || b.first_date < combined.first_date)
+      ) {
+        combined.first_date = b.first_date;
+      }
+      if (
+        b.last_date &&
+        (!combined.last_date || b.last_date > combined.last_date)
+      ) {
+        combined.last_date = b.last_date;
+      }
+      combined.all_amounts.push(...b.all_amounts);
+      for (const d of b.sample_descriptions) {
+        if (
+          combined.sample_descriptions.length < 5 &&
+          !combined.sample_descriptions.includes(d)
+        ) {
+          combined.sample_descriptions.push(d);
+        }
+      }
+      if (b.has_named_merchant) combined.has_named_merchant = true;
+    }
+    mergedSources.set(leaf, combined);
+  }
+
+  // ── Outlier detection per bucket ────────────────────────────────────
+  //
+  // For Salary streams especially, a single bonus or RSU vest can
+  // double the bucket's apparent monthly contribution. The agent often
+  // can't catch this from sample_amounts alone. Here we identify
+  // outliers per bucket (amounts > 1.5× the median) and surface a
+  // "regular" total/avg that excludes them — that's what the agent
+  // proposes by default for monthly_income.
+  //
+  // We only flag when the bucket has >= 4 amounts; any fewer and the
+  // distribution is too thin for the median to be meaningful.
+  function median(values: number[]): number {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  }
+
+  type OutlierInfo = {
+    has_outlier: boolean;
+    outlier_threshold: number | null;
+    median: number;
+    outliers: number[]; // amount values that exceeded the threshold
+    regular_total: number; // sum of amounts EXCLUDING outliers
+    regular_total_complete: number; // same but complete-month rows only
+    regular_count: number;
+  };
+  function detectOutliers(b: SourceBucket): OutlierInfo {
+    const amounts = b.all_amounts.map((a) => a.amount);
+    if (amounts.length < 4) {
+      return {
+        has_outlier: false,
+        outlier_threshold: null,
+        median: median(amounts),
+        outliers: [],
+        regular_total: b.total,
+        regular_total_complete: b.total_complete,
+        regular_count: b.count,
+      };
+    }
+    const m = median(amounts);
+    const threshold = m * 1.5;
+    let regular_total = 0;
+    let regular_total_complete = 0;
+    let regular_count = 0;
+    const outliers: number[] = [];
+    for (const entry of b.all_amounts) {
+      if (entry.amount > threshold) {
+        outliers.push(entry.amount);
+      } else {
+        regular_total += entry.amount;
+        if (entry.is_complete) regular_total_complete += entry.amount;
+        regular_count += 1;
+      }
+    }
+    return {
+      has_outlier: outliers.length > 0,
+      outlier_threshold: Math.round(threshold * 100) / 100,
+      median: m,
+      outliers,
+      regular_total,
+      regular_total_complete,
+      regular_count,
+    };
+  }
 
   // ── Source classification ──────────────────────────────────────────
   //
@@ -2087,9 +2251,18 @@ async function getIncomeSummary(
     return b.count >= STREAM_MIN_COUNT ? 'stream' : 'one_off';
   }
 
-  type ClassifiedSource = SourceBucket & { classification: Classification };
-  const classifiedSources: ClassifiedSource[] = Array.from(sources.values())
-    .map((s) => ({ ...s, classification: classify(s) }))
+  type ClassifiedSource = SourceBucket & {
+    classification: Classification;
+    outliers: OutlierInfo;
+  };
+  const classifiedSources: ClassifiedSource[] = Array.from(
+    mergedSources.values(),
+  )
+    .map((s) => ({
+      ...s,
+      classification: classify(s),
+      outliers: detectOutliers(s),
+    }))
     .sort((a, b) => b.total - a.total);
 
   const fmt = (s: ClassifiedSource) => ({
@@ -2100,27 +2273,31 @@ async function getIncomeSummary(
     // monthly_avg uses complete-month data only so a half-finished
     // current month doesn't drag down the per-source average.
     monthly_avg: Math.round((s.total_complete / monthsCovered) * 100) / 100,
+    // monthly_avg_regular EXCLUDES detected outliers (single bonus, RSU
+    // vest, etc). For most users this is the same as monthly_avg; for
+    // someone with one bonus mixed into otherwise regular paychecks
+    // it's the conservative, recurring figure to propose as income.
+    monthly_avg_regular:
+      Math.round((s.outliers.regular_total_complete / monthsCovered) * 100) /
+      100,
+    has_outlier: s.outliers.has_outlier,
+    outlier_amounts: s.outliers.outliers.map((a) => Math.round(a * 100) / 100),
+    typical_amount: Math.round(s.outliers.median * 100) / 100,
     first_date: s.first_date || null,
     last_date: s.last_date || null,
-    sample_amounts: s.sample_amounts.map((a) => Math.round(a * 100) / 100),
+    sample_amounts: s.all_amounts
+      .slice(0, 5)
+      .map((a) => Math.round(a.amount * 100) / 100),
     sample_descriptions: s.sample_descriptions,
     has_named_merchant: s.has_named_merchant,
     // Plaid leaf label (e.g. "Salary", "Other Income", "Tax Refund").
-    // Multiple buckets with the same specific-income leaf almost
-    // always represent the same employer with inconsistent
-    // descriptions — sum across them when computing total monthly
-    // income.
     category: s.leaf_label || null,
     category_group: s.group_name || null,
   });
 
   // Aggregate by classification using COMPLETE-MONTH totals only, so
   // the monthly_average for each view reconciles with by_month's
-  // complete entries (March + April), not by_month + the partial
-  // current month. The model can still see the partial month under
-  // by_month for transparency.
-  const sumCompleteTotal = (cs: ClassifiedSource[]) =>
-    cs.reduce((acc, x) => acc + x.total_complete, 0);
+  // complete entries, not by_month + the partial current month.
   const streams = classifiedSources.filter((s) => s.classification === 'stream');
   const oneOffs = classifiedSources.filter((s) => s.classification === 'one_off');
   const unidentified = classifiedSources.filter(
@@ -2128,8 +2305,19 @@ async function getIncomeSummary(
   );
   const micro = classifiedSources.filter((s) => s.classification === 'micro');
 
-  const streamsTotal = sumCompleteTotal(streams);
-  const oneOffTotal = sumCompleteTotal(oneOffs);
+  // streams_only uses REGULAR totals (outliers excluded) by default, so
+  // a single $5K bonus doesn't get amortized into the monthly figure
+  // and inflate every income proposal. The all-inflows version still
+  // includes them.
+  const streamsTotalRegular = streams.reduce(
+    (acc, x) => acc + x.outliers.regular_total_complete,
+    0,
+  );
+  const streamsTotalAll = streams.reduce(
+    (acc, x) => acc + x.total_complete,
+    0,
+  );
+  const oneOffTotal = oneOffs.reduce((acc, x) => acc + x.total_complete, 0);
 
   return {
     window: {
@@ -2141,21 +2329,30 @@ async function getIncomeSummary(
       months_used_for_average: monthsCovered,
     },
 
-    // PRIMARY: recurring named-merchant income. Default for
-    // propose_income_update in 90% of cases.
+    // PRIMARY: recurring named-merchant income, with detected
+    // outliers (single bonuses / RSU vests) EXCLUDED. Default for
+    // propose_income_update in almost every case.
     streams_only: {
-      total: Math.round(streamsTotal * 100) / 100,
-      monthly_average: Math.round((streamsTotal / monthsCovered) * 100) / 100,
+      total: Math.round(streamsTotalRegular * 100) / 100,
+      monthly_average:
+        Math.round((streamsTotalRegular / monthsCovered) * 100) / 100,
       source_count: streams.length,
+      // The "with bonuses" view, for users who want the inclusive
+      // figure and explicitly tell the agent to count bonuses.
+      monthly_average_with_outliers:
+        Math.round((streamsTotalAll / monthsCovered) * 100) / 100,
+      total_with_outliers: Math.round(streamsTotalAll * 100) / 100,
     },
 
     // SECONDARY: streams plus single named-merchant deposits (gifts,
     // refunds, side payments). Useful when the user has lumpy but
-    // real extra income.
+    // real extra income. Outliers stripped from streams here too.
     streams_plus_one_offs: {
-      total: Math.round((streamsTotal + oneOffTotal) * 100) / 100,
+      total: Math.round((streamsTotalRegular + oneOffTotal) * 100) / 100,
       monthly_average:
-        Math.round(((streamsTotal + oneOffTotal) / monthsCovered) * 100) / 100,
+        Math.round(
+          ((streamsTotalRegular + oneOffTotal) / monthsCovered) * 100,
+        ) / 100,
     },
 
     // FULL: every positive-amount row that wasn't a category-tagged
@@ -2192,11 +2389,13 @@ async function getIncomeSummary(
     },
 
     notes: [
-      "streams_only.monthly_average is the authoritative monthly income figure for almost every user. Use it as the default for propose_income_update unless the user tells you otherwise.",
-      "Classification logic, in priority order: (1) Tax Refund leaf → one_off (annual at best, never recurring). (2) Tiny totals → micro (cashback noise). (3) Specific-income leaves (Salary, Wages, Dividends, Interest Earned, Retirement, Pension) → stream when count >= 2, regardless of merchant_name. Plaid often leaves merchant_name null on real paychecks, so we trust the leaf label here. (4) Generic income (Other Income) or non-Income groups → fall back to merchant_name: named merchant + recurring → stream; no merchant → unidentified.",
-      "When you see MULTIPLE stream-classified buckets with the same `category` field (e.g. three Salary buckets from descriptions 'Inc.', 'From X INC.', 'Direct Deposit From X'), they're almost always the same employer with inconsistent labels. Sum across them for total monthly income. The differing descriptions are just Plaid's enrichment being lossy across pay periods.",
+      "streams_only.monthly_average is the authoritative monthly income figure for almost every user. Use it as the default for propose_income_update. It EXCLUDES detected outlier deposits (single bonuses, RSU vests, etc) — those are visible per-stream as outlier_amounts so you can mention them, but they don't get amortized into the monthly figure.",
+      "If the user explicitly wants their inclusive compensation (paycheck + regular bonuses), use streams_only.monthly_average_with_outliers instead. Default to the conservative figure unless they say otherwise.",
+      "Per-stream outlier detection: any deposit > 1.5× the bucket's median (when the bucket has >= 4 deposits) is flagged. has_outlier=true with outlier_amounts populated. typical_amount shows the median; monthly_avg_regular is the per-stream monthly figure with outliers stripped.",
+      "Specific-income buckets (Salary, Wages, Dividends, Interest Earned, etc.) sharing a category leaf are AUTO-MERGED at the tool level. So three buckets from descriptions 'Inc.', 'From X INC.', and 'Direct Deposit From X' all collapse into one 'Salary' stream — you don't need to re-combine them.",
+      "Classification, in priority order: (1) Tax Refund leaf → one_off. (2) Tiny totals → micro. (3) Specific-income leaves → stream regardless of count. (4) Generic income → falls back to merchant_name + count.",
       "monthly_average across all buckets is computed over complete months only — the current partial month is excluded when at least one complete month exists in the window.",
-      "Excludes category-tagged transfers (Transfer In/Out groups, Credit Card Payment / Account Transfer leaves) up front. Unidentified self-transfers usually slip past that filter because Plaid mislabels them as INCOME — that's why we surface them separately under unidentified_sources.",
+      "Excludes category-tagged transfers up front. Self-transfers Plaid mislabels as INCOME slip past that filter and surface under unidentified_sources.",
     ],
   };
 }
