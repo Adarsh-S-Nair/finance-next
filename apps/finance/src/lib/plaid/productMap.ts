@@ -4,27 +4,15 @@
  * Used by the exchange-token flow to derive the product list to record on
  * `plaid_items.products` and to figure out which sync runners to fire.
  *
- * Adding a new Plaid product (liabilities, identity, income, etc.) is a
- * matter of adding it to the array(s) below and registering a runner in
+ * Adding a new Plaid product (identity, income, etc.) is a matter of
+ * adding it to the array(s) below and registering a runner in
  * syncRunners.ts. No need to touch the exchange-token route logic.
  */
 
-/**
- * Liabilities is gated on a Plaid-side product approval. While the request
- * is pending, including `'liabilities'` in any link-token products list
- * causes Plaid to reject the token creation. Flip `PLAID_LIABILITIES_ENABLED`
- * to `'true'` in the environment once approval lands and the product
- * starts working end-to-end without a code change.
- */
-export const LIABILITIES_ENABLED =
-  process.env.PLAID_LIABILITIES_ENABLED === "true";
-
 export const ACCOUNT_TYPE_PRODUCTS: Record<string, string[]> = {
   depository: ["transactions"],
-  credit: LIABILITIES_ENABLED
-    ? ["transactions", "liabilities"]
-    : ["transactions"],
-  loan: LIABILITIES_ENABLED ? ["liabilities"] : [],
+  credit: ["transactions", "liabilities"], // credit cards: txns + APR/due-date data
+  loan: ["liabilities"],                    // mortgage/student loans: liabilities only
   investment: ["investments"],
 };
 
