@@ -530,6 +530,89 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'ask_user_question',
+    description:
+      "Ask the user a multiple-choice question with optional free-form " +
+      "fallback. Renders an inline widget with one button per option " +
+      "plus a 'Something else…' affordance. The user's choice fires a " +
+      "synthetic continuation message back to you so the conversation " +
+      "resumes with their answer in context.\n\n" +
+      "USE THIS when:\n" +
+      "- You hit data ambiguity that you can't resolve from the data " +
+      "  alone (high-variance income that could be hourly variation OR " +
+      "  bonuses; a category breakdown where multiple budgeting shapes " +
+      "  make sense; a recategorization where two categories both fit).\n" +
+      "- You need a yes/no/which-one answer that would otherwise be a " +
+      "  clunky free-form question.\n\n" +
+      "When NOT to use:\n" +
+      "- Open-ended questions where 'pick one of these' would be " +
+      "  artificial. Just ask in prose.\n" +
+      "- When you can compute the answer from the data — try that first, " +
+      "  then ask only if there's genuine ambiguity.\n" +
+      "- For accept/decline on a specific proposed change — those have " +
+      "  their own dedicated widgets (propose_budget_*, " +
+      "  propose_income_update, etc).\n\n" +
+      "PATTERN — when asking about specific transactions:\n" +
+      "Before calling this tool, call get_recent_transactions to render " +
+      "the relevant rows for the user. They see the exact transactions " +
+      "you're asking about, then pick the right answer. E.g., 'are these " +
+      "$275-$368 deposits regular pay or bonuses?' makes more sense when " +
+      "the deposits are visible right above the question.\n\n" +
+      "Provide 2-4 options. Keep labels short and natural-sounding " +
+      "('Normal hourly variation, count it all' beats 'INCLUDE_ALL'). " +
+      "Provide a context line if the choice has a financial implication " +
+      "the user should see ('Excluding bigger deposits gives $1,800/mo; " +
+      "including gives $2,554/mo').",
+    input_schema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description:
+            'The question to ask. One short sentence, plain language, no ' +
+            'jargon. The user reads this and clicks an option.',
+        },
+        options: {
+          type: 'array',
+          minItems: 2,
+          maxItems: 5,
+          items: {
+            type: 'object',
+            properties: {
+              label: {
+                type: 'string',
+                description:
+                  'Button text the user sees. Keep concise but natural — ' +
+                  'this is also what gets fed back to you when they click.',
+              },
+            },
+            required: ['label'],
+          },
+          description:
+            '2-5 options the user can pick. Order from most likely to ' +
+            'least likely. The label is also the value passed back to ' +
+            'you in the continuation message.',
+        },
+        context: {
+          type: 'string',
+          description:
+            'Optional one-line subline rendered under the question. Use ' +
+            'when the financial stakes of the choice should be visible at ' +
+            'a glance ("Including bonuses → $9,800/mo; excluding → ' +
+            '$7,200/mo"). Skip if the question is self-explanatory.',
+        },
+        allow_custom: {
+          type: 'boolean',
+          description:
+            'When true (default), shows a "Something else…" affordance ' +
+            'that lets the user type a free-form answer. Set false only ' +
+            'if the options are genuinely exhaustive.',
+        },
+      },
+      required: ['question', 'options'],
+    },
+  },
+  {
     name: 'remember_user_fact',
     description:
       "Save a short fact about the user that should persist across " +
@@ -655,6 +738,7 @@ type ToolName =
   | 'propose_budget_update'
   | 'propose_budget_delete'
   | 'propose_income_update'
+  | 'ask_user_question'
   | 'remember_user_fact';
 
 interface BudgetsInput {
@@ -757,6 +841,13 @@ interface ProposeIncomeUpdateInput {
   reasoning?: string;
 }
 
+interface AskUserQuestionInput {
+  question?: string;
+  options?: { label?: string }[];
+  context?: string;
+  allow_custom?: boolean;
+}
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -830,6 +921,8 @@ export async function executeTool(
           userId,
           (input as ProposeIncomeUpdateInput) ?? {},
         );
+      case 'ask_user_question':
+        return askUserQuestion((input as AskUserQuestionInput) ?? {});
       default:
         return { error: `Unknown tool: ${name}` };
     }
@@ -2106,51 +2199,107 @@ async function getIncomeSummary(
   }
 
   type OutlierEntry = { amount: number; date: string | null };
+  // Shape of the bucket's amount distribution. The agent uses this to
+  // decide whether to trust outlier detection or ask the user instead.
+  //
+  // - tight_cluster: low CV (< 0.30). Median × 1.5 reliably catches
+  //   bonuses. Agent can trust the regular_total.
+  // - tight_with_outlier: tight cluster + at least one detected
+  //   outlier. Strong signal to mention the outlier and offer both
+  //   the conservative and inclusive figures.
+  // - wide_spread: high CV (>= 0.30). Distribution is naturally
+  //   variable (hourly pay, earned-wage-access, freelance). Outlier
+  //   detection skipped. Agent should ASK the user via
+  //   ask_user_question whether bigger deposits are bonuses or
+  //   normal variation, since the data alone can't tell.
+  // - thin: fewer than 4 deposits — too little data to characterize.
+  type ShapeSignal =
+    | 'tight_cluster'
+    | 'tight_with_outlier'
+    | 'wide_spread'
+    | 'thin';
+
   type OutlierInfo = {
     has_outlier: boolean;
     outlier_threshold: number | null;
     median: number;
+    cv: number; // coefficient of variation; -1 when undefined
+    shape_signal: ShapeSignal;
     outliers: OutlierEntry[]; // amount + date for narration ("the $5,193 on Apr 13")
     regular_total: number; // sum of amounts EXCLUDING outliers
     regular_total_complete: number; // same but complete-month rows only
     regular_count: number;
+    // First N amounts (with dates) for the agent to inspect when
+    // narrating or surfacing specific transactions to the user.
+    sample_distribution: { amount: number; date: string | null }[];
   };
   function detectOutliers(b: SourceBucket): OutlierInfo {
     const amounts = b.all_amounts.map((a) => a.amount);
     const m = median(amounts);
-    const noOutliers: OutlierInfo = {
-      has_outlier: false,
-      outlier_threshold: null,
-      median: m,
-      outliers: [],
-      regular_total: b.total,
-      regular_total_complete: b.total_complete,
-      regular_count: b.count,
-    };
+    const sampleDist = b.all_amounts
+      .slice(0, 8)
+      .map((a) => ({ amount: Math.round(a.amount * 100) / 100, date: a.date }));
 
     // Need a meaningful sample to even reason about outliers.
-    if (amounts.length < 4) return noOutliers;
+    if (amounts.length < 4) {
+      return {
+        has_outlier: false,
+        outlier_threshold: null,
+        median: m,
+        cv: -1,
+        shape_signal: 'thin',
+        outliers: [],
+        regular_total: b.total,
+        regular_total_complete: b.total_complete,
+        regular_count: b.count,
+        sample_distribution: sampleDist,
+      };
+    }
+
+    const n = amounts.length;
+    const mean = amounts.reduce((s, a) => s + a, 0) / n;
+    if (mean <= 0) {
+      return {
+        has_outlier: false,
+        outlier_threshold: null,
+        median: m,
+        cv: -1,
+        shape_signal: 'thin',
+        outliers: [],
+        regular_total: b.total,
+        regular_total_complete: b.total_complete,
+        regular_count: b.count,
+        sample_distribution: sampleDist,
+      };
+    }
+    const variance =
+      amounts.reduce((s, a) => s + (a - mean) ** 2, 0) / Math.max(1, n - 1);
+    const stddev = Math.sqrt(variance);
+    const cv = stddev / mean;
 
     // Coefficient of variation: stddev / mean. A bonus mixed into a
     // tight cluster of paychecks has low CV (< 0.25); naturally
     // variable income (DailyPay, hourly tips, freelance) has high CV
     // (often 0.4+). Running outlier detection on high-CV streams
     // mis-flags the upper half of a wide distribution as "bonuses"
-    // and silently strips them from the recurring figure — which is
-    // what happened on a user with 28 DailyPay deposits ranging $60
-    // to $368, where the rule flagged 6 deposits and undercounted
-    // her real income by ~$1,000/mo. Skip outlier detection above
-    // the CV threshold; the distribution is genuinely noisy and
-    // every deposit is "regular" pay.
+    // and silently strips them from the recurring figure. Above the
+    // threshold we surface shape_signal=wide_spread so the agent
+    // knows to ASK rather than guess.
     const HIGH_VARIANCE_CV = 0.3;
-    const n = amounts.length;
-    const mean = amounts.reduce((s, a) => s + a, 0) / n;
-    if (mean <= 0) return noOutliers;
-    const variance =
-      amounts.reduce((s, a) => s + (a - mean) ** 2, 0) / Math.max(1, n - 1);
-    const stddev = Math.sqrt(variance);
-    const cv = stddev / mean;
-    if (cv > HIGH_VARIANCE_CV) return noOutliers;
+    if (cv > HIGH_VARIANCE_CV) {
+      return {
+        has_outlier: false,
+        outlier_threshold: null,
+        median: m,
+        cv: Math.round(cv * 1000) / 1000,
+        shape_signal: 'wide_spread',
+        outliers: [],
+        regular_total: b.total,
+        regular_total_complete: b.total_complete,
+        regular_count: b.count,
+        sample_distribution: sampleDist,
+      };
+    }
 
     // Low-variance distribution. A single deposit > 1.5× the median
     // is almost certainly a bonus, RSU vest, or back-pay. Strip it
@@ -2174,10 +2323,13 @@ async function getIncomeSummary(
       has_outlier: outliers.length > 0,
       outlier_threshold: Math.round(threshold * 100) / 100,
       median: m,
+      cv: Math.round(cv * 1000) / 1000,
+      shape_signal: outliers.length > 0 ? 'tight_with_outlier' : 'tight_cluster',
       outliers,
       regular_total,
       regular_total_complete,
       regular_count,
+      sample_distribution: sampleDist,
     };
   }
 
@@ -2314,6 +2466,9 @@ async function getIncomeSummary(
       date: o.date,
     })),
     typical_amount: Math.round(s.outliers.median * 100) / 100,
+    cv: s.outliers.cv,
+    shape_signal: s.outliers.shape_signal,
+    sample_distribution: s.outliers.sample_distribution,
     first_date: s.first_date || null,
     last_date: s.last_date || null,
     sample_amounts: s.all_amounts
@@ -3003,5 +3158,36 @@ async function proposeIncomeUpdate(
     current_amount: currentAmount,
     amount: input.amount,
     reasoning: input.reasoning ?? null,
+  };
+}
+
+/**
+ * ask_user_question is a pure widget-shaper. The agent calls it with
+ * the question + options; the executor validates and echoes the data
+ * back to the client where the QuestionWidget renders. There's no DB
+ * write here — persistence happens client-side after the user picks
+ * (POST /api/agent/widget-actions). The user's answer flows back to
+ * the agent via the synthetic continuation message.
+ */
+function askUserQuestion(input: AskUserQuestionInput) {
+  const question = input.question?.trim();
+  if (!question) {
+    return { error: 'question is required' };
+  }
+  const rawOptions = Array.isArray(input.options) ? input.options : [];
+  const options = rawOptions
+    .map((o) => ({ label: typeof o?.label === 'string' ? o.label.trim() : '' }))
+    .filter((o) => o.label.length > 0);
+  if (options.length < 2) {
+    return { error: 'options must include at least 2 non-empty labels' };
+  }
+  if (options.length > 5) {
+    return { error: 'options is capped at 5 entries' };
+  }
+  return {
+    question,
+    options,
+    context: input.context?.trim() || null,
+    allow_custom: input.allow_custom !== false,
   };
 }

@@ -26,9 +26,25 @@ export const POST = withAuth(
         { status: 400 },
       );
     }
-    if (action !== 'accepted' && action !== 'declined') {
+    // Three valid action shapes:
+    // - "accepted" / "declined" — proposal widgets (budget, income,
+    //   recategorization, etc).
+    // - "answered:<value>" — question widgets, where the suffix is the
+    //   user's chosen option label or free-form text. Capped at 500
+    //   chars to stop a buggy widget from writing megabytes.
+    if (
+      action !== 'accepted' &&
+      action !== 'declined' &&
+      !(typeof action === 'string' && action.startsWith('answered:'))
+    ) {
       return NextResponse.json(
-        { error: "action must be 'accepted' or 'declined'" },
+        { error: "action must be 'accepted', 'declined', or 'answered:<value>'" },
+        { status: 400 },
+      );
+    }
+    if (action && action.length > 500) {
+      return NextResponse.json(
+        { error: 'action exceeds 500 chars' },
         { status: 400 },
       );
     }

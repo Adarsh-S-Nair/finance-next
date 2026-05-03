@@ -20,6 +20,7 @@ import MemoryWidget, {
 import IncomeProposalWidget, {
   type IncomeProposalData,
 } from "./IncomeProposalWidget";
+import QuestionWidget, { type QuestionData } from "./QuestionWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -35,6 +36,7 @@ const TOOL_LABELS: Record<string, string> = {
   propose_budget_delete: "Preparing budget removal",
   propose_income_update: "Preparing income update",
   remember_user_fact: "Saving to memory",
+  ask_user_question: "Asking a question",
 };
 
 // Tools that produce data the model uses internally but isn't useful to
@@ -156,6 +158,14 @@ export default function ToolWidget({
         <IncomeProposalWidget
           toolUseId={tool.id}
           data={tool.output as IncomeProposalData}
+          onContinue={onContinue}
+        />
+      );
+    case "ask_user_question":
+      return (
+        <QuestionWidget
+          toolUseId={tool.id}
+          data={tool.output as QuestionData}
           onContinue={onContinue}
         />
       );
