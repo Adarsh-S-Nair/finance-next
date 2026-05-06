@@ -14,6 +14,8 @@ import PlaidOAuthHandler from "../PlaidOAuthHandler";
 import PaymentFailureBanner from "../PaymentFailureBanner";
 import ImpersonationBanner from "../ImpersonationBanner";
 import { BrandMark, ConfirmOverlay } from "@zervo/ui";
+import { AgentOverlayProvider } from "../agent/AgentOverlayProvider";
+import AgentOverlay from "../agent/AgentOverlay";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
@@ -218,6 +220,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <AgentOverlayProvider>
     <div className="min-h-screen bg-[var(--color-shell-bg)] relative">
       {/* Ambient blue glow lives on body::before in globals.css — it needs
           to cover the full viewport including portaled modals, which means
@@ -284,6 +287,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       <PlaidOAuthHandler />
+      <AgentOverlay />
     </div>
+    </AgentOverlayProvider>
   );
 }
