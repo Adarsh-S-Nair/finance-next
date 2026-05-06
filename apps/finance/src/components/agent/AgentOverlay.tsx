@@ -9,25 +9,22 @@ import { useAgentOverlay } from "./AgentOverlayProvider";
 const SESSION_KEY = "agent:lastConvId";
 
 /**
- * Full-viewport agent overlay. Renders fixed above the rest of the app
- * with a blurred backdrop, summoned via Cmd+K, the topbar button, or
- * useAgentOverlay().open().
+ * Full-viewport agent overlay. Summoned via Cmd+K, the topbar button,
+ * or useAgentOverlay().open().
  *
- * Layout:
- * - backdrop: blurred + slightly dimmed underlying app, click to close
- * - panel: centered chat content, max-width matching /agent
- * - close button: top-right
+ * Visual design: ONE frosted surface, not two. The whole viewport is
+ * the chat space — there's no centered panel sitting on a blurred
+ * backdrop. The user's app is still vaguely visible behind a heavy
+ * frosted-glass blur, the chat content lives directly on that
+ * surface, no card chrome.
+ *
+ * The chat input has its own surface-alt pill (defined inside
+ * AgentChat) which provides the only soft visual anchor we need —
+ * messages are just text + widgets on the frosted ground.
  *
  * AgentChat is mounted with the user's last conversation id from
- * sessionStorage so they pick up where they left off — same source of
- * truth the /agent route uses, so the overlay and the dedicated page
- * stay consistent.
- *
- * Each open/close cycle remounts AgentChat. State (in-flight stream,
- * optimistic message) doesn't persist across closes — that's fine
- * because everything's persisted to the DB on the server side, and
- * remounting reads the latest from the DB. The cost is one extra fetch
- * per open, which is cheap.
+ * sessionStorage so it picks up where they left off — same source of
+ * truth as /agent. Each open remounts so we get fresh DB state.
  */
 export default function AgentOverlay() {
   const { isOpen, close } = useAgentOverlay();
@@ -55,63 +52,43 @@ export default function AgentOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
+          // The whole overlay is one frosted surface. Translucent fill
+          // + heavy backdrop blur means the user's app peeks through
+          // very subtly — enough to feel like the agent is OVER their
+          // content, not a portal into a different app. No shadow, no
+          // border, no panel inside. One layer.
+          style={{
+            backdropFilter: "blur(28px) saturate(140%)",
+            WebkitBackdropFilter: "blur(28px) saturate(140%)",
+            backgroundColor: "color-mix(in oklab, var(--color-content-bg), transparent 12%)",
+          }}
         >
-          {/* Backdrop — blur + dim. Click closes the overlay (standard
-              modal behavior). */}
-          <div
-            className="absolute inset-0 bg-black/40"
+          {/* Close button — top-right, floats over the chat content. */}
+          <button
+            type="button"
             onClick={close}
-            style={{
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-            }}
-            aria-hidden
-          />
+            className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-[var(--color-surface-alt)] transition-colors text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+            aria-label="Close agent (Esc)"
+          >
+            <FiX className="h-5 w-5" />
+          </button>
 
-          {/* Panel container — full viewport, scrollable, click-through
-              to backdrop on margins so closing on background works
-              even when the chat is short. */}
-          <div className="relative h-full flex flex-col items-center pointer-events-none">
-            <motion.div
-              key="panel"
-              initial={{ opacity: 0, y: 16, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.99 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="relative pointer-events-auto h-full w-full max-w-[860px] bg-[var(--color-content-bg)] flex flex-col"
-              // Soft shadow + subtle border so the panel reads as a
-              // distinct surface above the blurred app behind it.
-              style={{
-                boxShadow:
-                  "0 24px 80px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.25)",
-              }}
-            >
-              {/* Close button — top-right, floating over the chat
-                  content. Sized + colored to match the rest of the
-                  topbar buttons in the app. */}
-              <button
-                type="button"
-                onClick={close}
-                className="absolute top-3 right-3 z-10 p-2 rounded-full hover:bg-[var(--color-surface-alt)] transition-colors text-[var(--color-muted)] hover:text-[var(--color-fg)]"
-                aria-label="Close agent (Esc)"
-              >
-                <FiX className="h-5 w-5" />
-              </button>
-
-              {/* AgentChat manages its own internal layout (sticky
-                  input, scroll, etc) and expects to fill the
-                  container. The flex parent above + h-full here gives
-                  it the same shape as a dedicated route would. Key
-                  rotation forces a clean remount each open so we get
-                  fresh DB state. */}
-              <div className="flex-1 min-h-0 flex flex-col">
-                <AgentChat
-                  key={isOpen ? `open-${convId ?? "new"}` : "closed"}
-                  initialConversationId={convId}
-                />
-              </div>
-            </motion.div>
-          </div>
+          {/* Content column — same max-width as /agent, centered.
+              AgentChat renders its own scrollable message list and
+              sticky input; we just give it the shape it expects. */}
+          <motion.div
+            key="content"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="h-full flex flex-col"
+          >
+            <AgentChat
+              key={isOpen ? `open-${convId ?? "new"}` : "closed"}
+              initialConversationId={convId}
+            />
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
