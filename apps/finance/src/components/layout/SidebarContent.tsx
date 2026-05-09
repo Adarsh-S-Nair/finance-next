@@ -75,9 +75,13 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
 
   const isItemActive = (itemHref: string) => pathname.startsWith(itemHref);
   const activeIndex = items.findIndex((it) => isItemActive(it.href));
+  // Settings is at the bottom of the sidebar in its own area, so it gets
+  // its own accent bar anchored to the bottom of the pill rather than
+  // sharing the nav indicator's index-driven top offset.
+  const isSettingsActive = pathname.startsWith(settingsHref);
 
   return (
-    <div className="relative flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-bg)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.12),0_4px_12px_-3px_rgba(0,0,0,0.06)]">
+    <div className="relative flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-bg)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.12),0_4px_12px_-3px_rgba(0,0,0,0.06)] overflow-hidden">
       {/* Active accent bar — pinned to the sidebar pill's left edge,
           sits outside `nav` so it isn't clipped by overflow and so it
           can sit flush against the pill instead of inset by nav's
@@ -93,11 +97,23 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         />
       )}
 
+      {/* Settings active accent bar — anchored to the bottom of the pill
+          so the bar follows the settings button regardless of viewport
+          height. py-3 (12) is the pill's bottom padding; h-10 (40) is
+          the settings button. */}
+      {isSettingsActive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-0 w-[3px] bg-[var(--color-fg)]"
+          style={{ height: 40, bottom: 12 }}
+        />
+      )}
+
       <div className="flex justify-center pb-2">
         <HouseholdScopePopover />
       </div>
 
-      <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pt-1">
+      <nav className="flex-1 overflow-y-auto scrollbar-thin pt-1">
         <ul className="space-y-0.5">
           {items.map((it) => (
             <SidebarItem
@@ -115,7 +131,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
         </ul>
       </nav>
 
-      <div className="flex flex-col items-center gap-1 px-2 pt-2">
+      <div className="flex flex-col gap-0.5 pt-2">
         <SidebarMoreMenu />
         <Tooltip content="Settings" side="right">
           <Link
@@ -123,9 +139,9 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
             onClick={onNavigate}
             aria-label="Settings"
             className={clsx(
-              "flex items-center justify-center w-10 h-10 rounded-md transition-colors",
-              pathname.startsWith("/settings")
-                ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.08]"
+              "flex items-center justify-center w-full h-10 transition-colors",
+              isSettingsActive
+                ? "text-[var(--color-fg)]"
                 : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
             )}
           >

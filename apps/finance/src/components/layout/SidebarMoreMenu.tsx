@@ -117,9 +117,9 @@ export default function SidebarMoreMenu() {
           aria-label="More menu"
           aria-expanded={open}
           className={clsx(
-            "flex items-center justify-center w-10 h-10 rounded-md transition-colors cursor-pointer",
+            "flex items-center justify-center w-full h-10 transition-colors cursor-pointer",
             open
-              ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.08]"
+              ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.05]"
               : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
           )}
         >

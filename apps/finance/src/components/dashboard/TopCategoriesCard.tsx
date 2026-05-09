@@ -160,7 +160,12 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
   segments.reduce((cumulative, seg) => {
     const pct = total > 0 ? seg.value / total : 0;
     const arc = pct * circumference;
-    const dash = Math.max(0.001, arc - effectiveGap);
+    // strokeLinecap="round" extends each end of the dash by strokeWidth/2
+    // beyond its boundary, which would eat into the gap between slices
+    // and make them overlap. Subtract the full stroke width (cap on each
+    // end) so the visible slice = arc - effectiveGap and the gap renders
+    // as intended.
+    const dash = Math.max(0.001, arc - effectiveGap - DONUT_STROKE);
     const dashArray = `${dash} ${circumference}`;
     const dashOffset = -cumulative;
     rendered.push({ ...seg, dashArray, dashOffset, pct });
