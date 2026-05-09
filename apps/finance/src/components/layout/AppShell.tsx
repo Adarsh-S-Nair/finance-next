@@ -189,31 +189,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AgentOverlayProvider>
-    <div className="min-h-screen bg-[var(--color-shell-bg)] relative">
-      {/* Ambient blue glow lives on body::before in globals.css — it needs
-          to cover the full viewport including portaled modals, which means
-          it can't live inside any React-rendered stacking context. */}
+    <div className="min-h-screen bg-[var(--color-content-bg)] relative">
       {/* Impersonation banner is fixed full-width across the top — it
           sets --impersonation-banner-h on documentElement so the sidebar
-          + topbar shift down to clear it. Mounted here (outside the
-          sidebar-offset wrapper) is purely organizational; with `fixed`
-          positioning its DOM location doesn't matter, but the visual
-          intent reads better. */}
+          + topbar shift down to clear it. */}
       <ImpersonationBanner />
       <Sidebar />
-      {/* Floating sidebar lives at left:12px with width 56px — content
-          starts past the right edge of the sidebar plus a 12px breathing
-          gap (12 + 56 + 12 = 80px). On mobile (<md) the sidebar is
-          hidden and the drawer trigger lives in the topbar, so no left
-          offset is applied. */}
+      {/* Sidebar floats at left:12 with w:14 (56px); content starts past
+          its right edge plus a 12px breathing gap (12 + 56 + 12 = 80px).
+          The sidebar and main content share the same bg so there's no
+          card seam — the active-item indicator on each nav row carries
+          the visual weight instead. */}
       <div className="min-h-screen flex flex-col md:pl-20 relative pt-[var(--impersonation-banner-h,0px)]">
         <PaymentFailureBanner />
-        {/* Main content sits inside the shell with content-bg, leaving
-            the shell-bg visible behind the floating sidebar. The
-            AppTopbar lives inside this card so the card encompasses
-            every product surface. */}
         <main className="flex-1 flex flex-col">
-          <div className="flex-1 bg-[var(--color-content-bg)] flex flex-col">
+          <div className="flex-1 flex flex-col">
             <AppTopbar />
             <div
               className={

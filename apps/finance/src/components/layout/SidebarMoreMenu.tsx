@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { LuEllipsis, LuSparkles, LuHeadphones } from "react-icons/lu";
+import { LuSparkles, LuHeadphones } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import { FaLock } from "react-icons/fa";
 import { ConfirmOverlay, Tooltip, TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
@@ -26,7 +26,7 @@ export default function SidebarMoreMenu() {
   const router = useRouter();
   const { profile, user, logout } = useUser();
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ bottom: number; left: number } | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -53,6 +53,17 @@ export default function SidebarMoreMenu() {
         .join(" ")
     : user?.email || "";
   const tier = profile?.subscription_tier ?? "free";
+  const initials =
+    firstName && lastName
+      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+      : firstName
+        ? firstName[0].toUpperCase()
+        : (user?.email?.[0]?.toUpperCase() ?? "?");
+  const avatarUrl =
+    profile?.avatar_url ||
+    (meta.avatar_url as string | undefined) ||
+    (meta.picture as string | undefined) ||
+    null;
 
   useEffect(() => {
     if (!open) return;
@@ -73,16 +84,22 @@ export default function SidebarMoreMenu() {
     };
   }, [open]);
 
-  // Anchor the popover to the right edge of the trigger; bottom-align with
-  // the trigger center via translateY(-100%) so the menu grows upward
-  // from the button (it's at the bottom of the sidebar — opening upward
-  // keeps it on-screen).
+  // Anchor the popover to the right edge of the trigger and bottom-align
+  // with the trigger's bottom edge so it grows upward from the button
+  // (which sits at the bottom of the sidebar — opening upward keeps the
+  // menu fully on-screen). We use `bottom` for vertical anchoring instead
+  // of `top + translateY(-100%)` because framer-motion animates `x`/`y`
+  // via the same `transform` property and would clobber a static
+  // translateY.
   useEffect(() => {
     if (!open) return;
     const reposition = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      setPos({ top: rect.bottom, left: rect.right + POPOVER_GAP });
+      setPos({
+        bottom: window.innerHeight - rect.bottom,
+        left: rect.right + POPOVER_GAP,
+      });
     };
     reposition();
     window.addEventListener("scroll", reposition, true);
@@ -120,21 +137,32 @@ export default function SidebarMoreMenu() {
 
   return (
     <>
-      <Tooltip content="More" side="right">
+      <Tooltip content={fullName || "Account"} side="right">
         <button
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-label="More menu"
+          aria-label="Account menu"
           aria-expanded={open}
           className={clsx(
-            "flex items-center justify-center w-10 h-10 rounded-md transition-colors cursor-pointer",
+            "flex items-center justify-center w-10 h-10 rounded-full transition-shadow cursor-pointer",
+            "ring-offset-2 ring-offset-[var(--color-content-bg)]",
             open
-              ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.08]"
-              : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+              ? "ring-2 ring-[var(--color-fg)]/20"
+              : "hover:ring-2 hover:ring-[var(--color-fg)]/15",
           )}
         >
-          <LuEllipsis className="h-[18px] w-[18px]" />
+          <span className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-[11px] font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={fullName || "Account"}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </span>
         </button>
       </Tooltip>
 
@@ -151,10 +179,9 @@ export default function SidebarMoreMenu() {
                 transition={{ duration: 0.15 }}
                 style={{
                   position: "fixed",
-                  top: pos.top,
+                  bottom: pos.bottom,
                   left: pos.left,
                   width: POPOVER_WIDTH,
-                  transform: "translateY(-100%)",
                   zIndex: 100,
                 }}
                 className={clsx(
