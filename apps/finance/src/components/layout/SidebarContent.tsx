@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import clsx from "clsx";
 import { LuSettings } from "react-icons/lu";
 import { NAV_GROUPS, type NavItem } from "../nav";
@@ -10,6 +11,14 @@ import { isFeatureEnabled } from "../../lib/tierConfig";
 import { SidebarItem, Tooltip } from "@zervo/ui";
 import HouseholdScopePopover from "../households/HouseholdScopePopover";
 import SidebarMoreMenu from "./SidebarMoreMenu";
+
+// Each SidebarItem (icon-only mode): 18px icon + 8px vertical padding × 2 = 34px.
+// `space-y-0.5` (= 2px) inserts gap between rows, so each slot is 36px tall and
+// item N starts at y = N * 36 from the top of the <ul>. Hard-coding this is
+// cheap and makes the highlight position deterministic, which is the whole
+// reason the highlight lives at this level instead of inside SidebarItem.
+const ITEM_HEIGHT = 34;
+const ITEM_SLOT = 36;
 
 /** Subset of personal nav items that are meaningful in household scope. */
 const HOUSEHOLD_ALLOWED_HREFS = new Set(["/accounts", "/investments"]);
@@ -59,15 +68,35 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
     : "/settings";
 
   const isItemActive = (itemHref: string) => pathname.startsWith(itemHref);
+  const activeIndex = items.findIndex((it) => isItemActive(it.href));
 
   return (
-    <div className="flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-content-bg)] shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)]">
+    <div className="flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-floating-bg)] border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.12),0_4px_12px_-3px_rgba(0,0,0,0.06)]">
       <div className="flex justify-center pb-2">
         <HouseholdScopePopover />
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pt-1">
-        <ul className="space-y-0.5">
+        <ul className="relative space-y-0.5">
+          {/* Single persistent highlight overlay. Position is driven by
+              `activeIndex` so the indicator slides smoothly between rows
+              without relying on framer-motion's layoutId tracking — that
+              tracking occasionally lost its previous position when the
+              old item's motion span unmounted, causing the highlight to
+              fly in from the bottom of the list. */}
+          {activeIndex >= 0 && (
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute left-0 right-0 top-0"
+              style={{ height: ITEM_HEIGHT }}
+              initial={false}
+              animate={{ y: activeIndex * ITEM_SLOT }}
+              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            >
+              <span className="absolute inset-0 bg-[var(--color-fg)]/[0.08]" />
+              <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-fg)]" />
+            </motion.div>
+          )}
           {items.map((it) => (
             <SidebarItem
               key={it.href}
@@ -77,6 +106,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
               active={isItemActive(it.href)}
               disabled={it.disabled}
               isCollapsed
+              externalActiveHighlight
               onClick={onNavigate}
             />
           ))}
