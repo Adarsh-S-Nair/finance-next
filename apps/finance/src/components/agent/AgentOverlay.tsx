@@ -18,35 +18,46 @@ const SESSION_KEY = "agent:lastConvId";
  * frosted-glass blur, the chat content lives directly on that
  * surface, no card chrome.
  *
- * AgentChat is mounted with the user's last conversation id from
- * sessionStorage so it picks up where they left off. If the open()
- * call carried an initialMessage (bottom global input), we hand that
- * to AgentChat so it fires a first turn on mount.
+ * AgentChat receives the resolved conversation id + initial message
+ * once on each open. Cmd+K and the bottom global input force fresh
+ * via `conversationId: null`; the bottom input's recent panel passes
+ * a specific id; an unspecified call falls back to the last thread
+ * stored in sessionStorage so explicit "resume last" callers still
+ * work.
  */
 export default function AgentOverlay() {
-  const { isOpen, close, pendingMessage, consumePendingMessage } =
-    useAgentOverlay();
+  const {
+    isOpen,
+    close,
+    pendingMessage,
+    pendingConversationId,
+    consumePending,
+  } = useAgentOverlay();
 
   const [convId, setConvId] = useState<string | null>(null);
   const [activeMessage, setActiveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    try {
-      setConvId(sessionStorage.getItem(SESSION_KEY));
-    } catch {
-      setConvId(null);
-    }
-    // Snapshot the pending message at open-time and clear it from
-    // the provider so a later open() with no message doesn't replay
-    // the previous prompt. AgentChat fires it once on mount.
-    if (pendingMessage) {
-      setActiveMessage(pendingMessage);
-      consumePendingMessage();
+    // Resolve the conversation to load: explicit override wins; else
+    // fall back to the last-viewed conversation in sessionStorage so
+    // legacy bare-open() callers still resume.
+    let resolved: string | null;
+    if (pendingConversationId !== undefined) {
+      resolved = pendingConversationId; // null → fresh; string → specific
     } else {
-      setActiveMessage(null);
+      try {
+        resolved = sessionStorage.getItem(SESSION_KEY);
+      } catch {
+        resolved = null;
+      }
     }
-  }, [isOpen, pendingMessage, consumePendingMessage]);
+    setConvId(resolved);
+    setActiveMessage(pendingMessage ?? null);
+    // Drain pending state so a later bare open() doesn't replay this
+    // turn's prompt or override.
+    consumePending();
+  }, [isOpen, pendingMessage, pendingConversationId, consumePending]);
 
   return (
     <AnimatePresence>

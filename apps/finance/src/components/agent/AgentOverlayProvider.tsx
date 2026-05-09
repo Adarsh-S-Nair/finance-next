@@ -13,17 +13,33 @@ import {
 type OpenOptions = {
   /** Pre-filled message to send as the first turn after opening. */
   initialMessage?: string;
+  /**
+   * Override which conversation the overlay loads:
+   * - omit: resume whatever conversation sessionStorage points at
+   * - `null`: force a fresh chat (welcome screen / new conversation)
+   * - string id: load that specific conversation
+   *
+   * Cmd+K and the bottom-input submit path both pass `null` so a
+   * stale `agent:lastConvId` in sessionStorage doesn't surface old
+   * threads when the user clearly wanted a new question.
+   */
+  conversationId?: string | null;
 };
 
 type AgentOverlayContextValue = {
   isOpen: boolean;
   /** Pending message to fire once the overlay mounts AgentChat. */
   pendingMessage: string | null;
+  /**
+   * Pending conversation override. `undefined` means the caller didn't
+   * specify and the overlay should fall back to sessionStorage; `null`
+   * forces a fresh chat; a string forces that specific conversation.
+   */
+  pendingConversationId: string | null | undefined;
   open: (opts?: OpenOptions) => void;
   close: () => void;
-  toggle: () => void;
-  /** Called by AgentOverlay once it has handed the message off to AgentChat. */
-  consumePendingMessage: () => void;
+  /** Called by AgentOverlay once it has snapshotted message + override. */
+  consumePending: () => void;
 };
 
 const AgentOverlayContext = createContext<AgentOverlayContextValue | null>(null);
@@ -35,10 +51,9 @@ const AgentOverlayContext = createContext<AgentOverlayContextValue | null>(null)
  * API to anywhere in the tree (bottom global input, future entry
  * points, etc).
  *
- * The agent has no public route anymore; the overlay is the only way
- * in. A caller can pass `initialMessage` to `open()` so the user types
- * once into the bottom input and the overlay opens straight into a
- * streaming response.
+ * The agent has no public route; the overlay is the only way in.
+ * Callers can pass `initialMessage` and/or `conversationId` to
+ * `open()` so the overlay opens straight into the right context.
  */
 export function AgentOverlayProvider({
   children,
@@ -47,7 +62,10 @@ export function AgentOverlayProvider({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  // Ref so the keyboard handler / toggle don't churn the listener.
+  const [pendingConversationId, setPendingConversationId] = useState<
+    string | null | undefined
+  >(undefined);
+  // Ref so the keyboard handler doesn't churn the listener.
   const isOpenRef = useRef(isOpen);
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -57,26 +75,30 @@ export function AgentOverlayProvider({
     if (opts?.initialMessage) {
       setPendingMessage(opts.initialMessage);
     }
+    if (opts && "conversationId" in opts) {
+      setPendingConversationId(opts.conversationId);
+    }
     setIsOpen(true);
   }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
-    // Pending message belongs to the open() that scheduled it. If the
-    // user closes before AgentChat mounts (rare), drop it so a later
-    // bare open() doesn't fire a stale prompt.
+    // Pending state belongs to the open() that scheduled it. If the
+    // user closes before AgentChat mounts (rare), drop both so a
+    // future bare open() doesn't replay stale context.
     setPendingMessage(null);
+    setPendingConversationId(undefined);
   }, []);
 
-  const toggle = useCallback(() => setIsOpen((v) => !v), []);
-
-  const consumePendingMessage = useCallback(() => {
+  const consumePending = useCallback(() => {
     setPendingMessage(null);
+    setPendingConversationId(undefined);
   }, []);
 
-  // Cmd+K / Ctrl+K toggles the overlay from anywhere. We skip when the
-  // user is typing inside the chat input (already inside the overlay) —
-  // their K keystroke should reach the textarea.
+  // Cmd+K / Ctrl+K: open a fresh chat from anywhere, or close if
+  // already open. We skip when the user is typing inside the chat
+  // input (already inside the overlay) — their K keystroke should
+  // reach the textarea.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const isModK =
@@ -86,7 +108,15 @@ export function AgentOverlayProvider({
       const insideAgentInput = target?.closest?.("[data-agent-chat-input]");
       if (insideAgentInput && isOpenRef.current) return;
       e.preventDefault();
-      setIsOpen((v) => !v);
+      if (isOpenRef.current) {
+        setIsOpen(false);
+        setPendingMessage(null);
+        setPendingConversationId(undefined);
+      } else {
+        // Force fresh — don't surface a stale sessionStorage thread.
+        setPendingConversationId(null);
+        setIsOpen(true);
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -133,12 +163,12 @@ export function AgentOverlayProvider({
     () => ({
       isOpen,
       pendingMessage,
+      pendingConversationId,
       open,
       close,
-      toggle,
-      consumePendingMessage,
+      consumePending,
     }),
-    [isOpen, pendingMessage, open, close, toggle, consumePendingMessage],
+    [isOpen, pendingMessage, pendingConversationId, open, close, consumePending],
   );
 
   return (
