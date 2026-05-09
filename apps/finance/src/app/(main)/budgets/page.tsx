@@ -12,6 +12,7 @@ import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { FiTag } from 'react-icons/fi';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
+import { isBudgetOver } from '../../../lib/budget';
 import { Button, EmptyState } from "@zervo/ui";
 import { ConfirmOverlay, LineChart } from "@zervo/ui";
 
@@ -481,7 +482,7 @@ function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }: Budget
     expectedPct != null && spendPct > expectedPct + 2 && spendPct < 100;
   const underPace =
     expectedPct != null && hasSpending && spendPct < expectedPct - 2;
-  const overBudget = spendPct >= 100;
+  const overBudget = isBudgetOver(spent, amount);
 
   const fillPct = Math.min(100, Math.max(0, spendPct));
   const fillColor = overBudget
@@ -614,7 +615,7 @@ function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
   const displayDay = hovered?.day ?? today;
   const displayDelta = displaySpent - displayPace;
   const isOverPace = displayDelta > 0;
-  const isOverBudget = currentSpent > totalAllocated;
+  const isOverBudget = isBudgetOver(currentSpent, totalAllocated);
 
   const maxSpent = useMemo(
     () =>
@@ -764,13 +765,15 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }: MonthProgr
   const expectedSpent = totalAllocated * pace.fraction;
   const delta = currentSpent - expectedSpent;
   const isOverPace = delta > 1;
-  const isOverBudget = currentSpent > totalAllocated;
+  const isOverBudget = isBudgetOver(currentSpent, totalAllocated);
 
   const trouble = budgets.reduce(
     (acc, b) => {
+      const spent = Number(b.spent || 0);
+      const amount = Number(b.amount || 0);
       const sp = Number(b.percentage || 0);
       const ep = pacePct;
-      if (sp >= 100) acc.over += 1;
+      if (isBudgetOver(spent, amount)) acc.over += 1;
       else if (sp > ep + 2) acc.ahead += 1;
       return acc;
     },
