@@ -2,40 +2,16 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FiArrowUp, FiClock, FiTrash2 } from "react-icons/fi";
-import { ConfirmOverlay, Drawer } from "@zervo/ui";
-import { authFetch } from "../../lib/api/fetch";
+import { FiArrowUp, FiClock } from "react-icons/fi";
 import { useAgentOverlay } from "./AgentOverlayProvider";
-
-type Conversation = {
-  id: string;
-  title: string | null;
-  last_message_at: string;
-};
-
-function formatRelative(iso: string, now: number): string {
-  const ts = new Date(iso).getTime();
-  const diffMin = Math.floor((now - ts) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
+import AgentHistoryDrawer from "./AgentHistoryDrawer";
 
 /**
  * Persistent bottom-of-viewport input for summoning the agent from
  * anywhere in the app. Default state: a flat resting pill at the
- * bottom. Focused state: lifts to the vertical center, reveals a
- * Recent panel above it for one-tap resume of the most recent
- * conversations, and surfaces a top-left history button that opens a
- * drawer with the full conversation list. Submitting opens the
- * overlay with the message pre-fired.
+ * bottom. Focused state: lifts to the vertical center, frosted
+ * backdrop fades in behind, and a top-left clock surfaces a
+ * conversation-history drawer (shared with the in-overlay chat).
  *
  * Hidden while the overlay itself is open — the overlay has its own
  * input and history affordances.
@@ -44,27 +20,15 @@ export default function BottomAgentInput() {
   const { isOpen, open } = useAgentOverlay();
   const [value, setValue] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loadedOnce, setLoadedOnce] = useState(false);
-  const [loadingConversations, setLoadingConversations] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   // Translate-Y in pixels needed to land the input pill at the
   // vertical center of the viewport. Recomputed on resize so it
   // stays accurate across orientation / window changes. SSR-safe:
   // starts at 0 (bottom-anchored), populated on mount.
   const [centerOffsetPx, setCenterOffsetPx] = useState(0);
-  // Single timestamp captured on mount so the drawer rows don't
-  // re-render their relative-time labels every tick. Good enough for
-  // the bottom input; if a user keeps the drawer open for hours the
-  // numbers go stale but reopen refreshes them.
-  const [nowAtMount, setNowAtMount] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => setNowAtMount(Date.now()), []);
 
   useEffect(() => {
     function recompute() {
@@ -81,34 +45,6 @@ export default function BottomAgentInput() {
     window.addEventListener("resize", recompute);
     return () => window.removeEventListener("resize", recompute);
   }, []);
-
-  // Lazy-load the conversation list. We fire on first expand AND on
-  // every drawer open: first expand keeps page-load cost at zero for
-  // users who never touch the agent; the drawer open path is a refresh
-  // so a thread the user just had in the overlay shows up here without
-  // a full page reload, and recovers from a previous failed fetch.
-  useEffect(() => {
-    if (!expanded && !drawerOpen) return;
-    if (loadedOnce && !drawerOpen) return;
-    setLoadedOnce(true);
-    setLoadingConversations(true);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authFetch("/api/agent/conversations");
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled) setConversations(body.conversations ?? []);
-      } catch {
-        // Silent — input still works without history visible.
-      } finally {
-        if (!cancelled) setLoadingConversations(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [expanded, drawerOpen, loadedOnce]);
 
   // Click outside collapses. Paused while the drawer is open — the
   // drawer renders via portal at body level, so its clicks count as
@@ -151,8 +87,8 @@ export default function BottomAgentInput() {
     // Force a fresh chat: the bottom input is for "ask Zervo a quick
     // question", which usually has nothing to do with whatever
     // conversation sessionStorage happens to point at. Users who
-    // want to continue an existing thread go through the Recent
-    // panel below or the history drawer at top-left.
+    // want to continue an existing thread go through the history
+    // drawer at top-left.
     open({ initialMessage: trimmed, conversationId: null });
     setValue("");
     setExpanded(false);
@@ -163,24 +99,6 @@ export default function BottomAgentInput() {
     setExpanded(false);
     setDrawerOpen(false);
     setValue("");
-  }
-
-  async function confirmDelete() {
-    const id = pendingDeleteId;
-    if (!id || deleting) return;
-    setDeleting(true);
-    try {
-      const res = await authFetch(`/api/agent/conversations/${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) return;
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-      setPendingDeleteId(null);
-    } catch {
-      // Silent — user can retry.
-    } finally {
-      setDeleting(false);
-    }
   }
 
   const hasText = value.trim().length > 0;
@@ -241,71 +159,10 @@ export default function BottomAgentInput() {
           )}
         </AnimatePresence>
 
-        <Drawer
+        <AgentHistoryDrawer
           isOpen={drawerOpen}
           onClose={() => setDrawerOpen(false)}
-          title="Conversations"
-          size="sm"
-          side="left"
-        >
-          {loadingConversations && conversations.length === 0 ? (
-            <div className="text-xs text-[var(--color-muted)] py-6 text-center">
-              Loading…
-            </div>
-          ) : conversations.length === 0 ? (
-            <div className="text-xs text-[var(--color-muted)] py-6 text-center">
-              No past conversations.
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              {conversations.map((c) => (
-                <div
-                  key={c.id}
-                  className="group relative flex items-center gap-1 rounded-md hover:bg-[var(--color-surface-alt)]/60 transition-colors"
-                >
-                  <button
-                    type="button"
-                    onClick={() => openConversation(c.id)}
-                    className="flex-1 min-w-0 text-left px-2 py-2"
-                  >
-                    <div className="text-sm text-[var(--color-fg)] truncate">
-                      {c.title?.trim() || "Untitled"}
-                    </div>
-                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-                      {nowAtMount !== null
-                        ? formatRelative(c.last_message_at, nowAtMount)
-                        : ""}
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPendingDeleteId(c.id);
-                    }}
-                    aria-label="Delete conversation"
-                    className="flex-shrink-0 inline-flex items-center justify-center h-7 w-7 mr-1 rounded-md text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-fg)]/[0.08] hover:text-[var(--color-danger)] transition-opacity"
-                  >
-                    <FiTrash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Drawer>
-
-        <ConfirmOverlay
-          isOpen={pendingDeleteId !== null}
-          onCancel={() => {
-            if (!deleting) setPendingDeleteId(null);
-          }}
-          onConfirm={confirmDelete}
-          title="Delete conversation?"
-          description="This permanently removes the conversation and all of its messages."
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
-          variant="danger"
-          busy={deleting}
+          onSelect={openConversation}
         />
       </div>
 
@@ -314,10 +171,6 @@ export default function BottomAgentInput() {
           <motion.div
             key="bottom-agent-input"
             ref={containerRef}
-            // z-[60] keeps the pill above the focused-state backdrop
-            // (z-[55]) and above the sidebar/topbar so the pill — and
-            // its expanded recent-history panel — float cleanly over
-            // the rest of the chrome when active.
             className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: expanded ? centerOffsetPx : 0 }}

@@ -9,15 +9,15 @@ import {
   type FormEvent,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FiArrowUp, FiPlus, FiClock, FiTrash2 } from "react-icons/fi";
+import { FiArrowUp, FiClock } from "react-icons/fi";
 import { marked } from "marked";
-import { Drawer, ConfirmOverlay } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
 import ToolWidget, {
   type ToolBlock as ToolBlockData,
 } from "./widgets/ToolWidget";
 import { AnimateProvider } from "./widgets/primitives";
+import AgentHistoryDrawer from "./AgentHistoryDrawer";
 
 // sessionStorage key remembering the last conversation id viewed in
 // this browser tab. New tabs / new devices have an empty session, so
@@ -99,18 +99,6 @@ function greeting(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function formatRelative(iso: string, now: number): string {
-  const ts = new Date(iso).getTime();
-  const diffMin = Math.floor((now - ts) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatMessageTime(iso: string, now: number): string {
@@ -293,15 +281,12 @@ function AgentChatInner({
   const firstName = userCtx?.profile?.first_name ?? null;
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const localIdRef = useRef(0);
   const conversationRef = useRef<Conversation | null>(null);
@@ -317,8 +302,6 @@ function AgentChatInner({
     let cancelled = false;
     (async () => {
       try {
-        const listPromise = authFetch("/api/agent/conversations");
-
         if (initialConversationId) {
           const convRes = await authFetch(
             `/api/agent/conversations/${initialConversationId}`,
@@ -336,13 +319,6 @@ function AgentChatInner({
           setConversation(body.conversation ?? null);
           setMessages(rowsToMessages(body.messages ?? []));
           writeSessionConvId(initialConversationId);
-        }
-
-        const listRes = await listPromise;
-        if (cancelled) return;
-        if (listRes.ok) {
-          const listBody = await listRes.json();
-          if (!cancelled) setAllConversations(listBody.conversations ?? []);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
@@ -506,8 +482,6 @@ function AgentChatInner({
         }
       }
       if (streamErr) throw new Error(streamErr);
-
-      void refreshConversationList();
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : "Failed to send";
       setError(errMessage);
@@ -595,17 +569,6 @@ function AgentChatInner({
     }
   }
 
-  async function refreshConversationList() {
-    try {
-      const res = await authFetch("/api/agent/conversations");
-      if (!res.ok) return;
-      const body = await res.json();
-      setAllConversations(body.conversations ?? []);
-    } catch {
-      // Silent.
-    }
-  }
-
   function switchTo(id: string) {
     if (conversation?.id === id || sending) return;
     setError(null);
@@ -620,27 +583,12 @@ function AgentChatInner({
     onSwitch(null);
   }
 
-  async function confirmDelete() {
-    const id = pendingDeleteId;
-    if (!id || sending) return;
-    setDeleting(true);
-    try {
-      const res = await authFetch(`/api/agent/conversations/${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `Delete failed (${res.status})`);
-      }
-      setAllConversations((prev) => prev.filter((c) => c.id !== id));
-      setPendingDeleteId(null);
-      if (conversation?.id === id) {
-        onSwitch(null);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    } finally {
-      setDeleting(false);
+  function handleDeleted(id: string) {
+    // If the user deleted the conversation they're currently viewing,
+    // bounce out to the welcome screen — staying on it would show
+    // stale messages for a row that no longer exists server-side.
+    if (conversation?.id === id) {
+      onSwitch(null);
     }
   }
 
@@ -682,10 +630,7 @@ function AgentChatInner({
           only shows while the overlay is open. */}
       <button
         type="button"
-        onClick={() => {
-          setDrawerOpen(true);
-          void refreshConversationList();
-        }}
+        onClick={() => setDrawerOpen(true)}
         aria-label="Conversation history"
         className="absolute top-4 left-4 z-10 inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
       >
@@ -792,56 +737,13 @@ function AgentChatInner({
         </div>
       )}
 
-      <Drawer
+      <AgentHistoryDrawer
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="Conversations"
-        size="sm"
-      >
-        <div className="space-y-1">
-          {conversation && (
-            <button
-              type="button"
-              onClick={newChat}
-              className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/60 transition-colors"
-            >
-              <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
-              New chat
-            </button>
-          )}
-
-          {allConversations.length === 0 ? (
-            <div className="text-xs text-[var(--color-muted)] py-6 text-center">
-              No past conversations.
-            </div>
-          ) : (
-            <div className={conversation ? "pt-2" : ""}>
-              {allConversations.map((c) => (
-                <ConversationRow
-                  key={c.id}
-                  conversation={c}
-                  active={conversation?.id === c.id}
-                  onClick={() => switchTo(c.id)}
-                  onDelete={() => setPendingDeleteId(c.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </Drawer>
-
-      <ConfirmOverlay
-        isOpen={pendingDeleteId !== null}
-        onCancel={() => {
-          if (!deleting) setPendingDeleteId(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Delete conversation?"
-        description="This permanently removes the conversation and all of its messages."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        busy={deleting}
+        activeConversationId={conversation?.id ?? null}
+        onSelect={switchTo}
+        onNewChat={conversation ? newChat : undefined}
+        onDeleted={handleDeleted}
       />
     </div>
   );
@@ -850,55 +752,6 @@ function AgentChatInner({
 // ──────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ──────────────────────────────────────────────────────────────────────────
-
-function ConversationRow({
-  conversation,
-  active,
-  onClick,
-  onDelete,
-}: {
-  conversation: Conversation;
-  active: boolean;
-  onClick: () => void;
-  onDelete: () => void;
-}) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => setNow(Date.now()), []);
-
-  const title = conversation.title?.trim() || "Untitled";
-
-  return (
-    <div
-      className={`group relative flex items-center gap-1 rounded-md transition-colors ${
-        active
-          ? "bg-[var(--color-surface-alt)]"
-          : "hover:bg-[var(--color-surface-alt)]/60"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex-1 min-w-0 text-left px-2 py-1.5"
-      >
-        <div className="text-sm text-[var(--color-fg)] truncate">{title}</div>
-        <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-          {now !== null ? formatRelative(conversation.last_message_at, now) : ""}
-        </div>
-      </button>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        aria-label="Delete conversation"
-        className="flex-shrink-0 inline-flex items-center justify-center h-7 w-7 mr-1 rounded-md text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-fg)]/[0.08] hover:text-[var(--color-danger)] transition-opacity"
-      >
-        <FiTrash2 className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-}
 
 const INPUT_MAX_HEIGHT_PX = 160;
 
