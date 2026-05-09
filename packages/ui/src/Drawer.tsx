@@ -5,6 +5,37 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 
+// Module-level open-drawer counter + subscriber set so external chrome
+// (e.g. the mobile hamburger menu) can react to "is any drawer open".
+// We don't ship a context because Drawer is rendered via portal and the
+// chrome that wants to listen lives in entirely different parts of the
+// React tree — a tiny pub-sub keeps the coupling out of the JSX layer.
+let openDrawerCount = 0;
+const drawerSubscribers = new Set<(open: boolean) => void>();
+
+function notifyDrawerSubscribers() {
+  const open = openDrawerCount > 0;
+  drawerSubscribers.forEach((cb) => cb(open));
+}
+
+/**
+ * Returns true while any Drawer instance is currently open. Used by
+ * the mobile hamburger to step out of the way when a drawer (e.g. a
+ * transaction detail sheet, a notifications drawer) is already
+ * occupying the screen so its top-left back chevron isn't covered.
+ */
+export function useAnyDrawerOpen(): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    drawerSubscribers.add(setOpen);
+    setOpen(openDrawerCount > 0);
+    return () => {
+      drawerSubscribers.delete(setOpen);
+    };
+  }, []);
+  return open;
+}
+
 type DrawerView = {
   id: string;
   title: string;
@@ -127,6 +158,20 @@ export default function Drawer({
   // Avoid SSR/CSR mismatch and enable portal rendering above any stacking contexts
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Maintain the global open-drawer count for `useAnyDrawerOpen`.
+  // Bracketed inside an effect so the count tracks lifecycle (mount/
+  // unmount + isOpen toggles) cleanly, even with multiple drawers
+  // open simultaneously.
+  useEffect(() => {
+    if (!isOpen) return;
+    openDrawerCount += 1;
+    notifyDrawerSubscribers();
+    return () => {
+      openDrawerCount -= 1;
+      notifyDrawerSubscribers();
+    };
+  }, [isOpen]);
 
   // Get current view or fallback to default content
   const currentView = views.find(view => view.id === currentViewId);

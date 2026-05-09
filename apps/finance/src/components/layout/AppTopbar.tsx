@@ -57,10 +57,15 @@ export default function AppTopbar() {
         {/* Mobile-only portal that takes over the entire topbar row. Pages
             that need a full-width search / toolbar (e.g. transactions)
             portal their chrome here instead of fighting the default
-            add/alerts buttons for space. Hidden when empty. */}
+            add/alerts buttons for space. Hidden when empty.
+
+            `pl-14` reserves room for the fixed hamburger toggle
+            (top:14 left:16, h-9 w-9 = 36px wide, ends ~52px from the
+            left edge). Without it page content lands underneath the
+            hamburger and taps go to the menu instead. */}
         <div
           id="page-mobile-topbar-portal"
-          className="md:hidden absolute inset-0 z-20 flex items-center gap-2 px-4 bg-[var(--color-content-bg)] empty:hidden"
+          className="md:hidden absolute inset-0 z-20 flex items-center gap-2 pl-14 pr-4 bg-[var(--color-content-bg)] empty:hidden"
         />
       </div>
       <div id="page-toolbar-portal" className="w-full" />
