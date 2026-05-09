@@ -19,6 +19,12 @@ import SidebarMoreMenu from "./SidebarMoreMenu";
 // reason the highlight lives at this level instead of inside SidebarItem.
 const ITEM_HEIGHT = 34;
 const ITEM_SLOT = 36;
+// Distance from the sidebar pill's top to the first nav item's top, summed
+// from the chrome above the nav: py-3 (12px) + scope avatar h-11 (44px) +
+// pb-2 (8px) + nav pt-1 (4px) = 68px. The accent bar floats at this offset
+// (relative to the pill, not the nav) so it can sit flush against the
+// pill's left edge without being clipped by nav's overflow.
+const NAV_TOP_OFFSET = 68;
 
 /** Subset of personal nav items that are meaningful in household scope. */
 const HOUSEHOLD_ALLOWED_HREFS = new Set(["/accounts", "/investments"]);
@@ -71,32 +77,28 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const activeIndex = items.findIndex((it) => isItemActive(it.href));
 
   return (
-    <div className="flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-floating-bg)] border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.12),0_4px_12px_-3px_rgba(0,0,0,0.06)]">
+    <div className="relative flex h-full w-full flex-col py-3 rounded-[20px] bg-[var(--color-bg)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.12),0_4px_12px_-3px_rgba(0,0,0,0.06)]">
+      {/* Active accent bar — pinned to the sidebar pill's left edge,
+          sits outside `nav` so it isn't clipped by overflow and so it
+          can sit flush against the pill instead of inset by nav's
+          horizontal padding. */}
+      {activeIndex >= 0 && (
+        <motion.span
+          aria-hidden
+          className="pointer-events-none absolute left-0 w-[3px] bg-[var(--color-fg)]"
+          style={{ height: ITEM_HEIGHT, top: 0 }}
+          initial={false}
+          animate={{ y: NAV_TOP_OFFSET + activeIndex * ITEM_SLOT }}
+          transition={{ type: "spring", stiffness: 420, damping: 36 }}
+        />
+      )}
+
       <div className="flex justify-center pb-2">
         <HouseholdScopePopover />
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pt-1">
-        <ul className="relative space-y-0.5">
-          {/* Single persistent highlight overlay. Position is driven by
-              `activeIndex` so the indicator slides smoothly between rows
-              without relying on framer-motion's layoutId tracking — that
-              tracking occasionally lost its previous position when the
-              old item's motion span unmounted, causing the highlight to
-              fly in from the bottom of the list. */}
-          {activeIndex >= 0 && (
-            <motion.div
-              aria-hidden
-              className="pointer-events-none absolute left-0 right-0 top-0"
-              style={{ height: ITEM_HEIGHT }}
-              initial={false}
-              animate={{ y: activeIndex * ITEM_SLOT }}
-              transition={{ type: "spring", stiffness: 420, damping: 36 }}
-            >
-              <span className="absolute inset-0 bg-[var(--color-fg)]/[0.08]" />
-              <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[var(--color-fg)]" />
-            </motion.div>
-          )}
+        <ul className="space-y-0.5">
           {items.map((it) => (
             <SidebarItem
               key={it.href}

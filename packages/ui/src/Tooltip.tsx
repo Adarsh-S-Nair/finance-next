@@ -99,6 +99,31 @@ export default function Tooltip({ content, children, side = "top", delay = 120 }
 
   useEffect(() => () => cancelTimer(), []);
 
+  // When the user alt-tabs out of the window (or the cursor leaves the
+  // document entirely) `mouseleave` doesn't always fire on the trigger,
+  // and the tooltip stays visible after they return — even though the
+  // pointer is nowhere near the trigger. Listen for window blur and
+  // doc-level mouseleave and force-close so the tooltip can't get
+  // stuck.
+  useEffect(() => {
+    if (!open && timeoutRef.current === null) return;
+    const handleAway = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setOpen(false);
+    };
+    window.addEventListener("blur", handleAway);
+    document.addEventListener("mouseleave", handleAway);
+    document.addEventListener("visibilitychange", handleAway);
+    return () => {
+      window.removeEventListener("blur", handleAway);
+      document.removeEventListener("mouseleave", handleAway);
+      document.removeEventListener("visibilitychange", handleAway);
+    };
+  }, [open]);
+
   if (!content) return children;
 
   // Clone the child to attach hover/focus listeners and the ref.
