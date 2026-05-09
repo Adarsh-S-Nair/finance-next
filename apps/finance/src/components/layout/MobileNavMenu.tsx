@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { LuSettings, LuLogOut } from "react-icons/lu";
 import clsx from "clsx";
-import { ConfirmOverlay, Drawer } from "@zervo/ui";
+import { ConfirmOverlay, Drawer, useAnyDrawerOpen } from "@zervo/ui";
 import { NAV_GROUPS } from "../nav";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
@@ -33,6 +33,15 @@ export default function MobileNavMenu() {
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const anyDrawerOpen = useAnyDrawerOpen();
+  // The hamburger and any other drawer's top-left close-chevron occupy
+  // the same coordinates on mobile (top:14 left:16). When this menu's
+  // own drawer is open we keep the toggle visible — it morphs into an
+  // X and animates to the top-right (TOGGLE_OPEN_X) so it doesn't
+  // block anything. But when *another* drawer is open (transactions
+  // detail, notifications, etc.), our hamburger sits on top of that
+  // drawer's chevron at z-90 and steals the tap. Hide it then.
+  const otherDrawerOpen = anyDrawerOpen && !open;
 
   useEffect(() => setMounted(true), []);
 
@@ -99,7 +108,7 @@ export default function MobileNavMenu() {
 
   return (
     <>
-      {mounted && createPortal(toggle, document.body)}
+      {mounted && !otherDrawerOpen && createPortal(toggle, document.body)}
 
       <Drawer
         isOpen={open}
