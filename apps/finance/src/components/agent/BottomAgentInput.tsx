@@ -46,6 +46,7 @@ export default function BottomAgentInput() {
   const [expanded, setExpanded] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Translate-Y in pixels needed to land the input pill at the
   // vertical center of the viewport. Recomputed on resize so it
@@ -79,11 +80,16 @@ export default function BottomAgentInput() {
     return () => window.removeEventListener("resize", recompute);
   }, []);
 
-  // Lazy-load the conversation list the first time the user expands.
-  // Page-load cost stays zero for users who never use the agent.
+  // Lazy-load the conversation list. We fire on first expand AND on
+  // every drawer open: first expand keeps page-load cost at zero for
+  // users who never touch the agent; the drawer open path is a refresh
+  // so a thread the user just had in the overlay shows up here without
+  // a full page reload, and recovers from a previous failed fetch.
   useEffect(() => {
-    if (!expanded || loadedOnce) return;
+    if (!expanded && !drawerOpen) return;
+    if (loadedOnce && !drawerOpen) return;
     setLoadedOnce(true);
+    setLoadingConversations(true);
     let cancelled = false;
     (async () => {
       try {
@@ -93,12 +99,14 @@ export default function BottomAgentInput() {
         if (!cancelled) setConversations(body.conversations ?? []);
       } catch {
         // Silent — input still works without history visible.
+      } finally {
+        if (!cancelled) setLoadingConversations(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [expanded, loadedOnce]);
+  }, [expanded, drawerOpen, loadedOnce]);
 
   // Click outside collapses. Paused while the drawer is open — the
   // drawer renders via portal at body level, so its clicks count as
@@ -115,6 +123,23 @@ export default function BottomAgentInput() {
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
+  }, [expanded, drawerOpen]);
+
+  // Esc collapses the focused state. Gated on `!drawerOpen` so when
+  // both are up Esc closes the drawer first (its own listener handles
+  // that) and a second Esc collapses the input — same one-thing-at-a-
+  // time pattern as a stack of modals.
+  useEffect(() => {
+    if (!expanded || drawerOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setExpanded(false);
+      setValue("");
+      inputRef.current?.blur();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [expanded, drawerOpen]);
 
   function handleSubmit(e: FormEvent) {
@@ -190,9 +215,9 @@ export default function BottomAgentInput() {
               exit={{ opacity: 0, x: -8, scale: 0.95 }}
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               aria-label="Conversation history"
-              className="fixed top-4 left-4 z-[60] inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.4),0_2px_6px_-3px_rgba(0,0,0,0.2)] hover:scale-105 transition-transform"
+              className="fixed top-4 left-4 z-[60] inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
             >
-              <FiClock className="h-4 w-4" />
+              <FiClock className="h-[18px] w-[18px]" />
             </motion.button>
           )}
         </AnimatePresence>
@@ -204,7 +229,11 @@ export default function BottomAgentInput() {
           size="sm"
           side="left"
         >
-          {conversations.length === 0 ? (
+          {loadingConversations && conversations.length === 0 ? (
+            <div className="text-xs text-[var(--color-muted)] py-6 text-center">
+              Loading…
+            </div>
+          ) : conversations.length === 0 ? (
             <div className="text-xs text-[var(--color-muted)] py-6 text-center">
               No past conversations.
             </div>
