@@ -94,120 +94,151 @@ export default function BottomAgentInput() {
   const visibleConversations = conversations.slice(0, 6);
 
   return (
-    <AnimatePresence>
-      {!isOpen && (
-        <motion.div
-          key="bottom-agent-input"
-          ref={containerRef}
-          className="fixed inset-x-0 bottom-0 z-30 pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: expanded ? "-32vh" : 0 }}
-          exit={{ opacity: 0, y: 12 }}
-          transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
-        >
-          <div className="pointer-events-auto w-full max-w-[640px] mx-3 md:mx-4 flex flex-col">
-            <AnimatePresence>
-              {expanded && visibleConversations.length > 0 && (
-                <motion.div
-                  key="history"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                  className="mb-3"
-                >
-                  <div className="rounded-3xl bg-[var(--color-surface)] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.5)] p-2">
-                    <div className="px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                      Recent
-                    </div>
-                    <div className="max-h-[36vh] overflow-y-auto">
-                      {visibleConversations.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onMouseDown={(e) => {
-                            // Stop the click-outside / blur path so the
-                            // following click event still fires.
-                            e.preventDefault();
-                          }}
-                          onClick={() => openConversation(c.id)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)]/70 transition-colors"
-                        >
-                          <FiClock className="h-3.5 w-3.5 text-[var(--color-muted)] shrink-0" />
-                          <span className="truncate">
-                            {c.title?.trim() || "Untitled"}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+    <>
+      {/* Soft frosted backdrop while the input is focused. Lives in
+          its own AnimatePresence so it can fade independently from the
+          input itself, and sits at z-20 so the input's z-30 layer
+          stays above it. The blur uses the same pattern as the full
+          overlay (content-bg tinted, backdrop blur) but lighter — a
+          "preview" of the chat state, not a takeover. */}
+      <AnimatePresence>
+        {!isOpen && expanded && (
+          <motion.div
+            key="bottom-agent-backdrop"
+            className="fixed inset-0 z-20"
+            style={{
+              backdropFilter: "blur(14px) saturate(135%)",
+              WebkitBackdropFilter: "blur(14px) saturate(135%)",
+              backgroundColor: "color-mix(in oklab, var(--color-content-bg), transparent 35%)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            // Click-outside is already handled by the document
+            // listener, but giving the backdrop its own pointer
+            // surface keeps wheel/touch events from bleeding to the
+            // page underneath.
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
 
-            <form onSubmit={handleSubmit}>
-              <motion.div
-                animate={{
-                  scale: expanded ? 1.015 : 1,
-                  boxShadow: expanded
-                    ? "0 30px 80px -28px rgba(0,0,0,0.55), 0 6px 20px -10px rgba(0,0,0,0.25)"
-                    : "0 14px 32px -18px rgba(0,0,0,0.35), 0 2px 6px -3px rgba(0,0,0,0.18)",
-                }}
-                transition={{ type: "spring", stiffness: 280, damping: 26 }}
-                className="relative flex items-center rounded-full bg-[var(--color-surface)]"
-              >
-                <span
-                  aria-hidden
-                  className="ml-3.5 h-6 w-6 shrink-0 bg-[var(--color-fg)]"
-                  style={{
-                    WebkitMaskImage: "url(/logo.svg)",
-                    maskImage: "url(/logo.svg)",
-                    WebkitMaskSize: "contain",
-                    maskSize: "contain",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskPosition: "center",
-                    maskPosition: "center",
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.div
+            key="bottom-agent-input"
+            ref={containerRef}
+            className="fixed inset-x-0 bottom-0 z-30 pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: expanded ? "-32vh" : 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
+          >
+            <div className="pointer-events-auto w-full max-w-[640px] mx-3 md:mx-4 flex flex-col">
+              <AnimatePresence>
+                {expanded && visibleConversations.length > 0 && (
+                  <motion.div
+                    key="history"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="mb-3"
+                  >
+                    <div className="rounded-3xl bg-[var(--color-surface-alt)] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.5)] p-2">
+                      <div className="px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                        Recent
+                      </div>
+                      <div className="max-h-[36vh] overflow-y-auto">
+                        {visibleConversations.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              // Stop the click-outside / blur path so the
+                              // following click event still fires.
+                              e.preventDefault();
+                            }}
+                            onClick={() => openConversation(c.id)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface)]/70 transition-colors"
+                          >
+                            <FiClock className="h-3.5 w-3.5 text-[var(--color-muted)] shrink-0" />
+                            <span className="truncate">
+                              {c.title?.trim() || "Untitled"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <form onSubmit={handleSubmit}>
+                <motion.div
+                  animate={{
+                    scale: expanded ? 1.015 : 1,
+                    boxShadow: expanded
+                      ? "0 30px 80px -28px rgba(0,0,0,0.55), 0 6px 20px -10px rgba(0,0,0,0.25)"
+                      : "0 14px 32px -18px rgba(0,0,0,0.35), 0 2px 6px -3px rgba(0,0,0,0.18)",
                   }}
-                />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  onFocus={() => setExpanded(true)}
-                  placeholder="Ask Zervo anything…"
-                  aria-label="Ask the agent"
-                  className="flex-1 bg-transparent py-3 pl-2.5 pr-12 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
-                />
-                <AnimatePresence>
-                  {hasText && (
-                    <motion.button
-                      key="send"
-                      type="submit"
-                      aria-label="Send to agent"
-                      initial={{ opacity: 0, scale: 0.85, y: "-50%" }}
-                      animate={{ opacity: 1, scale: 1, y: "-50%" }}
-                      exit={{
-                        opacity: 0,
-                        scale: 0.85,
-                        y: "-50%",
-                        transition: { type: "tween", duration: 0.1, ease: "easeOut" },
-                      }}
-                      transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.92 }}
-                      className="absolute right-2 top-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm cursor-pointer"
-                    >
-                      <FiArrowUp className="h-4 w-4" strokeWidth={2.5} />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </form>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                  transition={{ type: "spring", stiffness: 280, damping: 26 }}
+                  className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
+                >
+                  <span
+                    aria-hidden
+                    className="ml-3.5 h-6 w-6 shrink-0 bg-[var(--color-fg)]"
+                    style={{
+                      WebkitMaskImage: "url(/logo.svg)",
+                      maskImage: "url(/logo.svg)",
+                      WebkitMaskSize: "contain",
+                      maskSize: "contain",
+                      WebkitMaskRepeat: "no-repeat",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskPosition: "center",
+                      maskPosition: "center",
+                    }}
+                  />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    onFocus={() => setExpanded(true)}
+                    placeholder="Ask Zervo anything…"
+                    aria-label="Ask the agent"
+                    className="flex-1 bg-transparent py-3 pl-2.5 pr-12 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+                  />
+                  <AnimatePresence>
+                    {hasText && (
+                      <motion.button
+                        key="send"
+                        type="submit"
+                        aria-label="Send to agent"
+                        initial={{ opacity: 0, scale: 0.85, y: "-50%" }}
+                        animate={{ opacity: 1, scale: 1, y: "-50%" }}
+                        exit={{
+                          opacity: 0,
+                          scale: 0.85,
+                          y: "-50%",
+                          transition: { type: "tween", duration: 0.1, ease: "easeOut" },
+                        }}
+                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.92 }}
+                        className="absolute right-2 top-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm cursor-pointer"
+                      >
+                        <FiArrowUp className="h-4 w-4" strokeWidth={2.5} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
