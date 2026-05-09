@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX } from "react-icons/fi";
 import AgentChat from "./AgentChat";
@@ -37,14 +37,29 @@ export default function AgentOverlay() {
   const [convId, setConvId] = useState<string | null>(null);
   const [activeMessage, setActiveMessage] = useState<string | null>(null);
 
+  // Mirror pending state into refs. The snapshot effect below only
+  // re-runs on isOpen / consumePending changes — listing the pending
+  // values as deps caused a nasty bug where consumePending() flushed
+  // them to undefined, the effect re-ran, and the sessionStorage
+  // fallback branch reinstated the previous conversation id, undoing
+  // the fresh-chat override the bottom input had just set.
+  const pendingMessageRef = useRef(pendingMessage);
+  const pendingConversationIdRef = useRef(pendingConversationId);
+  useEffect(() => {
+    pendingMessageRef.current = pendingMessage;
+    pendingConversationIdRef.current = pendingConversationId;
+  });
+
   useEffect(() => {
     if (!isOpen) return;
-    // Resolve the conversation to load: explicit override wins; else
-    // fall back to the last-viewed conversation in sessionStorage so
-    // legacy bare-open() callers still resume.
+    // Snapshot the pending state from refs (captured at the moment
+    // open() was called), then immediately drain it so the next bare
+    // open() doesn't replay this turn's prompt or override.
+    const pcid = pendingConversationIdRef.current;
+    const pmsg = pendingMessageRef.current;
     let resolved: string | null;
-    if (pendingConversationId !== undefined) {
-      resolved = pendingConversationId; // null → fresh; string → specific
+    if (pcid !== undefined) {
+      resolved = pcid; // explicit override (null forces fresh)
     } else {
       try {
         resolved = sessionStorage.getItem(SESSION_KEY);
@@ -53,11 +68,9 @@ export default function AgentOverlay() {
       }
     }
     setConvId(resolved);
-    setActiveMessage(pendingMessage ?? null);
-    // Drain pending state so a later bare open() doesn't replay this
-    // turn's prompt or override.
+    setActiveMessage(pmsg ?? null);
     consumePending();
-  }, [isOpen, pendingMessage, pendingConversationId, consumePending]);
+  }, [isOpen, consumePending]);
 
   return (
     <AnimatePresence>
