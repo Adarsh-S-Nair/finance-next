@@ -1,24 +1,23 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiPlus, FiClock, FiTrash2 } from "react-icons/fi";
 import { marked } from "marked";
 import { Drawer, ConfirmOverlay } from "@zervo/ui";
-import { authFetch } from "../../../lib/api/fetch";
-import { useUser } from "../../../components/providers/UserProvider";
+import { authFetch } from "../../lib/api/fetch";
+import { useUser } from "../providers/UserProvider";
 import ToolWidget, {
   type ToolBlock as ToolBlockData,
-} from "../../../components/agent/widgets/ToolWidget";
-import { AnimateProvider } from "../../../components/agent/widgets/primitives";
+} from "./widgets/ToolWidget";
+import { AnimateProvider } from "./widgets/primitives";
 
 // sessionStorage key remembering the last conversation id viewed in
 // this browser tab. New tabs / new devices have an empty session, so
@@ -43,9 +42,6 @@ function writeSessionConvId(id: string | null): void {
     else sessionStorage.removeItem(SESSION_KEY);
   } catch {
     // Storage may be disabled (private mode, etc) — silently ignore.
-    // The URL itself is the canonical state, so loss of session memory
-    // just means navigating away and back returns to the welcome
-    // screen instead of resuming. Acceptable.
   }
 }
 
@@ -70,12 +66,6 @@ type Message =
       role: "user";
       text: string;
       created_at: string;
-      // Synthetic user messages are widget-fired continuations
-      // ("[user accepted...]") that drive the agent's next turn.
-      // They live in the messages array as turn boundaries so the
-      // displayMessages merge logic doesn't fuse two separate
-      // assistant turns into one block, but they're filtered out
-      // of the rendered chat.
       synthetic?: boolean;
     }
   | { id: string; role: "assistant"; blocks: Block[]; created_at: string };
@@ -87,10 +77,6 @@ type Conversation = {
   created_at: string;
 };
 
-// Persisted content shapes — we accept both legacy {text: string} and
-// new {blocks: ...} on assistant rows. `synthetic` flags user
-// messages fired by widgets (continuation triggers) so the chat UI
-// can hide them.
 type StoredContent = {
   text?: unknown;
   blocks?: unknown;
@@ -127,9 +113,6 @@ function formatRelative(iso: string, now: number): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// Inline timestamp shown under each message. Closer to a clock format
-// than the conversation-list "5m ago" style — we want to know when a
-// message was sent, not how stale it is.
 function formatMessageTime(iso: string, now: number): string {
   const d = new Date(iso);
   const todayMidnight = new Date(now);
@@ -154,7 +137,6 @@ function formatMessageTime(iso: string, now: number): string {
   return `${datePart} · ${time}`;
 }
 
-// Convert a server row into the kind of content the UI cares about.
 type DbRow = {
   id: string;
   role: string;
@@ -169,11 +151,6 @@ function rowsToMessages(rows: DbRow[]): Message[] {
       const text = typeof row.content?.text === "string" ? row.content.text : "";
       if (!text) continue;
       const synthetic = row.content?.synthetic === true;
-      // Synthetic user messages stay in the messages stream so the
-      // displayMessages merge logic sees a boundary between
-      // consecutive assistant turns. The render path filters them
-      // out of the visible chat — they're context for the agent,
-      // not text the user sees.
       messages.push({
         id: row.id,
         role: "user",
@@ -183,7 +160,6 @@ function rowsToMessages(rows: DbRow[]): Message[] {
       });
     } else if (row.role === "assistant") {
       const blocks: Block[] = [];
-      // Legacy text-only assistant rows.
       if (typeof row.content?.text === "string") {
         if (row.content.text) blocks.push({ kind: "text", text: row.content.text });
       } else if (Array.isArray(row.content?.blocks)) {
@@ -213,11 +189,8 @@ function rowsToMessages(rows: DbRow[]): Message[] {
         created_at: row.created_at,
       });
     } else if (row.role === "tool") {
-      // Attach tool_result blocks to the most recent assistant message's
-      // matching tool_use blocks.
       const stored = row.content;
       if (!Array.isArray(stored?.blocks)) continue;
-      // Find the most recent assistant message in messages so far.
       let target: Message | undefined;
       for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i].role === "assistant") {
@@ -255,31 +228,67 @@ function rowsToMessages(rows: DbRow[]): Message[] {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Page
+// Component
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Main agent chat UI. Driven by `initialConversationId`:
+ * Agent chat UI, rendered exclusively inside AgentOverlay. The overlay
+ * remounts this component when it (re)opens, so initial state is driven
+ * by props:
  *
- * - `null` → welcome screen (used by /agent route). Sending the first
- *   message creates a new conversation server-side; on the meta event
- *   we silently update the URL to /agent/[new-id] via the History API
- *   so refresh / share / back all stay on this conversation.
- * - `string` → load that specific conversation (used by /agent/[id]
- *   route). The API rejects foreign ids with 404; on 404 we clear
- *   sessionStorage and bounce to /agent rather than show an error.
+ * - `initialConversationId` — load this conversation; on 404 fall back
+ *   to the welcome screen.
+ * - `initialMessage` — when set, fire as the first user turn after
+ *   mount. Used by the bottom global input so the user types once and
+ *   the overlay opens straight into a streaming response.
  *
- * Conversation switching uses real navigation (`router.push`) so the
- * URL reflects the current conversation. The page wrappers add
- * `key={id}` so React remounts this component on id change — clean
- * state, no bleed-through from the previous conversation.
+ * Conversation switching and "new chat" are internal state changes —
+ * we use a remount key (`switchKey`) to throw away streaming state
+ * cleanly, the same way the old `/agent/[id]` page wrapper did via
+ * `key={id}`.
  */
 export default function AgentChat({
   initialConversationId,
+  initialMessage,
 }: {
   initialConversationId: string | null;
+  initialMessage?: string | null;
 }) {
-  const router = useRouter();
+  // Bumping this re-mounts the inner content so a "new chat" or
+  // conversation switch starts from a clean slate without leaking
+  // the previous turn's optimistic messages.
+  const [switchKey, setSwitchKey] = useState(0);
+  const [activeConvId, setActiveConvId] = useState<string | null>(
+    initialConversationId,
+  );
+
+  const switchConversation = useCallback((id: string | null) => {
+    setActiveConvId(id);
+    writeSessionConvId(id);
+    setSwitchKey((k) => k + 1);
+  }, []);
+
+  return (
+    <AgentChatInner
+      key={switchKey}
+      initialConversationId={activeConvId}
+      // Only fire `initialMessage` on the very first mount — not on
+      // conversation switches afterward.
+      initialMessage={switchKey === 0 ? initialMessage ?? null : null}
+      onSwitch={switchConversation}
+    />
+  );
+}
+
+function AgentChatInner({
+  initialConversationId,
+  initialMessage,
+  onSwitch,
+}: {
+  initialConversationId: string | null;
+  initialMessage: string | null;
+  onSwitch: (id: string | null) => void;
+}) {
   const userCtx = useUser() as { profile?: { first_name?: string | null } | null };
   const firstName = userCtx?.profile?.first_name ?? null;
 
@@ -295,55 +304,37 @@ export default function AgentChat({
   const [deleting, setDeleting] = useState(false);
 
   const localIdRef = useRef(0);
+  const conversationRef = useRef<Conversation | null>(null);
+  conversationRef.current = conversation;
 
-  // Topbar portal for the conversation-history button.
-  const [topbarPortal, setTopbarPortal] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    setTopbarPortal(document.getElementById("topbar-tools-portal"));
-  }, []);
-
-  // `now` reference for inline message timestamps. Set once on mount so
-  // formatMessageTime can decide today vs yesterday vs older without
-  // hitting Date.now() in render (purity rule). The "X:YY PM" format
-  // doesn't tick by, so re-rendering as time passes isn't useful.
   const [nowAtMount, setNowAtMount] = useState<number | null>(null);
   useEffect(() => setNowAtMount(Date.now()), []);
 
-  // Initial load — depends on initialConversationId so navigating
-  // between /agent and /agent/[id] re-fetches correctly. The page
-  // wrappers add key={id} on the [id] route so this re-runs as a
-  // remount rather than a re-effect, but the dependency array is
-  // still correct for the welcome → conversation transition.
+  // Initial load + optional initialMessage send. Runs once per mount.
+  // Conversation switches use a parent remount key, so this effect
+  // re-runs cleanly per conversation.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        // Always pull the conversation list for the drawer, regardless
-        // of which route we landed on.
         const listPromise = authFetch("/api/agent/conversations");
 
         if (initialConversationId) {
-          // Load the specific conversation. The /api endpoint scopes by
-          // user_id and returns 404 for foreign ids, so we can trust the
-          // 404 path to mean "this id is not yours / not real".
           const convRes = await authFetch(
             `/api/agent/conversations/${initialConversationId}`,
           );
           if (cancelled) return;
           if (!convRes.ok) {
-            // Stale id (in URL or sessionStorage). Clean up and bounce
-            // to the welcome screen rather than show an error — the
-            // user didn't ask to see this conversation explicitly,
-            // they just had a stale tab session.
+            // Stale id (e.g. session pointing at a deleted conversation).
+            // Drop the bad id and stay on the welcome screen.
             writeSessionConvId(null);
-            router.replace("/agent");
+            onSwitch(null);
             return;
           }
           const body = await convRes.json();
           if (cancelled) return;
           setConversation(body.conversation ?? null);
           setMessages(rowsToMessages(body.messages ?? []));
-          // Remember this for in-tab resume.
           writeSessionConvId(initialConversationId);
         }
 
@@ -362,30 +353,40 @@ export default function AgentChat({
     return () => {
       cancelled = true;
     };
-  }, [initialConversationId, router]);
+  }, [initialConversationId, onSwitch]);
 
-  // Auto-scroll the window to the bottom on new content. Previously this
-  // scrolled an inner overflow-y-auto chat region, but that meant the
-  // page had its own scrollbar separate from the rest of the app —
-  // weird and inconsistent with /transactions etc. Now scrolling lives
-  // at the document level, with the chat input pinned via sticky bottom.
+  // If the overlay was opened with an initialMessage (e.g. from the
+  // bottom global input), fire it once we've finished the initial load.
+  // Run only on first mount with a non-empty message.
+  const initialMessageFired = useRef(false);
+  useEffect(() => {
+    if (initialMessageFired.current) return;
+    if (!initialMessage) return;
+    if (loading) return;
+    initialMessageFired.current = true;
+    void sendUserMessage(initialMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, initialMessage]);
+
+  // Auto-scroll on new content. The overlay is the scroll context here.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.scrollTo(0, document.documentElement.scrollHeight);
+    const el = document.getElementById("agent-overlay-scroll");
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    }
   }, [messages, sending]);
 
-  async function handleSubmit(e: FormEvent | null) {
-    if (e) e.preventDefault();
-    const text = input.trim();
-    if (!text || sending) return;
+  async function sendUserMessage(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
 
     setError(null);
     setInput("");
     setSending(true);
 
-    // Optimistic user bubble + assistant placeholder. The user-facing
-    // submit path always shows the user's message so the chat reflects
-    // exactly what they typed.
     localIdRef.current += 1;
     const userMsgId = `local-user-${localIdRef.current}`;
     localIdRef.current += 1;
@@ -393,28 +394,30 @@ export default function AgentChat({
     const nowIso = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
-      { id: userMsgId, role: "user", text, created_at: nowIso },
+      { id: userMsgId, role: "user", text: trimmed, created_at: nowIso },
       { id: assistantMsgId, role: "assistant", blocks: [], created_at: nowIso },
     ]);
 
     await streamChatTurn({
-      message: text,
+      message: trimmed,
       synthetic: false,
       assistantMsgId,
-      submittedText: text,
+      submittedText: trimmed,
     });
   }
 
+  async function handleSubmit(e: FormEvent | null) {
+    if (e) e.preventDefault();
+    await sendUserMessage(input);
+  }
+
   /**
-   * Continuation path: a widget fired this on the user's behalf after
-   * they clicked accept/decline. The synthetic user message is added
-   * to the messages array as a turn boundary (so displayMessages won't
-   * merge the previous assistant block with the new one), but it gets
-   * filtered out of the rendered chat — the user never sees the
-   * "[user accepted...]" text. The agent sees it as turn context.
+   * Continuation path — widget fired this on the user's behalf after
+   * accept/decline. Synthetic user messages are turn boundaries the
+   * agent sees but the user doesn't.
    */
   async function handleContinuation(message: string) {
-    if (sending) return; // Don't fire if a turn is already in flight.
+    if (sending) return;
     setError(null);
     setSending(true);
 
@@ -443,13 +446,6 @@ export default function AgentChat({
     });
   }
 
-  /**
-   * Shared streaming logic for both handleSubmit (user typed) and
-   * handleContinuation (widget fired). Builds the request, reads the
-   * SSE stream, dispatches events. Caller is responsible for the
-   * optimistic UI updates beforehand and for whatever cleanup makes
-   * sense on error.
-   */
   async function streamChatTurn({
     message,
     synthetic,
@@ -462,11 +458,6 @@ export default function AgentChat({
     submittedText: string;
   }) {
     try {
-      // Source timezone from the browser. The chat route uses this to
-      // resolve "today" / "this month" against the user's calendar
-      // instead of the Vercel server's UTC, which drifts by a day near
-      // midnight or on month boundaries. Falls back to UTC server-side
-      // if Intl ever misbehaves or the value is unrecognised.
       const browserTz =
         typeof Intl !== "undefined"
           ? Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -477,7 +468,7 @@ export default function AgentChat({
         body: JSON.stringify({
           message,
           synthetic,
-          conversation_id: conversation?.id ?? null,
+          conversation_id: conversationRef.current?.id ?? null,
           timezone: browserTz,
         }),
       });
@@ -534,7 +525,6 @@ export default function AgentChat({
     const type = ev.type as string | undefined;
     if (type === "meta" && typeof ev.conversation_id === "string") {
       const newId = ev.conversation_id;
-      const isNewConversation = !conversation;
       setConversation((prev) =>
         prev
           ? prev
@@ -545,17 +535,10 @@ export default function AgentChat({
               created_at: new Date().toISOString(),
             },
       );
-      // When the user starts a fresh conversation at /agent, the meta
-      // event tells us its new id. Update the URL silently so refresh /
-      // share / browser-back land back here. We use the History API
-      // instead of router.replace to AVOID triggering a route remount
-      // that would lose our in-memory streaming state.
-      if (isNewConversation && initialConversationId === null) {
-        if (typeof window !== "undefined") {
-          window.history.replaceState(null, "", `/agent/${newId}`);
-        }
-        writeSessionConvId(newId);
-      }
+      // Persist the new conversation id so a future overlay open in
+      // this tab resumes here. No URL change anymore — the agent has
+      // no public route.
+      writeSessionConvId(newId);
     } else if (type === "text_delta" && typeof ev.text === "string") {
       const delta = ev.text;
       setMessages((prev) =>
@@ -627,34 +610,14 @@ export default function AgentChat({
     if (conversation?.id === id || sending) return;
     setError(null);
     setDrawerOpen(false);
-    // Navigate to the conversation's permalink. The [id] page wrapper
-    // remounts AgentChat with key={id}, giving us a clean state instead
-    // of bleeding messages from the previous conversation while the new
-    // one loads. The fetch happens inside the new instance's mount
-    // useEffect.
-    router.push(`/agent/${id}`);
+    onSwitch(id);
   }
 
   function newChat() {
     if (sending) return;
     setError(null);
     setDrawerOpen(false);
-    writeSessionConvId(null);
-    if (initialConversationId !== null) {
-      // We're on /agent/[id] — navigate to the welcome screen.
-      router.push("/agent");
-    } else {
-      // Already on /agent — reset local state in place. This case
-      // matters when the user has been chatting (URL pushed via
-      // history.replaceState to /agent/[new-id] but route is still
-      // the welcome page) and clicks New Chat.
-      setConversation(null);
-      setMessages([]);
-      setInput("");
-      if (typeof window !== "undefined") {
-        window.history.replaceState(null, "", "/agent");
-      }
-    }
+    onSwitch(null);
   }
 
   async function confirmDelete() {
@@ -671,22 +634,8 @@ export default function AgentChat({
       }
       setAllConversations((prev) => prev.filter((c) => c.id !== id));
       setPendingDeleteId(null);
-      // If the deleted thread is the one currently open, navigate back
-      // to the welcome screen rather than leave the user staring at
-      // messages that no longer exist server-side. Clearing
-      // sessionStorage too so a future tab refresh doesn't try to
-      // resume a deleted conversation.
       if (conversation?.id === id) {
-        writeSessionConvId(null);
-        if (initialConversationId !== null) {
-          router.push("/agent");
-        } else {
-          setConversation(null);
-          setMessages([]);
-          if (typeof window !== "undefined") {
-            window.history.replaceState(null, "", "/agent");
-          }
-        }
+        onSwitch(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
@@ -700,14 +649,6 @@ export default function AgentChat({
     setTimeout(() => handleSubmit(null), 0);
   }
 
-  // The chat route persists each tool-use iteration as its own assistant
-  // row (assistant with [tool_use] → tool result row → assistant with
-  // [text] → ...). For rendering purposes those iterations are one
-  // logical turn — the user thinks "I asked one thing, the agent did
-  // some work, and answered". Merge consecutive assistant rows so the
-  // text-first / tools-after reorder inside AssistantMessageRow has all
-  // the blocks of the turn to work with. Keeps the optimistic streaming
-  // case (single assistant message) a no-op.
   const displayMessages = useMemo(() => {
     const out: Message[] = [];
     for (const msg of messages) {
@@ -726,8 +667,6 @@ export default function AgentChat({
 
   const hasMessages = displayMessages.length > 0;
   const lastMsg = displayMessages[displayMessages.length - 1];
-  // Show typing dots while sending AND the assistant message is empty
-  // (no blocks yet, or only an empty text block).
   const showTypingDots =
     sending &&
     lastMsg?.role === "assistant" &&
@@ -736,50 +675,33 @@ export default function AgentChat({
         lastMsg.blocks[0].kind === "text" &&
         lastMsg.blocks[0].text.length === 0));
 
-  // Both states use the same vertical anchor: at least viewport-tall
-  // minus the topbar minus the impersonation banner. That makes the
-  // empty-state welcome center itself in the visible area, and gives the
-  // messages-state's flex column something to fill so the sticky input
-  // settles at the bottom of the viewport on first paint (before the
-  // user has scrolled).
-  const fullHeight = {
-    minHeight: "calc(100dvh - 64px - var(--impersonation-banner-h, 0px))",
-  } as const;
-
   return (
-    <div className="w-full">
-      {/* Conversation switcher portaled into AppTopbar's tools slot — only
-          rendered when the agent page is mounted, so it cleanly disappears
-          on navigation away. */}
-      {topbarPortal &&
-        createPortal(
-          <button
-            type="button"
-            onClick={() => {
-              setDrawerOpen(true);
-              void refreshConversationList();
-            }}
-            aria-label="Conversation history"
-            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
-          >
-            <FiClock className="h-4 w-4" />
-          </button>,
-          topbarPortal,
-        )}
+    <div className="relative w-full h-full flex flex-col">
+      {/* History trigger — top-left, parallel to the overlay's close
+          button. Sits inside the overlay's stacking context so it
+          only shows while the overlay is open. */}
+      <button
+        type="button"
+        onClick={() => {
+          setDrawerOpen(true);
+          void refreshConversationList();
+        }}
+        aria-label="Conversation history"
+        className="absolute top-4 left-4 z-10 inline-flex items-center justify-center h-9 w-9 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+      >
+        <FiClock className="h-4 w-4" />
+      </button>
 
       {hasMessages ? (
-        <div className="flex flex-col" style={fullHeight}>
-          <div className="flex-1 max-w-2xl w-full mx-auto px-4 pt-12 pb-6 space-y-6">
+        <div
+          id="agent-overlay-scroll"
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="max-w-2xl w-full mx-auto px-4 pt-16 pb-6 space-y-6">
             {displayMessages.map((m, i) => {
-              // Synthetic user messages exist only as turn boundaries
-              // for the merge logic — they're widget continuation
-              // triggers, not text the user typed. Skip rendering.
               if (m.role === "user" && m.synthetic) return null;
               const isLastAssistant =
                 m.role === "assistant" && i === displayMessages.length - 1;
-              // Hide the timestamp on the currently-streaming response —
-              // it's distracting next to typing dots and would just say
-              // "just now / X:YY PM" before the content has even arrived.
               const showStamp = !(isLastAssistant && sending);
               if (m.role === "user") {
                 return (
@@ -796,11 +718,6 @@ export default function AgentChat({
                 );
               }
               return (
-                // Animate widgets only for messages that arrived this
-                // session (optimistic ids start with `local-`). Messages
-                // loaded from the DB — page reload, conversation switch,
-                // history hydration — render instantly so the user isn't
-                // watching the same stagger replay every time.
                 <AnimateProvider
                   key={m.id}
                   animate={m.id.startsWith("local-")}
@@ -821,28 +738,9 @@ export default function AgentChat({
             })}
             {showTypingDots && <TypingDots />}
           </div>
-          {/* Sticky input bar — stays pinned to the viewport bottom while
-              the rest of the chat scrolls with the document. The bg
-              + slight top padding keep messages from visually bleeding
-              into the input when scrolled. */}
-          <div className="sticky bottom-0 z-30 bg-[var(--color-content-bg)] pt-2">
-            <div className="max-w-2xl mx-auto px-4 pb-3">
-              {error && <ErrorBanner message={error} />}
-              <ChatInputForm
-                input={input}
-                setInput={setInput}
-                onSubmit={handleSubmit}
-                disabled={sending || loading}
-                canSend={!sending && !loading && Boolean(input.trim())}
-              />
-            </div>
-          </div>
         </div>
       ) : (
-        <div
-          className="flex items-center justify-center px-4 py-8"
-          style={fullHeight}
-        >
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
           <div className="max-w-xl w-full">
             {loading ? (
               <div className="flex justify-center"><TypingDots /></div>
@@ -879,8 +777,21 @@ export default function AgentChat({
         </div>
       )}
 
-      {/* History drawer — slides in from the right at sm size. Hold the
-          conversation list with proper room to grow + scroll. */}
+      {hasMessages && (
+        <div className="shrink-0">
+          <div className="max-w-2xl mx-auto px-4 pt-2 pb-4">
+            {error && <ErrorBanner message={error} />}
+            <ChatInputForm
+              input={input}
+              setInput={setInput}
+              onSubmit={handleSubmit}
+              disabled={sending || loading}
+              canSend={!sending && !loading && Boolean(input.trim())}
+            />
+          </div>
+        </div>
+      )}
+
       <Drawer
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -888,9 +799,6 @@ export default function AgentChat({
         size="sm"
       >
         <div className="space-y-1">
-          {/* "New chat" is only useful when an existing conversation is
-              open — on the welcome screen the user is already in a fresh
-              chat, so the button would be a no-op. */}
           {conversation && (
             <button
               type="button"
@@ -954,8 +862,6 @@ function ConversationRow({
   onClick: () => void;
   onDelete: () => void;
 }) {
-  // Compute relative time once on mount so we don't trigger the purity
-  // rule by calling Date.now() inside render.
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
 
@@ -1038,6 +944,7 @@ function ChatInputForm({
         autoFocus={autoFocus}
         placeholder="Ask anything…"
         rows={1}
+        data-agent-chat-input
         style={{ maxHeight: `${INPUT_MAX_HEIGHT_PX}px` }}
         className="w-full resize-none pl-4 pr-12 py-2.5 text-sm rounded-2xl bg-[var(--color-surface-alt)] text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-fg)]/15 disabled:opacity-60 overflow-y-auto"
       />
@@ -1079,9 +986,6 @@ function UserMessageRow({ text }: { text: string }) {
   );
 }
 
-// Subtle "X:YY PM" line under each message. Mirrors the alignment of the
-// message it belongs to so user timestamps land under the right-aligned
-// bubble and assistant timestamps under the left-aligned response.
 function MessageTimestamp({
   ts,
   now,
@@ -1107,20 +1011,12 @@ function AssistantMessageRow({
   onContinue,
 }: {
   blocks: Block[];
-  // Fired by widgets after a successful accept/decline so the agent
-  // can take the next turn without the user having to type "continue".
-  // Optional because not every render path passes one (e.g. test
-  // harnesses, future read-only viewers).
   onContinue?: (message: string) => void;
 }) {
   if (blocks.length === 0) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
-  // Render text first, then tool widgets. The model is prompted to call
-  // tools first then write — so in DOM order text would appear after the
-  // widget, which puts the response below the data. Reordering on render
-  // gives us "answer then evidence" without changing the wire format.
   const textBlocks: TextBlock[] = [];
   const toolBlocks: ToolBlock[] = [];
   for (const b of blocks) {
