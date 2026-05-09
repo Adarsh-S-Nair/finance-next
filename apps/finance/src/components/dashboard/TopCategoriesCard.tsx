@@ -212,7 +212,7 @@ function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onC
               strokeWidth={isHovered ? DONUT_STROKE + 4 : DONUT_STROKE}
               strokeDasharray={seg.dashArray}
               strokeDashoffset={seg.dashOffset}
-              strokeLinecap="butt"
+              strokeLinecap="round"
               style={{
                 opacity: dimmed ? 0.4 : 1,
                 cursor: "pointer",
