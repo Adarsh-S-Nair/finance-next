@@ -14,6 +14,7 @@ import ImpersonationBanner from "../ImpersonationBanner";
 import { BrandMark, ConfirmOverlay } from "@zervo/ui";
 import { AgentOverlayProvider } from "../agent/AgentOverlayProvider";
 import AgentOverlay from "../agent/AgentOverlay";
+import BottomAgentInput from "../agent/BottomAgentInput";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
@@ -206,11 +207,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1 flex flex-col">
             <AppTopbar />
             <div
-              className={
+              className={`${
                 pathname === "/dashboard"
                   ? "mx-auto w-full max-w-[1600px] px-4 md:px-6 lg:px-10"
                   : "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-10"
-              }
+              } pb-28 md:pb-32`}
             >
               {children}
             </div>
@@ -219,6 +220,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <PlaidOAuthHandler />
+      <BottomAgentInput />
       <AgentOverlay />
     </div>
     </AgentOverlayProvider>

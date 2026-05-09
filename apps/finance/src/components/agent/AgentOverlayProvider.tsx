@@ -6,15 +6,24 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { usePathname } from "next/navigation";
+
+type OpenOptions = {
+  /** Pre-filled message to send as the first turn after opening. */
+  initialMessage?: string;
+};
 
 type AgentOverlayContextValue = {
   isOpen: boolean;
-  open: () => void;
+  /** Pending message to fire once the overlay mounts AgentChat. */
+  pendingMessage: string | null;
+  open: (opts?: OpenOptions) => void;
   close: () => void;
   toggle: () => void;
+  /** Called by AgentOverlay once it has handed the message off to AgentChat. */
+  consumePendingMessage: () => void;
 };
 
 const AgentOverlayContext = createContext<AgentOverlayContextValue | null>(null);
@@ -23,11 +32,13 @@ const AgentOverlayContext = createContext<AgentOverlayContextValue | null>(null)
  * Global state + Cmd+K (Ctrl+K) keyboard shortcut for the agent
  * overlay. The overlay itself is rendered separately by AgentOverlay
  * inside the app layout — this provider just exposes the open/close
- * API to anywhere in the tree (topbar button, page links, etc).
+ * API to anywhere in the tree (bottom global input, future entry
+ * points, etc).
  *
- * The overlay is in addition to the /agent page route — direct URL
- * navigation still works as before, but the overlay lets users
- * summon the agent from anywhere without losing their place.
+ * The agent has no public route anymore; the overlay is the only way
+ * in. A caller can pass `initialMessage` to `open()` so the user types
+ * once into the bottom input and the overlay opens straight into a
+ * streaming response.
  */
 export function AgentOverlayProvider({
   children,
@@ -35,65 +46,53 @@ export function AgentOverlayProvider({
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const pathname = usePathname();
-  // The dedicated /agent page already renders the chat full-page. Opening
-  // the overlay there would mount a second AgentChat on top of the first
-  // — same conversation, two copies. Suppress the overlay on those routes.
-  const onAgentRoute = pathname?.startsWith("/agent") ?? false;
-
-  const open = useCallback(() => {
-    if (onAgentRoute) return;
-    setIsOpen(true);
-  }, [onAgentRoute]);
-  const close = useCallback(() => setIsOpen(false), []);
-  const toggle = useCallback(() => {
-    if (onAgentRoute) {
-      // On the agent route, the only useful action is close (if it
-      // somehow got opened). Never toggle to open from here.
-      setIsOpen(false);
-      return;
-    }
-    setIsOpen((v) => !v);
-  }, [onAgentRoute]);
-
-  // Auto-close the overlay if the user navigates to /agent (e.g. via
-  // sidebar link). The dedicated page takes over from there.
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  // Ref so the keyboard handler / toggle don't churn the listener.
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
-    if (onAgentRoute && isOpen) setIsOpen(false);
-  }, [onAgentRoute, isOpen]);
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
-  // Global keyboard shortcut. Cmd+K on Mac, Ctrl+K elsewhere.
-  // Registered on document so it fires regardless of focus, but we
-  // skip when the user is typing in a contenteditable / textarea
-  // / input that already binds K (e.g. in-page search). Browsers
-  // sometimes use Cmd+K for the address bar — `preventDefault` keeps
-  // the shortcut for our app.
+  const open = useCallback((opts?: OpenOptions) => {
+    if (opts?.initialMessage) {
+      setPendingMessage(opts.initialMessage);
+    }
+    setIsOpen(true);
+  }, []);
+
+  const close = useCallback(() => {
+    setIsOpen(false);
+    // Pending message belongs to the open() that scheduled it. If the
+    // user closes before AgentChat mounts (rare), drop it so a later
+    // bare open() doesn't fire a stale prompt.
+    setPendingMessage(null);
+  }, []);
+
+  const toggle = useCallback(() => setIsOpen((v) => !v), []);
+
+  const consumePendingMessage = useCallback(() => {
+    setPendingMessage(null);
+  }, []);
+
+  // Cmd+K / Ctrl+K toggles the overlay from anywhere. We skip when the
+  // user is typing inside the chat input (already inside the overlay) —
+  // their K keystroke should reach the textarea.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const isModK =
         (e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K");
       if (!isModK) return;
-      // Allow override if the user is in the middle of a chat input
-      // already — they probably meant to type, not summon. We detect
-      // this by checking if the active element is inside an existing
-      // agent chat textarea (data-attr set on the AgentChat input).
-      // Plain text inputs elsewhere in the app don't block the
-      // shortcut — Cmd+K should always work as a global summon.
       const target = e.target as HTMLElement | null;
       const insideAgentInput = target?.closest?.("[data-agent-chat-input]");
-      if (insideAgentInput && isOpen) {
-        // If the agent is already open and the user is typing in its
-        // input, don't toggle. They're focused on a different action.
-        return;
-      }
+      if (insideAgentInput && isOpenRef.current) return;
       e.preventDefault();
-      toggle();
+      setIsOpen((v) => !v);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [toggle, isOpen]);
+  }, []);
 
-  // Close on Esc when open. Same scope as the Cmd+K listener.
+  // Close on Esc.
   useEffect(() => {
     if (!isOpen) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -106,9 +105,7 @@ export function AgentOverlayProvider({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen, close]);
 
-  // Lock body scroll while the overlay is open. Prevents the
-  // background page from scrolling when the user scrolls inside the
-  // chat. Restored on close.
+  // Lock body scroll while open.
   useEffect(() => {
     if (!isOpen) return;
     const prev = document.body.style.overflow;
@@ -119,8 +116,15 @@ export function AgentOverlayProvider({
   }, [isOpen]);
 
   const value = useMemo(
-    () => ({ isOpen, open, close, toggle }),
-    [isOpen, open, close, toggle],
+    () => ({
+      isOpen,
+      pendingMessage,
+      open,
+      close,
+      toggle,
+      consumePendingMessage,
+    }),
+    [isOpen, pendingMessage, open, close, toggle, consumePendingMessage],
   );
 
   return (

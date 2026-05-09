@@ -1,35 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { FiPlus } from "react-icons/fi";
-import { LuSparkles } from "react-icons/lu";
 import { motion } from "framer-motion";
 import AlertsIcon from "../AlertsIcon";
 import AddAccountOverlay from "../AddAccountOverlay";
 import MobileNavMenu from "./MobileNavMenu";
-import { useAgentOverlay } from "../agent/AgentOverlayProvider";
 
 export default function AppTopbar() {
   const pathname = usePathname();
   const [addOpen, setAddOpen] = useState(false);
   const showAddButton = pathname !== "/setup";
-  const { open: openAgent } = useAgentOverlay();
-  // Hide the agent summon on the dedicated /agent route — the user is
-  // already in the chat there, so the button would be a no-op visual
-  // duplicate.
-  const showAgentButton =
-    pathname !== "/setup" && !pathname.startsWith("/agent");
-
-  // Detect Mac for keyboard-shortcut hint in the tooltip ("⌘K" vs
-  // "Ctrl+K"). SSR-safe: starts as false, updates on mount.
-  const [isMac, setIsMac] = useState(false);
-  useEffect(() => {
-    if (typeof navigator !== "undefined") {
-      setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform));
-    }
-  }, []);
-  const shortcutHint = isMac ? "⌘K" : "Ctrl+K";
 
   return (
     <header
@@ -56,22 +38,6 @@ export default function AppTopbar() {
           {/* Portal target for page-level topbar tools (household member
               filter, future per-page actions). Renders nothing by default. */}
           <div id="topbar-tools-portal" className="flex items-center" />
-          {/* Agent summon — opens the global overlay. Cmd+K / Ctrl+K
-              works as a keyboard shortcut from anywhere in the app. */}
-          {showAgentButton && (
-            <motion.button
-              type="button"
-              onClick={openAgent}
-              className="relative p-2 rounded-full hover:bg-[var(--color-surface-alt)] transition-colors duration-200 text-[var(--color-fg)] outline-none cursor-pointer"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              aria-label={`Open agent (${shortcutHint})`}
-              title={`Ask the agent · ${shortcutHint}`}
-            >
-              <LuSparkles className="w-5 h-5" />
-            </motion.button>
-          )}
           {showAddButton && (
             <motion.button
               type="button"
