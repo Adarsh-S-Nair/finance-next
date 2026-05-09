@@ -16,6 +16,17 @@ interface SidebarItemProps {
   isCollapsed?: boolean;
   notification?: boolean;
   onClick?: () => void;
+  /**
+   * When true, suppresses the per-item layoutId-based active highlight.
+   * The consumer is expected to render its own highlight element (e.g.
+   * a single position-animated overlay) so the active indicator survives
+   * navigation without relying on framer-motion's shared-layout
+   * tracking — that tracking occasionally loses its position cache when
+   * SidebarItems unmount and remount, causing the highlight to slide in
+   * from the bottom of the list. Active text color + font weight still
+   * apply.
+   */
+  externalActiveHighlight?: boolean;
 }
 
 export default function SidebarItem({
@@ -27,6 +38,7 @@ export default function SidebarItem({
   isCollapsed = false,
   notification = false,
   onClick,
+  externalActiveHighlight = false,
 }: SidebarItemProps) {
   const item = (
     <li>
@@ -53,8 +65,10 @@ export default function SidebarItem({
             carry a layoutId so framer-motion animates them between
             sidebar items as the user navigates — the highlight
             "slides" from the previously-active row to the new one
-            (Discord-style), instead of disappearing/reappearing. */}
-        {active && (
+            (Discord-style), instead of disappearing/reappearing.
+            When `externalActiveHighlight` is true, the consumer
+            renders the highlight itself and we skip these spans. */}
+        {active && !externalActiveHighlight && (
           <>
             <motion.span
               layoutId="sidebar-active-bg"
