@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { FiTag } from "react-icons/fi";
 import DynamicIcon from "../../DynamicIcon";
 import { formatCurrency } from "../../../lib/formatCurrency";
+import { isBudgetOver } from "../../../lib/budget";
 import {
   MagicItem,
   WidgetError,
@@ -89,7 +90,7 @@ export default function BudgetListWidget({ data }: { data: BudgetListData }) {
 
 function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
   const animate = useAnimate();
-  const over = budget.spent > budget.budget_amount;
+  const over = isBudgetOver(budget.spent, budget.budget_amount);
   const pct = Math.min(budget.percent_used, 100);
 
   return (

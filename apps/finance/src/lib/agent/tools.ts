@@ -18,6 +18,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
+import { isBudgetOver } from '../budget';
 
 type ToolDefinition = Anthropic.Messages.Tool;
 
@@ -1063,7 +1064,7 @@ async function getBudgets(userId: string, input: BudgetsInput) {
     budgets,
     total_budgeted: totalBudgeted,
     total_spent: totalSpent,
-    over_budget_count: budgets.filter((b) => b.spent > b.budget_amount).length,
+    over_budget_count: budgets.filter((b) => isBudgetOver(b.spent, b.budget_amount)).length,
   };
 }
 
@@ -2746,9 +2747,20 @@ async function getCategoryBreakdown(
   //   quarterly:         avg gap <= 100 days
   //   semi_annual:       avg gap <= 200 days
   //   irregular:         avg gap > 200 days with 2+ bills
-  //   one_off_or_annual: only one bill — can't compute a gap
+  //   insufficient_data: only one bill, recent (< 60 days old). Could be a
+  //                      brand-new monthly stream the user just connected,
+  //                      a one-off, or an annual. Tool can't tell from a
+  //                      single charge — agent must ask the user.
+  //   one_off_or_annual: only one bill, older than 60 days. A monthly
+  //                      stream would have produced more bills by now, so
+  //                      annual amortization is the safe default.
   function estimateCadence(b: MerchantBucket): string {
-    if (b.count < 2) return 'one_off_or_annual';
+    if (b.count < 2) {
+      const last = b.last_date ? Date.parse(b.last_date) : NaN;
+      if (!Number.isFinite(last)) return 'one_off_or_annual';
+      const daysAgo = (today.getTime() - last) / (1000 * 60 * 60 * 24);
+      return daysAgo < 60 ? 'insufficient_data' : 'one_off_or_annual';
+    }
     const first = b.first_date ? Date.parse(b.first_date) : NaN;
     const last = b.last_date ? Date.parse(b.last_date) : NaN;
     if (!Number.isFinite(first) || !Number.isFinite(last)) {
@@ -2772,12 +2784,16 @@ async function getCategoryBreakdown(
   //   semi_annual:       bill_avg / 6
   //   irregular:         total / months_in_window (amortize what we saw)
   //   one_off_or_annual: total / 12 (assume ~annual cadence)
+  //   insufficient_data: total / 12 — conservative LOW default. Real
+  //                      number depends on what the user says. The if_*
+  //                      fields on the merchant expose the alternatives.
   function monthlyContribution(b: MerchantBucket, cadence: string): number {
     const billAvg = b.total / b.count;
     if (cadence === 'monthly') return billAvg;
     if (cadence === 'quarterly') return billAvg / 3;
     if (cadence === 'semi_annual') return billAvg / 6;
     if (cadence === 'one_off_or_annual') return b.total / 12;
+    if (cadence === 'insufficient_data') return b.total / 12;
     // irregular: amortize across what we observed
     return b.total / monthsInWindow;
   }
@@ -2787,7 +2803,9 @@ async function getCategoryBreakdown(
     .map((b) => {
       const monthsBilled = b.months_billed.size;
       const cadence = estimateCadence(b);
+      const billAvg = b.total / b.count;
       const recMonthly = monthlyContribution(b, cadence);
+      const isAmbiguous = cadence === 'insufficient_data';
       return {
         merchant: b.merchant,
         count: b.count,
@@ -2796,7 +2814,7 @@ async function getCategoryBreakdown(
         total_in_window: Math.round(b.total * 100) / 100,
         // Average per individual bill (= total / count). Useful for
         // narrating "your typical NGrid bill is ~$372".
-        bill_avg: Math.round((b.total / b.count) * 100) / 100,
+        bill_avg: Math.round(billAvg * 100) / 100,
         // Naive amortization (total / months_in_window). Kept for
         // transparency; usually NOT what you want for budget math.
         monthly_avg_amortized:
@@ -2807,7 +2825,21 @@ async function getCategoryBreakdown(
         // (ignoring missing-data gaps); for annual/quarterly it's
         // the amortized share. Sum these across by_merchant to get
         // the recommended budget total.
+        //
+        // For insufficient_data merchants this is the LOW (annual)
+        // estimate — see the if_* fields below for the alternatives.
         monthly_contribution: Math.round(recMonthly * 100) / 100,
+        // For ambiguous merchants only: explicit alternatives so the
+        // agent can swap the right number in once the user confirms
+        // cadence. Omitted on confidently-classified merchants.
+        ...(isAmbiguous
+          ? {
+              monthly_contribution_if_monthly: Math.round(billAvg * 100) / 100,
+              monthly_contribution_if_annual:
+                Math.round((b.total / 12) * 100) / 100,
+              monthly_contribution_if_one_off: 0,
+            }
+          : {}),
         first_date: b.first_date || null,
         last_date: b.last_date || null,
         cadence_estimate: cadence,
@@ -2817,10 +2849,71 @@ async function getCategoryBreakdown(
     });
 
   // Recommended monthly budget = sum of cadence-aware contributions.
-  // This gives a number the agent can confidently propose.
+  // For insufficient_data merchants this is the conservative LOW
+  // estimate (annual amortization); see recommended_monthly_budget_high
+  // for the upper bound that treats those merchants as monthly.
   const recommendedMonthlyBudget = byMerchant.reduce(
     (acc, m) => acc + m.monthly_contribution,
     0,
+  );
+  const recommendedMonthlyBudgetHigh = byMerchant.reduce(
+    (acc, m) =>
+      acc +
+      (m.cadence_estimate === 'insufficient_data'
+        ? m.monthly_contribution_if_monthly ?? m.monthly_contribution
+        : m.monthly_contribution),
+    0,
+  );
+
+  // Surface ambiguous merchants the agent should disambiguate with the
+  // user. Only material ones — < $5/mo difference between low and high
+  // isn't worth a follow-up turn.
+  const ambiguousMerchants = byMerchant
+    .filter((m) => m.cadence_estimate === 'insufficient_data')
+    .filter((m) => (m.monthly_contribution_if_monthly ?? 0) >= 5)
+    .map((m) => ({
+      merchant: m.merchant,
+      bill_avg: m.bill_avg,
+      last_date: m.last_date,
+      if_monthly: m.monthly_contribution_if_monthly ?? 0,
+      if_annual: m.monthly_contribution_if_annual ?? 0,
+      if_one_off: 0,
+    }));
+
+  const hasAmbiguity = ambiguousMerchants.length > 0;
+
+  const notes: string[] = [];
+  if (hasAmbiguity) {
+    notes.push(
+      'AMBIGUOUS MERCHANTS PRESENT (see ambiguous_merchants). Each has only ' +
+        'one charge in the window AND it is recent (last 60 days), so the ' +
+        'tool genuinely cannot tell whether it is a brand-new monthly bill, ' +
+        'a one-off, or an annual. recommended_monthly_budget is the LOW ' +
+        '(annual) estimate; recommended_monthly_budget_high is the HIGH ' +
+        '(monthly) estimate. ASK the user about each ambiguous merchant ' +
+        'before proposing — e.g. "Is the Sunrun charge a monthly bill, an ' +
+        'annual one, or a one-off?". If the user has ALREADY stated the ' +
+        "cadence in this conversation (e.g. 'Sunrun is monthly going " +
+        "forward'), trust them: pull the corresponding if_* number from " +
+        'ambiguous_merchants and add it into the budget instead of ' +
+        're-asking.',
+    );
+  } else {
+    notes.push(
+      "Use recommended_monthly_budget as the proposed budget amount. It's the sum of by_merchant.monthly_contribution, which is cadence-aware: monthly billers contribute their actual billing rate (e.g. PSEG ~$130/mo even if only 4 months of data exist), annual/quarterly billers contribute their amortized monthly share.",
+    );
+  }
+  notes.push(
+    "monthly_avg_total_amortized is the naive total/12 number. Usually too low for budget math when monthly billers have partial data — that's why we expose it separately and recommend recommended_monthly_budget instead.",
+  );
+  notes.push(
+    "When narrating, read by_merchant left-to-right: list each merchant with cadence ('PSEG bills monthly at ~$130; NGrid once a year at $372 ≈ $31/mo amortized; water $28/yr ≈ $2/mo'). Then sum and propose.",
+  );
+  notes.push(
+    'If your per-merchant narration sums to a different number than recommended_monthly_budget, trust your math and call out the discrepancy instead of quoting a headline number that contradicts the breakdown.',
+  );
+  notes.push(
+    'Transfer-flavored leaves (Credit Card Payment, Account Transfer) are excluded.',
   );
 
   return {
@@ -2838,17 +2931,17 @@ async function getCategoryBreakdown(
     total_spent_in_window: Math.round(totalSpent * 100) / 100,
     monthly_avg_total_amortized:
       Math.round((totalSpent / monthsInWindow) * 100) / 100,
-    // PRIMARY: this is what to propose as the monthly budget. Sums
-    // each merchant's cadence-aware monthly contribution.
+    // PRIMARY: low estimate. Sums each merchant's cadence-aware monthly
+    // contribution; ambiguous merchants are amortized over 12 months.
     recommended_monthly_budget: Math.round(recommendedMonthlyBudget * 100) / 100,
+    // Upper bound: ambiguous merchants treated as monthly. Equals
+    // recommended_monthly_budget when there are no ambiguous merchants.
+    recommended_monthly_budget_high:
+      Math.round(recommendedMonthlyBudgetHigh * 100) / 100,
+    ambiguous_merchants: ambiguousMerchants,
     transactions_count: matchedCount,
     by_merchant: byMerchant,
-    notes: [
-      "Use recommended_monthly_budget as the proposed budget amount. It's the sum of by_merchant.monthly_contribution, which is cadence-aware: monthly billers contribute their actual billing rate (e.g. PSEG ~$130/mo even if only 4 months of data exist), annual/quarterly billers contribute their amortized monthly share.",
-      "monthly_avg_total_amortized is the naive total/12 number. Usually too low for budget math when monthly billers have partial data — that's why we expose it separately and recommend recommended_monthly_budget instead.",
-      "When narrating, read by_merchant left-to-right: list each merchant with cadence ('PSEG bills monthly at ~$130; NGrid once a year at $372 ≈ $31/mo amortized; water $28/yr ≈ $2/mo'). Then sum and propose.",
-      "Transfer-flavored leaves (Credit Card Payment, Account Transfer) are excluded.",
-    ],
+    notes,
   };
 }
 
