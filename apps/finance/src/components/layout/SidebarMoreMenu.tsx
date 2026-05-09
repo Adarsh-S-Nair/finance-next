@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { LuSparkles, LuHeadphones } from "react-icons/lu";
+import { LuEllipsis, LuSparkles, LuHeadphones } from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import { FaLock } from "react-icons/fa";
 import { ConfirmOverlay, Tooltip, TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
@@ -18,13 +18,15 @@ const POPOVER_WIDTH = 220;
 
 /**
  * Bottom-of-sidebar "..." menu. Anchored popover that opens to the right
- * of the trigger and contains user identity + secondary actions
- * (Upgrade, Help, Log out). The popover renders into document.body so
- * its position isn't constrained by the narrow floating sidebar.
+ * of the trigger and contains secondary actions (Upgrade, Help, Log
+ * out). User identity lives at the top of the sidebar in the scope
+ * popover; this menu is just the action drawer. The popover renders
+ * into document.body so its position isn't constrained by the narrow
+ * floating sidebar.
  */
 export default function SidebarMoreMenu() {
   const router = useRouter();
-  const { profile, user, logout } = useUser();
+  const { profile, logout } = useUser();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ bottom: number; left: number } | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -33,37 +35,7 @@ export default function SidebarMoreMenu() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const meta =
-    (user as unknown as { user_metadata?: Record<string, unknown> })
-      ?.user_metadata ?? {};
-  const firstName =
-    profile?.first_name || (meta.first_name as string | undefined) || "";
-  const lastName =
-    profile?.last_name || (meta.last_name as string | undefined) || "";
-  const rawName =
-    [firstName, lastName].filter(Boolean).join(" ") ||
-    (meta.name as string | undefined) ||
-    (meta.full_name as string | undefined) ||
-    "";
-  const fullName = rawName
-    ? rawName
-        .trim()
-        .split(/\s+/)
-        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        .join(" ")
-    : user?.email || "";
   const tier = profile?.subscription_tier ?? "free";
-  const initials =
-    firstName && lastName
-      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
-      : firstName
-        ? firstName[0].toUpperCase()
-        : (user?.email?.[0]?.toUpperCase() ?? "?");
-  const avatarUrl =
-    profile?.avatar_url ||
-    (meta.avatar_url as string | undefined) ||
-    (meta.picture as string | undefined) ||
-    null;
 
   useEffect(() => {
     if (!open) return;
@@ -137,32 +109,21 @@ export default function SidebarMoreMenu() {
 
   return (
     <>
-      <Tooltip content={fullName || "Account"} side="right">
+      <Tooltip content="More" side="right">
         <button
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-label="Account menu"
+          aria-label="More menu"
           aria-expanded={open}
           className={clsx(
-            "flex items-center justify-center w-10 h-10 rounded-full transition-shadow cursor-pointer",
-            "ring-offset-2 ring-offset-[var(--color-content-bg)]",
+            "flex items-center justify-center w-10 h-10 rounded-md transition-colors cursor-pointer",
             open
-              ? "ring-2 ring-[var(--color-fg)]/20"
-              : "hover:ring-2 hover:ring-[var(--color-fg)]/15",
+              ? "text-[var(--color-fg)] bg-[var(--color-fg)]/[0.08]"
+              : "text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.05]",
           )}
         >
-          <span className="relative h-8 w-8 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-[11px] font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={fullName || "Account"}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              initials
-            )}
-          </span>
+          <LuEllipsis className="h-[18px] w-[18px]" />
         </button>
       </Tooltip>
 
@@ -189,14 +150,6 @@ export default function SidebarMoreMenu() {
                   "overflow-hidden",
                 )}
               >
-                <div className="px-4 pt-3 pb-2.5 border-b border-[var(--color-floating-border)]">
-                  <p className="text-[13px] font-medium text-[var(--color-floating-fg)] truncate leading-tight">
-                    {fullName || "User"}
-                  </p>
-                  <p className="text-[11px] text-[var(--color-floating-muted)] truncate leading-tight mt-0.5">
-                    {tier === "pro" ? "Pro" : "Free"}
-                  </p>
-                </div>
                 <div className="py-1.5">
                   {tier === "free" && (
                     <button

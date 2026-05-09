@@ -9,8 +9,9 @@ import clsx from "clsx";
 import { LuPlus } from "react-icons/lu";
 import { TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 import { useHouseholds } from "../providers/HouseholdsProvider";
+import { useUser } from "../providers/UserProvider";
 import HouseholdSwitcherModal from "./HouseholdSwitcherModal";
-import { HouseholdTile, PersonalTile, ScopeAvatar } from "./ScopeSwitcher";
+import { HouseholdTile, PersonalTile } from "./ScopeSwitcher";
 
 /**
  * Compact scope switcher used in the tablet sidebar (collapsed at 80px).
@@ -28,6 +29,7 @@ const ROW_CLASS =
 export default function HouseholdScopePopover() {
   const pathname = usePathname();
   const { households } = useHouseholds();
+  const { profile, user } = useUser();
   const [open, setOpen] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -158,6 +160,29 @@ export default function HouseholdScopePopover() {
     </AnimatePresence>
   );
 
+  // In personal scope the trigger renders the user's own avatar so the
+  // top of the sidebar reads as identity-first; switching is a secondary
+  // action behind the click. In household scope it renders the household
+  // tile so the trigger always reflects the active context.
+  const meta =
+    (user as unknown as { user_metadata?: Record<string, unknown> })
+      ?.user_metadata ?? {};
+  const firstName =
+    profile?.first_name || (meta.first_name as string | undefined) || "";
+  const lastName =
+    profile?.last_name || (meta.last_name as string | undefined) || "";
+  const initials =
+    firstName && lastName
+      ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+      : firstName
+        ? firstName[0].toUpperCase()
+        : (user?.email?.[0]?.toUpperCase() ?? "?");
+  const avatarUrl =
+    profile?.avatar_url ||
+    (meta.avatar_url as string | undefined) ||
+    (meta.picture as string | undefined) ||
+    null;
+
   return (
     <>
       <button
@@ -165,10 +190,24 @@ export default function HouseholdScopePopover() {
         type="button"
         onClick={handleToggle}
         aria-expanded={open}
-        aria-label={`Switch household. Current: ${activeHousehold?.name ?? "Personal"}`}
+        aria-label={`Switch scope. Current: ${activeHousehold?.name ?? "Personal"}`}
         className="relative flex h-11 w-11 items-center justify-center rounded-xl hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer"
       >
-        <ScopeAvatar household={activeHousehold} size={28} />
+        {activeHousehold ? (
+          <HouseholdTile household={activeHousehold} size={28} />
+        ) : (
+          <span className="relative h-7 w-7 rounded-full bg-[var(--color-accent)] flex items-center justify-center text-[11px] font-semibold text-[var(--color-on-accent,white)] overflow-hidden">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={firstName || "Profile"}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </span>
+        )}
       </button>
 
       {typeof document !== "undefined" && createPortal(popover, document.body)}
