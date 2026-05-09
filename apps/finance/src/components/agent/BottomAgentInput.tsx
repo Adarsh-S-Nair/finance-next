@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiClock } from "react-icons/fi";
+import { Drawer } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import { useAgentOverlay } from "./AgentOverlayProvider";
 
@@ -12,15 +13,32 @@ type Conversation = {
   last_message_at: string;
 };
 
+function formatRelative(iso: string, now: number): string {
+  const ts = new Date(iso).getTime();
+  const diffMin = Math.floor((now - ts) / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 /**
  * Persistent bottom-of-viewport input for summoning the agent from
  * anywhere in the app. Default state: a flat resting pill at the
- * bottom. Focused state: lifts toward mid-screen with a soft shadow
- * and reveals recent conversations above — a "ready to chat" cue.
+ * bottom. Focused state: lifts to the vertical center, reveals a
+ * Recent panel above it for one-tap resume of the most recent
+ * conversations, and surfaces a top-left history button that opens a
+ * drawer with the full conversation list. Submitting opens the
+ * overlay with the message pre-fired.
  *
- * Submitting opens the overlay with the message pre-fired; clicking a
- * recent conversation opens the overlay scoped to that thread. Hidden
- * while the overlay itself is open — the overlay has its own input.
+ * Hidden while the overlay itself is open — the overlay has its own
+ * input and history affordances.
  */
 export default function BottomAgentInput() {
   const { isOpen, open } = useAgentOverlay();
@@ -28,18 +46,27 @@ export default function BottomAgentInput() {
   const [expanded, setExpanded] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Translate-Y in pixels needed to land the input pill at the
   // vertical center of the viewport. Recomputed on resize so it
   // stays accurate across orientation / window changes. SSR-safe:
   // starts at 0 (bottom-anchored), populated on mount.
   const [centerOffsetPx, setCenterOffsetPx] = useState(0);
+  // Single timestamp captured on mount so the drawer rows don't
+  // re-render their relative-time labels every tick. Good enough for
+  // the bottom input; if a user keeps the drawer open for hours the
+  // numbers go stale but reopen refreshes them.
+  const [nowAtMount, setNowAtMount] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setNowAtMount(Date.now()), []);
 
   useEffect(() => {
     function recompute() {
       // Container is bottom-anchored with ~20px of padding-bottom.
-      // The input pill is ~52px tall. Half of that + the padding is
+      // The input pill is ~56px tall. Half of that + the padding is
       // the distance from viewport bottom to the input's center.
       // Subtract that from half the viewport to get the translation.
       const PILL_HALF = 28;
@@ -73,19 +100,22 @@ export default function BottomAgentInput() {
     };
   }, [expanded, loadedOnce]);
 
-  // Click outside collapses. We watch mousedown so the recent-list
-  // button onMouseDown handlers can `preventDefault` to keep input
-  // focus through the click.
+  // Click outside collapses. Paused while the drawer is open — the
+  // drawer renders via portal at body level, so its clicks count as
+  // "outside" the input container; without the pause, scrolling /
+  // mis-clicking inside the drawer would yank the focused state away
+  // and snap the pill back to the bottom.
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded || drawerOpen) return;
     function onDocClick(e: MouseEvent) {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(e.target as Node)) return;
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
       setExpanded(false);
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, [expanded]);
+  }, [expanded, drawerOpen]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -95,7 +125,7 @@ export default function BottomAgentInput() {
     // question", which usually has nothing to do with whatever
     // conversation sessionStorage happens to point at. Users who
     // want to continue an existing thread go through the Recent
-    // panel below or the history button inside the overlay.
+    // panel below or the history drawer at top-left.
     open({ initialMessage: trimmed, conversationId: null });
     setValue("");
     setExpanded(false);
@@ -104,6 +134,7 @@ export default function BottomAgentInput() {
   function openConversation(id: string) {
     open({ conversationId: id });
     setExpanded(false);
+    setDrawerOpen(false);
     setValue("");
   }
 
@@ -113,20 +144,15 @@ export default function BottomAgentInput() {
   return (
     <>
       {/* Soft frosted backdrop while the input is focused. Lives in
-          its own AnimatePresence so it can fade independently from the
-          input itself, and sits at z-20 so the input's z-30 layer
-          stays above it. The blur uses the same pattern as the full
-          overlay (content-bg tinted, backdrop blur) but lighter — a
-          "preview" of the chat state, not a takeover. */}
+          its own AnimatePresence so it can fade independently from
+          the input itself, and sits at z-[55] so the input's z-[60]
+          layer stays above it. The blur uses the same pattern as the
+          full overlay (content-bg tinted, backdrop blur) but lighter
+          — a "preview" of the chat state, not a takeover. */}
       <AnimatePresence>
         {!isOpen && expanded && (
           <motion.div
             key="bottom-agent-backdrop"
-            // z-[55] sits above the sidebar (z-50), topbar (z-40),
-            // and the mobile menu portal (z-[90] reserved for its
-            // toggle), but stays out of the way of the full agent
-            // overlay (z-50, only renders when !expanded path is
-            // dead). The pill's z-[60] keeps it above this backdrop.
             className="fixed inset-0 z-[55]"
             style={{
               backdropFilter: "blur(14px) saturate(135%)",
@@ -137,14 +163,77 @@ export default function BottomAgentInput() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            // Click-outside is already handled by the document
-            // listener, but giving the backdrop its own pointer
-            // surface keeps wheel/touch events from bleeding to the
-            // page underneath.
             aria-hidden
           />
         )}
       </AnimatePresence>
+
+      {/* Top-left history affordance — only mounted while expanded.
+          Its own ref is excluded from click-outside so clicking the
+          button doesn't collapse the focused state before the drawer
+          gets a chance to open. */}
+      <div ref={triggerRef}>
+        <AnimatePresence>
+          {!isOpen && expanded && (
+            <motion.button
+              key="bottom-agent-history-trigger"
+              type="button"
+              onMouseDown={(e) => {
+                // Keep input focus through the click so the focused
+                // state survives when the drawer closes without a
+                // selection.
+                e.preventDefault();
+              }}
+              onClick={() => setDrawerOpen(true)}
+              initial={{ opacity: 0, x: -8, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -8, scale: 0.95 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              aria-label="Conversation history"
+              className="fixed top-4 left-4 z-[60] inline-flex items-center justify-center h-10 w-10 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-fg)] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.4),0_2px_6px_-3px_rgba(0,0,0,0.2)] hover:scale-105 transition-transform"
+            >
+              <FiClock className="h-4 w-4" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <Drawer
+          isOpen={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          title="Conversations"
+          size="sm"
+          side="left"
+        >
+          {conversations.length === 0 ? (
+            <div className="text-xs text-[var(--color-muted)] py-6 text-center">
+              No past conversations.
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {conversations.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => openConversation(c.id)}
+                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+                >
+                  <FiClock className="h-3.5 w-3.5 text-[var(--color-muted)] shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-[var(--color-fg)] truncate">
+                      {c.title?.trim() || "Untitled"}
+                    </div>
+                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                      {nowAtMount !== null
+                        ? formatRelative(c.last_message_at, nowAtMount)
+                        : ""}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </Drawer>
+      </div>
 
       <AnimatePresence>
         {!isOpen && (
@@ -154,10 +243,7 @@ export default function BottomAgentInput() {
             // z-[60] keeps the pill above the focused-state backdrop
             // (z-[55]) and above the sidebar/topbar so the pill — and
             // its expanded recent-history panel — float cleanly over
-            // the rest of the chrome when active. When collapsed the
-            // backdrop isn't mounted, so layering doesn't matter
-            // visually; we just keep the same z so the pill always
-            // wins focus events.
+            // the rest of the chrome when active.
             className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: expanded ? centerOffsetPx : 0 }}
