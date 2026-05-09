@@ -147,6 +147,10 @@ export default function Drawer({
         <motion.div
           className={clsx(
             "fixed inset-0 z-[80] flex overflow-hidden overscroll-contain items-stretch justify-stretch",
+            // Desktop: pad the viewport so the panel floats away from
+            // every edge instead of sitting flush. Mobile keeps the
+            // edge-to-edge behavior so the dialog has full ergonomics.
+            "sm:p-3",
             side === "left" ? "sm:justify-start" : "sm:justify-end",
           )}
           initial={{ opacity: 0 }}
@@ -170,6 +174,10 @@ export default function Drawer({
             aria-modal="true"
             className={clsx(
               "relative z-10 w-full h-full bg-[var(--color-content-bg)] flex flex-col rounded-none overflow-hidden",
+              // Floating look on desktop: rounded all the way around
+              // and a soft shadow to separate the panel from the
+              // dimmed page behind it. Mobile stays edge-to-edge.
+              "sm:rounded-2xl sm:shadow-[0_30px_80px_-30px_rgba(0,0,0,0.5),0_8px_24px_-12px_rgba(0,0,0,0.25)]",
               // Width constraints only apply from small screens up.
               size === "sm" && "sm:max-w-sm",
               size === "md" && "sm:max-w-md",

@@ -164,7 +164,6 @@ export default function BottomAgentInput() {
   }
 
   const hasText = value.trim().length > 0;
-  const visibleConversations = conversations.slice(0, 6);
 
   return (
     <>
@@ -244,18 +243,15 @@ export default function BottomAgentInput() {
                   key={c.id}
                   type="button"
                   onClick={() => openConversation(c.id)}
-                  className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+                  className="w-full flex flex-col items-start px-2 py-2 rounded-md text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
                 >
-                  <FiClock className="h-3.5 w-3.5 text-[var(--color-muted)] shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-[var(--color-fg)] truncate">
-                      {c.title?.trim() || "Untitled"}
-                    </div>
-                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-                      {nowAtMount !== null
-                        ? formatRelative(c.last_message_at, nowAtMount)
-                        : ""}
-                    </div>
+                  <div className="text-sm text-[var(--color-fg)] truncate w-full">
+                    {c.title?.trim() || "Untitled"}
+                  </div>
+                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                    {nowAtMount !== null
+                      ? formatRelative(c.last_message_at, nowAtMount)
+                      : ""}
                   </div>
                 </button>
               ))}
@@ -280,45 +276,6 @@ export default function BottomAgentInput() {
             transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
           >
             <div className="pointer-events-auto w-full max-w-[640px] mx-3 md:mx-4 flex flex-col">
-              <AnimatePresence>
-                {expanded && visibleConversations.length > 0 && (
-                  <motion.div
-                    key="history"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="mb-3"
-                  >
-                    <div className="rounded-3xl bg-[var(--color-surface-alt)] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.5)] p-2">
-                      <div className="px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                        Recent
-                      </div>
-                      <div className="max-h-[36vh] overflow-y-auto">
-                        {visibleConversations.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onMouseDown={(e) => {
-                              // Stop the click-outside / blur path so the
-                              // following click event still fires.
-                              e.preventDefault();
-                            }}
-                            onClick={() => openConversation(c.id)}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm text-[var(--color-fg)] hover:bg-[var(--color-surface)]/70 transition-colors"
-                          >
-                            <FiClock className="h-3.5 w-3.5 text-[var(--color-muted)] shrink-0" />
-                            <span className="truncate">
-                              {c.title?.trim() || "Untitled"}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <form onSubmit={handleSubmit}>
                 <motion.div
                   animate={{
