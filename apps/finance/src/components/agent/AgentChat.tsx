@@ -695,7 +695,7 @@ function AgentChatInner({
       {hasMessages ? (
         <div
           id="agent-overlay-scroll"
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto overscroll-contain"
         >
           <div className="max-w-2xl w-full mx-auto px-4 pt-16 pb-6 space-y-6">
             {displayMessages.map((m, i) => {

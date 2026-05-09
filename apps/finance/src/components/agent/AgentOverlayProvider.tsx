@@ -105,13 +105,27 @@ export function AgentOverlayProvider({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen, close]);
 
-  // Lock body scroll while open.
+  // Lock background scroll while open. Lock both <html> and <body>
+  // because some pages put the scroll context on the documentElement
+  // (Tailwind defaults vary by browser), and locking only one lets the
+  // page peek-scroll behind the overlay.
   useEffect(() => {
     if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverscroll = html.style.overscrollBehavior;
+    const prevBodyOverscroll = body.style.overscrollBehavior;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    body.style.overscrollBehavior = "none";
     return () => {
-      document.body.style.overflow = prev;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      html.style.overscrollBehavior = prevHtmlOverscroll;
+      body.style.overscrollBehavior = prevBodyOverscroll;
     };
   }, [isOpen]);
 
