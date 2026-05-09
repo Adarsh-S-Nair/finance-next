@@ -30,8 +30,29 @@ export default function BottomAgentInput() {
   const [expanded, setExpanded] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadedOnce, setLoadedOnce] = useState(false);
+  // Translate-Y in pixels needed to land the input pill at the
+  // vertical center of the viewport. Recomputed on resize so it
+  // stays accurate across orientation / window changes. SSR-safe:
+  // starts at 0 (bottom-anchored), populated on mount.
+  const [centerOffsetPx, setCenterOffsetPx] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function recompute() {
+      // Container is bottom-anchored with ~20px of padding-bottom.
+      // The input pill is ~52px tall. Half of that + the padding is
+      // the distance from viewport bottom to the input's center.
+      // Subtract that from half the viewport to get the translation.
+      const PILL_HALF = 28;
+      const PADDING_BOTTOM = 20;
+      const vh = window.innerHeight;
+      setCenterOffsetPx(-(vh / 2 - PILL_HALF - PADDING_BOTTOM));
+    }
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, []);
 
   // Lazy-load the conversation list the first time the user expands.
   // Page-load cost stays zero for users who never use the agent.
@@ -105,7 +126,12 @@ export default function BottomAgentInput() {
         {!isOpen && expanded && (
           <motion.div
             key="bottom-agent-backdrop"
-            className="fixed inset-0 z-20"
+            // z-[55] sits above the sidebar (z-50), topbar (z-40),
+            // and the mobile menu portal (z-[90] reserved for its
+            // toggle), but stays out of the way of the full agent
+            // overlay (z-50, only renders when !expanded path is
+            // dead). The pill's z-[60] keeps it above this backdrop.
+            className="fixed inset-0 z-[55]"
             style={{
               backdropFilter: "blur(14px) saturate(135%)",
               WebkitBackdropFilter: "blur(14px) saturate(135%)",
@@ -129,9 +155,16 @@ export default function BottomAgentInput() {
           <motion.div
             key="bottom-agent-input"
             ref={containerRef}
-            className="fixed inset-x-0 bottom-0 z-30 pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
+            // z-[60] keeps the pill above the focused-state backdrop
+            // (z-[55]) and above the sidebar/topbar so the pill — and
+            // its expanded recent-history panel — float cleanly over
+            // the rest of the chrome when active. When collapsed the
+            // backdrop isn't mounted, so layering doesn't matter
+            // visually; we just keep the same z so the pill always
+            // wins focus events.
+            className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
             initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: expanded ? "-32vh" : 0 }}
+            animate={{ opacity: 1, y: expanded ? centerOffsetPx : 0 }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
           >
@@ -188,7 +221,7 @@ export default function BottomAgentInput() {
                 >
                   <span
                     aria-hidden
-                    className="ml-3.5 h-6 w-6 shrink-0 bg-[var(--color-fg)]"
+                    className="ml-3 h-9 w-9 shrink-0 bg-[var(--color-fg)]"
                     style={{
                       WebkitMaskImage: "url(/logo.svg)",
                       maskImage: "url(/logo.svg)",
@@ -208,7 +241,7 @@ export default function BottomAgentInput() {
                     onFocus={() => setExpanded(true)}
                     placeholder="Ask Zervo anything…"
                     aria-label="Ask the agent"
-                    className="flex-1 bg-transparent py-3 pl-2.5 pr-12 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-12 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
                   />
                   <AnimatePresence>
                     {hasText && (
