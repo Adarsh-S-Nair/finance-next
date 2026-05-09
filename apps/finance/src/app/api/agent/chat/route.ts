@@ -11,6 +11,8 @@ import {
 } from '../../../../lib/agent/config';
 import { resolveAgentConfig } from '../../../../lib/agent/platformConfig';
 import { TOOLS, executeTool } from '../../../../lib/agent/tools';
+import { resolveTimeZone, todayYmdInTz } from '../../../../lib/agent/dates';
+import { ensureConversationSummary } from '../../../../lib/agent/summary';
 import type { Json } from '../../../../types/database';
 
 /**
@@ -45,6 +47,11 @@ interface ChatBody {
   // accept/decline so the agent moves to the next step automatically
   // without the user having to type "what's next?".
   synthetic?: boolean;
+  // IANA timezone of the user's browser (Intl.DateTimeFormat().
+  // resolvedOptions().timeZone). Used to anchor "today" / "this month"
+  // calculations to the user's local calendar instead of the server's
+  // UTC. Falls back to UTC if missing or unrecognised.
+  timezone?: string;
 }
 
 type AnthropicContentBlock = Anthropic.Messages.ContentBlock;
@@ -232,17 +239,22 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   // the user has no January 2024 data. Inject the current date in a couple
   // of formats so date-math prompts ("last month", "this week") resolve to
   // real calendar boundaries instead of hallucinations.
-  const now = new Date();
-  const isoToday = now.toISOString().slice(0, 10); // yyyy-MM-dd
-  const humanToday = now.toLocaleDateString('en-US', {
+  //
+  // Timezone is sourced from the client's Intl.DateTimeFormat — the
+  // server runs in UTC, so without this the model gets the UTC date,
+  // which can be a day off near midnight or on month boundaries.
+  const userTz = resolveTimeZone(body.timezone);
+  const isoToday = todayYmdInTz(userTz);
+  const humanToday = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
-  });
+    timeZone: userTz,
+  }).format(new Date());
   const dateContext =
     `# Date context\n\n` +
-    `Today is ${humanToday} (${isoToday}). ` +
+    `Today is ${humanToday} (${isoToday}) in the user's timezone (${userTz}). ` +
     `When the user mentions relative time ranges like "this month", "last month", or "last week", ` +
     `resolve them against this date. For tools that take a \`month\` parameter (YYYY-MM-DD), pass any ` +
     `date inside the target month — the tool normalizes to month boundaries internally.`;
@@ -295,18 +307,10 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   }
   const profileBlock = `\n\n# User profile\n\n${profileLines.join('\n')}`;
 
-  // Split the system block into a STATIC prefix and a DYNAMIC suffix so
-  // the cache breakpoint sits at the boundary between them. The static
-  // prefix (SYSTEM_PROMPT, ~7k tokens) almost never changes, so it stays
-  // a globally shared cache hit. The dynamic suffix (today's date,
-  // user's profile, saved memories, custom instructions) changes
-  // routinely — daily for the date, per-write for memory/profile — but
-  // it's small (~500 tokens) so sending it uncached every turn is cheap.
-  //
-  // Before this split, the entire 7k system block was concatenated into
-  // ONE cached entry. Adding a memory or crossing midnight UTC would
-  // bust the cache and force a full ~10k re-write that day.
-  const dynamicSuffix =
+  // Build the dynamic suffix — everything user/turn-specific that goes
+  // after the cached static prefix. Conversation summary (when one
+  // exists) is appended later, once we know the older window's size.
+  const baseDynamicSuffix =
     `${dateContext}${profileBlock}${memoriesBlock}` +
     (profile?.custom_instructions
       ? `\n\nUser's custom instructions:\n${profile.custom_instructions}`
@@ -331,13 +335,20 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
   // (or any dev iteration), this is a net win. For one-and-done users
   // it's a small premium on the single request.
   const cacheControl = { type: 'ephemeral' as const, ttl: '1h' as const };
-  const cachedSystem: Anthropic.Messages.TextBlockParam[] = [
-    { type: 'text', text: SYSTEM_PROMPT, cache_control: cacheControl },
-    { type: 'text', text: dynamicSuffix },
-  ];
   const cachedTools: Anthropic.Messages.Tool[] = TOOLS.map((tool, i) =>
     i === TOOLS.length - 1 ? { ...tool, cache_control: cacheControl } : tool,
   );
+  const buildSystem = (
+    summaryText: string | null,
+  ): Anthropic.Messages.TextBlockParam[] => {
+    const summaryBlock = summaryText
+      ? `\n\n# Earlier conversation summary\n\nThe following summarises everything from this conversation that's older than the recent message window. Treat it as established context — names, numbers, decisions, and pending threads here have already happened. Don't ask the user to repeat them.\n\n${summaryText}`
+      : '';
+    return [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: cacheControl },
+      { type: 'text', text: `${baseDynamicSuffix}${summaryBlock}` },
+    ];
+  };
 
   const client = new Anthropic({ apiKey: agentConfig.apiKey });
   const encoder = new TextEncoder();
@@ -351,6 +362,12 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
       send({ type: 'meta', conversation_id: conversationId });
 
       try {
+        // Conversation summary covers everything older than the recent
+        // message window. Computed once per turn (iteration 0); reused
+        // across iterations since within a single turn we add at most
+        // 2 × MAX_TOOL_ITERATIONS messages, well under the cap.
+        let summaryText: string | null = null;
+
         // Multi-iteration tool-use loop. Each iteration:
         //   - Loads current conversation history from DB.
         //   - Streams a model response.
@@ -369,12 +386,35 @@ export const POST = withAuth('agent:chat', async (req: NextRequest, userId: stri
             .map((r) => rowToAnthropicMessage({ role: r.role, content: r.content }))
             .filter((m): m is AnthropicMessageParam => m !== null);
 
+          // On the first iteration of this turn, refresh the
+          // conversation summary if the older window has grown since
+          // it was last cached. Long chats would otherwise lose
+          // everything past MAX_PRIOR_MESSAGES the moment we slice.
+          if (iter === 0) {
+            const olderCount = Math.max(0, history.length - MAX_PRIOR_MESSAGES);
+            if (olderCount > 0) {
+              try {
+                summaryText = await ensureConversationSummary({
+                  client,
+                  model: agentConfig.model,
+                  conversationId,
+                  olderMessages: history.slice(0, olderCount),
+                  olderCount,
+                });
+              } catch (summaryErr) {
+                // Don't fail the whole turn if summarization breaks —
+                // worst case we lose pre-window context for this turn.
+                logger.error('summary generation failed', summaryErr as Error);
+              }
+            }
+          }
+
           const trimmed = history.slice(-MAX_PRIOR_MESSAGES);
 
           const anthropicStream = client.messages.stream({
             model: agentConfig.model,
             max_tokens: MAX_RESPONSE_TOKENS,
-            system: cachedSystem,
+            system: buildSystem(summaryText),
             tools: cachedTools,
             messages: trimmed,
           });

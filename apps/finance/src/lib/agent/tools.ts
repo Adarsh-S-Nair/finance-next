@@ -9,8 +9,10 @@
  *     plain object (never throws to Anthropic — errors come back as
  *     `{ error: string }` so the model can see them and recover).
  *
- * Read-only for now. Write tools (modify budgets, recategorize
- * transactions) land in a follow-up commit with confirmation flows.
+ * Mix of read tools (get_*) and write-proposal tools (propose_*,
+ * remember_user_fact). Every write goes through a UI confirmation
+ * widget — the tool itself just builds the proposal payload and never
+ * mutates state directly.
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';

@@ -462,6 +462,15 @@ export default function AgentChat({
     submittedText: string;
   }) {
     try {
+      // Source timezone from the browser. The chat route uses this to
+      // resolve "today" / "this month" against the user's calendar
+      // instead of the Vercel server's UTC, which drifts by a day near
+      // midnight or on month boundaries. Falls back to UTC server-side
+      // if Intl ever misbehaves or the value is unrecognised.
+      const browserTz =
+        typeof Intl !== "undefined"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : undefined;
       const res = await authFetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -469,6 +478,7 @@ export default function AgentChat({
           message,
           synthetic,
           conversation_id: conversation?.id ?? null,
+          timezone: browserTz,
         }),
       });
       if (!res.ok || !res.body) {
