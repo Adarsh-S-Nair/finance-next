@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FiArrowUp, FiClock } from "react-icons/fi";
-import { Drawer } from "@zervo/ui";
+import { FiArrowUp, FiClock, FiTrash2 } from "react-icons/fi";
+import { ConfirmOverlay, Drawer } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import { useAgentOverlay } from "./AgentOverlayProvider";
 
@@ -48,6 +48,8 @@ export default function BottomAgentInput() {
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // Translate-Y in pixels needed to land the input pill at the
   // vertical center of the viewport. Recomputed on resize so it
   // stays accurate across orientation / window changes. SSR-safe:
@@ -163,6 +165,24 @@ export default function BottomAgentInput() {
     setValue("");
   }
 
+  async function confirmDelete() {
+    const id = pendingDeleteId;
+    if (!id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await authFetch(`/api/agent/conversations/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) return;
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      setPendingDeleteId(null);
+    } catch {
+      // Silent — user can retry.
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const hasText = value.trim().length > 0;
 
   return (
@@ -239,25 +259,54 @@ export default function BottomAgentInput() {
           ) : (
             <div className="space-y-0.5">
               {conversations.map((c) => (
-                <button
+                <div
                   key={c.id}
-                  type="button"
-                  onClick={() => openConversation(c.id)}
-                  className="w-full flex flex-col items-start px-2 py-2 rounded-md text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
+                  className="group relative flex items-center gap-1 rounded-md hover:bg-[var(--color-surface-alt)]/60 transition-colors"
                 >
-                  <div className="text-sm text-[var(--color-fg)] truncate w-full">
-                    {c.title?.trim() || "Untitled"}
-                  </div>
-                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-                    {nowAtMount !== null
-                      ? formatRelative(c.last_message_at, nowAtMount)
-                      : ""}
-                  </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => openConversation(c.id)}
+                    className="flex-1 min-w-0 text-left px-2 py-2"
+                  >
+                    <div className="text-sm text-[var(--color-fg)] truncate">
+                      {c.title?.trim() || "Untitled"}
+                    </div>
+                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                      {nowAtMount !== null
+                        ? formatRelative(c.last_message_at, nowAtMount)
+                        : ""}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingDeleteId(c.id);
+                    }}
+                    aria-label="Delete conversation"
+                    className="flex-shrink-0 inline-flex items-center justify-center h-7 w-7 mr-1 rounded-md text-[var(--color-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-fg)]/[0.08] hover:text-[var(--color-danger)] transition-opacity"
+                  >
+                    <FiTrash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
         </Drawer>
+
+        <ConfirmOverlay
+          isOpen={pendingDeleteId !== null}
+          onCancel={() => {
+            if (!deleting) setPendingDeleteId(null);
+          }}
+          onConfirm={confirmDelete}
+          title="Delete conversation?"
+          description="This permanently removes the conversation and all of its messages."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          variant="danger"
+          busy={deleting}
+        />
       </div>
 
       <AnimatePresence>
