@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { FiBell, FiChevronLeft } from "react-icons/fi";
+import { FiBell } from "react-icons/fi";
 import { useUser } from "./providers/UserProvider";
 import { useHouseholds } from "./providers/HouseholdsProvider";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
@@ -11,7 +10,7 @@ import Link from "next/link";
 import { authFetch } from "../lib/api/fetch";
 import { supabase } from "../lib/supabase/client";
 import { useToast } from "./providers/ToastProvider";
-import { TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
+import { Drawer, TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 
 type HouseholdSummary = { id: string; name: string; color: string };
 
@@ -91,7 +90,6 @@ export default function AlertsIcon() {
   const [isOpen, setIsOpen] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef<number>(0);
   const bellControls = useAnimation();
@@ -149,7 +147,6 @@ export default function AlertsIcon() {
   }, [profile?.id, loadInvitations, loadImpersonationRequests]);
 
   useEffect(() => {
-    setMounted(true);
     const check = () => setIsMobile(window.matchMedia("(max-width: 639px)").matches);
     check();
     window.addEventListener("resize", check);
@@ -169,27 +166,6 @@ export default function AlertsIcon() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobile]);
-
-  // Esc dismisses the mobile overlay (the only modal-style surface here).
-  useEffect(() => {
-    if (!isOpen || !isMobile) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isOpen, isMobile]);
-
-  // Lock body scroll while the mobile overlay is up so the underlying
-  // page doesn't scroll under the user's finger.
-  useEffect(() => {
-    if (!isOpen || !isMobile) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [isOpen, isMobile]);
 
   // Jiggle the bell whenever the unread count INCREASES — a passive
   // realtime update should announce itself, not just sit there. Skip on
@@ -512,50 +488,25 @@ export default function AlertsIcon() {
         )}
       </AnimatePresence>
 
-      {/* Mobile fullscreen overlay — portaled to body so it escapes any
-          ancestor stacking context (transformed wrappers, sticky headers,
-          etc.). Slides in from the right like a page transition.
-          Chevron-left closes. */}
-      {mounted &&
-        createPortal(
-          <AnimatePresence>
-            {isOpen && isMobile && (
-              <motion.div
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                // iOS-feel cubic — fast settle without overshoot. Shorter
-                // duration + transform-gpu + will-change push the slide
-                // onto a compositor layer so it doesn't pay layout/paint
-                // costs on each frame (the prior 0.22s ease-in-out was
-                // dropping frames on lower-end mobile because the
-                // notification list was repainting during the animation).
-                transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-                style={{ willChange: "transform" }}
-                className="fixed inset-0 z-[80] bg-[var(--color-content-bg)] flex flex-col transform-gpu"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Notifications"
-              >
-                <div className="sticky top-0 z-10 flex items-center gap-2 px-3 pt-[max(env(safe-area-inset-top),0.5rem)] pb-3 bg-[var(--color-content-bg)]">
-                  <button
-                    type="button"
-                    onClick={() => setIsOpen(false)}
-                    className="p-2 rounded-full text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
-                    aria-label="Back"
-                  >
-                    <FiChevronLeft className="h-5 w-5" />
-                  </button>
-                  <h2 className="text-base font-medium text-[var(--color-fg)]">Notifications</h2>
-                </div>
-                <div className="flex-1 overflow-y-auto pb-[max(env(safe-area-inset-bottom),1rem)]">
-                  {renderRows(false)}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
+      {/* Mobile path uses the shared Drawer so it picks up the same
+          chevron, scroll lock, and "any-drawer-open" coordination as
+          every other drawer in the app (including the hamburger
+          hide-on-other-drawer-open behavior). Gated on `isMobile` so
+          the bell-anchored desktop dropdown above stays the desktop
+          UX. `noPadding` lets the existing row template render
+          edge-to-edge with its own px-5 padding. */}
+      <Drawer
+        isOpen={isOpen && isMobile}
+        onClose={() => setIsOpen(false)}
+        title="Notifications"
+        size="md"
+        side="right"
+        noPadding
+      >
+        <div className="pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+          {renderRows(false)}
+        </div>
+      </Drawer>
     </div>
   );
 }

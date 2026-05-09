@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import clsx from "clsx";
 
 // Module-level open-drawer counter + subscriber set so external chrome
@@ -244,21 +245,23 @@ export default function Drawer({
                 {showBackButton && (
                   <button
                     onClick={onBack}
-                    className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+                    className="w-9 h-9 -ml-2 flex items-center justify-center rounded-full text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
                     aria-label="Go back"
                   >
-                    <span className="text-lg leading-none">&#8249;</span>
+                    <FiChevronLeft className="h-5 w-5" />
                   </button>
                 )}
                 {showCloseButton && (
                   <button
                     onClick={onClose}
-                    className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] transition-colors"
+                    className="w-9 h-9 -ml-2 flex items-center justify-center rounded-full text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
                     aria-label="Close"
                   >
-                    <span className="text-lg leading-none">
-                      {side === "left" ? "›" : "‹"}
-                    </span>
+                    {side === "left" ? (
+                      <FiChevronRight className="h-5 w-5" />
+                    ) : (
+                      <FiChevronLeft className="h-5 w-5" />
+                    )}
                   </button>
                 )}
                 {(displayTitle || displayDescription) && (
