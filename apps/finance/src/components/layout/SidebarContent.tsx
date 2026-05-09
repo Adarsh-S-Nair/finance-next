@@ -61,7 +61,7 @@ export default function SidebarContent({ onNavigate }: { onNavigate?: () => void
   const isItemActive = (itemHref: string) => pathname.startsWith(itemHref);
 
   return (
-    <div className="flex h-full w-full flex-col bg-[var(--color-content-bg)] rounded-3xl border border-[var(--color-fg)]/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.04)] py-3">
+    <div className="flex h-full w-full flex-col py-3">
       <div className="flex justify-center pb-2">
         <HouseholdScopePopover />
       </div>
