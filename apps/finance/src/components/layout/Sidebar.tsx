@@ -2,15 +2,22 @@
 
 import SidebarContent from "./SidebarContent";
 
-export default function Sidebar({ isCollapsed, toggle, showToggle }: { isCollapsed?: boolean; toggle?: () => void; showToggle?: boolean }) {
+/**
+ * Floating, icon-only sidebar pinned to the left edge. Spans top to bottom
+ * with a small inset, rounded corners, and a soft border so it reads as a
+ * navigation island floating above the shell. Mobile (`md:hidden`) uses
+ * the drawer in MobileNavMenu instead.
+ */
+export default function Sidebar() {
   return (
     <aside
-      style={{ transition: "width 0.3s ease, left 0.3s ease" }}
-      className={`hidden md:flex flex-col fixed top-[var(--impersonation-banner-h,0px)] left-0 bottom-16 z-50 ${isCollapsed ? 'w-20' : 'w-60'}`}
+      className="hidden md:block fixed left-3 w-14 z-50"
+      style={{
+        top: "calc(var(--impersonation-banner-h, 0px) + 12px)",
+        bottom: "12px",
+      }}
     >
-      <SidebarContent isCollapsed={isCollapsed} toggle={toggle} showToggle={showToggle} />
+      <SidebarContent />
     </aside>
   );
 }
-
-

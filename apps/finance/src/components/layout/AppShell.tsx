@@ -1,10 +1,8 @@
 "use client";
 
 import Sidebar from "./Sidebar";
-import ProfileBar from "./ProfileBar";
 import AppTopbar from "./AppTopbar";
-import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LuLogOut } from "react-icons/lu";
 import { useAccounts } from "../providers/AccountsProvider";
@@ -167,16 +165,8 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
   const pathname = usePathname();
   const { accounts, loading, initialized } = useAccounts();
-
-  // Previously this tracked nav direction and slid pages in from the
-  // top/bottom. The slide stacked on top of per-card skeleton flashes
-  // and made every navigation feel laggy. With react-query caching
-  // the page content now paints instantly on remount, so a single
-  // quick opacity fade is enough — no direction-aware slide needed.
 
   const isSetupRoute = pathname === "/setup";
   // /setup/syncing is the post-FTUX sync splash — same minimal chrome as
@@ -188,28 +178,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const shouldUseSetupShell = isSetupRoute || isSyncingRoute;
   const shouldUseFtuxShell =
     !isSetupRoute && (isFtuxRoute && initialized && !loading && accounts.length === 0);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1280) {
-        setIsSidebarCollapsed(false);
-        setIsTablet(false);
-      } else if (window.innerWidth >= 768) {
-        setIsTablet(true);
-        setIsSidebarCollapsed(true);
-      } else {
-        setIsTablet(false);
-      }
-    };
-
-    handleResize();
-    if (window.innerWidth >= 768 && window.innerWidth < 1024) {
-      setIsSidebarCollapsed(true);
-    }
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   if (shouldUseSetupShell) {
     return <SetupShell>{children}</SetupShell>;
@@ -232,26 +200,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           positioning its DOM location doesn't matter, but the visual
           intent reads better. */}
       <ImpersonationBanner />
-      <Sidebar
-        isCollapsed={isSidebarCollapsed}
-        toggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        showToggle={isTablet}
-      />
-      <ProfileBar />
-      <div className="min-h-screen flex flex-col transition-all duration-300 ease-in-out md:ml-20 xl:ml-60 relative pt-[var(--impersonation-banner-h,0px)]">
+      <Sidebar />
+      {/* Floating sidebar lives at left:12px with width 56px — content
+          starts past the right edge of the sidebar plus a 12px breathing
+          gap (12 + 56 + 12 = 80px). On mobile (<md) the sidebar is
+          hidden and the drawer trigger lives in the topbar, so no left
+          offset is applied. */}
+      <div className="min-h-screen flex flex-col md:pl-20 relative pt-[var(--impersonation-banner-h,0px)]">
         <PaymentFailureBanner />
-        {/* Main content rendered as a "giant card" — bg-content surface
-            sitting inside the shell so the sidebar reads as navigation
-            chrome on a different layer. The AppTopbar lives INSIDE the
-            card so the card encompasses every product surface; only the
-            sidebar + ProfileBar live on the shell. */}
+        {/* Main content sits inside the shell with content-bg, leaving
+            the shell-bg visible behind the floating sidebar. The
+            AppTopbar lives inside this card so the card encompasses
+            every product surface. */}
         <main className="flex-1 flex flex-col">
-          {/* The "card" is now edge-to-edge — the bg color difference
-              between content-bg and shell-bg (the sidebar's bg) is what
-              defines the navigation/work split. No border, no radius,
-              no margin. The card has NO transform — `transform` creates
-              a containing block which breaks `position: sticky` on the
-              topbar. */}
           <div className="flex-1 bg-[var(--color-content-bg)] flex flex-col">
             <AppTopbar />
             <div
@@ -261,30 +222,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   : "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-10"
               }
             >
-              {/* No page transition wrapper. AnimatePresence mode="wait"
-                  fought with Next's App Router behaviour — the new
-                  cached page would paint, then disappear during the
-                  old page's exit, then reappear. Polish lives in the
-                  sidebar's animated active indicator instead, which
-                  doesn't gate page rendering. */}
               {children}
             </div>
           </div>
         </main>
       </div>
-
-      <AnimatePresence>
-        {isTablet && !isSidebarCollapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={() => setIsSidebarCollapsed(true)}
-          />
-        )}
-      </AnimatePresence>
 
       <PlaidOAuthHandler />
       <AgentOverlay />
