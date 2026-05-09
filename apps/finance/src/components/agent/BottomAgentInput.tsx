@@ -6,8 +6,6 @@ import { FiArrowUp, FiClock } from "react-icons/fi";
 import { authFetch } from "../../lib/api/fetch";
 import { useAgentOverlay } from "./AgentOverlayProvider";
 
-const SESSION_KEY = "agent:lastConvId";
-
 type Conversation = {
   id: string;
   title: string | null;
@@ -93,20 +91,18 @@ export default function BottomAgentInput() {
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed) return;
-    open({ initialMessage: trimmed });
+    // Force a fresh chat: the bottom input is for "ask Zervo a quick
+    // question", which usually has nothing to do with whatever
+    // conversation sessionStorage happens to point at. Users who
+    // want to continue an existing thread go through the Recent
+    // panel below or the history button inside the overlay.
+    open({ initialMessage: trimmed, conversationId: null });
     setValue("");
     setExpanded(false);
   }
 
   function openConversation(id: string) {
-    // The overlay reads the active conversation from sessionStorage on
-    // mount, so writing here + open() is enough to scope it.
-    try {
-      sessionStorage.setItem(SESSION_KEY, id);
-    } catch {
-      // private mode — fall back to a fresh chat.
-    }
-    open();
+    open({ conversationId: id });
     setExpanded(false);
     setValue("");
   }
