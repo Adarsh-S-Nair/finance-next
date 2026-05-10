@@ -8,10 +8,16 @@ import AgentHistoryDrawer from "./AgentHistoryDrawer";
 
 /**
  * Persistent bottom-of-viewport input for summoning the agent from
- * anywhere in the app. Default state: a flat resting pill at the
- * bottom. Focused state: lifts to the vertical center, frosted
- * backdrop fades in behind, and a top-left clock surfaces a
- * conversation-history drawer (shared with the in-overlay chat).
+ * anywhere in the app.
+ *
+ * Desktop: focus lifts the pill to the vertical center, fades in a
+ * frosted backdrop, and surfaces a top-left history clock.
+ *
+ * Mobile: focus does NOT lift. The pill stays anchored to the bottom
+ * and rides above the keyboard via the Visual Viewport API — same
+ * pattern as a chat app input. The lift animation fights with the
+ * keyboard otherwise (the pill hides behind it on iOS), and at the
+ * sizes a phone provides, "lift to center" doesn't add anything.
  *
  * Hidden while the overlay itself is open — the overlay has its own
  * input and history affordances.
@@ -22,13 +28,29 @@ export default function BottomAgentInput() {
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Translate-Y in pixels needed to land the input pill at the
-  // vertical center of the viewport. Recomputed on resize so it
-  // stays accurate across orientation / window changes. SSR-safe:
-  // starts at 0 (bottom-anchored), populated on mount.
+  // vertical center of the viewport. Desktop only — mobile keeps the
+  // pill bottom-anchored and rides the keyboard instead.
   const [centerOffsetPx, setCenterOffsetPx] = useState(0);
+  // True under the sm breakpoint. SSR-safe (starts false, hydrated on
+  // mount) so we don't render a "lifted" state for a frame.
+  const [isMobile, setIsMobile] = useState(false);
+  // How many px the on-screen keyboard is occupying at the bottom of
+  // the viewport (mobile only). Driven by the Visual Viewport API so
+  // we can keep the pill above the keyboard on iOS — `position: fixed;
+  // bottom: 0` sits behind the keyboard there because fixed is
+  // relative to the layout viewport, not the visual one.
+  const [keyboardOffsetPx, setKeyboardOffsetPx] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     function recompute() {
@@ -44,6 +66,29 @@ export default function BottomAgentInput() {
     recompute();
     window.addEventListener("resize", recompute);
     return () => window.removeEventListener("resize", recompute);
+  }, []);
+
+  // Visual Viewport keyboard tracking. The difference between the
+  // layout viewport (`window.innerHeight`) and the visual viewport
+  // (`vv.height + vv.offsetTop`) is how much the keyboard is
+  // occupying. We only use this on mobile — on desktop there's no
+  // virtual keyboard, so the offset is always 0.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      if (!vv) return;
+      const overlap = window.innerHeight - vv.height - vv.offsetTop;
+      setKeyboardOffsetPx(Math.max(0, overlap));
+    }
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
   }, []);
 
   // Click outside collapses. Paused while the drawer is open — the
@@ -173,7 +218,16 @@ export default function BottomAgentInput() {
             ref={containerRef}
             className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center pb-3 md:pb-5 md:pl-20"
             initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: expanded ? centerOffsetPx : 0 }}
+            animate={{
+              opacity: 1,
+              // Mobile: ride the keyboard. Desktop: lift to center on
+              // focus, sit at rest otherwise.
+              y: isMobile
+                ? -keyboardOffsetPx
+                : expanded
+                ? centerOffsetPx
+                : 0,
+            }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
           >
@@ -211,7 +265,12 @@ export default function BottomAgentInput() {
                     onFocus={() => setExpanded(true)}
                     placeholder="Ask Zervo anything…"
                     aria-label="Ask the agent"
-                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-12 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+                    // text-base on mobile keeps the actual font-size
+                    // at 16px, which is what iOS Safari needs to skip
+                    // the "zoom on focus" gesture; sm:text-sm pulls
+                    // it back to 14px on desktop where the visual
+                    // density of the surrounding chrome lives.
+                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-12 text-base sm:text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
                   />
                   <AnimatePresence>
                     {hasText && (
