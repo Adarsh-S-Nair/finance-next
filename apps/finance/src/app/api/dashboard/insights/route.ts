@@ -3,17 +3,28 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { canAccess } from '../../../../lib/tierConfig';
 import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
 import { getBudgetProgress } from '../../../../lib/spending';
-import { spendingPace } from '../../../../lib/insights/generators/spendingPace';
-import { budgetAlert } from '../../../../lib/insights/generators/budgetAlert';
-import { upcomingBills } from '../../../../lib/insights/generators/upcomingBills';
-import { topCategoryShift } from '../../../../lib/insights/generators/topCategoryShift';
-import type { Insight } from '../../../../lib/insights/types';
+import { spendingPaceCandidates } from '../../../../lib/insights/generators/spendingPace';
+import { budgetAlertCandidates } from '../../../../lib/insights/generators/budgetAlert';
+import { upcomingBillsCandidates } from '../../../../lib/insights/generators/upcomingBills';
+import { topCategoryShiftCandidates } from '../../../../lib/insights/generators/topCategoryShift';
+import { resolveAgentConfig } from '../../../../lib/agent/platformConfig';
+import {
+  CURATOR_MODEL,
+  curateInsights,
+  fallbackInsights,
+} from '../../../../lib/insights/curator';
+import {
+  fingerprintCandidates,
+  getCachedInsights,
+  writeCachedInsights,
+} from '../../../../lib/insights/cache';
+import type { Insight, InsightCandidate } from '../../../../lib/insights/types';
 
 export const GET = withAuth('dashboard:insights', async (_request, userId) => {
     // Fetch user tier
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('subscription_tier')
+      .select('subscription_tier, first_name, monthly_income')
       .eq('id', userId)
       .maybeSingle();
     const tier = userProfile?.subscription_tier || 'free';
@@ -135,23 +146,22 @@ export const GET = withAuth('dashboard:insights', async (_request, userId) => {
       .map((c) => ({ label: c.label, total_spent: c.total }))
       .sort((a, b) => b.total_spent - a.total_spent);
 
-    // ── Run generators ──
-    const insights: Insight[] = [];
+    // ── Run generators (collect all candidates) ──
+    const candidates: InsightCandidate[] = [];
 
     // Spending pace (free)
-    const pace = spendingPace({ currentMonthSpending, lastMonthSpending });
-    if (pace) insights.push(pace);
+    candidates.push(
+      ...spendingPaceCandidates({ currentMonthSpending, lastMonthSpending }),
+    );
 
     // Top category shift (free)
-    const catShift = topCategoryShift({ categories, months });
-    if (catShift) insights.push(catShift);
+    candidates.push(...topCategoryShiftCandidates({ categories, months }));
 
     // Budget alert (pro)
     if (canAccess(tier, 'budgets')) {
       try {
         const budgets = await getBudgetProgress(supabaseAdmin, userId);
-        const alert = budgetAlert(budgets);
-        if (alert) insights.push(alert);
+        candidates.push(...budgetAlertCandidates(budgets));
       } catch (e) {
         console.warn('[insights] budget fetch failed:', e);
       }
@@ -165,16 +175,73 @@ export const GET = withAuth('dashboard:insights', async (_request, userId) => {
           .select('stream_type, predicted_next_date, average_amount, merchant_name')
           .eq('user_id', userId)
           .eq('is_active', true);
-        const bills = upcomingBills(streams || []);
-        if (bills) insights.push(bills);
+        candidates.push(...upcomingBillsCandidates(streams || []));
       } catch (e) {
         console.warn('[insights] recurring fetch failed:', e);
       }
     }
 
-    // Sort: priority ascending, then negative tone first
-    const toneOrder = { negative: 0, neutral: 1, positive: 2 };
-    insights.sort((a, b) => a.priority - b.priority || toneOrder[a.tone] - toneOrder[b.tone]);
+    if (candidates.length === 0) {
+      return Response.json({ insights: [] satisfies Insight[] });
+    }
 
-    return Response.json({ insights });
+    // ── Curator: filter + rephrase via LLM, with cache + fallback ──
+
+    const fingerprint = fingerprintCandidates(candidates);
+
+    const cached = await getCachedInsights(userId, fingerprint);
+    if (cached) {
+      return Response.json({ insights: cached });
+    }
+
+    // Resolve API key (DB-managed via admin app, env-var fallback). If
+    // there's no key configured at all, skip the curator entirely and
+    // serve the deterministic fallback. The dashboard still works; it
+    // just looks like the old behavior until a key is set.
+    let apiKey: string | null = null;
+    try {
+      apiKey = (await resolveAgentConfig()).apiKey;
+    } catch {
+      apiKey = null;
+    }
+
+    if (!apiKey) {
+      const insights = fallbackInsights(candidates);
+      return Response.json({ insights });
+    }
+
+    // Load active memories so the curator has context the data alone
+    // can't show ("user has 2 kids", "mortgage paid from unconnected
+    // account"). Same source the chat agent reads.
+    const { data: memoryRows } = await supabaseAdmin
+      .from('user_agent_memories')
+      .select('content')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    const memories = (memoryRows ?? []).map((m) => m.content);
+
+    const curated = await curateInsights({
+      apiKey,
+      candidates,
+      memories,
+      monthlyIncome: userProfile?.monthly_income ?? null,
+      firstName: userProfile?.first_name ?? null,
+    });
+
+    // Curator returned null = API/parse failure. Fall back to the
+    // deterministic top-N so the dashboard never goes empty due to LLM
+    // outages. Don't cache the fallback — we want to retry the curator
+    // on the next request.
+    if (curated === null) {
+      const insights = fallbackInsights(candidates);
+      return Response.json({ insights });
+    }
+
+    // Curator returned [] = nothing was worth surfacing. That's a valid
+    // outcome (better an empty carousel than a noisy one) and we DO
+    // cache it so we don't burn another curator call on the next load.
+    await writeCachedInsights(userId, curated, fingerprint, CURATOR_MODEL);
+
+    return Response.json({ insights: curated });
 });

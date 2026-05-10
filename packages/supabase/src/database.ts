@@ -1151,6 +1151,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_agent_insight_cache: {
+        Row: {
+          candidate_fingerprint: string
+          expires_at: string
+          generated_at: string
+          insights: Json
+          model: string
+          user_id: string
+        }
+        Insert: {
+          candidate_fingerprint: string
+          expires_at: string
+          generated_at?: string
+          insights: Json
+          model: string
+          user_id: string
+        }
+        Update: {
+          candidate_fingerprint?: string
+          expires_at?: string
+          generated_at?: string
+          insights?: Json
+          model?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_agent_memories: {
         Row: {
           content: string
