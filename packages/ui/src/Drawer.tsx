@@ -37,6 +37,29 @@ export function useAnyDrawerOpen(): boolean {
   return open;
 }
 
+/**
+ * Hook for non-Drawer surfaces that occupy the screen the same way a
+ * drawer does — e.g. the bottom agent input's focused state, where
+ * the top-left history clock would otherwise be covered by the
+ * mobile hamburger. Pass `true` while your surface is "open" and the
+ * mobile chrome (hamburger today, anything else later) will react
+ * via `useAnyDrawerOpen` exactly as it does for a real Drawer.
+ *
+ * The Drawer component itself uses this internally — same lifecycle
+ * pattern, no separate channel.
+ */
+export function useRegisterDrawerOpen(isOpen: boolean): void {
+  useEffect(() => {
+    if (!isOpen) return;
+    openDrawerCount += 1;
+    notifyDrawerSubscribers();
+    return () => {
+      openDrawerCount -= 1;
+      notifyDrawerSubscribers();
+    };
+  }, [isOpen]);
+}
+
 type DrawerView = {
   id: string;
   title: string;
@@ -161,18 +184,9 @@ export default function Drawer({
   useEffect(() => setMounted(true), []);
 
   // Maintain the global open-drawer count for `useAnyDrawerOpen`.
-  // Bracketed inside an effect so the count tracks lifecycle (mount/
-  // unmount + isOpen toggles) cleanly, even with multiple drawers
-  // open simultaneously.
-  useEffect(() => {
-    if (!isOpen) return;
-    openDrawerCount += 1;
-    notifyDrawerSubscribers();
-    return () => {
-      openDrawerCount -= 1;
-      notifyDrawerSubscribers();
-    };
-  }, [isOpen]);
+  // Same hook external surfaces (e.g. the agent's focused bottom
+  // input) opt into to suppress the mobile hamburger.
+  useRegisterDrawerOpen(isOpen);
 
   // Get current view or fallback to default content
   const currentView = views.find(view => view.id === currentViewId);

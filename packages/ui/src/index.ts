@@ -6,7 +6,7 @@ export { default as ChartTooltip } from "./ChartTooltip";
 export { default as ConfirmOverlay } from "./ConfirmOverlay";
 export { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "./ContextMenu";
 export { default as CustomDonut } from "./CustomDonut";
-export { default as Drawer, useAnyDrawerOpen } from "./Drawer";
+export { default as Drawer, useAnyDrawerOpen, useRegisterDrawerOpen } from "./Drawer";
 export { default as Input } from "./Input";
 export { default as LineChart } from "./LineChart";
 export { default as Modal } from "./Modal";
