@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiClock } from "react-icons/fi";
+import { useRegisterDrawerOpen } from "@zervo/ui";
 import { useAgentOverlay } from "./AgentOverlayProvider";
 import AgentHistoryDrawer from "./AgentHistoryDrawer";
 
@@ -43,6 +44,12 @@ export default function BottomAgentInput() {
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Register the focused state into the drawer-open count so the
+  // mobile hamburger steps out of the way (same path AgentHistoryDrawer
+  // uses). Without this the hamburger keeps sitting on top of the
+  // top-left history clock at z-90 and steals taps.
+  useRegisterDrawerOpen(expanded && !isOpen);
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 639px)");
