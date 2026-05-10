@@ -21,6 +21,11 @@ import IncomeProposalWidget, {
   type IncomeProposalData,
 } from "./IncomeProposalWidget";
 import QuestionWidget, { type QuestionData } from "./QuestionWidget";
+import HoldingsWidget, { type HoldingsData } from "./HoldingsWidget";
+import PortfolioBreakdownWidget, {
+  type PortfolioBreakdownData,
+} from "./PortfolioBreakdownWidget";
+import PerformanceWidget, { type PerformanceData } from "./PerformanceWidget";
 
 const TOOL_LABELS: Record<string, string> = {
   get_budgets: "Looking up your budgets",
@@ -29,6 +34,9 @@ const TOOL_LABELS: Record<string, string> = {
   get_account_balances: "Loading account balances",
   list_categories: "Loading categories",
   get_recurring_transactions: "Looking up recurring payments",
+  get_investment_holdings: "Loading your holdings",
+  get_portfolio_breakdown: "Building allocation breakdown",
+  get_investment_performance: "Computing portfolio performance",
   propose_recategorization: "Preparing suggestion",
   propose_category_rule: "Preparing rule",
   propose_budget_create: "Preparing budget proposal",
@@ -124,6 +132,14 @@ export default function ToolWidget({
       return <SpendingBreakdownWidget data={tool.output as SpendingBreakdownData} />;
     case "get_account_balances":
       return <AccountListWidget data={tool.output as AccountListData} />;
+    case "get_investment_holdings":
+      return <HoldingsWidget data={tool.output as HoldingsData} />;
+    case "get_portfolio_breakdown":
+      return (
+        <PortfolioBreakdownWidget data={tool.output as PortfolioBreakdownData} />
+      );
+    case "get_investment_performance":
+      return <PerformanceWidget data={tool.output as PerformanceData} />;
     case "propose_recategorization":
       // tool.id is Anthropic's tool_use_id — globally unique per
       // proposal. The widget uses it to persist accept/decline state
