@@ -1,0 +1,178 @@
+"use client";
+
+import { formatCurrency } from "../../../lib/formatCurrency";
+import { formatShares } from "../../../lib/formatShares";
+import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+
+type Holding = {
+  ticker: string;
+  name: string | null;
+  shares: number;
+  avg_cost: number;
+  current_price: number;
+  market_value: number;
+  cost_basis: number;
+  unrealized_gain: number;
+  unrealized_gain_pct: number;
+  asset_type: string;
+  sector: string | null;
+  account_id: string;
+  account_name: string;
+  price_source: "live" | "cost_basis";
+};
+
+export type HoldingsData = {
+  holdings?: Holding[];
+  totals?: {
+    market_value: number;
+    cost_basis: number;
+    unrealized_gain: number;
+    unrealized_gain_pct: number;
+  };
+  authoritative_account_total?: number;
+  uncategorized_cash_estimate?: number;
+  accounts?: number;
+  note?: string;
+  error?: string;
+};
+
+const MAX_DISPLAY = 8;
+
+export default function HoldingsWidget({ data }: { data: HoldingsData }) {
+  if (data.error) return <WidgetError message={data.error} />;
+
+  const holdings = data.holdings ?? [];
+  if (holdings.length === 0) {
+    return (
+      <WidgetFrame>
+        <div className="text-xs text-[var(--color-muted)]">
+          {data.note ?? "No holdings to show."}
+        </div>
+      </WidgetFrame>
+    );
+  }
+
+  const totals = data.totals;
+  const top = holdings.slice(0, MAX_DISPLAY);
+  const remaining = holdings.length - top.length;
+
+  return (
+    <WidgetFrame>
+      {totals ? (
+        <WidgetLabel
+          left={`${holdings.length} holding${holdings.length === 1 ? "" : "s"}`}
+          right={
+            <GainPill
+              amount={totals.unrealized_gain}
+              pct={totals.unrealized_gain_pct}
+            />
+          }
+        />
+      ) : null}
+
+      {totals ? (
+        <div className="mb-5">
+          <div className="text-2xl text-[var(--color-fg)] tabular-nums">
+            {formatCurrency(totals.market_value, true)}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            cost basis {formatCurrency(totals.cost_basis, true)}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="space-y-3">
+        {top.map((h, i) => (
+          <MagicItem key={`${h.account_id}:${h.ticker}`} index={i}>
+            <HoldingRow h={h} />
+          </MagicItem>
+        ))}
+      </div>
+
+      {remaining > 0 && (
+        <div className="mt-3 text-[11px] text-[var(--color-muted)]">
+          + {remaining} more {remaining === 1 ? "holding" : "holdings"}
+        </div>
+      )}
+    </WidgetFrame>
+  );
+}
+
+function HoldingRow({ h }: { h: Holding }) {
+  const subtitleParts: string[] = [`${formatShares(h.shares)} sh`];
+  if (h.price_source === "cost_basis") {
+    // No live quote available — flag it so the user knows the value is
+    // based on what they paid, not current market.
+    subtitleParts.push("at cost");
+  }
+  const subtitle = subtitleParts.join(" · ");
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <div className="flex items-center gap-3 min-w-0">
+        <TickerBadge ticker={h.ticker} assetType={h.asset_type} />
+        <div className="min-w-0">
+          <div className="text-sm text-[var(--color-fg)] truncate">
+            {h.ticker}
+            {h.name ? (
+              <span className="text-[var(--color-muted)] font-normal"> · {h.name}</span>
+            ) : null}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] truncate">
+            {subtitle}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col items-end flex-shrink-0">
+        <div className="text-sm tabular-nums text-[var(--color-fg)]">
+          {formatCurrency(h.market_value, true)}
+        </div>
+        <GainText amount={h.unrealized_gain} pct={h.unrealized_gain_pct} />
+      </div>
+    </div>
+  );
+}
+
+function TickerBadge({ ticker, assetType }: { ticker: string; assetType: string }) {
+  const isCash = assetType.toLowerCase() === "cash";
+  const display = isCash ? "$" : ticker.slice(0, 3).toUpperCase();
+  return (
+    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--color-surface-alt)] flex-shrink-0">
+      <span className="text-[10px] font-semibold text-[var(--color-muted)]">
+        {display}
+      </span>
+    </div>
+  );
+}
+
+function GainPill({ amount, pct }: { amount: number; pct: number }) {
+  const positive = amount >= 0;
+  const color = positive
+    ? "text-[var(--color-success)]"
+    : "text-[var(--color-danger)]";
+  const sign = positive ? "+" : "";
+  return (
+    <span className={`tabular-nums ${color}`}>
+      {sign}
+      {formatCurrency(amount, true)} ({sign}
+      {pct.toFixed(1)}%)
+    </span>
+  );
+}
+
+function GainText({ amount, pct }: { amount: number; pct: number }) {
+  // Per-row variant: smaller, no parens around the dollar amount, just
+  // the percentage with a sign. Keeps the row compact on narrow widths.
+  if (amount === 0 && pct === 0) return null;
+  const positive = amount >= 0;
+  const color = positive
+    ? "text-[var(--color-success)]"
+    : "text-[var(--color-danger)]";
+  const sign = positive ? "+" : "";
+  return (
+    <span className={`text-[11px] tabular-nums ${color}`}>
+      {sign}
+      {pct.toFixed(1)}%
+    </span>
+  );
+}
