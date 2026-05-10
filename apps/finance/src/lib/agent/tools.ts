@@ -19,6 +19,7 @@ import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
 import { isBudgetOver } from '../budget';
+import { fetchQuotesForTickers } from '../quotes';
 
 type ToolDefinition = Anthropic.Messages.Tool;
 
@@ -720,6 +721,96 @@ export const TOOLS: ToolDefinition[] = [
       required: ['category_id', 'conditions'],
     },
   },
+  {
+    name: 'get_investment_holdings',
+    description:
+      "List the user's investment holdings (stocks, ETFs, crypto, cash positions) " +
+      "with shares, average cost basis, current market value, and unrealized gain/loss. " +
+      "Live prices are fetched from Yahoo / CoinGecko with a short server-side cache, " +
+      "so the numbers match what the user sees on the /investments page.\n\n" +
+      "Use when the user asks about their portfolio: \"how are my stocks doing?\", \"what's " +
+      "my biggest position?\", \"how much have I made on AAPL?\", \"what crypto do I own?\". " +
+      "Positions where a live price could not be fetched fall back to cost basis and are " +
+      "flagged with price_source: 'cost_basis' — mention this when relevant so the user " +
+      "knows the number could be stale.\n\n" +
+      "Results are sorted by market_value descending.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        account_query: {
+          type: 'string',
+          description:
+            'Case-insensitive substring against the investment account name or ' +
+            'institution name (e.g. "fidelity", "robinhood"). Filters to that account. ' +
+            'Omit to include every investment account the user has connected.',
+        },
+        ticker_query: {
+          type: 'string',
+          description:
+            'Case-insensitive substring against the ticker symbol. Filters to a single ' +
+            'holding (e.g. "AAPL" or even "appl"). Use when the user asks about a ' +
+            'specific position. Omit to include everything.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_portfolio_breakdown',
+    description:
+      "Aggregate breakdown of the user's investment portfolio by asset class, sector, " +
+      "or account. Returns segments with absolute dollar amount and percentage of total, " +
+      "ordered largest first.\n\n" +
+      "Use when the user asks about allocation: \"how diversified am I?\", \"what's my " +
+      "biggest sector?\", \"how much of my portfolio is in crypto?\", \"which account " +
+      "has the most?\".\n\n" +
+      "Pick breakdown_by based on the question:\n" +
+      "- asset_class → Stocks vs Crypto vs Cash (the default, matches the dashboard's " +
+      "Allocation card).\n" +
+      "- sector → Technology vs Financials vs Energy, etc. Falls back to 'Other' for " +
+      "tickers without sector metadata (cash, crypto, some ETFs).\n" +
+      "- account → groups by brokerage account name. Use when the user asks 'where is my " +
+      "money held'.\n\n" +
+      "Uses the same live-price logic as get_investment_holdings so percentages reflect " +
+      "current market value, not cost basis.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        breakdown_by: {
+          type: 'string',
+          enum: ['asset_class', 'sector', 'account'],
+          description:
+            'Dimension to aggregate by. Defaults to asset_class.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_investment_performance',
+    description:
+      "Change in total investment portfolio value over a fixed period. Returns the " +
+      "start value, end (current) value, dollar change, and percent change. Uses the " +
+      "account_snapshots table for historical balances and the current account balance " +
+      "for end value.\n\n" +
+      "Use when the user asks about returns or growth: \"how much have I made this year?\", " +
+      "\"how's my portfolio doing in the last 30 days?\", \"am I up or down ytd?\".\n\n" +
+      "Some periods may be unreliable if Plaid started syncing recently — the response " +
+      "includes `accounts_with_full_history` vs `accounts_missing_history` so you can tell " +
+      "the user when a number is incomplete (e.g. 'I only have 18 days of data, not 30'). " +
+      "Don't quote a precise change figure if more than a third of accounts are missing " +
+      "history; surface the gap instead.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['last_30_days', 'last_90_days', 'ytd', 'last_year'],
+          description:
+            'Time window. ytd = January 1 of the current year to today. Defaults to ' +
+            'last_30_days.',
+        },
+      },
+    },
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -735,6 +826,9 @@ type ToolName =
   | 'get_category_breakdown'
   | 'get_recurring_transactions'
   | 'get_income_summary'
+  | 'get_investment_holdings'
+  | 'get_portfolio_breakdown'
+  | 'get_investment_performance'
   | 'propose_recategorization'
   | 'propose_category_rule'
   | 'propose_budget_create'
@@ -851,6 +945,19 @@ interface AskUserQuestionInput {
   allow_custom?: boolean;
 }
 
+interface GetInvestmentHoldingsInput {
+  account_query?: string;
+  ticker_query?: string;
+}
+
+interface GetPortfolioBreakdownInput {
+  breakdown_by?: 'asset_class' | 'sector' | 'account';
+}
+
+interface GetInvestmentPerformanceInput {
+  period?: 'last_30_days' | 'last_90_days' | 'ytd' | 'last_year';
+}
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -898,6 +1005,21 @@ export async function executeTool(
         return await getIncomeSummary(
           userId,
           (input as GetIncomeSummaryInput) ?? {},
+        );
+      case 'get_investment_holdings':
+        return await getInvestmentHoldings(
+          userId,
+          (input as GetInvestmentHoldingsInput) ?? {},
+        );
+      case 'get_portfolio_breakdown':
+        return await getPortfolioBreakdown(
+          userId,
+          (input as GetPortfolioBreakdownInput) ?? {},
+        );
+      case 'get_investment_performance':
+        return await getInvestmentPerformance(
+          userId,
+          (input as GetInvestmentPerformanceInput) ?? {},
         );
       case 'propose_budget_create':
         return await proposeBudgetCreate(
@@ -3284,5 +3406,487 @@ function askUserQuestion(input: AskUserQuestionInput) {
     options,
     context: input.context?.trim() || null,
     allow_custom: input.allow_custom !== false,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Investment tools
+//
+// Three read tools backed by the holdings, accounts, tickers, and
+// account_snapshots tables, plus the shared `fetchQuotesForTickers`
+// helper (same one the dashboard uses, so prices match what the UI
+// shows).
+//
+// All three share a common shape internally: load investment accounts,
+// load holdings + ticker metadata, fetch quotes, compute market value
+// per position. The breakdown and performance tools then aggregate
+// differently from there.
+// ──────────────────────────────────────────────────────────────────────────
+
+interface RawInvestmentAccount {
+  id: string;
+  name: string;
+  subtype: string | null;
+  plaid_balance_current: number | null;
+  institutions: { name: string | null } | { name: string | null }[] | null;
+}
+
+interface RawHolding {
+  id: string;
+  account_id: string;
+  ticker: string;
+  shares: number;
+  avg_cost: number;
+  asset_type: string | null;
+}
+
+interface RawTickerMeta {
+  symbol: string;
+  name: string | null;
+  sector: string | null;
+  asset_type: string;
+}
+
+interface EnrichedHolding {
+  ticker: string;
+  name: string | null;
+  shares: number;
+  avg_cost: number;
+  current_price: number;
+  market_value: number;
+  cost_basis: number;
+  unrealized_gain: number;
+  unrealized_gain_pct: number;
+  asset_type: string;
+  sector: string | null;
+  account_id: string;
+  account_name: string;
+  /** 'live' = current quote, 'cost_basis' = quote unavailable, falling
+   *  back to shares × avg_cost so totals still make sense. */
+  price_source: 'live' | 'cost_basis';
+}
+
+function institutionName(
+  inst: RawInvestmentAccount['institutions'],
+): string | null {
+  if (!inst) return null;
+  if (Array.isArray(inst)) return inst[0]?.name ?? null;
+  return inst.name ?? null;
+}
+
+function classifyAssetClass(assetType: string): 'Stocks' | 'Crypto' | 'Cash' {
+  const t = assetType.toLowerCase();
+  if (t === 'crypto') return 'Crypto';
+  if (t === 'cash') return 'Cash';
+  return 'Stocks';
+}
+
+/**
+ * Shared loader for all three investment tools. Returns enriched
+ * holdings + the total portfolio value. Total uses live quotes where
+ * available, with a fallback to authoritative account balance if the
+ * sum of holding values is short of it (covers brokerages that don't
+ * expose cash as a holding row).
+ */
+async function loadEnrichedHoldings(
+  userId: string,
+  filter?: { accountQuery?: string; tickerQuery?: string },
+): Promise<{
+  accounts: RawInvestmentAccount[];
+  holdings: EnrichedHolding[];
+  total_market_value: number;
+  authoritative_balance_total: number;
+}> {
+  const { data: accountsRaw, error: accErr } = await supabaseAdmin
+    .from('accounts')
+    .select(
+      'id, name, subtype, plaid_balance_current, institutions(name)',
+    )
+    .eq('user_id', userId)
+    .eq('type', 'investment')
+    .order('name', { ascending: true });
+  if (accErr) throw accErr;
+  const allAccounts = (accountsRaw ?? []) as RawInvestmentAccount[];
+
+  // Apply account_query if present. Match on account name OR institution
+  // name. Case-insensitive substring.
+  const accountQ = filter?.accountQuery?.trim().toLowerCase() ?? '';
+  const accounts = accountQ
+    ? allAccounts.filter((a) => {
+        const inst = (institutionName(a.institutions) ?? '').toLowerCase();
+        return a.name.toLowerCase().includes(accountQ) || inst.includes(accountQ);
+      })
+    : allAccounts;
+
+  if (accounts.length === 0) {
+    return {
+      accounts: [],
+      holdings: [],
+      total_market_value: 0,
+      authoritative_balance_total: 0,
+    };
+  }
+
+  const accountIds = accounts.map((a) => a.id);
+  const { data: holdingsRaw, error: hErr } = await supabaseAdmin
+    .from('holdings')
+    .select('id, account_id, ticker, shares, avg_cost, asset_type')
+    .in('account_id', accountIds);
+  if (hErr) throw hErr;
+  const allHoldings = (holdingsRaw ?? []) as RawHolding[];
+
+  const tickerQ = filter?.tickerQuery?.trim().toUpperCase() ?? '';
+  const holdings = tickerQ
+    ? allHoldings.filter((h) => h.ticker.toUpperCase().includes(tickerQ))
+    : allHoldings;
+
+  // Ticker metadata for names + sector classification.
+  const uniqueTickers = Array.from(new Set(holdings.map((h) => h.ticker).filter(Boolean)));
+  let tickerMeta = new Map<string, RawTickerMeta>();
+  if (uniqueTickers.length > 0) {
+    const { data: tickersRaw } = await supabaseAdmin
+      .from('tickers')
+      .select('symbol, name, sector, asset_type')
+      .in('symbol', uniqueTickers);
+    tickerMeta = new Map(
+      (tickersRaw ?? []).map((t) => [t.symbol, t as RawTickerMeta]),
+    );
+  }
+
+  // Live quotes. fetchQuotesForTickers handles cache + asset-type
+  // classification + Yahoo/CoinGecko routing internally.
+  const quotesResult =
+    uniqueTickers.length > 0
+      ? await fetchQuotesForTickers(uniqueTickers)
+      : { quotes: {} as Record<string, { price: number }> };
+
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+
+  const enriched: EnrichedHolding[] = holdings.map((h) => {
+    const meta = tickerMeta.get(h.ticker);
+    const quote = quotesResult.quotes[h.ticker.toUpperCase()];
+    const shares = Number(h.shares ?? 0);
+    const avgCost = Number(h.avg_cost ?? 0);
+    const liveAvailable = quote?.price !== undefined && Number.isFinite(quote.price);
+    const currentPrice = liveAvailable ? quote.price : avgCost;
+    const marketValue = shares * currentPrice;
+    const costBasis = shares * avgCost;
+    const unrealized = marketValue - costBasis;
+    const unrealizedPct = costBasis > 0 ? (unrealized / costBasis) * 100 : 0;
+    const account = accountById.get(h.account_id);
+
+    return {
+      ticker: h.ticker,
+      name: meta?.name ?? null,
+      shares: Math.round(shares * 10000) / 10000,
+      avg_cost: Math.round(avgCost * 100) / 100,
+      current_price: Math.round(currentPrice * 100) / 100,
+      market_value: Math.round(marketValue * 100) / 100,
+      cost_basis: Math.round(costBasis * 100) / 100,
+      unrealized_gain: Math.round(unrealized * 100) / 100,
+      unrealized_gain_pct: Math.round(unrealizedPct * 10) / 10,
+      asset_type: (h.asset_type || meta?.asset_type || 'equity'),
+      sector: meta?.sector ?? null,
+      account_id: h.account_id,
+      account_name: account?.name ?? 'Account',
+      price_source: liveAvailable ? 'live' : 'cost_basis',
+    };
+  });
+
+  enriched.sort((a, b) => b.market_value - a.market_value);
+
+  const totalFromHoldings = enriched.reduce((s, h) => s + h.market_value, 0);
+  const authoritativeTotal = accounts.reduce(
+    (s, a) => s + Number(a.plaid_balance_current ?? 0),
+    0,
+  );
+
+  return {
+    accounts,
+    holdings: enriched,
+    total_market_value: Math.round(totalFromHoldings * 100) / 100,
+    authoritative_balance_total: Math.round(authoritativeTotal * 100) / 100,
+  };
+}
+
+async function getInvestmentHoldings(
+  userId: string,
+  input: GetInvestmentHoldingsInput,
+) {
+  const { accounts, holdings, total_market_value, authoritative_balance_total } =
+    await loadEnrichedHoldings(userId, {
+      accountQuery: input.account_query,
+      tickerQuery: input.ticker_query,
+    });
+
+  if (accounts.length === 0) {
+    return {
+      error:
+        input.account_query
+          ? `No investment account matched "${input.account_query}".`
+          : 'No investment accounts connected. The user can link one from the Accounts page.',
+    };
+  }
+
+  if (holdings.length === 0) {
+    return {
+      accounts: accounts.length,
+      holdings: [],
+      totals: {
+        market_value: 0,
+        cost_basis: 0,
+        unrealized_gain: 0,
+        unrealized_gain_pct: 0,
+      },
+      note:
+        input.ticker_query
+          ? `No holdings matched "${input.ticker_query}".`
+          : 'Account is connected but has no holdings synced yet.',
+    };
+  }
+
+  const costBasisTotal = holdings.reduce((s, h) => s + h.cost_basis, 0);
+  const unrealizedTotal = total_market_value - costBasisTotal;
+  const unrealizedPctTotal =
+    costBasisTotal > 0 ? (unrealizedTotal / costBasisTotal) * 100 : 0;
+
+  // Note about authoritative balance: some brokerages don't expose cash
+  // as a holding row, so the sum of holdings can come up short of the
+  // account's current balance. Surface that delta so the model can
+  // mention it.
+  const balanceDelta = authoritative_balance_total - total_market_value;
+
+  return {
+    holdings,
+    totals: {
+      market_value: total_market_value,
+      cost_basis: Math.round(costBasisTotal * 100) / 100,
+      unrealized_gain: Math.round(unrealizedTotal * 100) / 100,
+      unrealized_gain_pct: Math.round(unrealizedPctTotal * 10) / 10,
+    },
+    authoritative_account_total: authoritative_balance_total,
+    uncategorized_cash_estimate:
+      balanceDelta > 1 ? Math.round(balanceDelta * 100) / 100 : 0,
+  };
+}
+
+async function getPortfolioBreakdown(
+  userId: string,
+  input: GetPortfolioBreakdownInput,
+) {
+  const breakdownBy = input.breakdown_by ?? 'asset_class';
+  const { accounts, holdings, total_market_value, authoritative_balance_total } =
+    await loadEnrichedHoldings(userId);
+
+  if (accounts.length === 0) {
+    return {
+      error: 'No investment accounts connected. The user can link one from the Accounts page.',
+    };
+  }
+
+  // For asset_class, we add uncategorized cash from the authoritative
+  // delta as an extra "Cash" segment — matches the dashboard
+  // AllocationCard logic so totals reconcile.
+  const buckets = new Map<string, number>();
+  if (breakdownBy === 'asset_class') {
+    for (const h of holdings) {
+      const label = classifyAssetClass(h.asset_type);
+      buckets.set(label, (buckets.get(label) ?? 0) + h.market_value);
+    }
+    const delta = authoritative_balance_total - total_market_value;
+    if (delta > 1) {
+      buckets.set('Cash', (buckets.get('Cash') ?? 0) + delta);
+    }
+  } else if (breakdownBy === 'sector') {
+    for (const h of holdings) {
+      // Crypto and cash don't have sectors; group them under their
+      // own labels so the breakdown stays meaningful.
+      let label: string;
+      if (classifyAssetClass(h.asset_type) === 'Crypto') label = 'Crypto';
+      else if (classifyAssetClass(h.asset_type) === 'Cash') label = 'Cash';
+      else label = h.sector || 'Other';
+      buckets.set(label, (buckets.get(label) ?? 0) + h.market_value);
+    }
+  } else {
+    // breakdown by account
+    for (const h of holdings) {
+      buckets.set(
+        h.account_name,
+        (buckets.get(h.account_name) ?? 0) + h.market_value,
+      );
+    }
+    // Distribute uncategorized cash per-account using the authoritative
+    // balance (the per-account version of the asset_class delta).
+    for (const a of accounts) {
+      const fromHoldings = holdings
+        .filter((h) => h.account_id === a.id)
+        .reduce((s, h) => s + h.market_value, 0);
+      const delta = Number(a.plaid_balance_current ?? 0) - fromHoldings;
+      if (delta > 1) {
+        buckets.set(a.name, (buckets.get(a.name) ?? 0) + delta);
+      }
+    }
+  }
+
+  const total = Array.from(buckets.values()).reduce((s, v) => s + v, 0);
+  const segments = Array.from(buckets.entries())
+    .filter(([, amount]) => amount > 0.01)
+    .map(([label, amount]) => ({
+      label,
+      amount: Math.round(amount * 100) / 100,
+      percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    breakdown_by: breakdownBy,
+    segments,
+    total: Math.round(total * 100) / 100,
+  };
+}
+
+async function getInvestmentPerformance(
+  userId: string,
+  input: GetInvestmentPerformanceInput,
+) {
+  const period = input.period ?? 'last_30_days';
+  const now = new Date();
+  let startDate: Date;
+  let periodLabel: string;
+  switch (period) {
+    case 'last_90_days':
+      startDate = subDays(now, 90);
+      periodLabel = 'last 90 days';
+      break;
+    case 'ytd':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      periodLabel = `${now.getFullYear()} year-to-date`;
+      break;
+    case 'last_year':
+      startDate = subDays(now, 365);
+      periodLabel = 'last 365 days';
+      break;
+    case 'last_30_days':
+    default:
+      startDate = subDays(now, 30);
+      periodLabel = 'last 30 days';
+      break;
+  }
+
+  const { data: accountsRaw } = await supabaseAdmin
+    .from('accounts')
+    .select('id, name, plaid_balance_current')
+    .eq('user_id', userId)
+    .eq('type', 'investment');
+  const accounts = accountsRaw ?? [];
+
+  if (accounts.length === 0) {
+    return {
+      error: 'No investment accounts connected. The user can link one from the Accounts page.',
+    };
+  }
+
+  const accountIds = accounts.map((a) => a.id);
+  const endValue = accounts.reduce(
+    (s, a) => s + Number(a.plaid_balance_current ?? 0),
+    0,
+  );
+
+  // Pull snapshots in a window around the start date. We want the
+  // snapshot recorded closest to (but on or after) the period start
+  // per account. A small look-back (7 days before start) catches users
+  // whose Plaid sync runs weekly.
+  const windowStart = subDays(startDate, 7);
+  const windowEnd = subDays(startDate, -7);
+
+  const { data: snapshotsRaw } = await supabaseAdmin
+    .from('account_snapshots')
+    .select('account_id, recorded_at, current_balance')
+    .in('account_id', accountIds)
+    .gte('recorded_at', windowStart.toISOString())
+    .lte('recorded_at', windowEnd.toISOString())
+    .order('recorded_at', { ascending: true });
+  const snapshots = snapshotsRaw ?? [];
+
+  // For each account, pick the snapshot with recorded_at closest to
+  // startDate. If none in window, account is excluded from the start
+  // value (with a note).
+  const startDateMs = startDate.getTime();
+  const startByAccount = new Map<string, number>();
+  for (const snap of snapshots) {
+    const accountId = snap.account_id;
+    const recordedMs = new Date(snap.recorded_at).getTime();
+    const distance = Math.abs(recordedMs - startDateMs);
+    const existing = startByAccount.get(accountId);
+    if (existing === undefined) {
+      startByAccount.set(accountId, recordedMs);
+    } else if (distance < Math.abs(existing - startDateMs)) {
+      startByAccount.set(accountId, recordedMs);
+    }
+  }
+
+  // Now re-walk snapshots and sum the chosen ones.
+  const chosenStartByAccount = new Map<string, number>();
+  for (const snap of snapshots) {
+    const chosenMs = startByAccount.get(snap.account_id);
+    if (chosenMs === undefined) continue;
+    if (new Date(snap.recorded_at).getTime() === chosenMs) {
+      chosenStartByAccount.set(
+        snap.account_id,
+        Number(snap.current_balance ?? 0),
+      );
+    }
+  }
+
+  let startValue = 0;
+  const accountsWithHistory: string[] = [];
+  const accountsMissingHistory: string[] = [];
+  for (const a of accounts) {
+    const startBal = chosenStartByAccount.get(a.id);
+    if (startBal !== undefined) {
+      startValue += startBal;
+      accountsWithHistory.push(a.name);
+    } else {
+      accountsMissingHistory.push(a.name);
+    }
+  }
+
+  // If every account is missing start data, performance is undefined.
+  // Surface the gap rather than returning a misleading zero.
+  if (accountsWithHistory.length === 0) {
+    return {
+      period,
+      period_label: periodLabel,
+      error: `No account snapshots exist for ${periodLabel}. Likely too soon after first sync, or before history started being recorded.`,
+      accounts_missing_history: accountsMissingHistory,
+      end_value: Math.round(endValue * 100) / 100,
+    };
+  }
+
+  // If only some accounts have history, exclude the missing ones from
+  // BOTH ends so the change figure stays directly comparable.
+  let endValueComparable = 0;
+  for (const a of accounts) {
+    if (chosenStartByAccount.has(a.id)) {
+      endValueComparable += Number(a.plaid_balance_current ?? 0);
+    }
+  }
+
+  const change = endValueComparable - startValue;
+  const changePct = startValue > 0 ? (change / startValue) * 100 : 0;
+
+  return {
+    period,
+    period_label: periodLabel,
+    start_value: Math.round(startValue * 100) / 100,
+    end_value: Math.round(endValueComparable * 100) / 100,
+    change: Math.round(change * 100) / 100,
+    change_pct: Math.round(changePct * 100) / 100,
+    accounts_with_full_history: accountsWithHistory,
+    accounts_missing_history: accountsMissingHistory,
+    /** Total current portfolio across ALL accounts including ones we
+     *  couldn't compute a change for. Useful when the user asks "how
+     *  much is in there?" alongside the performance question. */
+    total_portfolio_current_value: Math.round(endValue * 100) / 100,
   };
 }
