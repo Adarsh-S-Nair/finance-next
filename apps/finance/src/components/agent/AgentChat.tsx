@@ -670,6 +670,7 @@ function AgentChatInner({
                   <AssistantMessageRow
                     blocks={m.blocks}
                     onContinue={handleContinuation}
+                    streaming={isLastAssistant && sending}
                   />
                   {showStamp && nowAtMount !== null && (
                     <MessageTimestamp
@@ -862,19 +863,40 @@ function MessageTimestamp({
 function AssistantMessageRow({
   blocks,
   onContinue,
+  streaming = false,
 }: {
   blocks: Block[];
   onContinue?: (message: string) => void;
+  /** True iff this is the last assistant message AND the request is
+   *  still in flight. Used to mark the trailing text block as "live"
+   *  so it gets a blinking caret. */
+  streaming?: boolean;
 }) {
   if (blocks.length === 0) {
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
+  // The caret should only render on the LAST text block, and only when
+  // that text block is the very last block in the message (i.e. nothing
+  // else is appended after it). If the last block is a tool, no caret —
+  // the tool's own loading row already conveys "in progress".
+  const lastTextIdx = (() => {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (blocks[i].kind === "text") return i;
+    }
+    return -1;
+  })();
+  const lastBlockIsText = blocks[blocks.length - 1]?.kind === "text";
+
   return (
     <div className="text-sm text-[var(--color-fg)]">
       {blocks.map((b, i) =>
         b.kind === "text" ? (
-          <MarkdownText key={`t-${i}`} text={b.text} />
+          <MarkdownText
+            key={`t-${i}`}
+            text={b.text}
+            streaming={streaming && lastBlockIsText && i === lastTextIdx}
+          />
         ) : (
           <ToolWidget
             key={b.id}
@@ -887,7 +909,16 @@ function AssistantMessageRow({
   );
 }
 
-function MarkdownText({ text }: { text: string }) {
+function MarkdownText({
+  text,
+  streaming = false,
+}: {
+  text: string;
+  /** When true, append a blinking caret at the end. Set only on the
+   *  trailing text block of the active assistant message — gives the
+   *  user the "still typing" cue without re-animating every token. */
+  streaming?: boolean;
+}) {
   const html = useMemo(() => {
     if (!text) return "";
     try {
@@ -900,6 +931,7 @@ function MarkdownText({ text }: { text: string }) {
   if (!text) return null;
 
   return (
+    <>
     <div
       className="leading-relaxed
         [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
@@ -919,6 +951,26 @@ function MarkdownText({ text }: { text: string }) {
         [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mt-3 [&_h3]:mb-1
         [&_hr]:my-4 [&_hr]:border-[var(--color-border)]"
       dangerouslySetInnerHTML={{ __html: html }}
+    />
+    {streaming && <StreamingCaret />}
+    </>
+  );
+}
+
+/**
+ * Tiny blinking bar that sits below the streamed text while a response
+ * is still in flight. Couldn't get a true inline-with-last-word cursor
+ * without re-parsing the markdown HTML, and the chat-app convention
+ * (cursor on its own line at the end) reads fine.
+ */
+function StreamingCaret() {
+  return (
+    <motion.span
+      aria-hidden
+      className="inline-block w-[2px] h-[1em] bg-[var(--color-fg)] align-text-bottom ml-0.5"
+      initial={{ opacity: 1 }}
+      animate={{ opacity: [1, 0.2, 1] }}
+      transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
     />
   );
 }

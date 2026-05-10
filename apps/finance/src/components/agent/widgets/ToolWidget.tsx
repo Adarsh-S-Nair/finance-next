@@ -1,6 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { FiChevronRight, FiCpu } from "react-icons/fi";
 import BudgetListWidget, { type BudgetListData } from "./BudgetListWidget";
 import TransactionListWidget, { type TransactionListData } from "./TransactionListWidget";
 import SpendingBreakdownWidget, { type SpendingBreakdownData } from "./SpendingBreakdownWidget";
@@ -225,15 +227,52 @@ function ShimmerDots() {
   );
 }
 
+/**
+ * Animated collapsible for tools that don't have a dedicated widget yet
+ * (or just for surfacing debug data the user can choose to peek at).
+ * Replaces the prior native `<details>` element so we control the
+ * expand/collapse motion and ditch the bare "Tool: <name>" prefix.
+ *
+ * Label uses TOOL_LABELS where we have one, falling back to the raw
+ * tool name so unknown tools still show *something* humanly.
+ */
 function UnknownToolFallback({ name, output }: { name: string; output: unknown }) {
+  const [open, setOpen] = useState(false);
+  const label = TOOL_LABELS[name] ?? name;
+
   return (
-    <details className="my-5 text-xs">
-      <summary className="text-[var(--color-muted)] cursor-pointer hover:text-[var(--color-fg)] transition-colors">
-        Tool: {name}
-      </summary>
-      <pre className="mt-2 px-3 py-2 rounded-md font-mono overflow-x-auto text-[11px] text-[var(--color-muted)] bg-[var(--color-surface-alt)]/40">
-        {JSON.stringify(output, null, 2)}
-      </pre>
-    </details>
+    <div className="my-5 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="group inline-flex items-center gap-2 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+      >
+        <FiCpu className="h-3.5 w-3.5" aria-hidden />
+        <span>{label}</span>
+        <motion.span
+          animate={{ rotate: open ? 90 : 0 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="inline-flex"
+        >
+          <FiChevronRight className="h-3 w-3" aria-hidden />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <pre className="mt-2 px-3 py-2 rounded-md font-mono overflow-x-auto text-[11px] text-[var(--color-muted)] bg-[var(--color-surface-alt)]/40">
+              {JSON.stringify(output, null, 2)}
+            </pre>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
