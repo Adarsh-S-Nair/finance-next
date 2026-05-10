@@ -870,21 +870,19 @@ function AssistantMessageRow({
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
-  const textBlocks: TextBlock[] = [];
-  const toolBlocks: ToolBlock[] = [];
-  for (const b of blocks) {
-    if (b.kind === "text") textBlocks.push(b);
-    else toolBlocks.push(b);
-  }
-
   return (
     <div className="text-sm text-[var(--color-fg)]">
-      {textBlocks.map((b, i) => (
-        <MarkdownText key={`t-${i}`} text={b.text} />
-      ))}
-      {toolBlocks.map((b) => (
-        <ToolWidget key={b.id} tool={b as ToolBlockData} onContinue={onContinue} />
-      ))}
+      {blocks.map((b, i) =>
+        b.kind === "text" ? (
+          <MarkdownText key={`t-${i}`} text={b.text} />
+        ) : (
+          <ToolWidget
+            key={b.id}
+            tool={b as ToolBlockData}
+            onContinue={onContinue}
+          />
+        ),
+      )}
     </div>
   );
 }
