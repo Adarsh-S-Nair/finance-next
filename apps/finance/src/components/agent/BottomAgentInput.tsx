@@ -150,14 +150,14 @@ export default function BottomAgentInput() {
 
   return (
     <>
-      {/* Soft frosted backdrop while the input is focused. Lives in
-          its own AnimatePresence so it can fade independently from
-          the input itself, and sits at z-[55] so the input's z-[60]
-          layer stays above it. The blur uses the same pattern as the
-          full overlay (content-bg tinted, backdrop blur) but lighter
-          — a "preview" of the chat state, not a takeover. */}
+      {/* Soft frosted backdrop while the input is focused. Desktop
+          only — on mobile the keyboard already telegraphs "input
+          mode" and the page underneath is naturally hidden, so the
+          extra blur layer is just visual noise (and potentially a
+          performance hit on mid-range phones). Mobile keeps the pill
+          + history clock on top of the unblurred page. */}
       <AnimatePresence>
-        {!isOpen && expanded && (
+        {!isOpen && expanded && !isMobile && (
           <motion.div
             key="bottom-agent-backdrop"
             className="fixed inset-0 z-[55]"
