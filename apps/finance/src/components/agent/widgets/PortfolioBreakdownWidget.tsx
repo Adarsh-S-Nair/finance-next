@@ -1,8 +1,10 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { formatCurrency } from "../../../lib/formatCurrency";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel, useAnimate } from "./primitives";
+import { useState } from "react";
+import { WidgetError, WidgetFrame } from "./primitives";
+import InteractiveDonut, {
+  type DonutSegment,
+} from "../../InteractiveDonut";
 
 type Segment = {
   label: string;
@@ -63,11 +65,25 @@ const BREAKDOWN_LABEL: Record<string, string> = {
   account: "By account",
 };
 
+const PCT_SUFFIX: Record<string, string> = {
+  asset_class: "of portfolio",
+  sector: "of portfolio",
+  account: "of portfolio",
+};
+
+// Donut shrunk down from the dashboard's 220px so the widget fits
+// comfortably next to the line chart in the agent's two-column layout
+// without dominating it.
+const DONUT_SIZE = 160;
+const DONUT_STROKE = 14;
+
 export default function PortfolioBreakdownWidget({
   data,
 }: {
   data: PortfolioBreakdownData;
 }) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   if (data.error) return <WidgetError message={data.error} />;
 
   const segments = data.segments ?? [];
@@ -81,88 +97,65 @@ export default function PortfolioBreakdownWidget({
 
   const breakdownBy = data.breakdown_by ?? "asset_class";
   const total = data.total ?? segments.reduce((s, x) => s + x.amount, 0);
-  const enriched = segments.map((s) => ({
-    ...s,
+
+  // Build donut segments. Use the label as the id since the upstream
+  // segments are already deduped by label.
+  const donutSegments: DonutSegment[] = segments.map((s) => ({
+    id: s.label,
+    label: s.label,
+    value: s.amount,
     color: colorFor(s.label, breakdownBy),
   }));
 
   return (
     <WidgetFrame>
-      <WidgetLabel
-        left={BREAKDOWN_LABEL[breakdownBy] ?? "Breakdown"}
-        right={formatCurrency(total, true)}
-      />
+      <div className="flex flex-col items-center gap-4">
+        <InteractiveDonut
+          segments={donutSegments}
+          total={total}
+          centerLabel={BREAKDOWN_LABEL[breakdownBy] ?? "Breakdown"}
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          size={DONUT_SIZE}
+          strokeWidth={DONUT_STROKE}
+          pctSuffix={PCT_SUFFIX[breakdownBy] ?? "of total"}
+        />
 
-      {/* Stacked bar — same pattern as SpendingBreakdownWidget. Each
-          segment animates its width in sequence. */}
-      <div className="w-full h-1.5 rounded-full overflow-hidden bg-[var(--color-surface-alt)]/60 flex mb-4">
-        {enriched.map((s, i) => (
-          <BarSegment
-            key={s.label}
-            color={s.color}
-            percent={s.percentage}
-            index={i}
-          />
-        ))}
-      </div>
-
-      <div className="space-y-2.5">
-        {enriched.map((s, i) => (
-          <MagicItem key={s.label} index={i}>
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: s.color }}
-                  aria-hidden
-                />
-                <span className="text-[var(--color-fg)] truncate">{s.label}</span>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-[var(--color-muted)] tabular-nums">
-                  {s.percentage.toFixed(1)}%
-                </span>
-                <span className="text-[var(--color-fg)] tabular-nums w-20 text-right">
-                  {formatCurrency(s.amount, true)}
+        {/* Tight legend below the donut. Hovering a row cross-highlights
+            the matching slice (and vice versa) — same pattern as the
+            spending donut's row list on the dashboard. */}
+        <div className="w-full space-y-1.5">
+          {donutSegments.map((s) => {
+            const pct = total > 0 ? (s.value / total) * 100 : 0;
+            const isHovered = hoveredId === s.id;
+            const dimmed = hoveredId && !isHovered;
+            return (
+              <div
+                key={s.id}
+                onMouseEnter={() => setHoveredId(s.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                className="flex items-center justify-between gap-3 text-xs"
+                style={{
+                  opacity: dimmed ? 0.5 : 1,
+                  transition: "opacity 0.15s ease",
+                }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: s.color }}
+                    aria-hidden
+                  />
+                  <span className="text-[var(--color-fg)] truncate">{s.label}</span>
+                </div>
+                <span className="text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                  {pct.toFixed(1)}%
                 </span>
               </div>
-            </div>
-          </MagicItem>
-        ))}
+            );
+          })}
+        </div>
       </div>
     </WidgetFrame>
-  );
-}
-
-function BarSegment({
-  color,
-  percent,
-  index,
-}: {
-  color: string;
-  percent: number;
-  index: number;
-}) {
-  const animate = useAnimate();
-  if (!animate) {
-    return (
-      <div
-        className="h-full"
-        style={{ width: `${percent}%`, backgroundColor: color }}
-      />
-    );
-  }
-  return (
-    <motion.div
-      className="h-full"
-      style={{ backgroundColor: color }}
-      initial={{ width: 0 }}
-      animate={{ width: `${percent}%` }}
-      transition={{
-        delay: 0.05 * index,
-        duration: 0.5,
-        ease: [0.16, 1, 0.3, 1],
-      }}
-    />
   );
 }
