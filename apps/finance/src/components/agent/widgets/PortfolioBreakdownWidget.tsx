@@ -71,10 +71,15 @@ const PCT_SUFFIX: Record<string, string> = {
   account: "of portfolio",
 };
 
-// Donut shrunk down from the dashboard's 220px so the widget sits
-// compactly in the narrow column of the chart-paired layout. Smaller
-// stroke too — at 130px the dashboard's 16px ring would feel chunky.
-const DONUT_SIZE = 130;
+// Donut size chosen so the center text (label + total + hovered pct)
+// has comfortable room from the inner ring. The shared component's
+// fixed px-6 (48px total horizontal padding) eats into the inner
+// diameter; at 180/12 the inner diameter is 156px, so text gets
+// ~108px to render in — fits "BY ASSET CLASS" and the dollar total
+// without truncation or crowding the ring. Smaller diameters
+// (we tried 130) cropped the label and squashed the value into the
+// stroke.
+const DONUT_SIZE = 180;
 const DONUT_STROKE = 12;
 
 export default function PortfolioBreakdownWidget({
