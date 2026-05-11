@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import PageContainer from "../../../../components/layout/PageContainer";
 import { authFetch } from "../../../../lib/api/fetch";
 
 type Grant = {
@@ -113,20 +111,19 @@ export default function SupportAccessPage() {
   });
 
   return (
-    <PageContainer title="Support access">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <p className="text-sm text-[var(--color-muted)]">
+    <div className="space-y-6">
+      <div className="mb-4">
+        <h1 className="text-base font-medium text-[var(--color-fg)]">Support access</h1>
+        <p className="text-sm text-[var(--color-muted)] mt-1">
           Admins can request temporary access to your account for support. Approve only
           if you trust the requester — they&apos;ll be able to see and act in your
-          account until the grant expires or you revoke it.{" "}
-          <Link href="/settings" className="underline hover:no-underline">
-            Back to settings
-          </Link>
+          account until the grant expires or you revoke it.
         </p>
+      </div>
 
-        {error && (
-          <div className="text-xs text-[var(--color-danger)]/80">{error}</div>
-        )}
+      {error && (
+        <div className="text-xs text-[var(--color-danger)]/80">{error}</div>
+      )}
 
         {grants === null ? (
           <div className="text-sm text-[var(--color-muted)]">Loading…</div>
@@ -220,9 +217,8 @@ export default function SupportAccessPage() {
                 </li>
               );
             })}
-          </ul>
-        )}
-      </div>
-    </PageContainer>
+        </ul>
+      )}
+    </div>
   );
 }

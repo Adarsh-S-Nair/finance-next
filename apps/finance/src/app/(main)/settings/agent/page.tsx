@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Button } from "@zervo/ui";
-import PageContainer from "../../../../components/layout/PageContainer";
 import { authFetch } from "../../../../lib/api/fetch";
-import { FiChevronLeft, FiX, FiBookmark } from "react-icons/fi";
+import { FiX, FiBookmark } from "react-icons/fi";
 
 type Profile = {
   ai_provider: "anthropic";
@@ -139,28 +137,19 @@ export default function AgentSettingsPage() {
   }
 
   return (
-    <PageContainer>
-      <div className="max-w-2xl mx-auto py-6 px-4">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors mb-4"
-        >
-          <FiChevronLeft className="h-3.5 w-3.5" />
-          Back to Settings
-        </Link>
+    <>
+      <div className="mb-6">
+        <h1 className="text-base font-medium text-[var(--color-fg)]">Agent</h1>
+        <p className="text-sm text-[var(--color-muted)] mt-1">
+          Tune how your personal finance agent behaves across conversations.
+        </p>
+      </div>
 
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-[var(--color-fg)]">Agent</h1>
-          <p className="text-sm text-[var(--color-muted)] mt-1">
-            Tune how your personal finance agent behaves across conversations.
-          </p>
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-md bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-sm text-[var(--color-danger)]">
+          {error}
         </div>
-
-        {error && (
-          <div className="mb-4 px-3 py-2 rounded-md bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 text-sm text-[var(--color-danger)]">
-            {error}
-          </div>
-        )}
+      )}
 
         {/* Custom instructions */}
         <section className="py-5 border-b border-[var(--color-border)]">
@@ -302,7 +291,6 @@ export default function AgentSettingsPage() {
             . Model selection will be configurable in a future update.
           </p>
         </section>
-      </div>
-    </PageContainer>
+    </>
   );
 }
