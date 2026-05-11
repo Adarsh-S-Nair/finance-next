@@ -911,6 +911,12 @@ function AssistantMessageRow({
   // model is actively typing prose, not waiting for a tool result.
   const lastBlockIsText = blocks[blocks.length - 1]?.kind === "text";
 
+  // Group adjacent tool blocks that should render side-by-side. Right
+  // now this is just (performance + breakdown) — the chart and the
+  // allocation breakdown read well next to each other instead of
+  // stacked. Returns groups in render order; singles or pairs.
+  const toolGroups = groupTools(toolBlocks);
+
   return (
     <div className="text-sm text-[var(--color-fg)]">
       {textBlocks.map((b, i) => (
@@ -920,15 +926,83 @@ function AssistantMessageRow({
           streaming={streaming && lastBlockIsText && i === textBlocks.length - 1}
         />
       ))}
-      {toolBlocks.map((b) => (
-        <ToolWidget
-          key={b.id}
-          tool={b as ToolBlockData}
-          onContinue={onContinue}
-        />
-      ))}
+      {toolGroups.map((g) =>
+        g.kind === "pair" ? (
+          <div
+            key={g.left.id}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-x-6"
+          >
+            <ToolWidget
+              tool={g.left as ToolBlockData}
+              onContinue={onContinue}
+            />
+            <ToolWidget
+              tool={g.right as ToolBlockData}
+              onContinue={onContinue}
+            />
+          </div>
+        ) : (
+          <ToolWidget
+            key={g.block.id}
+            tool={g.block as ToolBlockData}
+            onContinue={onContinue}
+          />
+        ),
+      )}
     </div>
   );
+}
+
+type ToolGroup =
+  | { kind: "single"; block: ToolBlock }
+  | { kind: "pair"; left: ToolBlock; right: ToolBlock };
+
+/**
+ * Pairs that should render side-by-side when both are present in the
+ * same assistant turn. First entry of each tuple anchors the pair's
+ * position in the render order (the second one slots in next to it).
+ */
+const SIDE_BY_SIDE_PAIRS: Array<readonly [string, string]> = [
+  ["get_investment_performance", "get_portfolio_breakdown"],
+];
+
+function groupTools(blocks: ToolBlock[]): ToolGroup[] {
+  // Find each pair-anchor block + its partner. Track which blocks are
+  // consumed by a pair so we don't render them twice.
+  const consumed = new Set<string>();
+  const partnerByAnchorId = new Map<string, ToolBlock>();
+  for (const [anchorName, partnerName] of SIDE_BY_SIDE_PAIRS) {
+    const anchor = blocks.find(
+      (b) => b.name === anchorName && !consumed.has(b.id),
+    );
+    const partner = blocks.find(
+      (b) => b.name === partnerName && !consumed.has(b.id),
+    );
+    // Only pair when BOTH have output ready. Otherwise let the singleton
+    // path render the loading row in its normal spot — pairing an
+    // unresolved tool with a resolved one would leave the pair half-
+    // empty and shift things around when the second result arrives.
+    if (anchor && partner && anchor.output && partner.output) {
+      consumed.add(anchor.id);
+      consumed.add(partner.id);
+      partnerByAnchorId.set(anchor.id, partner);
+    }
+  }
+
+  const groups: ToolGroup[] = [];
+  for (const b of blocks) {
+    const partner = partnerByAnchorId.get(b.id);
+    if (partner) {
+      groups.push({ kind: "pair", left: b, right: partner });
+    } else if (consumed.has(b.id)) {
+      // Skip — this block is the right-hand side of a pair we already
+      // emitted at the anchor's position.
+      continue;
+    } else {
+      groups.push({ kind: "single", block: b });
+    }
+  }
+  return groups;
 }
 
 function MarkdownText({
