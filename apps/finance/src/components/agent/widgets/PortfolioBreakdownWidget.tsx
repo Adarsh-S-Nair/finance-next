@@ -13,7 +13,7 @@ type Segment = {
 };
 
 export type PortfolioBreakdownData = {
-  breakdown_by?: "asset_class" | "sector" | "account";
+  breakdown_by?: "asset_class" | "sector" | "account" | "account_type";
   segments?: Segment[];
   total?: number;
   error?: string;
@@ -21,11 +21,14 @@ export type PortfolioBreakdownData = {
 
 // Asset-class palette mirrors apps/finance/src/app/(main)/investments/AllocationCard.jsx
 // so an "asset class" breakdown surfaced through the agent uses the same
-// colors the user sees on the /investments page.
+// colors the user sees on the /investments page. Also covers the
+// account-breakdown labels ("Investments", "Cash") so the donut renders
+// consistently when reused for net-worth-style breakdowns.
 const ASSET_CLASS_COLORS: Record<string, string> = {
   Stocks: "var(--color-neon-green)",
   Crypto: "var(--color-neon-purple)",
   Cash: "#059669",
+  Investments: "var(--color-neon-green)",
 };
 
 // Generic palette for sector/account breakdowns where labels are
@@ -52,10 +55,12 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
-function colorFor(label: string, breakdownBy: string | undefined): string {
-  if (breakdownBy === "asset_class" && ASSET_CLASS_COLORS[label]) {
-    return ASSET_CLASS_COLORS[label];
-  }
+function colorFor(label: string): string {
+  // Named labels (Stocks, Cash, Investments, etc.) get their dashboard
+  // colors regardless of the breakdown's `breakdown_by` flavor — same
+  // label = same color across surfaces. Arbitrary labels (sector names,
+  // account names) hash to a stable generic-palette slot.
+  if (ASSET_CLASS_COLORS[label]) return ASSET_CLASS_COLORS[label];
   return GENERIC_PALETTE[hashStr(label) % GENERIC_PALETTE.length];
 }
 
@@ -63,6 +68,7 @@ const BREAKDOWN_LABEL: Record<string, string> = {
   asset_class: "By asset class",
   sector: "By sector",
   account: "By account",
+  account_type: "By account type",
 };
 
 const PCT_SUFFIX: Record<string, string> = {
@@ -109,7 +115,7 @@ export default function PortfolioBreakdownWidget({
     id: s.label,
     label: s.label,
     value: s.amount,
-    color: colorFor(s.label, breakdownBy),
+    color: colorFor(s.label),
   }));
 
   // No static legend — the center swap on hover already labels each
