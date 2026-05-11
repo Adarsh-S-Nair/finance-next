@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { formatShares } from "../../../lib/formatShares";
 import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
@@ -7,6 +8,7 @@ import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
 type Holding = {
   ticker: string;
   name: string | null;
+  logo: string | null;
   shares: number;
   avg_cost: number;
   current_price: number;
@@ -110,7 +112,7 @@ function HoldingRow({ h }: { h: Holding }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1">
       <div className="flex items-center gap-3 min-w-0">
-        <TickerBadge ticker={h.ticker} assetType={h.asset_type} />
+        <TickerBadge ticker={h.ticker} assetType={h.asset_type} logo={h.logo} />
         <div className="min-w-0">
           <div className="text-sm text-[var(--color-fg)] truncate">
             {h.ticker}
@@ -133,9 +135,35 @@ function HoldingRow({ h }: { h: Holding }) {
   );
 }
 
-function TickerBadge({ ticker, assetType }: { ticker: string; assetType: string }) {
+function TickerBadge({
+  ticker,
+  assetType,
+  logo,
+}: {
+  ticker: string;
+  assetType: string;
+  logo: string | null;
+}) {
+  // Logo URLs come from the `tickers` table. They can be hosted URLs or
+  // data: URIs; either works as an <img src>. Track failure so a broken
+  // URL falls back to the text badge instead of showing a broken
+  // image glyph.
+  const [imageFailed, setImageFailed] = useState(false);
   const isCash = assetType.toLowerCase() === "cash";
   const display = isCash ? "$" : ticker.slice(0, 3).toUpperCase();
+
+  if (logo && !imageFailed) {
+    return (
+      <img
+        src={logo}
+        alt={ticker}
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+        className="w-8 h-8 rounded-full bg-[var(--color-surface-alt)] flex-shrink-0 object-cover"
+      />
+    );
+  }
+
   return (
     <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--color-surface-alt)] flex-shrink-0">
       <span className="text-[10px] font-semibold text-[var(--color-muted)]">

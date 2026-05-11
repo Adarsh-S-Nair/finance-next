@@ -3445,11 +3445,13 @@ interface RawTickerMeta {
   name: string | null;
   sector: string | null;
   asset_type: string;
+  logo: string | null;
 }
 
 interface EnrichedHolding {
   ticker: string;
   name: string | null;
+  logo: string | null;
   shares: number;
   avg_cost: number;
   current_price: number;
@@ -3546,7 +3548,7 @@ async function loadEnrichedHoldings(
   if (uniqueTickers.length > 0) {
     const { data: tickersRaw } = await supabaseAdmin
       .from('tickers')
-      .select('symbol, name, sector, asset_type')
+      .select('symbol, name, sector, asset_type, logo')
       .in('symbol', uniqueTickers);
     tickerMeta = new Map(
       (tickersRaw ?? []).map((t) => [t.symbol, t as RawTickerMeta]),
@@ -3578,6 +3580,7 @@ async function loadEnrichedHoldings(
     return {
       ticker: h.ticker,
       name: meta?.name ?? null,
+      logo: meta?.logo ?? null,
       shares: Math.round(shares * 10000) / 10000,
       avg_cost: Math.round(avgCost * 100) / 100,
       current_price: Math.round(currentPrice * 100) / 100,
@@ -3866,14 +3869,29 @@ async function getInvestmentPerformance(
   // If only some accounts have history, exclude the missing ones from
   // BOTH ends so the change figure stays directly comparable.
   let endValueComparable = 0;
+  const comparableAccountIds = new Set<string>();
   for (const a of accounts) {
     if (chosenStartByAccount.has(a.id)) {
       endValueComparable += Number(a.plaid_balance_current ?? 0);
+      comparableAccountIds.add(a.id);
     }
   }
 
   const change = endValueComparable - startValue;
   const changePct = startValue > 0 ? (change / startValue) * 100 : 0;
+
+  // Daily time-series for the widget's sparkline. Pull all snapshots in
+  // [startDate, now] for the comparable accounts and forward-fill per
+  // account, then sum across accounts per day. Capped at ~60 points so
+  // longer periods (ytd, last_year) don't bloat the payload — we sample
+  // every N days where N keeps total ≤ 60.
+  const series = await buildPortfolioSeries(
+    comparableAccountIds,
+    startDate,
+    now,
+    chosenStartByAccount,
+    accounts,
+  );
 
   return {
     period,
@@ -3888,5 +3906,107 @@ async function getInvestmentPerformance(
      *  couldn't compute a change for. Useful when the user asks "how
      *  much is in there?" alongside the performance question. */
     total_portfolio_current_value: Math.round(endValue * 100) / 100,
+    series,
   };
+}
+
+/**
+ * Build a daily time-series of summed portfolio value across the given
+ * comparable accounts. Forward-fills per-account so a day without a
+ * fresh snapshot carries the previous value. Down-samples to ≤ MAX_POINTS
+ * so long windows stay payload-friendly.
+ */
+async function buildPortfolioSeries(
+  accountIds: Set<string>,
+  startDate: Date,
+  endDate: Date,
+  chosenStartByAccount: Map<string, number>,
+  accounts: { id: string; plaid_balance_current: number | null }[],
+): Promise<Array<{ date: string; value: number }>> {
+  if (accountIds.size === 0) return [];
+
+  const MAX_POINTS = 60;
+  const ids = Array.from(accountIds);
+
+  const { data: snapsRaw } = await supabaseAdmin
+    .from('account_snapshots')
+    .select('account_id, recorded_at, current_balance')
+    .in('account_id', ids)
+    .gte('recorded_at', startDate.toISOString())
+    .lte('recorded_at', endDate.toISOString())
+    .order('recorded_at', { ascending: true });
+  const snaps = snapsRaw ?? [];
+
+  // Per-account running value, seeded with the chosen "start" snapshot
+  // (so the series starts at the same start_value the headline uses).
+  const runningPerAccount = new Map<string, number>();
+  for (const id of ids) {
+    runningPerAccount.set(id, chosenStartByAccount.get(id) ?? 0);
+  }
+
+  // Snapshots grouped by ISO date (YYYY-MM-DD). If multiple snapshots
+  // exist on the same day for an account, the latest one wins because
+  // we already sorted ascending — last write per (account, date) lands
+  // in the map last.
+  const snapsByDayByAccount = new Map<string, Map<string, number>>();
+  for (const s of snaps) {
+    const dateKey = toIsoDate(new Date(s.recorded_at));
+    let dayMap = snapsByDayByAccount.get(dateKey);
+    if (!dayMap) {
+      dayMap = new Map();
+      snapsByDayByAccount.set(dateKey, dayMap);
+    }
+    dayMap.set(s.account_id, Number(s.current_balance ?? 0));
+  }
+
+  // Walk every day from startDate → endDate, forward-fill the per-
+  // account running values from snapshots, and sum.
+  const series: Array<{ date: string; value: number }> = [];
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  while (cursor.getTime() <= end.getTime()) {
+    const dateKey = toIsoDate(cursor);
+    const dayMap = snapsByDayByAccount.get(dateKey);
+    if (dayMap) {
+      for (const [accId, bal] of dayMap) {
+        runningPerAccount.set(accId, bal);
+      }
+    }
+    let sum = 0;
+    for (const v of runningPerAccount.values()) sum += v;
+    series.push({ date: dateKey, value: Math.round(sum * 100) / 100 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // Pin the final point to today's authoritative balance so the
+  // sparkline ends exactly where the headline end_value says it does.
+  if (series.length > 0) {
+    let endSum = 0;
+    for (const a of accounts) {
+      if (accountIds.has(a.id)) {
+        endSum += Number(a.plaid_balance_current ?? 0);
+      }
+    }
+    series[series.length - 1] = {
+      date: series[series.length - 1].date,
+      value: Math.round(endSum * 100) / 100,
+    };
+  }
+
+  // Down-sample evenly. Always keep first and last so the chart starts
+  // and ends at the headline numbers.
+  if (series.length <= MAX_POINTS) return series;
+  const step = (series.length - 1) / (MAX_POINTS - 1);
+  const sampled: Array<{ date: string; value: number }> = [];
+  for (let i = 0; i < MAX_POINTS; i++) {
+    const idx = Math.min(series.length - 1, Math.round(i * step));
+    sampled.push(series[idx]);
+  }
+  return sampled;
+}
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
