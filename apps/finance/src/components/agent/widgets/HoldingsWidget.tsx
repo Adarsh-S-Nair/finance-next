@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { formatShares } from "../../../lib/formatShares";
-import { MagicItem, WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
+import { WidgetError, WidgetFrame } from "./primitives";
+import { PagedList } from "./PagedList";
 
 type Holding = {
   ticker: string;
@@ -38,8 +39,6 @@ export type HoldingsData = {
   error?: string;
 };
 
-const MAX_DISPLAY = 8;
-
 export default function HoldingsWidget({ data }: { data: HoldingsData }) {
   if (data.error) return <WidgetError message={data.error} />;
 
@@ -55,47 +54,40 @@ export default function HoldingsWidget({ data }: { data: HoldingsData }) {
   }
 
   const totals = data.totals;
-  const top = holdings.slice(0, MAX_DISPLAY);
-  const remaining = holdings.length - top.length;
 
+  // Headline: total market value on the left, aggregate unrealized
+  // gain on the right. The gain reads as a label/context for the
+  // total — no need for a separate "N holdings" line above it; the
+  // paginator footer already says "1–5 of 7".
   return (
     <WidgetFrame>
       {totals ? (
-        <WidgetLabel
-          left={`${holdings.length} holding${holdings.length === 1 ? "" : "s"}`}
-          right={
-            <GainPill
-              amount={totals.unrealized_gain}
-              pct={totals.unrealized_gain_pct}
-            />
-          }
-        />
-      ) : null}
-
-      {totals ? (
-        <div className="mb-5">
-          <div className="text-2xl text-[var(--color-fg)] tabular-nums">
-            {formatCurrency(totals.market_value, true)}
+        <div className="mb-5 flex items-end justify-between gap-3">
+          <div>
+            <div className="text-2xl text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(totals.market_value, true)}
+            </div>
+            <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+              cost basis {formatCurrency(totals.cost_basis, true)}
+            </div>
           </div>
-          <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-            cost basis {formatCurrency(totals.cost_basis, true)}
-          </div>
+          <GainPill
+            amount={totals.unrealized_gain}
+            pct={totals.unrealized_gain_pct}
+          />
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        {top.map((h, i) => (
-          <MagicItem key={`${h.account_id}:${h.ticker}`} index={i}>
-            <HoldingRow h={h} />
-          </MagicItem>
-        ))}
-      </div>
-
-      {remaining > 0 && (
-        <div className="mt-3 text-[11px] text-[var(--color-muted)]">
-          + {remaining} more {remaining === 1 ? "holding" : "holdings"}
-        </div>
-      )}
+      <PagedList
+        items={holdings}
+        getKey={(h) => `${h.account_id}:${h.ticker}`}
+        renderItem={(h) => <HoldingRow h={h} />}
+        empty={
+          <div className="text-xs text-[var(--color-muted)]">
+            No holdings to show.
+          </div>
+        }
+      />
     </WidgetFrame>
   );
 }
