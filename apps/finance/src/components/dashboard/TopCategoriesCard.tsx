@@ -1,25 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { arc as d3arc } from "d3-shape";
+import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
 import { SegmentedTabs } from "@zervo/ui";
+import InteractiveDonut from "../InteractiveDonut";
 
 const MAX_ROWS = 5;
 const DONUT_SIZE = 220;
-const DONUT_STROKE = 16;
-// Slice corner radius. Small value because the user wanted "slight"
-// rounding — anything larger reads as a pill end. The previous
-// strokeLinecap="round" approach forced cap radius = strokeWidth/2 = 8px,
-// which was too aggressive.
-const SLICE_CORNER_RADIUS = 2;
-// Gap between slices, in pixels along the donut's mid-radius arc. Used
-// to derive padAngle for d3.arc, which inserts a uniform angular gap
-// between adjacent segments.
-const SEGMENT_GAP_PX = 4;
 // Anything under this threshold rolls into Other so every visible slice
 // has enough arc to read as a real segment (not a sliver).
 const MIN_SEGMENT_PCT = 3;
@@ -33,6 +23,7 @@ type CategoryData = {
   hex_color?: string | null;
 };
 
+// Segment shape matches `DonutSegment` from the shared component.
 type Segment = {
   id: string;
   label: string;
@@ -40,14 +31,6 @@ type Segment = {
   color: string;
   isOther?: boolean;
   otherIds?: string[];
-};
-
-type RenderedSegment = Segment & {
-  /** SVG path string for this slice (annular sector with rounded corners). */
-  path: string;
-  /** Same slice rendered with the hover-expanded outer radius. */
-  hoverPath: string;
-  pct: number;
 };
 
 type ExternalData = {
@@ -102,183 +85,6 @@ function Skeleton() {
         className="rounded-full bg-[var(--color-border)]"
         style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
       />
-    </div>
-  );
-}
-
-type DonutProps = {
-  segments: Segment[];
-  total: number;
-  rangeLabel: string;
-  hoveredId: string | null;
-  onHover: (id: string | null) => void;
-  onClick?: (seg: Segment) => void;
-};
-
-// Segmented donut with a small arc gap between slices. Rendered as filled
-// `<path>`s via d3.arc rather than stroked circles with dasharray — that
-// gives us per-slice cornerRadius (slightly rounded ends, not pill caps)
-// and a true angular gap that doesn't bleed across slices.
-function InteractiveDonut({ segments, total, rangeLabel, hoveredId, onHover, onClick }: DonutProps) {
-  const outerRadius = DONUT_SIZE / 2;
-  const innerRadius = outerRadius - DONUT_STROKE;
-  // Hovered slices grow outward by 2px on each side (4px total visual
-  // bump) — same emphasis as the prior strokeWidth +4.
-  const hoverOuterRadius = outerRadius + 2;
-  const hoverInnerRadius = innerRadius - 2;
-  // padAngle wants radians; convert from the user-facing pixel gap by
-  // dividing by the mid-radius (length of arc at that radius / radius
-  // = angle in radians). Skip the gap when there's only one segment so
-  // a single full-circle ring doesn't get a visible notch.
-  const midRadius = (outerRadius + innerRadius) / 2;
-  const padAngle = segments.length > 1 ? SEGMENT_GAP_PX / midRadius : 0;
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  // Track the most recent pointer type so we can distinguish a real mouse
-  // click from a touch tap. On touch, a single tap should reveal the
-  // segment's info (like a desktop hover); a second tap on the same
-  // segment then navigates.
-  const lastPointerTypeRef = useRef<string>("mouse");
-  // Defer clearing hover by a frame so moving between adjacent slices
-  // doesn't cause a flicker — the incoming slice's mouseenter cancels
-  // the pending clear.
-  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const cancelClear = () => {
-    if (clearTimerRef.current) {
-      clearTimeout(clearTimerRef.current);
-      clearTimerRef.current = null;
-    }
-  };
-  const scheduleClear = () => {
-    if (clearTimerRef.current) return;
-    clearTimerRef.current = setTimeout(() => {
-      clearTimerRef.current = null;
-      onHover(null);
-    }, 30);
-  };
-
-  useEffect(() => () => cancelClear(), []);
-
-  // Dismiss the touch-revealed tooltip when the user taps outside the donut.
-  useEffect(() => {
-    if (!hoveredId) return;
-    const handleOutside = (e: PointerEvent) => {
-      if (e.pointerType !== "touch") return;
-      const target = e.target as Node | null;
-      if (!target || !containerRef.current?.contains(target)) {
-        onHover(null);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutside);
-    return () => document.removeEventListener("pointerdown", handleOutside);
-  }, [hoveredId, onHover]);
-
-  const arcGen = d3arc<{ startAngle: number; endAngle: number }>()
-    .innerRadius(innerRadius)
-    .outerRadius(outerRadius)
-    .cornerRadius(SLICE_CORNER_RADIUS)
-    .padAngle(padAngle);
-  const arcGenHover = d3arc<{ startAngle: number; endAngle: number }>()
-    .innerRadius(hoverInnerRadius)
-    .outerRadius(hoverOuterRadius)
-    .cornerRadius(SLICE_CORNER_RADIUS)
-    .padAngle(padAngle);
-
-  const rendered: RenderedSegment[] = [];
-  segments.reduce((cumulative, seg) => {
-    const pct = total > 0 ? seg.value / total : 0;
-    const angle = pct * 2 * Math.PI;
-    const startAngle = cumulative;
-    const endAngle = cumulative + angle;
-    rendered.push({
-      ...seg,
-      path: arcGen({ startAngle, endAngle }) ?? "",
-      hoverPath: arcGenHover({ startAngle, endAngle }) ?? "",
-      pct,
-    });
-    return endAngle;
-  }, 0);
-
-  const hovered = hoveredId
-    ? rendered.find((r) => r.id === hoveredId) ?? null
-    : null;
-
-  const centerAmount = hovered ? hovered.value : total;
-  const centerLabel = hovered ? hovered.label : rangeLabel;
-  const centerPct = hovered ? Math.round(hovered.pct * 100) : null;
-
-  const handleSegmentClick = (seg: RenderedSegment) => {
-    const isTouch = lastPointerTypeRef.current === "touch";
-    // On touch, first tap only reveals info. A subsequent tap on the
-    // already-revealed segment navigates.
-    if (isTouch && hoveredId !== seg.id) {
-      onHover(seg.id);
-      return;
-    }
-    onClick?.(seg);
-  };
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{ width: DONUT_SIZE, height: DONUT_SIZE }}
-    >
-      <svg
-        width={DONUT_SIZE}
-        height={DONUT_SIZE}
-        style={{ overflow: "visible" }}
-      >
-        {/* d3.arc generates paths centered on (0, 0) starting at the
-            12 o'clock position, growing clockwise — so we translate to
-            the donut center and the angles map naturally. No -rotate-90
-            needed. */}
-        <g transform={`translate(${DONUT_SIZE / 2}, ${DONUT_SIZE / 2})`}>
-          {rendered.map((seg) => {
-            const isHovered = hoveredId === seg.id;
-            const dimmed = hoveredId && !isHovered;
-            return (
-              <path
-                key={seg.id}
-                d={isHovered ? seg.hoverPath : seg.path}
-                fill={seg.color}
-                style={{
-                  opacity: dimmed ? 0.4 : 1,
-                  cursor: "pointer",
-                  transition: "opacity 0.15s ease, d 0.15s ease",
-                }}
-                onPointerDown={(e) => {
-                  lastPointerTypeRef.current = e.pointerType || "mouse";
-                }}
-                onMouseEnter={() => {
-                  if (lastPointerTypeRef.current === "touch") return;
-                  cancelClear();
-                  onHover(seg.id);
-                }}
-                onMouseLeave={() => {
-                  if (lastPointerTypeRef.current === "touch") return;
-                  scheduleClear();
-                }}
-                onClick={() => handleSegmentClick(seg)}
-              />
-            );
-          })}
-        </g>
-      </svg>
-
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center">
-        <div className="text-[10px] font-medium text-[var(--color-muted)] uppercase tracking-wider truncate max-w-full">
-          {centerLabel}
-        </div>
-        <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums leading-tight mt-1">
-          <CurrencyAmount amount={centerAmount} />
-        </div>
-        {centerPct !== null && (
-          <div className="text-[11px] tabular-nums text-[var(--color-muted)] mt-0.5">
-            {centerPct}% of spending
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -432,10 +238,11 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
           <InteractiveDonut
             segments={segments}
             total={totalSpending}
-            rangeLabel={range.label}
+            centerLabel={range.label}
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onClick={onSegmentClick}
+            pctSuffix="of spending"
           />
         </div>
       )}
