@@ -53,31 +53,11 @@ export default function HoldingsWidget({ data }: { data: HoldingsData }) {
     );
   }
 
-  const totals = data.totals;
-
-  // Headline: total market value on the left, aggregate unrealized
-  // gain on the right. The gain reads as a label/context for the
-  // total — no need for a separate "N holdings" line above it; the
-  // paginator footer already says "1–5 of 7".
+  // No portfolio-level headline here — total value + period delta live
+  // on the performance widget, which sits directly above this one. This
+  // widget is just the list.
   return (
     <WidgetFrame>
-      {totals ? (
-        <div className="mb-5 flex items-end justify-between gap-3">
-          <div>
-            <div className="text-2xl text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(totals.market_value, true)}
-            </div>
-            <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-              cost basis {formatCurrency(totals.cost_basis, true)}
-            </div>
-          </div>
-          <GainPill
-            amount={totals.unrealized_gain}
-            pct={totals.unrealized_gain_pct}
-          />
-        </div>
-      ) : null}
-
       <PagedList
         items={holdings}
         getKey={(h) => `${h.account_id}:${h.ticker}`}
@@ -162,21 +142,6 @@ function TickerBadge({
         {display}
       </span>
     </div>
-  );
-}
-
-function GainPill({ amount, pct }: { amount: number; pct: number }) {
-  const positive = amount >= 0;
-  const color = positive
-    ? "text-[var(--color-success)]"
-    : "text-[var(--color-danger)]";
-  const sign = positive ? "+" : "";
-  return (
-    <span className={`tabular-nums ${color}`}>
-      {sign}
-      {formatCurrency(amount, true)} ({sign}
-      {pct.toFixed(1)}%)
-    </span>
   );
 }
 
