@@ -864,6 +864,8 @@ const TOOL_DISPLAY_ORDER: Record<string, number> = {
   get_investment_performance: 10,
   get_investment_holdings: 20,
   get_portfolio_breakdown: 30,
+  get_net_worth_performance: 10,
+  get_account_breakdown: 30,
 };
 
 function toolOrder(name: string): number {
@@ -971,6 +973,7 @@ type ToolGroup =
  */
 const SIDE_BY_SIDE_PAIRS: Array<readonly [string, string]> = [
   ["get_investment_performance", "get_portfolio_breakdown"],
+  ["get_net_worth_performance", "get_account_breakdown"],
 ];
 
 function groupTools(blocks: ToolBlock[]): ToolGroup[] {

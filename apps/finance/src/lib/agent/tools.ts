@@ -811,6 +811,50 @@ export const TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'get_net_worth_performance',
+    description:
+      "Change in total net worth (assets minus liabilities) over a fixed period. " +
+      "Same shape as get_investment_performance — start_value, end_value, change, " +
+      "change_pct, daily series — but across ALL accounts: cash, investments, credit " +
+      "cards, loans, mortgages. Investment account balances use live ticker prices " +
+      "(same as get_investment_holdings). Liabilities subtract from net worth.\n\n" +
+      "Use when the user asks about overall financial trend: \"how's my net worth doing\", " +
+      "\"am I building wealth\", \"how much have I grown my net worth this year\".\n\n" +
+      "Same caveats as get_investment_performance — accounts_with_full_history vs " +
+      "accounts_missing_history surface incomplete coverage; don't quote a precise figure " +
+      "if a third or more of accounts are missing snapshots for the period.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['last_30_days', 'last_90_days', 'ytd', 'last_year'],
+          description:
+            'Time window. ytd = January 1 of the current year to today. Defaults to ' +
+            'last_30_days.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_account_breakdown',
+    description:
+      "Aggregate breakdown of the user's ASSETS by category — cash (checking/savings/" +
+      "depository) vs investment. Returns segments with absolute dollar amount and " +
+      "percentage of total assets, ordered largest first. Liabilities are excluded; if " +
+      "the user wants a liability-vs-asset view, use get_account_balances which has " +
+      "both totals.\n\n" +
+      "Use for 'what does my net worth look like', 'where is my money', 'how is my " +
+      "money allocated', 'show me an accounts summary'. Pairs with " +
+      "get_net_worth_performance to give the user a chart + composition view of their " +
+      "overall position.\n\n" +
+      "Investment balances use live ticker prices.",
+    input_schema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -829,6 +873,8 @@ type ToolName =
   | 'get_investment_holdings'
   | 'get_portfolio_breakdown'
   | 'get_investment_performance'
+  | 'get_net_worth_performance'
+  | 'get_account_breakdown'
   | 'propose_recategorization'
   | 'propose_category_rule'
   | 'propose_budget_create'
@@ -958,6 +1004,12 @@ interface GetInvestmentPerformanceInput {
   period?: 'last_30_days' | 'last_90_days' | 'ytd' | 'last_year';
 }
 
+interface GetNetWorthPerformanceInput {
+  period?: 'last_30_days' | 'last_90_days' | 'ytd' | 'last_year';
+}
+
+type GetAccountBreakdownInput = Record<string, never>;
+
 export async function executeTool(
   name: string,
   input: unknown,
@@ -1021,6 +1073,13 @@ export async function executeTool(
           userId,
           (input as GetInvestmentPerformanceInput) ?? {},
         );
+      case 'get_net_worth_performance':
+        return await getNetWorthPerformance(
+          userId,
+          (input as GetNetWorthPerformanceInput) ?? {},
+        );
+      case 'get_account_breakdown':
+        return await getAccountBreakdown(userId);
       case 'propose_budget_create':
         return await proposeBudgetCreate(
           userId,
@@ -4037,3 +4096,411 @@ async function buildPortfolioSeries(
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Net worth tools
+//
+// Parallel to the investment trio but spanning every connected account:
+// cash, savings, checking, investment, credit cards, loans, mortgages.
+// Liabilities subtract from net worth. Investment account balances use
+// live ticker prices (same source as get_investment_holdings) so a
+// fresh Yahoo move shows up here without waiting on the next Plaid sync.
+// ──────────────────────────────────────────────────────────────────────────
+
+interface RawAnyAccount {
+  id: string;
+  name: string;
+  type: string | null;
+  subtype: string | null;
+  plaid_balance_current: number | null;
+}
+
+type AccountCategory = 'cash' | 'investment' | 'credit' | 'loan' | 'other';
+
+function categorizeAccount(a: { type: string | null; subtype: string | null }): AccountCategory {
+  const t = `${a.type ?? ''} ${a.subtype ?? ''}`.toLowerCase();
+  if (/credit/.test(t)) return 'credit';
+  if (/loan|mortgage|line of credit/.test(t)) return 'loan';
+  if (/investment|brokerage|401k|ira|retirement/.test(t)) return 'investment';
+  if (/checking|savings|cash|depository/.test(t)) return 'cash';
+  return 'other';
+}
+
+function isLiabilityCategory(c: AccountCategory): boolean {
+  return c === 'credit' || c === 'loan';
+}
+
+interface EnrichedAccount {
+  id: string;
+  name: string;
+  category: AccountCategory;
+  isLiability: boolean;
+  /** Positive absolute live value. For investments this is the live
+   *  market value (or plaid_balance_current if it's higher — covers
+   *  uncategorized cash sitting in a brokerage). For everything else,
+   *  it's just plaid_balance_current. */
+  liveValue: number;
+  /** Signed live value for net-worth math: positive for assets,
+   *  negative for liabilities. */
+  signedLiveValue: number;
+}
+
+/**
+ * Pull every account for the user, enrich with category + live value.
+ * Investments get live ticker prices via loadEnrichedHoldings; cash
+ * and liabilities fall back to plaid_balance_current. Shared between
+ * getNetWorthPerformance and getAccountBreakdown so both tools agree
+ * on per-account totals.
+ */
+async function loadAllAccountsLive(userId: string): Promise<{
+  accounts: EnrichedAccount[];
+  totalAssets: number;
+  totalLiabilities: number;
+  netWorth: number;
+}> {
+  const { data: accountsRaw } = await supabaseAdmin
+    .from('accounts')
+    .select('id, name, type, subtype, plaid_balance_current')
+    .eq('user_id', userId);
+  const allAccounts = (accountsRaw ?? []) as RawAnyAccount[];
+
+  // Live-priced holdings totals per investment account.
+  const enriched = await loadEnrichedHoldings(userId);
+  const holdingsByAccount = new Map<string, number>();
+  for (const h of enriched.holdings) {
+    holdingsByAccount.set(
+      h.account_id,
+      (holdingsByAccount.get(h.account_id) ?? 0) + h.market_value,
+    );
+  }
+
+  const accounts: EnrichedAccount[] = allAccounts.map((a) => {
+    const category = categorizeAccount(a);
+    const isLiability = isLiabilityCategory(category);
+    const plaidBal = Number(a.plaid_balance_current ?? 0);
+    let liveValue: number;
+    if (category === 'investment') {
+      const fromHoldings = holdingsByAccount.get(a.id) ?? 0;
+      liveValue = Math.max(fromHoldings, plaidBal);
+    } else {
+      liveValue = plaidBal;
+    }
+    const signedLiveValue = isLiability ? -liveValue : liveValue;
+    return {
+      id: a.id,
+      name: a.name,
+      category,
+      isLiability,
+      liveValue,
+      signedLiveValue,
+    };
+  });
+
+  let totalAssets = 0;
+  let totalLiabilities = 0;
+  for (const a of accounts) {
+    if (a.isLiability) totalLiabilities += a.liveValue;
+    else totalAssets += a.liveValue;
+  }
+
+  return {
+    accounts,
+    totalAssets: Math.round(totalAssets * 100) / 100,
+    totalLiabilities: Math.round(totalLiabilities * 100) / 100,
+    netWorth: Math.round((totalAssets - totalLiabilities) * 100) / 100,
+  };
+}
+
+async function getNetWorthPerformance(
+  userId: string,
+  input: GetNetWorthPerformanceInput,
+) {
+  const period = input.period ?? 'last_30_days';
+  const now = new Date();
+  let startDate: Date;
+  let periodLabel: string;
+  switch (period) {
+    case 'last_90_days':
+      startDate = subDays(now, 90);
+      periodLabel = 'last 90 days';
+      break;
+    case 'ytd':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      periodLabel = `${now.getFullYear()} year-to-date`;
+      break;
+    case 'last_year':
+      startDate = subDays(now, 365);
+      periodLabel = 'last 365 days';
+      break;
+    case 'last_30_days':
+    default:
+      startDate = subDays(now, 30);
+      periodLabel = 'last 30 days';
+      break;
+  }
+
+  const { accounts, netWorth } = await loadAllAccountsLive(userId);
+
+  if (accounts.length === 0) {
+    return {
+      error: 'No accounts connected. The user can link one from the Accounts page.',
+    };
+  }
+
+  const accountIds = accounts.map((a) => a.id);
+  const liabilityIds = new Set(
+    accounts.filter((a) => a.isLiability).map((a) => a.id),
+  );
+
+  // Signed live value per account (negative for liabilities).
+  const liveSignedByAccount = new Map<string, number>();
+  for (const a of accounts) {
+    liveSignedByAccount.set(a.id, a.signedLiveValue);
+  }
+
+  // Pull snapshots in a window around the start date. Same approach as
+  // getInvestmentPerformance.
+  const windowStart = subDays(startDate, 7);
+  const windowEnd = subDays(startDate, -7);
+
+  const { data: snapshotsRaw } = await supabaseAdmin
+    .from('account_snapshots')
+    .select('account_id, recorded_at, current_balance')
+    .in('account_id', accountIds)
+    .gte('recorded_at', windowStart.toISOString())
+    .lte('recorded_at', windowEnd.toISOString())
+    .order('recorded_at', { ascending: true });
+  const snapshots = snapshotsRaw ?? [];
+
+  // For each account, find the snapshot closest to startDate.
+  const startDateMs = startDate.getTime();
+  const closestMsByAccount = new Map<string, number>();
+  for (const snap of snapshots) {
+    const recordedMs = new Date(snap.recorded_at).getTime();
+    const existing = closestMsByAccount.get(snap.account_id);
+    if (
+      existing === undefined ||
+      Math.abs(recordedMs - startDateMs) < Math.abs(existing - startDateMs)
+    ) {
+      closestMsByAccount.set(snap.account_id, recordedMs);
+    }
+  }
+
+  // Apply the sign to each chosen start snapshot so the start_value
+  // already nets liabilities.
+  const chosenStartByAccount = new Map<string, number>();
+  for (const snap of snapshots) {
+    const chosenMs = closestMsByAccount.get(snap.account_id);
+    if (chosenMs === undefined) continue;
+    if (new Date(snap.recorded_at).getTime() === chosenMs) {
+      const raw = Number(snap.current_balance ?? 0);
+      const signed = liabilityIds.has(snap.account_id) ? -raw : raw;
+      chosenStartByAccount.set(snap.account_id, signed);
+    }
+  }
+
+  let startValue = 0;
+  const accountsWithHistory: string[] = [];
+  const accountsMissingHistory: string[] = [];
+  for (const a of accounts) {
+    const startSigned = chosenStartByAccount.get(a.id);
+    if (startSigned !== undefined) {
+      startValue += startSigned;
+      accountsWithHistory.push(a.name);
+    } else {
+      accountsMissingHistory.push(a.name);
+    }
+  }
+
+  if (accountsWithHistory.length === 0) {
+    return {
+      period,
+      period_label: periodLabel,
+      error: `No account snapshots exist for ${periodLabel}. Likely too soon after first sync, or before history started being recorded.`,
+      accounts_missing_history: accountsMissingHistory,
+      end_value: Math.round(netWorth * 100) / 100,
+    };
+  }
+
+  // Comparable end value: only sum live values for accounts that also
+  // contributed to start_value. Keeps the change figure apples-to-apples.
+  let endValueComparable = 0;
+  const comparableAccountIds = new Set<string>();
+  for (const a of accounts) {
+    if (chosenStartByAccount.has(a.id)) {
+      endValueComparable += a.signedLiveValue;
+      comparableAccountIds.add(a.id);
+    }
+  }
+
+  const change = endValueComparable - startValue;
+  const changePct =
+    startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+
+  // Build series. buildPortfolioSeries works on whatever map we hand
+  // it for the seed and live-pin values — pass the signed maps so the
+  // series tracks NET WORTH over time, not gross assets.
+  // We need a signed-balance variant for the daily snapshot lookups
+  // too — buildPortfolioSeries reads from account_snapshots itself and
+  // sums by account, so the per-day numbers will be unsigned. Wrap it
+  // with a signed version below.
+  const series = await buildSignedAccountSeries(
+    comparableAccountIds,
+    liabilityIds,
+    startDate,
+    now,
+    chosenStartByAccount,
+    liveSignedByAccount,
+  );
+
+  return {
+    period,
+    period_label: periodLabel,
+    start_value: Math.round(startValue * 100) / 100,
+    end_value: Math.round(endValueComparable * 100) / 100,
+    change: Math.round(change * 100) / 100,
+    change_pct: Math.round(changePct * 100) / 100,
+    accounts_with_full_history: accountsWithHistory,
+    accounts_missing_history: accountsMissingHistory,
+    total_portfolio_current_value: Math.round(netWorth * 100) / 100,
+    series,
+  };
+}
+
+/**
+ * Like buildPortfolioSeries but knows about liability sign-flipping
+ * so it can sum net worth correctly day-by-day. account_snapshots
+ * stores absolute current_balance regardless of account type — we
+ * negate at sum time using the liabilityIds set.
+ */
+async function buildSignedAccountSeries(
+  accountIds: Set<string>,
+  liabilityIds: Set<string>,
+  startDate: Date,
+  endDate: Date,
+  chosenStartByAccount: Map<string, number>,
+  liveSignedByAccount: Map<string, number>,
+): Promise<Array<{ date: string; value: number }>> {
+  if (accountIds.size === 0) return [];
+  const MAX_POINTS = 60;
+  const ids = Array.from(accountIds);
+
+  const { data: snapsRaw } = await supabaseAdmin
+    .from('account_snapshots')
+    .select('account_id, recorded_at, current_balance')
+    .in('account_id', ids)
+    .gte('recorded_at', startDate.toISOString())
+    .lte('recorded_at', endDate.toISOString())
+    .order('recorded_at', { ascending: true });
+  const snaps = snapsRaw ?? [];
+
+  // Running SIGNED value per account, seeded from the chosen-start map
+  // (which is already signed).
+  const runningPerAccount = new Map<string, number>();
+  for (const id of ids) {
+    runningPerAccount.set(id, chosenStartByAccount.get(id) ?? 0);
+  }
+
+  // Day-keyed snapshots, last-write-wins per (account, day). Sign
+  // applied here so the rest of the loop is just sums.
+  const snapsByDayByAccount = new Map<string, Map<string, number>>();
+  for (const s of snaps) {
+    const dateKey = toIsoDate(new Date(s.recorded_at));
+    const raw = Number(s.current_balance ?? 0);
+    const signed = liabilityIds.has(s.account_id) ? -raw : raw;
+    let dayMap = snapsByDayByAccount.get(dateKey);
+    if (!dayMap) {
+      dayMap = new Map();
+      snapsByDayByAccount.set(dateKey, dayMap);
+    }
+    dayMap.set(s.account_id, signed);
+  }
+
+  const series: Array<{ date: string; value: number }> = [];
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  while (cursor.getTime() <= end.getTime()) {
+    const dateKey = toIsoDate(cursor);
+    const dayMap = snapsByDayByAccount.get(dateKey);
+    if (dayMap) {
+      for (const [accId, signed] of dayMap) {
+        runningPerAccount.set(accId, signed);
+      }
+    }
+    let sum = 0;
+    for (const v of runningPerAccount.values()) sum += v;
+    series.push({ date: dateKey, value: Math.round(sum * 100) / 100 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // Pin the final point to today's live signed total.
+  if (series.length > 0) {
+    let endSum = 0;
+    for (const id of accountIds) {
+      endSum += liveSignedByAccount.get(id) ?? 0;
+    }
+    series[series.length - 1] = {
+      date: series[series.length - 1].date,
+      value: Math.round(endSum * 100) / 100,
+    };
+  }
+
+  // Down-sample.
+  if (series.length <= MAX_POINTS) return series;
+  const step = (series.length - 1) / (MAX_POINTS - 1);
+  const sampled: Array<{ date: string; value: number }> = [];
+  for (let i = 0; i < MAX_POINTS; i++) {
+    const idx = Math.min(series.length - 1, Math.round(i * step));
+    sampled.push(series[idx]);
+  }
+  return sampled;
+}
+
+async function getAccountBreakdown(userId: string) {
+  const { accounts, totalAssets } = await loadAllAccountsLive(userId);
+
+  if (accounts.length === 0) {
+    return {
+      error: 'No accounts connected. The user can link one from the Accounts page.',
+    };
+  }
+
+  // Assets-only breakdown, by category. Liabilities are excluded — if
+  // the user wants debt details, get_account_balances has both totals.
+  const buckets = new Map<string, number>();
+  for (const a of accounts) {
+    if (a.isLiability) continue;
+    const label = CATEGORY_LABEL[a.category] ?? 'Other';
+    buckets.set(label, (buckets.get(label) ?? 0) + a.liveValue);
+  }
+
+  const total = Array.from(buckets.values()).reduce((s, v) => s + v, 0);
+  const segments = Array.from(buckets.entries())
+    .filter(([, amount]) => amount > 0.01)
+    .map(([label, amount]) => ({
+      label,
+      amount: Math.round(amount * 100) / 100,
+      percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    // 'account_type' tags the breakdown so the widget's BREAKDOWN_LABEL
+    // shows "By account type" in the donut center instead of the more
+    // investments-specific "By asset class". Cash/Investments labels
+    // still hit the named palette, so colors match the dashboard.
+    breakdown_by: 'account_type' as const,
+    segments,
+    total: totalAssets,
+  };
+}
+
+const CATEGORY_LABEL: Record<AccountCategory, string> = {
+  cash: 'Cash',
+  investment: 'Investments',
+  credit: 'Credit',
+  loan: 'Loans',
+  other: 'Other',
+};

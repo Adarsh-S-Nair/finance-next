@@ -39,6 +39,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_investment_holdings: "Loading your holdings",
   get_portfolio_breakdown: "Building allocation breakdown",
   get_investment_performance: "Computing portfolio performance",
+  get_net_worth_performance: "Computing net worth trend",
+  get_account_breakdown: "Building account breakdown",
   propose_recategorization: "Preparing suggestion",
   propose_category_rule: "Preparing rule",
   propose_budget_create: "Preparing budget proposal",
@@ -141,7 +143,16 @@ export default function ToolWidget({
         <PortfolioBreakdownWidget data={tool.output as PortfolioBreakdownData} />
       );
     case "get_investment_performance":
+    case "get_net_worth_performance":
+      // Same widget shape — start/end values, change, series. Tool
+      // distinguishes scope; widget renders the chart either way.
       return <PerformanceWidget data={tool.output as PerformanceData} />;
+    case "get_account_breakdown":
+      return (
+        <PortfolioBreakdownWidget
+          data={tool.output as PortfolioBreakdownData}
+        />
+      );
     case "propose_recategorization":
       // tool.id is Anthropic's tool_use_id — globally unique per
       // proposal. The widget uses it to persist accept/decline state
