@@ -344,14 +344,21 @@ function AgentChatInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, initialMessage]);
 
-  // Auto-scroll on new content. The overlay is the scroll context here.
+  // Auto-scroll the chat to the bottom on new content.
+  //
+  // We intentionally only touch the in-overlay scroll container. The
+  // previous fallback `window.scrollTo(0, scrollHeight)` was a legacy
+  // holdover from when AgentChat could mount as a standalone page —
+  // it fired on every render where the welcome screen was showing
+  // (no `#agent-overlay-scroll` in the DOM yet), scrolling the page
+  // underneath to its bottom right before AgentOverlayProvider's
+  // body-scroll lock kicked in. The lock then froze the body at the
+  // bottom and the user landed there when the overlay closed.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const el = document.getElementById("agent-overlay-scroll");
     if (el) {
       el.scrollTop = el.scrollHeight;
-    } else {
-      window.scrollTo(0, document.documentElement.scrollHeight);
     }
   }, [messages, sending]);
 
