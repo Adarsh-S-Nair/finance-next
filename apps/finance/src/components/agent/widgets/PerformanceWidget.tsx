@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { formatCurrency } from "../../../lib/formatCurrency";
 import { WidgetError, WidgetFrame, WidgetLabel, useAnimate } from "./primitives";
 
+type SeriesPoint = { date: string; value: number };
+
 export type PerformanceData = {
   period?: "last_30_days" | "last_90_days" | "ytd" | "last_year";
   period_label?: string;
@@ -14,6 +16,7 @@ export type PerformanceData = {
   accounts_with_full_history?: string[];
   accounts_missing_history?: string[];
   total_portfolio_current_value?: number;
+  series?: SeriesPoint[];
   error?: string;
 };
 
@@ -47,7 +50,7 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
   const color = positive
     ? "text-[var(--color-success)]"
     : "text-[var(--color-danger)]";
-  const barColor = positive
+  const lineColor = positive
     ? "var(--color-success)"
     : "var(--color-danger)";
 
@@ -57,6 +60,8 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
     missing.length > 0 && withHistory.length > 0
       ? `Excludes ${missing.length} account${missing.length === 1 ? "" : "s"} with no history for this period.`
       : null;
+
+  const series = data.series ?? [];
 
   return (
     <WidgetFrame>
@@ -76,10 +81,7 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
         {formatCurrency(change, true)}
       </div>
 
-      {/* Start → end values, plus an animated bar that visually
-          represents the magnitude of the change relative to the start
-          value. Cap the visual range at ±50% so a wild outlier doesn't
-          stretch the bar to absurd lengths. */}
+      {/* Start → end values for context next to the headline. */}
       <div className="mt-3 flex items-baseline gap-4 text-[11px] text-[var(--color-muted)]">
         <span>
           start{" "}
@@ -95,11 +97,9 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
         </span>
       </div>
 
-      <ChangeBar
-        pct={changePct}
-        color={barColor}
-        positive={positive}
-      />
+      {series.length >= 2 ? (
+        <Sparkline series={series} color={lineColor} />
+      ) : null}
 
       {partialNote && (
         <div className="mt-3 text-[11px] text-[var(--color-muted)]">
@@ -110,53 +110,91 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
   );
 }
 
-function ChangeBar({
-  pct,
+const SPARKLINE_HEIGHT = 56;
+const SPARKLINE_PAD_Y = 4;
+
+/**
+ * Inline SVG sparkline. Uses a viewBox keyed to (series.length-1, 1) so
+ * Y maps to height regardless of the parent width — the path scales to
+ * fit. A subtle area fill behind the stroke makes the line read at a
+ * glance even on light backgrounds.
+ *
+ * Animates the stroke-dashoffset on first paint so the line draws in
+ * left-to-right, then unsets stroke-dasharray so it's not a fixed
+ * length on re-renders.
+ */
+function Sparkline({
+  series,
   color,
-  positive,
 }: {
-  pct: number;
+  series: SeriesPoint[];
   color: string;
-  positive: boolean;
 }) {
   const animate = useAnimate();
-  // Cap visual at 50% so a 200% pump doesn't blow the bar off-screen.
-  // The number above already conveys magnitude; the bar is just a
-  // direction + relative-strength glance.
-  const visual = Math.min(50, Math.abs(pct));
-  const widthPct = (visual / 50) * 50; // up to half the bar
-  const barStyle: React.CSSProperties = {
-    width: `${widthPct}%`,
-    backgroundColor: color,
-  };
+  const values = series.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const drawableH = SPARKLINE_HEIGHT - SPARKLINE_PAD_Y * 2;
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 100;
+    const y =
+      SPARKLINE_PAD_Y + drawableH - ((v - min) / range) * drawableH;
+    return { x, y };
+  });
+
+  const linePath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+    .join(" ");
+  const areaPath =
+    `${linePath} L100,${SPARKLINE_HEIGHT} L0,${SPARKLINE_HEIGHT} Z`;
+
+  // Unique gradient id so multiple Sparklines on the same page don't
+  // collide. Includes color so positive/negative don't share an id.
+  const gradId = `agent-spark-${color.replace(/[^a-z0-9]/gi, "")}-${series.length}`;
 
   return (
-    <div className="mt-3 relative h-1 rounded-full bg-[var(--color-surface-alt)]/60 overflow-visible">
-      {/* Center tick — anchor for "no change". */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-3 bg-[var(--color-border)]" />
-      {/* Filled segment, anchored to center, growing left or right. */}
-      {animate ? (
-        <motion.div
-          className="absolute top-0 h-full rounded-full"
-          style={{
-            ...barStyle,
-            left: positive ? "50%" : undefined,
-            right: positive ? undefined : "50%",
-          }}
-          initial={{ width: 0 }}
-          animate={{ width: `${widthPct}%` }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        />
-      ) : (
-        <div
-          className="absolute top-0 h-full rounded-full"
-          style={{
-            ...barStyle,
-            left: positive ? "50%" : undefined,
-            right: positive ? undefined : "50%",
-          }}
-        />
-      )}
+    <div className="mt-3" style={{ height: SPARKLINE_HEIGHT }}>
+      <svg
+        viewBox={`0 0 100 ${SPARKLINE_HEIGHT}`}
+        preserveAspectRatio="none"
+        width="100%"
+        height={SPARKLINE_HEIGHT}
+        className="overflow-visible"
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
+        {animate ? (
+          <motion.path
+            d={linePath}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            initial={{ pathLength: 0, opacity: 0.4 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          />
+        ) : (
+          <path
+            d={linePath}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
     </div>
   );
 }

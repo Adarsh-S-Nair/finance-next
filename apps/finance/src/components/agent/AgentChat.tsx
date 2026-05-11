@@ -876,35 +876,39 @@ function AssistantMessageRow({
     return <div className="text-sm text-[var(--color-fg)]"> </div>;
   }
 
-  // The caret should only render on the LAST text block, and only when
-  // that text block is the very last block in the message (i.e. nothing
-  // else is appended after it). If the last block is a tool, no caret —
-  // the tool's own loading row already conveys "in progress".
-  const lastTextIdx = (() => {
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      if (blocks[i].kind === "text") return i;
-    }
-    return -1;
-  })();
+  // Split text from tools so we can render the prose response first and
+  // the data widgets after. The model emits tools-then-text in its raw
+  // turn (it has to call tools before it can summarize them), but the
+  // user-facing read is "answer first, supporting data below" — so we
+  // reorder here. Order within each kind is preserved.
+  const textBlocks: TextBlock[] = [];
+  const toolBlocks: ToolBlock[] = [];
+  for (const b of blocks) {
+    if (b.kind === "text") textBlocks.push(b);
+    else toolBlocks.push(b);
+  }
+
+  // Caret only on the very last text block, and only when the LAST
+  // block in the message (in source order) is also text — i.e. the
+  // model is actively typing prose, not waiting for a tool result.
   const lastBlockIsText = blocks[blocks.length - 1]?.kind === "text";
 
   return (
     <div className="text-sm text-[var(--color-fg)]">
-      {blocks.map((b, i) =>
-        b.kind === "text" ? (
-          <MarkdownText
-            key={`t-${i}`}
-            text={b.text}
-            streaming={streaming && lastBlockIsText && i === lastTextIdx}
-          />
-        ) : (
-          <ToolWidget
-            key={b.id}
-            tool={b as ToolBlockData}
-            onContinue={onContinue}
-          />
-        ),
-      )}
+      {textBlocks.map((b, i) => (
+        <MarkdownText
+          key={`t-${i}`}
+          text={b.text}
+          streaming={streaming && lastBlockIsText && i === textBlocks.length - 1}
+        />
+      ))}
+      {toolBlocks.map((b) => (
+        <ToolWidget
+          key={b.id}
+          tool={b as ToolBlockData}
+          onContinue={onContinue}
+        />
+      ))}
     </div>
   );
 }
