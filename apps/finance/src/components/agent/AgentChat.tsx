@@ -928,9 +928,12 @@ function AssistantMessageRow({
       ))}
       {toolGroups.map((g) =>
         g.kind === "pair" ? (
+          // Chart gets more horizontal real estate than the donut sitting
+          // beside it. The donut's compact at 130px and reads fine in a
+          // narrower column; the chart benefits from the extra width.
           <div
             key={g.left.id}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-x-6"
+            className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-x-6 items-center"
           >
             <ToolWidget
               tool={g.left as ToolBlockData}

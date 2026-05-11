@@ -3790,8 +3790,31 @@ async function getInvestmentPerformance(
   }
 
   const accountIds = accounts.map((a) => a.id);
+
+  // Build per-account live "now" value: sum of (shares × live price)
+  // across the account's holdings, falling back to plaid_balance_current
+  // when the holdings sum is short of it (covers brokerages that hold
+  // cash without exposing it as a holding row). Same convention the
+  // /investments page and the holdings widget use, so the headline
+  // here matches what the user sees there — not the staler
+  // plaid_balance_current alone.
+  const enriched = await loadEnrichedHoldings(userId);
+  const holdingsByAccount = new Map<string, number>();
+  for (const h of enriched.holdings) {
+    holdingsByAccount.set(
+      h.account_id,
+      (holdingsByAccount.get(h.account_id) ?? 0) + h.market_value,
+    );
+  }
+  const liveValueByAccount = new Map<string, number>();
+  for (const a of accounts) {
+    const fromHoldings = holdingsByAccount.get(a.id) ?? 0;
+    const fromPlaid = Number(a.plaid_balance_current ?? 0);
+    liveValueByAccount.set(a.id, Math.max(fromHoldings, fromPlaid));
+  }
+
   const endValue = accounts.reduce(
-    (s, a) => s + Number(a.plaid_balance_current ?? 0),
+    (s, a) => s + (liveValueByAccount.get(a.id) ?? 0),
     0,
   );
 
@@ -3855,7 +3878,9 @@ async function getInvestmentPerformance(
   }
 
   // If every account is missing start data, performance is undefined.
-  // Surface the gap rather than returning a misleading zero.
+  // Surface the gap rather than returning a misleading zero. end_value
+  // here is the live total across ALL accounts, since none have a
+  // comparable start.
   if (accountsWithHistory.length === 0) {
     return {
       period,
@@ -3867,12 +3892,14 @@ async function getInvestmentPerformance(
   }
 
   // If only some accounts have history, exclude the missing ones from
-  // BOTH ends so the change figure stays directly comparable.
+  // BOTH ends so the change figure stays directly comparable. End value
+  // uses the live per-account total (matches /investments + holdings
+  // widget) instead of the staler plaid_balance_current.
   let endValueComparable = 0;
   const comparableAccountIds = new Set<string>();
   for (const a of accounts) {
     if (chosenStartByAccount.has(a.id)) {
-      endValueComparable += Number(a.plaid_balance_current ?? 0);
+      endValueComparable += liveValueByAccount.get(a.id) ?? 0;
       comparableAccountIds.add(a.id);
     }
   }
@@ -3884,13 +3911,15 @@ async function getInvestmentPerformance(
   // [startDate, now] for the comparable accounts and forward-fill per
   // account, then sum across accounts per day. Capped at ~60 points so
   // longer periods (ytd, last_year) don't bloat the payload — we sample
-  // every N days where N keeps total ≤ 60.
+  // every N days where N keeps total ≤ 60. Final point is pinned to the
+  // live total (not plaid_balance_current) so the chart's right edge
+  // matches the headline.
   const series = await buildPortfolioSeries(
     comparableAccountIds,
     startDate,
     now,
     chosenStartByAccount,
-    accounts,
+    liveValueByAccount,
   );
 
   return {
@@ -3921,7 +3950,7 @@ async function buildPortfolioSeries(
   startDate: Date,
   endDate: Date,
   chosenStartByAccount: Map<string, number>,
-  accounts: { id: string; plaid_balance_current: number | null }[],
+  liveValueByAccount: Map<string, number>,
 ): Promise<Array<{ date: string; value: number }>> {
   if (accountIds.size === 0) return [];
 
@@ -3980,14 +4009,12 @@ async function buildPortfolioSeries(
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Pin the final point to today's authoritative balance so the
-  // sparkline ends exactly where the headline end_value says it does.
+  // Pin the final point to today's live total so the sparkline ends
+  // exactly where the headline end_value says it does.
   if (series.length > 0) {
     let endSum = 0;
-    for (const a of accounts) {
-      if (accountIds.has(a.id)) {
-        endSum += Number(a.plaid_balance_current ?? 0);
-      }
+    for (const id of accountIds) {
+      endSum += liveValueByAccount.get(id) ?? 0;
     }
     series[series.length - 1] = {
       date: series[series.length - 1].date,
