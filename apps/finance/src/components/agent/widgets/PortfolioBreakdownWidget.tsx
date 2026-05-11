@@ -71,11 +71,11 @@ const PCT_SUFFIX: Record<string, string> = {
   account: "of portfolio",
 };
 
-// Donut shrunk down from the dashboard's 220px so the widget fits
-// comfortably next to the line chart in the agent's two-column layout
-// without dominating it.
-const DONUT_SIZE = 160;
-const DONUT_STROKE = 14;
+// Donut shrunk down from the dashboard's 220px so the widget sits
+// compactly in the narrow column of the chart-paired layout. Smaller
+// stroke too — at 130px the dashboard's 16px ring would feel chunky.
+const DONUT_SIZE = 130;
+const DONUT_STROKE = 12;
 
 export default function PortfolioBreakdownWidget({
   data,
@@ -107,9 +107,12 @@ export default function PortfolioBreakdownWidget({
     color: colorFor(s.label, breakdownBy),
   }));
 
+  // No static legend — the center swap on hover already labels each
+  // slice. Saves vertical space and matches the dashboard's spending
+  // donut, which also leans on hover for per-slice detail.
   return (
     <WidgetFrame>
-      <div className="flex flex-col items-center gap-4">
+      <div className="flex items-center justify-center">
         <InteractiveDonut
           segments={donutSegments}
           total={total}
@@ -120,41 +123,6 @@ export default function PortfolioBreakdownWidget({
           strokeWidth={DONUT_STROKE}
           pctSuffix={PCT_SUFFIX[breakdownBy] ?? "of total"}
         />
-
-        {/* Tight legend below the donut. Hovering a row cross-highlights
-            the matching slice (and vice versa) — same pattern as the
-            spending donut's row list on the dashboard. */}
-        <div className="w-full space-y-1.5">
-          {donutSegments.map((s) => {
-            const pct = total > 0 ? (s.value / total) * 100 : 0;
-            const isHovered = hoveredId === s.id;
-            const dimmed = hoveredId && !isHovered;
-            return (
-              <div
-                key={s.id}
-                onMouseEnter={() => setHoveredId(s.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                className="flex items-center justify-between gap-3 text-xs"
-                style={{
-                  opacity: dimmed ? 0.5 : 1,
-                  transition: "opacity 0.15s ease",
-                }}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: s.color }}
-                    aria-hidden
-                  />
-                  <span className="text-[var(--color-fg)] truncate">{s.label}</span>
-                </div>
-                <span className="text-[var(--color-muted)] tabular-nums flex-shrink-0">
-                  {pct.toFixed(1)}%
-                </span>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </WidgetFrame>
   );
