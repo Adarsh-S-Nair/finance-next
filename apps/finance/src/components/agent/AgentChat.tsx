@@ -928,21 +928,25 @@ function AssistantMessageRow({
       ))}
       {toolGroups.map((g) =>
         g.kind === "pair" ? (
-          // Chart gets more horizontal real estate than the donut sitting
-          // beside it. The donut's compact at 130px and reads fine in a
-          // narrower column; the chart benefits from the extra width.
-          <div
-            key={g.left.id}
-            className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-x-6 items-center"
-          >
-            <ToolWidget
-              tool={g.left as ToolBlockData}
-              onContinue={onContinue}
-            />
-            <ToolWidget
-              tool={g.right as ToolBlockData}
-              onContinue={onContinue}
-            />
+          // Container query, not viewport query. The chat is in a
+          // max-w-2xl column that's the same width whether the browser
+          // window is 1100px or 1500px wide — using `lg:` (a viewport
+          // breakpoint) wrapped the pair to one column whenever the
+          // window dipped below 1024, even though the column had plenty
+          // of room. @container + @xl flips on the side-by-side layout
+          // based on the chat column's own width instead. Chart gets
+          // 2fr, donut 1fr.
+          <div key={g.left.id} className="@container">
+            <div className="grid grid-cols-1 @xl:grid-cols-[2fr_1fr] gap-x-6 items-center">
+              <ToolWidget
+                tool={g.left as ToolBlockData}
+                onContinue={onContinue}
+              />
+              <ToolWidget
+                tool={g.right as ToolBlockData}
+                onContinue={onContinue}
+              />
+            </div>
           </div>
         ) : (
           <ToolWidget
