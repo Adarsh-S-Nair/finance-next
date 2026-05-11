@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useId, useMemo } from "react";
+import { LineChart } from "@zervo/ui";
 import { formatCurrency } from "../../../lib/formatCurrency";
-import { WidgetError, WidgetFrame, WidgetLabel, useAnimate } from "./primitives";
+import { WidgetError, WidgetFrame, WidgetLabel } from "./primitives";
 
 type SeriesPoint = { date: string; value: number };
 
@@ -21,6 +22,40 @@ export type PerformanceData = {
 };
 
 export default function PerformanceWidget({ data }: { data: PerformanceData }) {
+  // Hooks run unconditionally before any early returns so the rules-of-
+  // hooks pass with the error branches below.
+  const chartData = useMemo(() => {
+    // Same shape InvestmentsChart hands to LineChart: dateString + value.
+    // Recharts won't render a single point as a line, so when only one
+    // historical point exists we synthesize a flat baseline 30 days back
+    // — matches the InvestmentsChart fallback.
+    const rawSeries = data.series ?? [];
+    const points = rawSeries.map((p) => ({
+      dateString: p.date,
+      date: new Date(p.date),
+      value: p.value,
+    }));
+    if (points.length === 1) {
+      const earlier = new Date(points[0].date);
+      earlier.setDate(earlier.getDate() - 30);
+      return [
+        {
+          dateString: earlier.toISOString().slice(0, 10),
+          date: earlier,
+          value: points[0].value,
+        },
+        points[0],
+      ];
+    }
+    return points;
+  }, [data.series]);
+
+  // useId keeps the recharts gradient defs unique even if multiple
+  // PerformanceWidgets render on the same page (different conversation
+  // turns, history). Without this they'd collide and one widget would
+  // render with another's gradient color.
+  const gradientId = useId().replace(/:/g, "");
+
   if (data.error) {
     // Special-case: when start data is missing entirely the tool returns
     // an error string AND end_value. Show the end value alongside the
@@ -61,8 +96,6 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
       ? `Excludes ${missing.length} account${missing.length === 1 ? "" : "s"} with no history for this period.`
       : null;
 
-  const series = data.series ?? [];
-
   return (
     <WidgetFrame>
       <WidgetLabel
@@ -97,8 +130,31 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
         </span>
       </div>
 
-      {series.length >= 2 ? (
-        <Sparkline series={series} color={lineColor} />
+      {chartData.length >= 2 ? (
+        <div className="mt-4">
+          {/* Same LineChart the /investments page uses (and the net
+              worth chart on /accounts). Same gradient, same monotone
+              interpolation, same animation duration — keeps the agent
+              widget visually consistent with the rest of the app. */}
+          <LineChart
+            data={chartData}
+            dataKey="value"
+            width="100%"
+            height={140}
+            margin={{ top: 8, right: 0, bottom: 8, left: 0 }}
+            strokeColor={lineColor}
+            strokeWidth={2}
+            showArea={true}
+            areaOpacity={0.15}
+            showDots={false}
+            showTooltip={false}
+            gradientId={`agentPerformanceGradient-${gradientId}`}
+            curveType="monotone"
+            animationDuration={800}
+            xAxisDataKey="dateString"
+            yAxisDomain={["dataMin", "dataMax"]}
+          />
+        </div>
       ) : null}
 
       {partialNote && (
@@ -107,94 +163,5 @@ export default function PerformanceWidget({ data }: { data: PerformanceData }) {
         </div>
       )}
     </WidgetFrame>
-  );
-}
-
-const SPARKLINE_HEIGHT = 56;
-const SPARKLINE_PAD_Y = 4;
-
-/**
- * Inline SVG sparkline. Uses a viewBox keyed to (series.length-1, 1) so
- * Y maps to height regardless of the parent width — the path scales to
- * fit. A subtle area fill behind the stroke makes the line read at a
- * glance even on light backgrounds.
- *
- * Animates the stroke-dashoffset on first paint so the line draws in
- * left-to-right, then unsets stroke-dasharray so it's not a fixed
- * length on re-renders.
- */
-function Sparkline({
-  series,
-  color,
-}: {
-  series: SeriesPoint[];
-  color: string;
-}) {
-  const animate = useAnimate();
-  const values = series.map((p) => p.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const drawableH = SPARKLINE_HEIGHT - SPARKLINE_PAD_Y * 2;
-
-  const points = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * 100;
-    const y =
-      SPARKLINE_PAD_Y + drawableH - ((v - min) / range) * drawableH;
-    return { x, y };
-  });
-
-  const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-    .join(" ");
-  const areaPath =
-    `${linePath} L100,${SPARKLINE_HEIGHT} L0,${SPARKLINE_HEIGHT} Z`;
-
-  // Unique gradient id so multiple Sparklines on the same page don't
-  // collide. Includes color so positive/negative don't share an id.
-  const gradId = `agent-spark-${color.replace(/[^a-z0-9]/gi, "")}-${series.length}`;
-
-  return (
-    <div className="mt-3" style={{ height: SPARKLINE_HEIGHT }}>
-      <svg
-        viewBox={`0 0 100 ${SPARKLINE_HEIGHT}`}
-        preserveAspectRatio="none"
-        width="100%"
-        height={SPARKLINE_HEIGHT}
-        className="overflow-visible"
-      >
-        <defs>
-          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
-        {animate ? (
-          <motion.path
-            d={linePath}
-            fill="none"
-            stroke={color}
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            initial={{ pathLength: 0, opacity: 0.4 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-          />
-        ) : (
-          <path
-            d={linePath}
-            fill="none"
-            stroke={color}
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-      </svg>
-    </div>
   );
 }

@@ -860,6 +860,16 @@ function MessageTimestamp({
   );
 }
 
+const TOOL_DISPLAY_ORDER: Record<string, number> = {
+  get_investment_performance: 10,
+  get_investment_holdings: 20,
+  get_portfolio_breakdown: 30,
+};
+
+function toolOrder(name: string): number {
+  return TOOL_DISPLAY_ORDER[name] ?? 100;
+}
+
 function AssistantMessageRow({
   blocks,
   onContinue,
@@ -887,6 +897,14 @@ function AssistantMessageRow({
     if (b.kind === "text") textBlocks.push(b);
     else toolBlocks.push(b);
   }
+
+  // Light per-tool priority so a few correlated widgets land in a
+  // sensible reading order regardless of the order the model called
+  // them in. Lower = higher up. Tools without an entry keep their
+  // original source order (stable sort), so this only nudges the
+  // handful where we have a strong preference. Investment trio reads
+  // best as performance → holdings → breakdown.
+  toolBlocks.sort((a, b) => toolOrder(a.name) - toolOrder(b.name));
 
   // Caret only on the very last text block, and only when the LAST
   // block in the message (in source order) is also text — i.e. the
