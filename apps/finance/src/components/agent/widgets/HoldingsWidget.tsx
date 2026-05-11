@@ -82,7 +82,7 @@ function HoldingRow({ h }: { h: Holding }) {
   const subtitle = subtitleParts.join(" · ");
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1">
+    <div className="flex items-center justify-between gap-3 py-3.5">
       <div className="flex items-center gap-3 min-w-0">
         <TickerBadge ticker={h.ticker} assetType={h.asset_type} logo={h.logo} />
         <div className="min-w-0">
