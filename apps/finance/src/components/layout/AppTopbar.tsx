@@ -19,9 +19,7 @@ export default function AppTopbar() {
       className="sticky top-[var(--impersonation-banner-h,0px)] z-40 min-h-16 bg-[var(--color-content-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_oklab,var(--color-content-bg),transparent_6%)] flex flex-col"
     >
       <div
-        className={`mx-auto ${
-          pathname === "/dashboard" ? "max-w-[1600px]" : "max-w-[1440px]"
-        } px-4 md:px-6 lg:px-10 h-16 w-full flex items-center gap-3 shrink-0 relative`}
+        className="mx-auto max-w-[1600px] px-4 md:px-6 lg:px-10 h-16 w-full flex items-center gap-3 shrink-0 relative"
       >
 
         {/* Mobile: hamburger menu — fixed-position trigger that morphs into
