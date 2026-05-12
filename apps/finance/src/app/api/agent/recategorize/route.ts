@@ -46,10 +46,11 @@ export const POST = withAuth(
     }
 
     // Auth check: every transaction must belong to one of the caller's
-    // accounts. Doing this in a single query rather than N round trips.
+    // accounts. We also pull `amount` here so we can validate the
+    // category direction below without a second round trip.
     const { data: ownedTxs, error: txError } = await supabaseAdmin
       .from('transactions')
-      .select('id, accounts!inner(user_id)')
+      .select('id, amount, accounts!inner(user_id)')
       .in('id', ids)
       .eq('accounts.user_id', userId);
 
@@ -66,7 +67,7 @@ export const POST = withAuth(
 
     const { data: cat, error: catError } = await supabaseAdmin
       .from('system_categories')
-      .select('id, label')
+      .select('id, label, direction')
       .eq('id', categoryId)
       .maybeSingle();
 
@@ -76,6 +77,30 @@ export const POST = withAuth(
     }
     if (!cat) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+    }
+
+    // Direction guard: positive-amount txs can only use income/both
+    // categories; negative-amount txs can only use expense/both. The DB
+    // trigger enforces this too, but we check up-front so the caller
+    // (and the agent UI) gets a clean 400 with a useful message instead
+    // of a raw check_violation rolling back the whole bulk update.
+    if (cat.direction === 'income' || cat.direction === 'expense') {
+      const mismatched = ownedTxs.filter((t) => {
+        const amt = Number(t.amount);
+        if (!Number.isFinite(amt) || amt === 0) return false;
+        return cat.direction === 'income' ? amt < 0 : amt > 0;
+      });
+      if (mismatched.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              cat.direction === 'income'
+                ? `Cannot assign income category "${cat.label}" to ${mismatched.length} negative-amount transaction(s)`
+                : `Cannot assign expense category "${cat.label}" to ${mismatched.length} positive-amount transaction(s)`,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // Bulk update — same field set as a single update would use, just

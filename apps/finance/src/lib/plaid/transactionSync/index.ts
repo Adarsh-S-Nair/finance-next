@@ -35,6 +35,7 @@ import {
   extractPrimaryCategoryNames,
   getDefaultIconForGroup,
   linkRowsToCategories,
+  resolveDirectionMismatches,
 } from './categories';
 import {
   computeProjectedBalance,
@@ -135,9 +136,10 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     }
 
     // --- Link rows to system category ids (pure) ---
+    let systemCategoriesCache: SystemCategoryRow[] | null = null;
     if (rows.length > 0) {
-      const systemCategories = await fetchAllSystemCategories();
-      const linked = linkRowsToCategories(rows, systemCategories);
+      systemCategoriesCache = await fetchAllSystemCategories();
+      const linked = linkRowsToCategories(rows, systemCategoriesCache);
       logger.info('Linked transactions to system categories', { linked, total: rows.length });
 
       // --- Apply user rules (rules may override the system-category link) ---
@@ -168,6 +170,18 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
         logger.info('Preserved user-chosen categories across sync', {
           preserved: preservedCount,
         });
+      }
+    }
+
+    // --- Resolve direction mismatches before upsert ---
+    // Final safety net so the `transactions_validate_category_direction`
+    // trigger never rejects a sync write. Refunds (positive amount Plaid
+    // still tagged with an expense PFC) get routed to the Refund
+    // category; rare income reversals fall through to Other.
+    if (rows.length > 0 && systemCategoriesCache) {
+      const rerouted = resolveDirectionMismatches(rows, systemCategoriesCache);
+      if (rerouted > 0) {
+        logger.info('Re-routed direction-mismatched rows', { rerouted });
       }
     }
 
@@ -523,7 +537,7 @@ async function backfillPlaidCategoryKeys(
 async function fetchAllSystemCategories(): Promise<SystemCategoryRow[]> {
   const { data, error } = await supabaseAdmin
     .from('system_categories')
-    .select('id, label, plaid_category_key');
+    .select('id, label, plaid_category_key, direction');
   if (error) throw new Error(`Failed to fetch system categories: ${error.message}`);
   return (data ?? []) as SystemCategoryRow[];
 }

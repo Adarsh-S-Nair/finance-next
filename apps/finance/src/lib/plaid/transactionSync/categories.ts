@@ -153,6 +153,58 @@ export function linkRowsToCategories(
   return linked;
 }
 
+/**
+ * Final-pass safety net for the `transactions_validate_category_direction`
+ * trigger: ensures no row leaves this module with a category whose
+ * `direction` conflicts with the transaction's amount sign.
+ *
+ * Two cases are handled:
+ *   - positive amount in an expense-direction category → "Refund" (the
+ *     common case — Plaid still tags refunds with the original PFC, e.g.
+ *     a Taco Bell refund stays in FOOD_AND_DRINK_FAST_FOOD)
+ *   - negative amount in an income-direction category → the generic
+ *     `both`-direction "Other" bucket (rare — clawbacks, payroll
+ *     reversals — we don't have a dedicated reversal category yet)
+ *
+ * Rows whose category direction is already 'both' or null pass through
+ * untouched. Rows we can't find a safe target for (e.g. neither Refund
+ * nor Other exists) have their `category_id` cleared so the upsert
+ * succeeds and the row is left uncategorized.
+ *
+ * Returns the count of rows that were re-routed (for logging).
+ */
+export function resolveDirectionMismatches(
+  rows: TransactionUpsertRow[],
+  systemCategories: SystemCategoryRow[]
+): number {
+  const directionById = new Map<string, 'income' | 'expense' | 'both'>();
+  let refundId: string | null = null;
+  let otherId: string | null = null;
+  for (const c of systemCategories) {
+    if (c.direction === 'income' || c.direction === 'expense' || c.direction === 'both') {
+      directionById.set(c.id, c.direction);
+    }
+    if (c.label === 'Refund' && c.direction === 'income') refundId = c.id;
+    if (c.label === 'Other' && c.direction === 'both') otherId = c.id;
+  }
+
+  let rerouted = 0;
+  for (const row of rows) {
+    if (!row.category_id || row.amount === 0) continue;
+    const dir = directionById.get(row.category_id);
+    if (!dir || dir === 'both') continue;
+
+    if (row.amount > 0 && dir === 'expense') {
+      row.category_id = refundId ?? otherId ?? null;
+      rerouted++;
+    } else if (row.amount < 0 && dir === 'income') {
+      row.category_id = otherId ?? null;
+      rerouted++;
+    }
+  }
+  return rerouted;
+}
+
 export interface BackfillPlan {
   systemCategoryId: string;
   plaid_category_key: string;

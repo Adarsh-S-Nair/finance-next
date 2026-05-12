@@ -874,6 +874,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          direction: string
           group_id: string | null
           hex_color: string
           id: string
@@ -884,6 +885,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          direction?: string
           group_id?: string | null
           hex_color?: string
           id?: string
@@ -894,6 +896,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          direction?: string
           group_id?: string | null
           hex_color?: string
           id?: string
@@ -1608,7 +1611,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      liability_kind: ["credit", "mortgage", "student"],
+      liability_kind: [
+        "credit",
+        "mortgage",
+        "student",
+      ],
     },
   },
 } as const

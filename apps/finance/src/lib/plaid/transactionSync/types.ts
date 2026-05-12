@@ -107,6 +107,7 @@ export interface SystemCategoryRow {
   id: string;
   label: string;
   plaid_category_key?: string | null;
+  direction?: 'income' | 'expense' | 'both' | null;
 }
 
 export interface SyncResult {

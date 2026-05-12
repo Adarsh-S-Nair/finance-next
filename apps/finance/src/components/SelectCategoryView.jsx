@@ -5,14 +5,40 @@ import clsx from "clsx";
 import { motion } from "framer-motion";
 import SearchInput from "./ui/SearchInput";
 
-export default function SelectCategoryView({ categoryGroups = [], onSelectCategory, currentCategoryId }) {
+export default function SelectCategoryView({ categoryGroups = [], onSelectCategory, currentCategoryId, transactionAmount = null }) {
   const [searchQuery, setSearchQuery] = useState("");
 
+  // When picking a category for a specific transaction, hide categories
+  // whose `direction` conflicts with the transaction's sign — negative
+  // transactions can only land in `expense`/`both` categories, positive
+  // in `income`/`both`. Mirrors the DB trigger so the user never picks
+  // something that would be rejected on save. When transactionAmount is
+  // null (filter use, no transaction context), show everything.
+  const allowedDirection = useMemo(() => {
+    if (transactionAmount == null) return null;
+    if (transactionAmount > 0) return "income";
+    if (transactionAmount < 0) return "expense";
+    return null;
+  }, [transactionAmount]);
+
+  const directionFilteredGroups = useMemo(() => {
+    if (!allowedDirection) return categoryGroups;
+    return categoryGroups
+      .map(group => {
+        const allowed = (group.system_categories || []).filter(
+          cat => !cat.direction || cat.direction === allowedDirection || cat.direction === "both"
+        );
+        if (allowed.length === 0) return null;
+        return { ...group, system_categories: allowed };
+      })
+      .filter(Boolean);
+  }, [categoryGroups, allowedDirection]);
+
   const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return categoryGroups;
+    if (!searchQuery.trim()) return directionFilteredGroups;
 
     const query = searchQuery.toLowerCase();
-    return categoryGroups
+    return directionFilteredGroups
       .map(group => {
         const groupMatches = group.name.toLowerCase().includes(query);
         const matchingChildren = group.system_categories?.filter(cat =>
@@ -30,7 +56,7 @@ export default function SelectCategoryView({ categoryGroups = [], onSelectCatego
         return null;
       })
       .filter(Boolean);
-  }, [categoryGroups, searchQuery]);
+  }, [directionFilteredGroups, searchQuery]);
 
   return (
     <div className="flex flex-col h-full">

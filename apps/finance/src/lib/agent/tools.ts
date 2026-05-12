@@ -228,7 +228,13 @@ export const TOOLS: ToolDefinition[] = [
       "the valid category_id values to suggest. The response is small (~50 " +
       "categories) and not rendered to the user — it's metadata for you. " +
       "If the user just asks 'what categories exist?' you can summarise the " +
-      "groups in prose without rendering anything.",
+      "groups in prose without rendering anything.\n\n" +
+      "Each category has a `direction` field: 'income' (only valid for " +
+      "positive-amount transactions like salary, refunds, transfers in), " +
+      "'expense' (only valid for negative-amount transactions — most " +
+      "spending), or 'both' (e.g. Loan Payments, Other). Pick the direction " +
+      "that matches the transaction's sign or the bulk write will be " +
+      "rejected.",
     input_schema: {
       type: 'object',
       properties: {},
@@ -1666,7 +1672,7 @@ async function listCategories() {
   const { data, error } = await supabaseAdmin
     .from('system_categories')
     .select(
-      `id, label, hex_color, group_id,
+      `id, label, hex_color, group_id, direction,
        category_groups(id, name, icon_lib, icon_name, hex_color)`,
     )
     .order('label');
@@ -1681,7 +1687,7 @@ async function listCategories() {
     icon_lib: string | null;
     icon_name: string | null;
     hex_color: string | null;
-    categories: { id: string; label: string; hex_color: string }[];
+    categories: { id: string; label: string; hex_color: string; direction: string }[];
   };
   const buckets = new Map<string, GroupBucket>();
 
@@ -1711,6 +1717,7 @@ async function listCategories() {
       id: cat.id,
       label: cat.label,
       hex_color: cat.hex_color,
+      direction: cat.direction,
     });
   }
 

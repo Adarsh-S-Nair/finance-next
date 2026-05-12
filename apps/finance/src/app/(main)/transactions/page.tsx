@@ -1286,7 +1286,7 @@ function TransactionsContent() {
         setCategoryGroupsError(null);
         const { data, error } = await supabase
           .from('category_groups')
-          .select('id, name, icon_lib, icon_name, hex_color, system_categories(id, label, hex_color)')
+          .select('id, name, icon_lib, icon_name, hex_color, system_categories(id, label, hex_color, direction)')
           .order('name', { ascending: true });
 
         if (error) throw error;
@@ -2082,6 +2082,7 @@ function TransactionsContent() {
                 categoryGroups={categoryGroups}
                 onSelectCategory={handleCategorySelect}
                 currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
+                transactionAmount={selectedTransaction?.amount ?? null}
               />
             )
           },
