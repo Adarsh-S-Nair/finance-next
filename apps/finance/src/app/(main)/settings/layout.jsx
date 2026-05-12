@@ -8,9 +8,9 @@ export const metadata = {
 export default function SettingsLayout({ children }) {
   return (
     <PageContainer title="Settings">
-      <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)] gap-x-10 gap-y-2 mt-2">
+      <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-x-12 mt-4">
         <SettingsNav />
-        <div className="max-w-2xl min-w-0">{children}</div>
+        <div className="max-w-3xl min-w-0">{children}</div>
       </div>
     </PageContainer>
   );

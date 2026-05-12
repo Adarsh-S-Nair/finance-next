@@ -206,13 +206,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col">
             <AppTopbar />
-            <div
-              className={`${
-                pathname === "/dashboard"
-                  ? "mx-auto w-full max-w-[1600px] px-4 md:px-6 lg:px-10"
-                  : "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-10"
-              } pb-28 md:pb-32`}
-            >
+            <div className="mx-auto w-full max-w-[1600px] px-4 md:px-6 lg:px-10 pb-28 md:pb-32">
               {children}
             </div>
           </div>
