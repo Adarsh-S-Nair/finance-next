@@ -215,6 +215,36 @@ body {
       transparent 100%);
 }
 
+/* Siri-style animated orb — used by the agent input logo when the
+   pill is focused. Rotates a conic gradient through the existing
+   neon palette by interpolating an <angle> custom property
+   (@property), instead of rotating the element itself — rotation
+   would clip inside the parent's mask-image. A faint blur softens
+   the seam where the gradient wraps. */
+@property --siri-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.siri-orb {
+  background: conic-gradient(from var(--siri-angle),
+      var(--color-neon-purple),
+      var(--color-neon-pink),
+      var(--color-neon-blue),
+      var(--color-neon-green),
+      var(--color-neon-purple));
+  animation: siri-rotate 4s linear infinite;
+  filter: blur(0.6px) saturate(115%);
+  will-change: --siri-angle;
+}
+
+@keyframes siri-rotate {
+  to {
+    --siri-angle: 360deg;
+  }
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

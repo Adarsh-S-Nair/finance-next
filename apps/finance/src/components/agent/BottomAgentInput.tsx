@@ -320,9 +320,16 @@ export default function BottomAgentInput() {
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
                   className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
                 >
-                  <span
+                  {/* Logo / Siri-style orb. The container carries the
+                      logo silhouette as a mask; inside it, two stacked
+                      fill layers crossfade — solid fg color at rest,
+                      animated conic gradient when focused. Rotating
+                      lives in the gradient itself (via @property
+                      --siri-angle, see globals.css) so the visible
+                      area stays the size of the mask. */}
+                  <div
                     aria-hidden
-                    className="ml-3 h-9 w-9 shrink-0 bg-[var(--color-fg)]"
+                    className="ml-3 h-9 w-9 shrink-0 relative"
                     style={{
                       WebkitMaskImage: "url(/logo.svg)",
                       maskImage: "url(/logo.svg)",
@@ -333,7 +340,16 @@ export default function BottomAgentInput() {
                       WebkitMaskPosition: "center",
                       maskPosition: "center",
                     }}
-                  />
+                  >
+                    <div
+                      className="absolute inset-0 bg-[var(--color-fg)] transition-opacity duration-300"
+                      style={{ opacity: expanded ? 0 : 1 }}
+                    />
+                    <div
+                      className="absolute inset-0 siri-orb transition-opacity duration-300"
+                      style={{ opacity: expanded ? 1 : 0 }}
+                    />
+                  </div>
                   <input
                     ref={inputRef}
                     type="text"
@@ -347,7 +363,7 @@ export default function BottomAgentInput() {
                     // the "zoom on focus" gesture; sm:text-sm pulls
                     // it back to 14px on desktop where the visual
                     // density of the surrounding chrome lives.
-                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-16 text-base sm:text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-20 text-base sm:text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
                   />
                   <AnimatePresence>
                     {hasText && (
@@ -372,8 +388,10 @@ export default function BottomAgentInput() {
                       </motion.button>
                     )}
                   </AnimatePresence>
-                  {/* Keyboard-shortcut hint. Hidden on mobile (no
-                      physical kbd), while focused (you've already
+                  {/* Keyboard-shortcut hint. Two borderless mini-keys
+                      in the macOS-menu style — each character in its
+                      own subtly filled rounded box. Hidden on mobile
+                      (no physical kbd), while focused (you've already
                       summoned the input — the reminder is noise),
                       and while there's text (the send button takes
                       this slot). */}
@@ -386,10 +404,14 @@ export default function BottomAgentInput() {
                         animate={{ opacity: 1, y: "-50%" }}
                         exit={{ opacity: 0, y: "-50%" }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-3 top-1/2 pointer-events-none flex items-center gap-1 rounded-md border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)]"
+                        className="absolute right-3 top-1/2 pointer-events-none flex items-center gap-1 text-[var(--color-muted)]"
                       >
-                        <span className="leading-none">{isMac ? "⌘" : "Ctrl"}</span>
-                        <span className="leading-none">K</span>
+                        <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md bg-[var(--color-fg)]/[0.07] text-[12px] font-medium leading-none">
+                          {isMac ? "⌘" : "Ctrl"}
+                        </span>
+                        <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md bg-[var(--color-fg)]/[0.07] text-[12px] font-medium leading-none">
+                          K
+                        </span>
                       </motion.div>
                     )}
                   </AnimatePresence>
