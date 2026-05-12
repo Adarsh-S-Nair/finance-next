@@ -321,17 +321,17 @@ export default function BottomAgentInput() {
                   className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
                 >
                   {/* Logo at rest, Siri-style orb when focused. Two
-                      stacked layers crossfade:
-                      - Resting layer carries a mask-image of the logo
-                        silhouette over a solid fg fill.
-                      - Focused layer is a plain `rounded-full` div with
-                        the animated conic gradient (.siri-orb) — no
-                        mask, so it reads as a true circle, not a
-                        rainbow logo.
-                      A subtle scale on each side makes the swap feel
-                      like a morph rather than a hard crossfade — the
-                      logo recedes as the orb materializes. */}
-                  <div aria-hidden className="ml-3 h-9 w-9 shrink-0 relative">
+                      stacked layers crossfade with a subtle scale to
+                      feel like a morph rather than a hard swap:
+                      - Resting layer: masked logo silhouette (solid
+                        fg fill, mask-image clipped to logo shape).
+                      - Focused layer: a true circle composed of four
+                        independently-orbiting colored blobs over a
+                        dark base, plus a glassy top-left highlight
+                        (see .siri-orb / .siri-blob in globals.css).
+                      Blobs are only mounted while focused — no point
+                      running 4 animations off-screen. */}
+                  <div aria-hidden className="ml-3 h-8 w-8 shrink-0 relative">
                     <div
                       className="absolute inset-0 bg-[var(--color-fg)]"
                       style={{
@@ -355,10 +355,19 @@ export default function BottomAgentInput() {
                         transform: expanded ? "scale(1)" : "scale(0.82)",
                         transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
                         boxShadow: expanded
-                          ? "0 0 14px -2px color-mix(in oklab, var(--color-neon-purple), transparent 55%)"
+                          ? "0 0 14px -2px color-mix(in oklab, var(--color-neon-purple), transparent 60%)"
                           : "none",
                       }}
-                    />
+                    >
+                      {expanded && (
+                        <>
+                          <span className="siri-blob siri-blob-1" />
+                          <span className="siri-blob siri-blob-2" />
+                          <span className="siri-blob siri-blob-3" />
+                          <span className="siri-blob siri-blob-4" />
+                        </>
+                      )}
+                    </div>
                   </div>
                   <input
                     ref={inputRef}
