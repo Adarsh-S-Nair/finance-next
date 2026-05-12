@@ -614,7 +614,7 @@ const CategoryPickerView = ({
     if (!isSearching) return [];
     const q = search.toLowerCase();
     const results = [];
-    for (const group of categoryGroups) {
+    for (const group of orderedGroups) {
       const groupMatches = group.name.toLowerCase().includes(q);
       for (const cat of group.system_categories || []) {
         if (groupMatches || cat.label.toLowerCase().includes(q)) {
@@ -623,11 +623,22 @@ const CategoryPickerView = ({
       }
     }
     return results;
-  }, [categoryGroups, isSearching, search]);
+  }, [orderedGroups, isSearching, search]);
+
+  // "Other" pinned to the bottom of the group list; everything else
+  // keeps the server-provided order (already alphabetical from the
+  // category_groups fetch).
+  const orderedGroups = useMemo(() => {
+    return [...categoryGroups].sort((a, b) => {
+      const aOther = a.name === 'Other' ? 1 : 0;
+      const bOther = b.name === 'Other' ? 1 : 0;
+      return aOther - bOther;
+    });
+  }, [categoryGroups]);
 
   const drilledGroup = useMemo(
-    () => categoryGroups.find((g) => g.id === drilledGroupId) ?? null,
-    [categoryGroups, drilledGroupId]
+    () => orderedGroups.find((g) => g.id === drilledGroupId) ?? null,
+    [orderedGroups, drilledGroupId]
   );
 
   // Click a single category inside a drilled group. If the parent group
@@ -797,14 +808,47 @@ const CategoryPickerView = ({
         })()
       ) : (
         <div>
-          {categoryGroups.map((group) => {
+          {orderedGroups.map((group) => {
+            const cats = group.system_categories || [];
+            // Single-category groups (today: "Other") render their lone
+            // child inline — drilling into a one-item list is just a
+            // useless extra tap.
+            if (cats.length === 1) {
+              const category = cats[0];
+              const isGroupSelected = selectedGroupIds.includes(group.id);
+              const selected = isGroupSelected || selectedCategoryIds.includes(category.id);
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => handleCategoryClick(group, category)}
+                  className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
+                >
+                  <CategoryIconBadge
+                    hexColor={group.hex_color}
+                    iconLib={group.icon_lib}
+                    iconName={group.icon_name}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-[var(--color-fg)] truncate">{category.label}</div>
+                  </div>
+                  {selected && (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+                      <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              );
+            }
+
             const { selected, total, all } = computeGroupSelection(group);
+            const hasSelection = all || selected > 0;
             const subtitle =
               all || (selected === total && total > 0)
                 ? `All ${total} selected`
                 : selected > 0
                   ? `${selected} of ${total} selected`
-                  : `${total} categories`;
+                  : null;
             return (
               <button
                 key={group.id}
@@ -819,9 +863,11 @@ const CategoryPickerView = ({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-[var(--color-fg)] truncate">{group.name}</div>
-                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
-                    {subtitle}
-                  </div>
+                  {hasSelection && subtitle && (
+                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                      {subtitle}
+                    </div>
+                  )}
                 </div>
                 <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
               </button>

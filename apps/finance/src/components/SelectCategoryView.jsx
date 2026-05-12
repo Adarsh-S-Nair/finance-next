@@ -30,16 +30,25 @@ export default function SelectCategoryView({
   }, [transactionAmount]);
 
   const directionFilteredGroups = useMemo(() => {
-    if (!allowedDirection) return categoryGroups;
-    return categoryGroups
-      .map((group) => {
-        const allowed = (group.system_categories || []).filter(
-          (cat) => !cat.direction || cat.direction === allowedDirection || cat.direction === "both"
-        );
-        if (allowed.length === 0) return null;
-        return { ...group, system_categories: allowed };
-      })
-      .filter(Boolean);
+    const filtered = !allowedDirection
+      ? categoryGroups
+      : categoryGroups
+          .map((group) => {
+            const allowed = (group.system_categories || []).filter(
+              (cat) => !cat.direction || cat.direction === allowedDirection || cat.direction === "both"
+            );
+            if (allowed.length === 0) return null;
+            return { ...group, system_categories: allowed };
+          })
+          .filter(Boolean);
+
+    // "Other" is the catch-all bucket; keep it pinned to the bottom so
+    // primary spending/income groups dominate the user's attention.
+    return [...filtered].sort((a, b) => {
+      const aOther = a.name === "Other" ? 1 : 0;
+      const bOther = b.name === "Other" ? 1 : 0;
+      return aOther - bOther;
+    });
   }, [categoryGroups, allowedDirection]);
 
   const isSearching = searchQuery.trim().length > 0;
@@ -70,27 +79,70 @@ export default function SelectCategoryView({
     return results;
   }, [directionFilteredGroups, isSearching, searchQuery]);
 
-  const renderGroupRow = (group) => (
-    <button
-      key={group.id}
-      type="button"
-      onClick={() => setDrilledGroupId(group.id)}
-      className="w-full flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-    >
-      <CategoryIconBadge
-        hexColor={group.hex_color}
-        iconLib={group.icon_lib}
-        iconName={group.icon_name}
-      />
-      <div className="flex-1 min-w-0 text-left">
-        <div className="text-sm text-[var(--color-fg)] truncate">{group.name}</div>
-        <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-          {(group.system_categories || []).length} categories
+  // Groups with a single category render their lone category inline (no
+  // drill). Today this only applies to "Other" — drilling into a single-
+  // child group would just add a meaningless tap.
+  const renderGroupRow = (group) => {
+    const cats = group.system_categories || [];
+    if (cats.length === 1) {
+      const category = cats[0];
+      const isSelected = currentCategoryId === category.id;
+      return (
+        <button
+          key={group.id}
+          type="button"
+          onClick={() => onSelectCategory(category)}
+          className={clsx(
+            "w-full flex items-center gap-3 py-2.5 px-1 rounded-lg transition-colors",
+            isSelected
+              ? "bg-[var(--color-surface-alt)]"
+              : "hover:bg-[var(--color-surface-alt)]/40"
+          )}
+        >
+          <CategoryIconBadge
+            hexColor={group.hex_color}
+            iconLib={group.icon_lib}
+            iconName={group.icon_name}
+          />
+          <div className="flex-1 min-w-0 text-left">
+            <div
+              className={clsx(
+                "text-sm truncate",
+                isSelected
+                  ? "font-medium text-[var(--color-fg)]"
+                  : "text-[var(--color-fg)]"
+              )}
+            >
+              {category.label}
+            </div>
+          </div>
+          {isSelected && (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+              <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      );
+    }
+    return (
+      <button
+        key={group.id}
+        type="button"
+        onClick={() => setDrilledGroupId(group.id)}
+        className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
+      >
+        <CategoryIconBadge
+          hexColor={group.hex_color}
+          iconLib={group.icon_lib}
+          iconName={group.icon_name}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[var(--color-fg)] truncate">{group.name}</div>
         </div>
-      </div>
-      <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
-    </button>
-  );
+        <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
+      </button>
+    );
+  };
 
   const renderCategoryRow = (category, group) => {
     const isSelected = currentCategoryId === category.id;
@@ -100,14 +152,14 @@ export default function SelectCategoryView({
         type="button"
         onClick={() => onSelectCategory(category)}
         className={clsx(
-          "w-full flex items-center justify-between py-2.5 -mx-2 px-2 rounded-lg transition-colors",
+          "w-full flex items-center justify-between py-2.5 px-1 rounded-lg transition-colors",
           isSelected
             ? "bg-[var(--color-surface-alt)]"
             : "hover:bg-[var(--color-surface-alt)]/40"
         )}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div
+          <span
             className="w-2 h-2 rounded-full flex-shrink-0"
             style={{
               backgroundColor: category.hex_color || group?.hex_color || "var(--color-muted)",
@@ -143,7 +195,7 @@ export default function SelectCategoryView({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-5 pt-1 pb-3">
+      <div className="pb-3">
         <SearchInput
           placeholder="Search categories"
           value={searchQuery}
@@ -151,7 +203,7 @@ export default function SelectCategoryView({
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-6 relative">
+      <div className="flex-1 overflow-y-auto relative">
         <AnimatePresence mode="wait" initial={false}>
           {isSearching ? (
             <motion.div
@@ -175,7 +227,7 @@ export default function SelectCategoryView({
                         type="button"
                         onClick={() => onSelectCategory(category)}
                         className={clsx(
-                          "w-full flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg transition-colors",
+                          "w-full flex items-center gap-3 py-2.5 px-1 rounded-lg transition-colors",
                           isSelected
                             ? "bg-[var(--color-surface-alt)]"
                             : "hover:bg-[var(--color-surface-alt)]/40"
