@@ -7,7 +7,8 @@
 
 import PageContainer from "../../../components/layout/PageContainer";
 import SelectCategoryView from "../../../components/SelectCategoryView";
-import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX } from "react-icons/fi";
+import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX, FiChevronRight, FiChevronLeft } from "react-icons/fi";
+import DynamicIcon from "../../../components/DynamicIcon";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -428,13 +429,6 @@ const OptionRow = ({ label, dotColor, selected, onClick }) => (
   </button>
 );
 
-// Subtle inline section label used inside picker views
-const PickerSectionLabel = ({ children }) => (
-  <div className="px-5 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-    {children}
-  </div>
-);
-
 // ─── Filter list view (main) ────────────────────────────────────────
 
 const FilterListView = ({
@@ -563,35 +557,87 @@ const DatePickerView = ({ dateRange, setDateRange, customDateRange, setCustomDat
 
 // ─── Category picker ────────────────────────────────────────────────
 
+// Icon badge matching the look used in TransactionRow — group's hex color
+// filled circle with a white DynamicIcon centered. Kept here so the
+// filter picker and the categorize-a-transaction picker render groups
+// identically.
+const CategoryIconBadge = ({ hexColor, iconLib, iconName, size = "md" }) => {
+  const dim = size === "sm" ? "w-8 h-8" : "w-9 h-9";
+  const iconDim = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  return (
+    <div
+      className={`rounded-full flex items-center justify-center flex-shrink-0 ${dim}`}
+      style={{ backgroundColor: hexColor || 'var(--color-accent)' }}
+    >
+      <DynamicIcon
+        iconLib={iconLib}
+        iconName={iconName}
+        className={`${iconDim} text-white`}
+        style={{ strokeWidth: 2.25 }}
+      />
+    </div>
+  );
+};
+
 const CategoryPickerView = ({
   categoryGroups, loadingCategoryGroups, categoryGroupsError,
   selectedGroupIds, selectedCategoryIds,
   toggleGroup, toggleCategory,
 }) => {
   const [search, setSearch] = useState("");
+  const [drilledGroupId, setDrilledGroupId] = useState(null);
 
-  const filteredGroups = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return categoryGroups;
-    return categoryGroups
-      .map(group => {
-        const groupMatches = group.name.toLowerCase().includes(query);
-        if (groupMatches) return group;
-        const matchingChildren = (group.system_categories || []).filter(cat =>
-          cat.label.toLowerCase().includes(query)
-        );
-        if (matchingChildren.length === 0) return null;
-        return { ...group, system_categories: matchingChildren };
-      })
-      .filter(Boolean);
-  }, [categoryGroups, search]);
+  const isSearching = search.trim().length > 0;
 
+  // Searching exits the drilled view so the user can scan the full
+  // flat result set without confusion. Mirrors SelectCategoryView.
+  useEffect(() => {
+    if (isSearching && drilledGroupId) setDrilledGroupId(null);
+  }, [isSearching, drilledGroupId]);
+
+  // Per-group selection count. A group-level selection in
+  // selectedGroupIds means "every category in this group" — we surface
+  // that as "All N selected" in the subtitle.
+  const computeGroupSelection = (group) => {
+    const total = (group.system_categories || []).length;
+    if (selectedGroupIds.includes(group.id)) {
+      return { selected: total, total, all: true };
+    }
+    const selected = (group.system_categories || []).filter((c) =>
+      selectedCategoryIds.includes(c.id)
+    ).length;
+    return { selected, total, all: false };
+  };
+
+  // Flat search results across every group's children.
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
+    const q = search.toLowerCase();
+    const results = [];
+    for (const group of categoryGroups) {
+      const groupMatches = group.name.toLowerCase().includes(q);
+      for (const cat of group.system_categories || []) {
+        if (groupMatches || cat.label.toLowerCase().includes(q)) {
+          results.push({ category: cat, group });
+        }
+      }
+    }
+    return results;
+  }, [categoryGroups, isSearching, search]);
+
+  const drilledGroup = useMemo(
+    () => categoryGroups.find((g) => g.id === drilledGroupId) ?? null,
+    [categoryGroups, drilledGroupId]
+  );
+
+  // Click a single category inside a drilled group. If the parent group
+  // is currently selected as a whole (legacy bucket-select), expand it
+  // into individual selections minus the one the user is toggling off.
   const handleCategoryClick = (group, category) => {
     const isGroupSelected = selectedGroupIds.includes(group.id);
     if (isGroupSelected) {
-      // Convert legacy group-level selection into individual selections minus the clicked one
       toggleGroup(group.id);
-      group.system_categories?.forEach(c => {
+      group.system_categories?.forEach((c) => {
         if (c.id !== category.id && !selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
       });
     } else {
@@ -599,10 +645,52 @@ const CategoryPickerView = ({
     }
   };
 
+  // "Select all in group" toggle inside the drilled view. Two behaviors:
+  // - currently all selected (either via group-level or every-category-
+  //   individually): clear everything for this group
+  // - otherwise: select via the compact group-level bucket and drop any
+  //   individual selections that overlap
+  const handleToggleAllInGroup = (group) => {
+    const { all, selected, total } = computeGroupSelection(group);
+    const everyOneIndividually = !all && selected === total && total > 0;
+
+    if (all) {
+      toggleGroup(group.id);
+      return;
+    }
+    if (everyOneIndividually) {
+      (group.system_categories || []).forEach((c) => toggleCategory(c.id));
+      return;
+    }
+    // Drop individual selections first, then promote to a group-level
+    // selection so the URL state stays compact.
+    (group.system_categories || []).forEach((c) => {
+      if (selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
+    });
+    toggleGroup(group.id);
+  };
+
+  if (loadingCategoryGroups) {
+    return (
+      <div>
+        <div className="pb-1">
+          <SearchInput placeholder="Search categories" value={search} onChange={(e) => setSearch(e.target.value)} disabled />
+        </div>
+        <div className="space-y-2 py-2">
+          {[...Array(8)].map((_, idx) => (
+            <div key={idx} className="h-12 bg-[var(--color-surface-alt)] rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (categoryGroupsError) {
+    return <div className="py-3 text-sm text-[var(--color-muted)]">{categoryGroupsError}</div>;
+  }
+
   return (
     <div>
-      {/* Search */}
-      <div className="pb-1">
+      <div className="pb-3">
         <SearchInput
           placeholder="Search categories"
           value={search}
@@ -610,37 +698,133 @@ const CategoryPickerView = ({
         />
       </div>
 
-      {/* List */}
-      {loadingCategoryGroups ? (
-        <div className="space-y-2 py-2">
-          {[...Array(8)].map((_, idx) => (
-            <div key={idx} className="h-10 bg-[var(--color-surface-alt)] rounded animate-pulse" />
-          ))}
-        </div>
-      ) : categoryGroupsError ? (
-        <div className="py-3 text-sm text-[var(--color-muted)]">{categoryGroupsError}</div>
-      ) : filteredGroups.length === 0 ? (
-        <div className="py-8 text-center text-sm text-[var(--color-muted)]">No categories found</div>
-      ) : (
-        <div className="-mx-5">
-          {filteredGroups.map((group) => {
-            const isGroupSelected = selectedGroupIds.includes(group.id);
-            return (
-              <div key={group.id}>
-                <PickerSectionLabel>{group.name}</PickerSectionLabel>
-                {(group.system_categories || []).map((category) => {
-                  const selected = selectedCategoryIds.includes(category.id) || isGroupSelected;
+      {isSearching ? (
+        searchResults.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[var(--color-muted)]">No categories found</div>
+        ) : (
+          <div>
+            {searchResults.map(({ category, group }) => {
+              const isGroupSelected = selectedGroupIds.includes(group.id);
+              const selected = isGroupSelected || selectedCategoryIds.includes(category.id);
+              return (
+                <button
+                  key={`${group.id}:${category.id}`}
+                  type="button"
+                  onClick={() => handleCategoryClick(group, category)}
+                  className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
+                >
+                  <CategoryIconBadge
+                    hexColor={group.hex_color}
+                    iconLib={group.icon_lib}
+                    iconName={group.icon_name}
+                    size="sm"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-[var(--color-fg)] truncate">{category.label}</div>
+                    <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">{group.name}</div>
+                  </div>
+                  {selected && (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+                      <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )
+      ) : drilledGroup ? (
+        (() => {
+          const { selected, total, all } = computeGroupSelection(drilledGroup);
+          const everyOneIndividually = !all && selected === total && total > 0;
+          const allSelected = all || everyOneIndividually;
+          return (
+            <div>
+              <button
+                type="button"
+                onClick={() => setDrilledGroupId(null)}
+                className="flex items-center gap-1.5 mb-3 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+              >
+                <FiChevronLeft className="w-3.5 h-3.5" />
+                All groups
+              </button>
+              <div className="flex items-center gap-2.5 mb-3">
+                <CategoryIconBadge
+                  hexColor={drilledGroup.hex_color}
+                  iconLib={drilledGroup.icon_lib}
+                  iconName={drilledGroup.icon_name}
+                  size="sm"
+                />
+                <span className="text-sm font-medium text-[var(--color-fg)] flex-1 truncate">
+                  {drilledGroup.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllInGroup(drilledGroup)}
+                  className="text-[11px] font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
+                >
+                  {allSelected ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+              <div>
+                {(drilledGroup.system_categories || []).map((category) => {
+                  const isSelected = all || selectedCategoryIds.includes(category.id);
                   return (
-                    <OptionRow
+                    <button
                       key={category.id}
-                      label={category.label}
-                      dotColor={category.hex_color || group.hex_color || 'var(--color-muted)'}
-                      selected={selected}
-                      onClick={() => handleCategoryClick(group, category)}
-                    />
+                      type="button"
+                      onClick={() => handleCategoryClick(drilledGroup, category)}
+                      className="flex items-center justify-between w-full py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: category.hex_color || drilledGroup.hex_color || 'var(--color-muted)' }}
+                        />
+                        <span className="text-sm text-[var(--color-fg)] truncate">{category.label}</span>
+                      </div>
+                      {isSelected && (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+                          <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
                   );
                 })}
               </div>
+            </div>
+          );
+        })()
+      ) : (
+        <div>
+          {categoryGroups.map((group) => {
+            const { selected, total, all } = computeGroupSelection(group);
+            const subtitle =
+              all || (selected === total && total > 0)
+                ? `All ${total} selected`
+                : selected > 0
+                  ? `${selected} of ${total} selected`
+                  : `${total} categories`;
+            return (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => setDrilledGroupId(group.id)}
+                className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
+              >
+                <CategoryIconBadge
+                  hexColor={group.hex_color}
+                  iconLib={group.icon_lib}
+                  iconName={group.icon_name}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-[var(--color-fg)] truncate">{group.name}</div>
+                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
+                    {subtitle}
+                  </div>
+                </div>
+                <FiChevronRight className="w-4 h-4 text-[var(--color-muted)] flex-shrink-0" />
+              </button>
             );
           })}
         </div>
