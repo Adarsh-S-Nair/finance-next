@@ -1,11 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiArrowUp, FiClock } from "react-icons/fi";
+import { usePathname } from "next/navigation";
 import { useRegisterDrawerOpen } from "@zervo/ui";
 import { useAgentOverlay } from "./AgentOverlayProvider";
 import AgentHistoryDrawer from "./AgentHistoryDrawer";
+
+// Route-aware placeholder text. The agent works the same everywhere
+// but the prompt should feel aware of where the user is — and the
+// shift in copy is also how this input visually distinguishes itself
+// from page-local search fields (Transactions has one of its own).
+const PLACEHOLDERS: Array<{ match: RegExp; text: string }> = [
+  { match: /^\/transactions/, text: "Ask about your transactions…" },
+  { match: /^\/accounts/, text: "Ask about your accounts…" },
+  { match: /^\/investments/, text: "Ask about your portfolio…" },
+  { match: /^\/budgets/, text: "Ask about your budgets…" },
+];
+
+function placeholderForPath(pathname: string | null): string {
+  if (!pathname) return "Ask Zervo anything…";
+  for (const { match, text } of PLACEHOLDERS) {
+    if (match.test(pathname)) return text;
+  }
+  return "Ask Zervo anything…";
+}
 
 /**
  * Persistent bottom-of-viewport input for summoning the agent from
@@ -25,6 +45,8 @@ import AgentHistoryDrawer from "./AgentHistoryDrawer";
  */
 export default function BottomAgentInput() {
   const { isOpen, open } = useAgentOverlay();
+  const pathname = usePathname();
+  const placeholder = useMemo(() => placeholderForPath(pathname), [pathname]);
   const [value, setValue] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -41,6 +63,11 @@ export default function BottomAgentInput() {
   // bottom: 0` sits behind the keyboard there because fixed is
   // relative to the layout viewport, not the visual one.
   const [keyboardOffsetPx, setKeyboardOffsetPx] = useState(0);
+  // OS detection for the keyboard-shortcut badge. SSR-safe — starts
+  // false (renders "Ctrl K") and gets corrected on mount; the swap to
+  // ⌘ K on Mac happens in the same paint as the rest of the hydration
+  // pass, so there's no visible flicker.
+  const [isMac, setIsMac] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +132,41 @@ export default function BottomAgentInput() {
       vv.removeEventListener("scroll", update);
     };
   }, []);
+
+  // OS sniff for the kbd badge. `navigator.userAgentData.platform` is
+  // the modern API but Chromium-only; `navigator.platform` is
+  // deprecated but still the most reliable signal for this specific
+  // mac-vs-not check across all browsers. Falling back through both
+  // covers every current environment.
+  useEffect(() => {
+    const nav = navigator as unknown as {
+      userAgentData?: { platform?: string };
+      platform?: string;
+    };
+    const platform = nav.userAgentData?.platform ?? nav.platform ?? "";
+    setIsMac(/mac/i.test(platform));
+  }, []);
+
+  // Global ⌘K / Ctrl+K — focuses the input from anywhere in the app.
+  // Skipped while the overlay itself is open (it has its own input,
+  // double-focus would steal it away). preventDefault keeps Firefox's
+  // address-bar search and any browser-level "quick find" off the
+  // shortcut.
+  useEffect(() => {
+    if (isOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      const isShortcut =
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "k";
+      if (!isShortcut) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen]);
 
   // Click outside collapses. Paused while the drawer is open — the
   // drawer renders via portal at body level, so its clicks count as
@@ -278,14 +340,14 @@ export default function BottomAgentInput() {
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     onFocus={() => setExpanded(true)}
-                    placeholder="Ask Zervo anything…"
+                    placeholder={placeholder}
                     aria-label="Ask the agent"
                     // text-base on mobile keeps the actual font-size
                     // at 16px, which is what iOS Safari needs to skip
                     // the "zoom on focus" gesture; sm:text-sm pulls
                     // it back to 14px on desktop where the visual
                     // density of the surrounding chrome lives.
-                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-12 text-base sm:text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
+                    className="flex-1 bg-transparent py-3.5 pl-2.5 pr-16 text-base sm:text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none"
                   />
                   <AnimatePresence>
                     {hasText && (
@@ -308,6 +370,27 @@ export default function BottomAgentInput() {
                       >
                         <FiArrowUp className="h-4 w-4" strokeWidth={2.5} />
                       </motion.button>
+                    )}
+                  </AnimatePresence>
+                  {/* Keyboard-shortcut hint. Hidden on mobile (no
+                      physical kbd), while focused (you've already
+                      summoned the input — the reminder is noise),
+                      and while there's text (the send button takes
+                      this slot). */}
+                  <AnimatePresence>
+                    {!hasText && !expanded && !isMobile && (
+                      <motion.div
+                        key="kbd"
+                        aria-hidden
+                        initial={{ opacity: 0, y: "-50%" }}
+                        animate={{ opacity: 1, y: "-50%" }}
+                        exit={{ opacity: 0, y: "-50%" }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-3 top-1/2 pointer-events-none flex items-center gap-1 rounded-md border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)]"
+                      >
+                        <span className="leading-none">{isMac ? "⌘" : "Ctrl"}</span>
+                        <span className="leading-none">K</span>
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </motion.div>
