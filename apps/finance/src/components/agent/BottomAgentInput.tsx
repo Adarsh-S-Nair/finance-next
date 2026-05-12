@@ -320,34 +320,44 @@ export default function BottomAgentInput() {
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
                   className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
                 >
-                  {/* Logo / Siri-style orb. The container carries the
-                      logo silhouette as a mask; inside it, two stacked
-                      fill layers crossfade — solid fg color at rest,
-                      animated conic gradient when focused. Rotating
-                      lives in the gradient itself (via @property
-                      --siri-angle, see globals.css) so the visible
-                      area stays the size of the mask. */}
-                  <div
-                    aria-hidden
-                    className="ml-3 h-9 w-9 shrink-0 relative"
-                    style={{
-                      WebkitMaskImage: "url(/logo.svg)",
-                      maskImage: "url(/logo.svg)",
-                      WebkitMaskSize: "contain",
-                      maskSize: "contain",
-                      WebkitMaskRepeat: "no-repeat",
-                      maskRepeat: "no-repeat",
-                      WebkitMaskPosition: "center",
-                      maskPosition: "center",
-                    }}
-                  >
+                  {/* Logo at rest, Siri-style orb when focused. Two
+                      stacked layers crossfade:
+                      - Resting layer carries a mask-image of the logo
+                        silhouette over a solid fg fill.
+                      - Focused layer is a plain `rounded-full` div with
+                        the animated conic gradient (.siri-orb) — no
+                        mask, so it reads as a true circle, not a
+                        rainbow logo.
+                      A subtle scale on each side makes the swap feel
+                      like a morph rather than a hard crossfade — the
+                      logo recedes as the orb materializes. */}
+                  <div aria-hidden className="ml-3 h-9 w-9 shrink-0 relative">
                     <div
-                      className="absolute inset-0 bg-[var(--color-fg)] transition-opacity duration-300"
-                      style={{ opacity: expanded ? 0 : 1 }}
+                      className="absolute inset-0 bg-[var(--color-fg)]"
+                      style={{
+                        opacity: expanded ? 0 : 1,
+                        transform: expanded ? "scale(0.88)" : "scale(1)",
+                        transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        WebkitMaskImage: "url(/logo.svg)",
+                        maskImage: "url(/logo.svg)",
+                        WebkitMaskSize: "contain",
+                        maskSize: "contain",
+                        WebkitMaskRepeat: "no-repeat",
+                        maskRepeat: "no-repeat",
+                        WebkitMaskPosition: "center",
+                        maskPosition: "center",
+                      }}
                     />
                     <div
-                      className="absolute inset-0 siri-orb transition-opacity duration-300"
-                      style={{ opacity: expanded ? 1 : 0 }}
+                      className="absolute inset-0 rounded-full siri-orb"
+                      style={{
+                        opacity: expanded ? 1 : 0,
+                        transform: expanded ? "scale(1)" : "scale(0.82)",
+                        transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        boxShadow: expanded
+                          ? "0 0 14px -2px color-mix(in oklab, var(--color-neon-purple), transparent 55%)"
+                          : "none",
+                      }}
                     />
                   </div>
                   <input
