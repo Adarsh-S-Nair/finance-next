@@ -127,7 +127,34 @@ export const GET = withAuth('dashboard:summary', async (request, userId) => {
   const txs = (transactions ?? []) as unknown as SummaryTx[];
   const { matchedIds } = identifyTransfers(txs as unknown as TransferShape[]);
 
-  const spendingEarning = buildSpendingEarning(txs, matchedIds, MAX_MONTHS, now);
+  // Use the user's GLOBAL earliest transaction (not just whatever
+  // landed inside the chart window) to decide which month, if any,
+  // counts as "incomplete first month". Otherwise a user with a gap
+  // between their first ever tx and the chart window — common for
+  // brokerage-banking users whose only pre-window data is investment
+  // dividends — gets the first month inside the window dropped, even
+  // though it's genuinely past and full. This used to disagree with
+  // /api/transactions/spending-earning, which caused the chart to
+  // flicker between two different month sets depending on which
+  // endpoint won the race.
+  const { data: earliestTxResult } = await supabaseAdmin
+    .from('transactions')
+    .select('date, accounts!inner(user_id)')
+    .eq('accounts.user_id', userId)
+    .not('date', 'is', null)
+    .order('date', { ascending: true })
+    .limit(1);
+  const earliestTransactionDate = earliestTxResult?.[0]?.date
+    ? new Date(earliestTxResult[0].date)
+    : null;
+
+  const spendingEarning = buildSpendingEarning(
+    txs,
+    matchedIds,
+    MAX_MONTHS,
+    now,
+    earliestTransactionDate,
+  );
   const spendingByCategory = buildSpendingByCategory(
     txs,
     matchedIds,
@@ -142,7 +169,8 @@ function buildSpendingEarning(
   transactions: SummaryTx[],
   matchedIds: Set<string>,
   MAX_MONTHS: number,
-  now: Date
+  now: Date,
+  earliestTransactionDate: Date | null,
 ) {
   const monthlyData: Record<string, MonthlyDatum> = {};
   const monthNames = [
@@ -152,16 +180,24 @@ function buildSpendingEarning(
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
+  // "Incomplete" applies only to the user's very first month of data
+  // ever — not any month inside the chart window that happens to lack
+  // earlier neighbours. Driven by the caller-passed global earliest tx
+  // to stay in sync with /api/transactions/spending-earning.
   let firstCompleteMonthStart: Date | null = null;
-  const sorted = transactions
-    .filter((tx): tx is SummaryTx & { date: string } => Boolean(tx.date))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length > 0) {
-    const earliest = new Date(sorted[0].date);
-    if (earliest.getDate() > 1) {
-      firstCompleteMonthStart = new Date(earliest.getFullYear(), earliest.getMonth() + 1, 1);
+  if (earliestTransactionDate) {
+    if (earliestTransactionDate.getDate() > 1) {
+      firstCompleteMonthStart = new Date(
+        earliestTransactionDate.getFullYear(),
+        earliestTransactionDate.getMonth() + 1,
+        1,
+      );
     } else {
-      firstCompleteMonthStart = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+      firstCompleteMonthStart = new Date(
+        earliestTransactionDate.getFullYear(),
+        earliestTransactionDate.getMonth(),
+        1,
+      );
     }
   }
 
