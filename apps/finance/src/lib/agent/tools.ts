@@ -20,6 +20,7 @@ import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
 import { isBudgetOver } from '../budget';
 import { fetchQuotesForTickers } from '../quotes';
+import { matchesRule } from '../category-rules';
 
 type ToolDefinition = Anthropic.Messages.Tool;
 
@@ -1930,22 +1931,82 @@ async function proposeCategoryRule(
   if (catError) throw catError;
   if (!cat) return { error: `Category not found: ${input.category_id}` };
 
-  // Optional — count the user's existing transactions that match the
-  // FIRST condition (cheap, indicative). Skipped for amount-based rules
-  // since those need numeric handling we don't bother with here.
-  let approxMatchCount: number | null = null;
+  // Fetch existing transactions and run the SAME matchesRule used by
+  // Plaid sync — this is the source of truth, so the widget's preview
+  // matches what would actually be recategorized. For text-field rules
+  // we narrow with ilike on the first condition (server-side filter,
+  // smaller payload); amount-only rules pull the user's recent tx
+  // window and filter in JS.
   const head = normalized[0];
+  let txQuery = supabaseAdmin
+    .from('transactions')
+    .select(
+      `id, description, merchant_name, amount, date, icon_url,
+       accounts!inner(user_id),
+       system_categories (
+         label, hex_color,
+         category_groups ( name, hex_color, icon_lib, icon_name )
+       )`,
+    )
+    .eq('accounts.user_id', userId)
+    .order('date', { ascending: false, nullsFirst: false })
+    .limit(500);
   if (head.field !== 'amount') {
-    const { count } = await supabaseAdmin
-      .from('transactions')
-      .select('id, accounts!inner(user_id)', {
-        count: 'exact',
-        head: true,
-      })
-      .eq('accounts.user_id', userId)
-      .ilike(head.field, `%${head.value}%`);
-    approxMatchCount = count ?? null;
+    txQuery = txQuery.ilike(head.field, `%${head.value}%`);
   }
+  const { data: txCandidates, error: txError } = await txQuery;
+  if (txError) {
+    console.error('proposeCategoryRule: tx lookup failed', txError);
+  }
+
+  type TxCandidate = {
+    id: string;
+    description: string;
+    merchant_name: string | null;
+    amount: number;
+    date: string | null;
+    icon_url: string | null;
+    system_categories: {
+      label: string | null;
+      hex_color: string | null;
+      category_groups: {
+        name: string | null;
+        hex_color: string | null;
+        icon_lib: string | null;
+        icon_name: string | null;
+      } | null;
+    } | null;
+  };
+  const candidates = (txCandidates ?? []) as unknown as TxCandidate[];
+
+  // Apply the same matchesRule the sync uses so this preview is
+  // identical to what would actually be picked up retroactively.
+  type RuleShape = Parameters<typeof matchesRule>[1];
+  const ruleShape = { conditions: normalized } as unknown as RuleShape;
+  const matching = candidates.filter((tx) =>
+    matchesRule(tx as Parameters<typeof matchesRule>[0], ruleShape),
+  );
+
+  // Cap the matching_transactions payload to 50 — the widget paginates
+  // five at a time, more than 10 pages is noise. approx_match_count
+  // still carries the full count for the checkbox label.
+  const MAX_PREVIEW = 50;
+  const previewMatching = matching.slice(0, MAX_PREVIEW).map((tx) => {
+    const cat = tx.system_categories;
+    const group = cat?.category_groups ?? null;
+    return {
+      id: tx.id,
+      description: tx.description,
+      merchant_name: tx.merchant_name,
+      amount: tx.amount,
+      date: tx.date,
+      icon_url: tx.icon_url,
+      category_label: cat?.label ?? null,
+      category_color: cat?.hex_color ?? group?.hex_color ?? null,
+      category_icon_lib: group?.icon_lib ?? null,
+      category_icon_name: group?.icon_name ?? null,
+    };
+  });
 
   // Mark which user_id this rule is FOR — useful for the rule-creation
   // endpoint, harmless to expose to the widget (it's the caller's id).
@@ -1954,7 +2015,8 @@ async function proposeCategoryRule(
     category: shapeCategory(cat as Parameters<typeof shapeCategory>[0])!,
     conditions: normalized,
     reasoning: input.reasoning ?? null,
-    approx_match_count: approxMatchCount,
+    approx_match_count: matching.length,
+    matching_transactions: previewMatching,
   };
 }
 

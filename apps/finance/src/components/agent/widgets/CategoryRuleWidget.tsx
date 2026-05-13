@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheck, FiX } from "react-icons/fi";
+import { FiCheck, FiX, FiTag } from "react-icons/fi";
 import { Button } from "@zervo/ui";
+import DynamicIcon from "../../DynamicIcon";
+import { formatCurrency } from "../../../lib/formatCurrency";
 import { authFetch } from "../../../lib/api/fetch";
 import { WidgetError, WidgetFrame } from "./primitives";
+import { PagedList } from "./PagedList";
 
 type Category = {
   id: string | null;
@@ -23,11 +26,28 @@ type RuleCondition = {
   value: string | number;
 };
 
+type MatchingTransaction = {
+  id: string;
+  description: string;
+  merchant_name: string | null;
+  amount: number;
+  date: string | null;
+  icon_url: string | null;
+  category_label: string | null;
+  category_color: string | null;
+  category_icon_lib: string | null;
+  category_icon_name: string | null;
+};
+
 export type CategoryRuleData = {
   category: Category;
   conditions: RuleCondition[];
   reasoning: string | null;
   approx_match_count: number | null;
+  // Optional: only present when the tool was rerun after this widget was
+  // updated to surface a preview list. Older persisted conversations
+  // won't have it.
+  matching_transactions?: MatchingTransaction[];
   error?: string;
 };
 
@@ -72,6 +92,15 @@ function formatConditionValue(c: RuleCondition): string {
   return String(c.value);
 }
 
+function formatDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export default function CategoryRuleWidget({
   toolUseId,
   data,
@@ -81,14 +110,12 @@ export default function CategoryRuleWidget({
 }) {
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
   // Default: opt INTO retroactive application when there are matches —
-  // it's the surprising-if-missing behavior (the user explicitly asked
-  // "what about my existing Gemini transactions"). Hidden when
-  // approx_match_count is 0 or null, so users only see the option when
-  // it'd actually do something.
+  // the most natural ask ("auto-categorize Gemini going forward") usually
+  // implies "and fix the existing ones too". Hidden when no matches.
   const [applyToExisting, setApplyToExisting] = useState(true);
 
-  // Mount-time check: did the user already accept/decline this rule
-  // proposal in a previous session?
+  // Mount-time check: did the user already accept/decline this proposal
+  // in a previous session?
   useEffect(() => {
     if (data.error) return;
     let cancelled = false;
@@ -128,6 +155,7 @@ export default function CategoryRuleWidget({
   if (data.error) return <WidgetError message={data.error} />;
 
   const matchCount = data.approx_match_count ?? 0;
+  const matchingTxs = data.matching_transactions ?? [];
   const showApplyToggle = matchCount > 0;
 
   async function handleAccept() {
@@ -213,6 +241,7 @@ export default function CategoryRuleWidget({
           <ProposalState
             key="proposal"
             data={data}
+            matchingTxs={matchingTxs}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
             showApplyToggle={showApplyToggle}
@@ -228,11 +257,14 @@ export default function CategoryRuleWidget({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Proposal — WHEN/SET rows, optional retroactive toggle, accept/decline
+// Proposal — WHEN/SET rows, optional preview list, retroactive toggle,
+// accept/decline. Order: rule → preview → toggle → buttons. The buttons
+// sit BELOW the toggle so the action grouping reads top-down.
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
   data,
+  matchingTxs,
   committing,
   error,
   showApplyToggle,
@@ -242,6 +274,7 @@ function ProposalState({
   onDecline,
 }: {
   data: CategoryRuleData;
+  matchingTxs: MatchingTransaction[];
   committing: boolean;
   error: string | null;
   showApplyToggle: boolean;
@@ -266,36 +299,22 @@ function ProposalState({
             condition={c}
           />
         ))}
-
-        {/* SET row sits inline with the buttons on md+, mirroring the
-            recategorization widget's TO row. Mobile stacks. */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
-          <div className="min-w-0 md:flex-1">
-            <RuleSetRow label="Set" cat={data.category} />
-          </div>
-          <div className="flex items-center justify-end gap-2 flex-shrink-0">
-            {error && (
-              <span className="text-[11px] text-rose-500 mr-2">{error}</span>
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onDecline}
-              disabled={committing}
-            >
-              Decline
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onAccept}
-              loading={committing}
-            >
-              Create rule
-            </Button>
-          </div>
-        </div>
+        <RuleSetRow label="Set" cat={data.category} />
       </div>
+
+      {matchingTxs.length > 0 && (
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+            Existing matches
+          </div>
+          <PagedList
+            items={matchingTxs}
+            getKey={(tx) => tx.id}
+            renderItem={(tx) => <MatchingTransactionRow tx={tx} />}
+            empty={null}
+          />
+        </div>
+      )}
 
       {showApplyToggle && (
         <ApplyToExistingToggle
@@ -311,6 +330,28 @@ function ProposalState({
           {data.reasoning}
         </p>
       )}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        {error && (
+          <span className="text-[11px] text-rose-500 mr-2">{error}</span>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onDecline}
+          disabled={committing}
+        >
+          Decline
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onAccept}
+          loading={committing}
+        >
+          Create rule
+        </Button>
+      </div>
     </motion.div>
   );
 }
@@ -456,10 +497,87 @@ function RuleSetRow({
 }
 
 /**
- * Opt-in toggle to retroactively apply the rule to matching existing
- * transactions. Default is checked because the most natural ask
- * ("auto-categorize Gemini going forward") usually implies "and fix
- * the existing ones too" — the user almost always wants both.
+ * One row in the preview list. Same row shape as TransactionListWidget —
+ * merchant icon + name + (date · current category) + amount — so the
+ * preview reads as a smaller version of the standard transactions
+ * widget that the user already knows.
+ */
+function MatchingTransactionRow({ tx }: { tx: MatchingTransaction }) {
+  const isIncome = tx.amount > 0;
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="flex items-center gap-3 min-w-0">
+        <MerchantIcon
+          iconUrl={tx.icon_url}
+          color={tx.category_color}
+          iconLib={tx.category_icon_lib}
+          iconName={tx.category_icon_name}
+        />
+        <div className="min-w-0">
+          <div className="text-sm text-[var(--color-fg)] truncate">
+            {tx.merchant_name || tx.description}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)] truncate">
+            {formatDate(tx.date)}
+            {tx.category_label ? ` · ${tx.category_label}` : ""}
+          </div>
+        </div>
+      </div>
+      <div
+        className={`text-sm tabular-nums flex-shrink-0 ${
+          isIncome ? "text-emerald-500" : "text-[var(--color-fg)]"
+        }`}
+      >
+        {isIncome ? "+" : ""}
+        {formatCurrency(tx.amount)}
+      </div>
+    </div>
+  );
+}
+
+function MerchantIcon({
+  iconUrl,
+  color,
+  iconLib,
+  iconName,
+}: {
+  iconUrl: string | null;
+  color: string | null;
+  iconLib: string | null;
+  iconName: string | null;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (iconUrl && !imageFailed) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+        className="w-7 h-7 rounded-full flex-shrink-0 object-cover bg-[var(--color-surface-alt)]"
+      />
+    );
+  }
+  return (
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: color || "var(--color-surface-alt)" }}
+    >
+      <DynamicIcon
+        iconLib={iconLib}
+        iconName={iconName}
+        className="h-3.5 w-3.5 text-white"
+        fallback={FiTag}
+        style={{ strokeWidth: 2.5 }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Opt-in toggle to retroactively apply the rule. Defaults checked
+ * because the most natural ask ("auto-categorize Gemini going forward")
+ * usually implies "and fix the existing ones too".
  */
 function ApplyToExistingToggle({
   count,
