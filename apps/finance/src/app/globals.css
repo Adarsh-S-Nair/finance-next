@@ -215,21 +215,6 @@ body {
       transparent 100%);
 }
 
-/* Recent-conversation row shown above the focused agent input.
-   Bg subtly darkens (light mode) / lightens (dark mode) on hover
-   via color-mix instead of a hardcoded shade — the rows then track
-   surface-alt under any theme change. Kept as a CSS class because
-   Tailwind's arbitrary-value syntax for color-mix is fragile to
-   type and read. */
-.recent-chat-row {
-  background: var(--color-surface-alt);
-  transition: background-color 150ms ease;
-}
-
-.recent-chat-row:hover {
-  background: color-mix(in oklab, var(--color-surface-alt), var(--color-fg) 7%);
-}
-
 /* Animated aura behind the agent-input logo when focused. The
    technique: render the same logo silhouette as a second layer,
    scaled up + blurred, filled with a slowly-rotating conic
@@ -283,6 +268,27 @@ body {
   100% { background-position: -100% 50%; }
   /* Pause at the end so the shine doesn't feel relentless — it
      sweeps across, then waits, then sweeps again. */
+}
+
+/* Subtle breathing pulse for the focused-state logo. Scales 1 →
+   1.05 → 1 while a neon-purple drop-shadow blooms with it. Because
+   the parent applies the logo mask, `filter: drop-shadow` traces
+   the logo silhouette — so the glow comes off the logo's actual
+   edges, not a rectangular bounding box. Stacks with `logo-shine`
+   on the same element. */
+.logo-pulse {
+  animation: logo-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes logo-breathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px color-mix(in oklab, var(--color-neon-purple), transparent 60%));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 5px color-mix(in oklab, var(--color-neon-purple), transparent 30%));
+  }
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

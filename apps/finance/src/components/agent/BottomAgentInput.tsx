@@ -377,12 +377,12 @@ export default function BottomAgentInput() {
                           e.preventDefault();
                         }}
                         onClick={() => openConversation(c.id)}
-                        className="recent-chat-row group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-left cursor-pointer"
+                        className="group flex items-center justify-between gap-3 px-2 py-1.5 text-left cursor-pointer"
                       >
-                        <span className="flex-1 min-w-0 truncate text-sm text-[var(--color-fg)]">
+                        <span className="flex-1 min-w-0 truncate text-sm text-[var(--color-fg)]/85 group-hover:text-[var(--color-fg)] transition-colors">
                           {c.title?.trim() || "Untitled"}
                         </span>
-                        <span className="shrink-0 text-[11px] text-[var(--color-muted)]">
+                        <span className="shrink-0 text-[11px] text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
                           {nowAtMount !== null
                             ? formatRelative(c.last_message_at, nowAtMount)
                             : ""}
@@ -435,7 +435,7 @@ export default function BottomAgentInput() {
                       }}
                     />
                     <div
-                      className={`absolute inset-0 ${expanded ? "logo-shine" : "bg-[var(--color-fg)]"}`}
+                      className={`absolute inset-0 ${expanded ? "logo-shine logo-pulse" : "bg-[var(--color-fg)]"}`}
                       style={{
                         transition: "background 300ms ease",
                         WebkitMaskImage: "url(/logo.svg)",
