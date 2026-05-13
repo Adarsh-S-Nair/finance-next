@@ -175,6 +175,15 @@ export async function getInstitution(
   }
 }
 
+// /transactions/get max page size per Plaid docs. We page through with
+// offset until we've collected response.total_transactions; without
+// this, callers with >100 transactions in a window silently lose
+// everything past page 1 (the SDK's default count is 100).
+const PLAID_TRANSACTIONS_GET_PAGE_SIZE = 500;
+// Hard cap on total rows we'll page through, defense-in-depth against
+// runaway loops if total_transactions is malformed.
+const PLAID_TRANSACTIONS_GET_MAX = 10_000;
+
 export async function getTransactions(
   accessToken: string,
   startDate: string,
@@ -183,21 +192,45 @@ export async function getTransactions(
 ): Promise<{ transactions?: Array<Record<string, unknown>> } & Record<string, unknown>> {
   try {
     const client = getPlaidClient();
-    const request = {
-      access_token: accessToken,
-      start_date: startDate,
-      end_date: endDate,
-      options: {
-        include_personal_finance_category: true,
-        personal_finance_category_version: 'v2',
-      },
-      ...(accountIds && { account_ids: accountIds }),
-    };
+    const collected: Array<Record<string, unknown>> = [];
+    let total = Infinity;
+    let firstPageData: Record<string, unknown> | null = null;
 
-    const response = await client.transactionsGet(request as Parameters<typeof client.transactionsGet>[0]);
-    return response.data as unknown as {
-      transactions?: Array<Record<string, unknown>>;
-    } & Record<string, unknown>;
+    while (collected.length < total && collected.length < PLAID_TRANSACTIONS_GET_MAX) {
+      const request = {
+        access_token: accessToken,
+        start_date: startDate,
+        end_date: endDate,
+        options: {
+          include_personal_finance_category: true,
+          personal_finance_category_version: 'v2',
+          count: PLAID_TRANSACTIONS_GET_PAGE_SIZE,
+          offset: collected.length,
+        },
+        ...(accountIds && { account_ids: accountIds }),
+      };
+      const response = await client.transactionsGet(
+        request as Parameters<typeof client.transactionsGet>[0],
+      );
+      const data = response.data as unknown as {
+        transactions?: Array<Record<string, unknown>>;
+        total_transactions?: number;
+      } & Record<string, unknown>;
+      if (!firstPageData) firstPageData = data;
+      const page = data.transactions ?? [];
+      collected.push(...page);
+      if (typeof data.total_transactions === 'number') {
+        total = data.total_transactions;
+      }
+      // Defensive break: if a page returns empty, Plaid has nothing
+      // more for us regardless of what total_transactions said.
+      if (page.length === 0) break;
+    }
+
+    return {
+      ...(firstPageData ?? {}),
+      transactions: collected,
+    };
   } catch (error) {
     console.error('Error getting transactions:', error);
     throw error;
