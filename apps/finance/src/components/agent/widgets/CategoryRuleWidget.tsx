@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheck, FiX, FiTag, FiZap } from "react-icons/fi";
+import { FiCheck, FiX } from "react-icons/fi";
 import { Button } from "@zervo/ui";
-import DynamicIcon from "../../DynamicIcon";
 import { authFetch } from "../../../lib/api/fetch";
 import { WidgetError, WidgetFrame } from "./primitives";
 
@@ -40,34 +39,37 @@ type WidgetState =
   | { kind: "declined"; silent: boolean }
   | { kind: "failed"; message: string };
 
+const FIELD_LABEL: Record<string, string> = {
+  merchant_name: "merchant",
+  description: "description",
+  amount: "amount",
+};
+
+const OP_LABEL: Record<string, string> = {
+  is: "is",
+  equals: "equals",
+  contains: "contains",
+  starts_with: "starts with",
+  is_greater_than: "is greater than",
+  is_less_than: "is less than",
+};
+
 function categoryColor(cat: Category | null | undefined): string {
   if (!cat) return "#71717a";
   return cat.hex_color || cat.group_color || "#71717a";
 }
 
-/**
- * Pretty-print a single rule condition. Mirrors how the user would
- * read it in plain English, not as a code expression. The conditions
- * are validated to a safe set of fields/operators before they ever
- * reach this component.
- */
-function formatCondition(c: RuleCondition): { lhs: string; rhs: string } {
-  const fieldLabel: Record<string, string> = {
-    merchant_name: "merchant",
-    description: "description",
-    amount: "amount",
-  };
-  const opLabel: Record<string, string> = {
-    is: "is",
-    equals: "equals",
-    contains: "contains",
-    starts_with: "starts with",
-    is_greater_than: "is greater than",
-    is_less_than: "is less than",
-  };
-  const lhs = `${fieldLabel[c.field] ?? c.field} ${opLabel[c.operator] ?? c.operator}`;
-  const rhs = String(c.value);
-  return { lhs, rhs };
+function formatConditionValue(c: RuleCondition): string {
+  if (c.field === "amount") {
+    const num = Number(c.value);
+    if (Number.isFinite(num)) {
+      return `$${num.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+  }
+  return `“${c.value}”`;
 }
 
 export default function CategoryRuleWidget({
@@ -79,9 +81,9 @@ export default function CategoryRuleWidget({
 }) {
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
 
-  // Mount-time check: did the user already accept/decline this rule
-  // proposal in a previous session? Same widget-actions table the
-  // recategorization widget uses.
+  // Same persisted-action check the recat widget uses: on mount, look
+  // up whether the user already accepted/declined this proposal in a
+  // previous session so the widget rehydrates correctly.
   useEffect(() => {
     if (data.error) return;
     let cancelled = false;
@@ -119,8 +121,6 @@ export default function CategoryRuleWidget({
   async function handleAccept() {
     setState({ kind: "committing" });
     try {
-      // Step 1: create the rule via the existing upsert_category_rule
-      // RPC — same path the transactions page takes for UI-created rules.
       const res = await authFetch("/api/agent/category-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,7 +135,6 @@ export default function CategoryRuleWidget({
           (body as { error?: string })?.error || `Failed (${res.status})`,
         );
       }
-      // Step 2: persist the widget action so reload shows accepted.
       await authFetch("/api/agent/widget-actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,7 +203,7 @@ export default function CategoryRuleWidget({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Proposal — WHEN ... SET ... + accept/decline
+// Proposal — single sentence describing the rule + accept/decline
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
@@ -226,51 +225,39 @@ function ProposalState({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-5"
+      className="space-y-4"
     >
-      <RuleHeader />
+      <RuleSentence
+        conditions={data.conditions}
+        category={data.category}
+        leading="Auto-categorize transactions where"
+      />
 
-      <div className="space-y-2.5 pl-12">
-        {data.conditions.map((c, i) => {
-          const { lhs, rhs } = formatCondition(c);
-          return (
-            <RuleConditionLine
-              key={i}
-              label={i === 0 ? "When" : "And"}
-              lhs={lhs}
-              rhs={rhs}
-            />
-          );
-        })}
+      <RuleMeta
+        approxMatchCount={data.approx_match_count}
+        reasoning={data.reasoning}
+      />
 
-        {/* SET row sits inline with the buttons on md+, mirroring the
-            recategorization widget's TO row. Mobile stacks. */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
-          <div className="min-w-0 md:flex-1">
-            <RuleSetLine label="Set" cat={data.category} />
-          </div>
-          <div className="flex items-center justify-end gap-2 flex-shrink-0">
-            {error && (
-              <span className="text-[11px] text-rose-500 mr-2">{error}</span>
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onDecline}
-              disabled={committing}
-            >
-              Decline
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onAccept}
-              loading={committing}
-            >
-              Accept
-            </Button>
-          </div>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        {error && (
+          <span className="text-[11px] text-rose-500 mr-2">{error}</span>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onDecline}
+          disabled={committing}
+        >
+          Decline
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onAccept}
+          loading={committing}
+        >
+          Create rule
+        </Button>
       </div>
     </motion.div>
   );
@@ -294,38 +281,36 @@ function ResolvedState({
       initial={silent ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="space-y-5"
+      className="space-y-3"
     >
-      <RuleHeader />
+      <RuleSentence
+        conditions={data.conditions}
+        category={data.category}
+        leading={
+          tone === "accepted"
+            ? "Auto-categorizing transactions where"
+            : "Won't auto-categorize transactions where"
+        }
+        muted={tone === "declined"}
+      />
 
-      <div className="pl-12">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4">
-          <div className="min-w-0 md:flex-1">
-            <RuleSetLine
-              label={tone === "accepted" ? "Active" : "Skipped"}
-              cat={data.category}
-              muted={tone === "declined"}
-            />
-          </div>
-          <motion.div
-            initial={silent ? false : { opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
-            className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
-              tone === "accepted"
-                ? "text-emerald-500"
-                : "text-[var(--color-muted)]"
-            }`}
-          >
-            {tone === "accepted" ? (
-              <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
-            ) : (
-              <FiX className="h-3.5 w-3.5" strokeWidth={3} />
-            )}
-            {tone === "accepted" ? "Rule created" : "Rule declined"}
-          </motion.div>
-        </div>
-      </div>
+      <motion.div
+        initial={silent ? false : { opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: silent ? 0 : 0.25, duration: 0.25 }}
+        className={`flex items-center gap-1.5 text-xs ${
+          tone === "accepted"
+            ? "text-emerald-500"
+            : "text-[var(--color-muted)]"
+        }`}
+      >
+        {tone === "accepted" ? (
+          <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+        ) : (
+          <FiX className="h-3.5 w-3.5" strokeWidth={3} />
+        )}
+        {tone === "accepted" ? "Rule created" : "Rule declined"}
+      </motion.div>
     </motion.div>
   );
 }
@@ -334,78 +319,92 @@ function ResolvedState({
 // Bits
 // ──────────────────────────────────────────────────────────────────────────
 
-function RuleHeader() {
-  // Tiny title row signaling "this is a rule, not a one-time fix" so
-  // the user can tell the widget apart from the recategorization one
-  // without reading the whole thing.
-  return (
-    <div className="flex items-center gap-2 text-[var(--color-fg)]">
-      <FiZap className="h-3.5 w-3.5 text-[var(--color-muted)]" strokeWidth={2.5} />
-      <span className="text-sm font-medium">Auto-categorize future matches</span>
-    </div>
-  );
-}
-
-function RuleConditionLine({
-  label,
-  lhs,
-  rhs,
-}: {
-  label: string;
-  lhs: string;
-  rhs: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-12 flex-shrink-0">
-        {label}
-      </span>
-      <span className="text-[var(--color-fg)] truncate">
-        <span className="text-[var(--color-muted)]">{lhs}</span>{" "}
-        <span className="font-medium">&ldquo;{rhs}&rdquo;</span>
-      </span>
-    </div>
-  );
-}
-
-function RuleSetLine({
-  label,
-  cat,
+/**
+ * Renders the rule as a single natural sentence. The condition LHS
+ * ("merchant is") is rendered muted; the value the user is matching on
+ * is bold. The target category gets a colored dot + label inline.
+ * Multi-condition rules read "...where merchant is "Spotify" and amount
+ * is greater than $10, as Entertainment."
+ */
+function RuleSentence({
+  conditions,
+  category,
+  leading,
   muted = false,
 }: {
-  label: string;
-  cat: Category;
+  conditions: RuleCondition[];
+  category: Category;
+  leading: string;
   muted?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-12 flex-shrink-0">
-        {label}
+    <p
+      className={`text-sm leading-relaxed ${
+        muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
+      }`}
+    >
+      <span className="text-[var(--color-muted)]">{leading} </span>
+      {conditions.map((c, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="text-[var(--color-muted)]"> and </span>}
+          <span className="text-[var(--color-muted)]">
+            {FIELD_LABEL[c.field] ?? c.field} {OP_LABEL[c.operator] ?? c.operator}{" "}
+          </span>
+          <span className={muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)] font-medium"}>
+            {formatConditionValue(c)}
+          </span>
+        </Fragment>
+      ))}
+      <span className="text-[var(--color-muted)]">, as </span>
+      <CategoryInline cat={category} muted={muted} />
+      <span className="text-[var(--color-muted)]">.</span>
+    </p>
+  );
+}
+
+function CategoryInline({ cat, muted = false }: { cat: Category; muted?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 align-middle">
+      <span
+        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+        style={{ backgroundColor: categoryColor(cat) }}
+      />
+      <span
+        className={
+          muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)] font-medium"
+        }
+      >
+        {cat.label}
       </span>
-      <span className="inline-flex items-center gap-2.5 min-w-0">
-        <span
-          className="w-3.5 h-3.5 rounded-full flex-shrink-0 inline-flex items-center justify-center"
-          style={{ backgroundColor: categoryColor(cat) }}
-        >
-          {/* Tiny icon visible on the colored dot for the SET line — gives
-              the rule's target some character without falling back to a
-              big chip. */}
-          <DynamicIcon
-            iconLib={cat.icon_lib}
-            iconName={cat.icon_name}
-            className="h-2 w-2 text-white"
-            fallback={FiTag}
-            style={{ strokeWidth: 2.5 }}
-          />
-        </span>
-        <span
-          className={`truncate ${
-            muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
-          }`}
-        >
-          {cat.label}
-        </span>
-      </span>
+    </span>
+  );
+}
+
+/**
+ * Secondary context: how many existing transactions the rule would
+ * have matched (useful for sanity-checking the rule), and the agent's
+ * one-line reasoning if provided. Only renders when at least one is
+ * present.
+ */
+function RuleMeta({
+  approxMatchCount,
+  reasoning,
+}: {
+  approxMatchCount: number | null;
+  reasoning: string | null;
+}) {
+  const showCount = approxMatchCount !== null && approxMatchCount > 0;
+  if (!showCount && !reasoning) return null;
+  return (
+    <div className="text-xs text-[var(--color-muted)] space-y-1">
+      {showCount && (
+        <div>
+          {approxMatchCount === 1
+            ? "1 existing transaction would have matched."
+            : `${approxMatchCount} existing transactions would have matched.`}
+        </div>
+      )}
+      {reasoning && <div className="italic">{reasoning}</div>}
     </div>
   );
 }
