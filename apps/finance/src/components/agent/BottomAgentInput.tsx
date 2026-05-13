@@ -349,14 +349,11 @@ export default function BottomAgentInput() {
                       }}
                     />
                     <div
-                      className="absolute inset-0 rounded-full siri-orb"
+                      className="absolute inset-0 siri-orb"
                       style={{
                         opacity: expanded ? 1 : 0,
                         transform: expanded ? "scale(1)" : "scale(0.82)",
                         transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
-                        boxShadow: expanded
-                          ? "0 0 14px -2px color-mix(in oklab, var(--color-neon-purple), transparent 60%)"
-                          : "none",
                       }}
                     >
                       {expanded && (
@@ -365,6 +362,7 @@ export default function BottomAgentInput() {
                           <span className="siri-blob siri-blob-2" />
                           <span className="siri-blob siri-blob-3" />
                           <span className="siri-blob siri-blob-4" />
+                          <span className="siri-blob siri-blob-5" />
                         </>
                       )}
                     </div>
