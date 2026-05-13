@@ -271,22 +271,11 @@ export default function SelectCategoryView({
               <button
                 type="button"
                 onClick={() => setDrilledGroupId(null)}
-                className="flex items-center gap-1.5 mb-3 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+                className="flex items-center gap-1.5 mb-2 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
               >
                 <FiChevronLeft className="w-3.5 h-3.5" />
-                All groups
+                {drilledGroup.name}
               </button>
-              <div className="flex items-center gap-2.5 mb-3">
-                <CategoryIconBadge
-                  hexColor={drilledGroup.hex_color}
-                  iconLib={drilledGroup.icon_lib}
-                  iconName={drilledGroup.icon_name}
-                  size="sm"
-                />
-                <span className="text-sm font-medium text-[var(--color-fg)]">
-                  {drilledGroup.name}
-                </span>
-              </div>
               <div>
                 {(drilledGroup.system_categories || []).map((cat) =>
                   renderCategoryRow(cat, drilledGroup)

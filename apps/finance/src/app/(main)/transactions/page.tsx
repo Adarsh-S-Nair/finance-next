@@ -751,28 +751,19 @@ const CategoryPickerView = ({
           const allSelected = all || everyOneIndividually;
           return (
             <div>
-              <button
-                type="button"
-                onClick={() => setDrilledGroupId(null)}
-                className="flex items-center gap-1.5 mb-3 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-              >
-                <FiChevronLeft className="w-3.5 h-3.5" />
-                All groups
-              </button>
-              <div className="flex items-center gap-2.5 mb-3">
-                <CategoryIconBadge
-                  hexColor={drilledGroup.hex_color}
-                  iconLib={drilledGroup.icon_lib}
-                  iconName={drilledGroup.icon_name}
-                  size="sm"
-                />
-                <span className="text-sm font-medium text-[var(--color-fg)] flex-1 truncate">
-                  {drilledGroup.name}
-                </span>
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  type="button"
+                  onClick={() => setDrilledGroupId(null)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors min-w-0"
+                >
+                  <FiChevronLeft className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{drilledGroup.name}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleToggleAllInGroup(drilledGroup)}
-                  className="text-[11px] font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
+                  className="text-[11px] font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity flex-shrink-0 ml-3"
                 >
                   {allSelected ? 'Clear all' : 'Select all'}
                 </button>
