@@ -29,9 +29,9 @@ export default function SelectCategoryView({
     return null;
   }, [transactionAmount]);
 
-  // Plain expressions; React Compiler memoizes. A manual useMemo here
-  // trips the preserve-manual-memoization analysis because of the spread
-  // + sort pattern and would skip the whole component from compilation.
+  // Plain expressions; React Compiler memoizes. A manual useMemo wrapping
+  // a sort() call trips its immutability analysis and skips the whole
+  // component from compilation.
   const directionAllowed = !allowedDirection
     ? categoryGroups
     : categoryGroups
@@ -44,11 +44,12 @@ export default function SelectCategoryView({
         })
         .filter(Boolean);
 
-  // "Other" is the catch-all bucket; keep it pinned to the bottom so
-  // primary spending/income groups dominate the user's attention.
-  const directionFilteredGroups = [...directionAllowed].sort(
-    (a, b) => (a.name === "Other" ? 1 : 0) - (b.name === "Other" ? 1 : 0)
-  );
+  // "Other" is the catch-all bucket; pin it to the bottom by partitioning
+  // rather than sorting (sort is a mutation per the RC analysis).
+  const directionFilteredGroups = [
+    ...directionAllowed.filter((g) => g.name !== "Other"),
+    ...directionAllowed.filter((g) => g.name === "Other"),
+  ];
 
   const isSearching = searchQuery.trim().length > 0;
 

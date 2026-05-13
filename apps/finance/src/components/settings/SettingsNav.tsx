@@ -34,6 +34,7 @@ const GROUPS: SettingsNavGroup[] = [
     title: "Data",
     items: [
       { href: "/settings/institutions", label: "Institutions" },
+      { href: "/settings/categorization", label: "Categorization" },
     ],
   },
   {

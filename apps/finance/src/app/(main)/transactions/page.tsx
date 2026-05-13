@@ -626,12 +626,13 @@ const CategoryPickerView = ({
   }, [orderedGroups, isSearching, search]);
 
   // "Other" pinned to the bottom of the group list; everything else
-  // keeps the server-provided order (already alphabetical from the
-  // category_groups fetch). Plain expression — React Compiler memoizes;
-  // a manual useMemo here trips its preserve-memoization analysis.
-  const orderedGroups = [...categoryGroups].sort(
-    (a, b) => (a.name === 'Other' ? 1 : 0) - (b.name === 'Other' ? 1 : 0)
-  );
+  // keeps the server-provided order (already alphabetical). Partition
+  // rather than sort — React Compiler flags Array.prototype.sort() as a
+  // mutation, which trips its immutability analysis.
+  const orderedGroups = [
+    ...categoryGroups.filter((g) => g.name !== 'Other'),
+    ...categoryGroups.filter((g) => g.name === 'Other'),
+  ];
 
   const drilledGroup = orderedGroups.find((g) => g.id === drilledGroupId) ?? null;
 
