@@ -5,13 +5,13 @@ import { FiPlus, FiTrash2 } from "react-icons/fi";
 import { ConfirmOverlay, Drawer } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 
-type Conversation = {
+export type Conversation = {
   id: string;
   title: string | null;
   last_message_at: string;
 };
 
-function formatRelative(iso: string, now: number): string {
+export function formatRelative(iso: string, now: number): string {
   const ts = new Date(iso).getTime();
   const diffMin = Math.floor((now - ts) / 60_000);
   if (diffMin < 1) return "just now";

@@ -6,7 +6,11 @@ import { FiArrowUp, FiClock } from "react-icons/fi";
 import { usePathname } from "next/navigation";
 import { useRegisterDrawerOpen } from "@zervo/ui";
 import { useAgentOverlay } from "./AgentOverlayProvider";
-import AgentHistoryDrawer from "./AgentHistoryDrawer";
+import AgentHistoryDrawer, {
+  formatRelative,
+  type Conversation,
+} from "./AgentHistoryDrawer";
+import { authFetch } from "../../lib/api/fetch";
 
 // Route-aware placeholder text. The agent works the same everywhere
 // but the prompt should feel aware of where the user is — and the
@@ -68,6 +72,16 @@ export default function BottomAgentInput() {
   // ⌘ K on Mac happens in the same paint as the rest of the hydration
   // pass, so there's no visible flicker.
   const [isMac, setIsMac] = useState(false);
+  // Three most recent conversations, shown above the input when
+  // focused (desktop only) as a "jump back into a thread" affordance.
+  // Refetched each focus so a thread that was created/edited in
+  // the overlay since last focus reflects here. Existing data
+  // isn't cleared while loading — avoids a flicker on every focus.
+  const [recentConversations, setRecentConversations] = useState<Conversation[]>([]);
+  // Captured once at mount so formatRelative renders deterministically
+  // across re-renders (otherwise the timestamps would drift by ms each
+  // render and React would needlessly re-paint them).
+  const [nowAtMount, setNowAtMount] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +146,32 @@ export default function BottomAgentInput() {
       vv.removeEventListener("scroll", update);
     };
   }, []);
+
+  useEffect(() => setNowAtMount(Date.now()), []);
+
+  // Fetch the 3 most recent conversations whenever the input gains
+  // focus (and the overlay isn't already showing — it has its own
+  // history affordance). Existing data stays visible while the
+  // refetch is in flight so the list doesn't flicker on every focus.
+  useEffect(() => {
+    if (!expanded || isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authFetch("/api/agent/conversations");
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as { conversations?: Conversation[] };
+        if (!cancelled) {
+          setRecentConversations((body.conversations ?? []).slice(0, 3));
+        }
+      } catch {
+        // Silent — the input still works without the recent list.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [expanded, isOpen]);
 
   // OS sniff for the kbd badge. `navigator.userAgentData.platform` is
   // the modern API but Chromium-only; `navigator.platform` is
@@ -309,6 +349,49 @@ export default function BottomAgentInput() {
             transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.8 }}
           >
             <div className="pointer-events-auto w-full max-w-[640px] mx-3 md:mx-4 flex flex-col">
+              {/* Three most recent conversations. Desktop-only — on
+                  mobile the keyboard is up and there's no vertical
+                  room above the input; the history clock still gives
+                  full access. Fades in after the input lift settles
+                  (slight delay) so the chats don't jump at the user
+                  while the rest of the focused UI is still animating. */}
+              <AnimatePresence>
+                {expanded && !isMobile && recentConversations.length > 0 && (
+                  <motion.div
+                    key="recent-chats"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.22, delay: 0.08 }}
+                    className="mb-2 flex flex-col gap-1.5"
+                  >
+                    {recentConversations.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          // Stop the press from bubbling to the
+                          // click-outside handler before our onClick
+                          // fires — without this, the press blurs the
+                          // input and unmounts this row mid-click.
+                          e.preventDefault();
+                        }}
+                        onClick={() => openConversation(c.id)}
+                        className="recent-chat-row group flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-left cursor-pointer"
+                      >
+                        <span className="flex-1 min-w-0 truncate text-sm text-[var(--color-fg)]">
+                          {c.title?.trim() || "Untitled"}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-[var(--color-muted)]">
+                          {nowAtMount !== null
+                            ? formatRelative(c.last_message_at, nowAtMount)
+                            : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <form onSubmit={handleSubmit}>
                 <motion.div
                   animate={{
