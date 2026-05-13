@@ -118,5 +118,8 @@ export interface SyncResult {
   // Absent on the "already syncing" short-circuit to match legacy wire shape.
   accounts_updated?: number;
   snapshots_created?: number;
+  // Count of transactions restored by the reconcile pass via
+  // /transactions/get. Absent when reconcile didn't run.
+  reconciled?: number;
   cursor: string | null;
 }

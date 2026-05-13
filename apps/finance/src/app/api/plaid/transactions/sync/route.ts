@@ -17,19 +17,26 @@ import { syncTransactionsForItem } from '../../../../../lib/plaid/transactionSyn
 interface RequestBody {
   plaidItemId?: string | null;
   forceSync?: boolean;
+  reconcile?: boolean;
 }
 
 export const POST = withAuth('plaid:transactions:sync', async (request, userId) => {
   const body = (await request.json()) as RequestBody;
   const plaidItemId = body.plaidItemId ?? null;
   const forceSync = Boolean(body.forceSync);
+  const reconcile = Boolean(body.reconcile);
 
   if (!plaidItemId) {
     return Response.json({ error: 'Plaid item ID is required' }, { status: 400 });
   }
 
   try {
-    const result = await syncTransactionsForItem({ plaidItemId, userId, forceSync });
+    const result = await syncTransactionsForItem({
+      plaidItemId,
+      userId,
+      forceSync,
+      reconcile,
+    });
     return Response.json(result);
   } catch (error) {
     const err = error as { httpStatus?: number; message?: string };

@@ -61,10 +61,26 @@ const MAX_TRANSACTIONS_PER_SYNC = 10_000;
 // Number of days of history to fetch in sandbox (matches legacy behavior).
 const SANDBOX_LOOKBACK_DAYS = 30;
 
+// Lookback window for the reconcile pass. Plaid's /transactions/sync
+// occasionally over-eagerly includes legitimate transactions in its
+// `removed` list, deleting real settled deposits from our DB. The
+// reconcile pass uses /transactions/get (a date-range query, not
+// cursor-based) to re-fetch whatever Plaid currently has for this
+// window and re-inserts anything missing locally.
+const RECONCILE_LOOKBACK_DAYS = 60;
+
 export interface SyncParams {
   plaidItemId: string;
   userId: string;
   forceSync?: boolean;
+  /**
+   * When true, run a /transactions/get reconcile pass after the
+   * cursor-based sync completes. Restores anything Plaid still has
+   * but we've lost locally. Off by default (only enabled by
+   * user-triggered refreshes; webhook-driven syncs skip it to keep
+   * the hot path lean).
+   */
+  reconcile?: boolean;
 }
 
 /**
@@ -75,7 +91,7 @@ export interface SyncParams {
  * propagates. On success, status is set to 'idle'.
  */
 export async function syncTransactionsForItem(params: SyncParams): Promise<SyncResult> {
-  const { plaidItemId, userId, forceSync = false } = params;
+  const { plaidItemId, userId, forceSync = false, reconcile = false } = params;
 
   logger.info('Transaction sync request received', { plaidItemId, userId, forceSync });
 
@@ -226,11 +242,43 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
       await runTransferDetectionSafe(userId, rows);
     }
 
+    // --- Reconcile via /transactions/get (best-effort, opt-in) ---
+    // Cursor-based sync occasionally drops settled transactions via the
+    // `removed` list (Plaid de-duplication oddities). The date-range
+    // /transactions/get endpoint is the source of truth for "what does
+    // Plaid actually have right now". Run it after the main sync and
+    // re-insert anything missing locally for the window. Skipped in
+    // sandbox (already uses /transactions/get above).
+    let reconciledCount = 0;
+    if (reconcile && PLAID_ENV !== 'sandbox') {
+      try {
+        reconciledCount = await reconcileViaTransactionsGet(
+          plaidItem,
+          accountMap,
+          userId,
+          systemCategoriesCache,
+        );
+        if (reconciledCount > 0) {
+          logger.info('Reconcile restored missing transactions', {
+            restored: reconciledCount,
+          });
+        }
+      } catch (reconcileError) {
+        // Reconcile is a safety net — failures shouldn't take down the
+        // main sync result the user is waiting on. Log and continue.
+        logger.error(
+          'Reconcile pass failed (sync still succeeded)',
+          reconcileError as Error,
+        );
+      }
+    }
+
     logger.info('Transaction sync completed', {
-      transactions_synced: rows.length,
+      transactions_synced: rows.length + reconciledCount,
       pending_transactions_updated: pendingReplacements.length,
       accounts_updated: updatedAccountsCount,
       snapshots_created: snapshotsCreatedCount,
+      reconciled: reconciledCount,
     });
     await logger.flush();
 
@@ -240,6 +288,7 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
       pending_transactions_updated: pendingReplacements.length,
       accounts_updated: updatedAccountsCount,
       snapshots_created: snapshotsCreatedCount,
+      reconciled: reconciledCount,
       cursor: PLAID_ENV === 'sandbox' ? null : nextCursor,
     };
   } catch (error) {
@@ -894,5 +943,113 @@ async function runTransferDetectionSafe(
   } catch (err) {
     logger.error('Error running unmatched transfer detection', err as Error);
   }
+}
+
+/**
+ * Safety-net pass that re-fetches the last RECONCILE_LOOKBACK_DAYS via
+ * Plaid's /transactions/get (date-range query, separate from the
+ * cursor-based /transactions/sync flow) and re-inserts any
+ * transactions Plaid still has but we've lost locally. Triggered by
+ * `reconcile: true` on the sync params — currently only from
+ * user-initiated refreshes, not webhook-driven syncs.
+ *
+ * Why we need this: /transactions/sync occasionally returns legitimate
+ * settled transactions in its `removed` list (Plaid de-duplication or
+ * cursor anomalies). Those rows leave our DB and never come back via
+ * sync because the cursor has advanced past them. /transactions/get is
+ * the only way to ask Plaid "what's currently on file for this date
+ * window" and self-heal.
+ */
+async function reconcileViaTransactionsGet(
+  plaidItem: PlaidItemRow,
+  accountMap: AccountMap,
+  userId: string,
+  systemCategoriesCache: SystemCategoryRow[] | null,
+): Promise<number> {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - RECONCILE_LOOKBACK_DAYS);
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  // 1) Ask Plaid what's currently on file for this window.
+  let plaidTxs: PlaidTransaction[] = [];
+  try {
+    const res = await getTransactions(
+      decryptPlaidToken(plaidItem.access_token),
+      startStr,
+      endStr,
+    );
+    plaidTxs = (res.transactions ?? []) as unknown as PlaidTransaction[];
+  } catch (err) {
+    logger.error('Reconcile: /transactions/get failed', err as Error);
+    return 0;
+  }
+  if (plaidTxs.length === 0) return 0;
+
+  // 2) Find which plaid_transaction_ids we already have for these
+  // accounts in the same window.
+  const accountUuids = Object.values(accountMap);
+  if (accountUuids.length === 0) return 0;
+  const { data: existingRows, error: existingError } = await supabaseAdmin
+    .from('transactions')
+    .select('plaid_transaction_id')
+    .in('account_id', accountUuids)
+    .gte('date', startStr)
+    .lte('date', endStr);
+  if (existingError) {
+    logger.error('Reconcile: existing-ids lookup failed', existingError as unknown as Error);
+    return 0;
+  }
+  const existingIds = new Set(
+    (existingRows ?? [])
+      .map((r) => r.plaid_transaction_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  // 3) Filter to the transactions Plaid has but we don't.
+  const missing = plaidTxs.filter(
+    (tx) => tx.transaction_id && !existingIds.has(tx.transaction_id),
+  );
+  if (missing.length === 0) return 0;
+
+  // 4) Run the missing rows through the same build → categorize →
+  // direction-resolve pipeline the main sync uses, then upsert. The
+  // onConflict on plaid_transaction_id keeps this idempotent if a
+  // concurrent sync already inserted them.
+  const { rows } = buildTransactionRows(missing, accountMap);
+  if (rows.length === 0) return 0;
+
+  await ensureCategoryGroups(rows);
+  const allGroups = await fetchAllCategoryGroups();
+  await ensureSystemCategories(rows, allGroups);
+  await backfillPlaidCategoryKeys(rows, allGroups);
+
+  const sysCats = systemCategoriesCache ?? (await fetchAllSystemCategories());
+  linkRowsToCategories(rows, sysCats);
+  try {
+    const userRules = await fetchUserRules(userId);
+    if (userRules.length > 0) {
+      applyRulesToTransactions(
+        rows as unknown as Parameters<typeof applyRulesToTransactions>[0],
+        userRules,
+      );
+    }
+  } catch (err) {
+    logger.error('Reconcile: applyRules failed', err as Error);
+  }
+  await preserveUserCategories(rows);
+  resolveDirectionMismatches(rows, sysCats);
+
+  const { error: upsertError } = await supabaseAdmin
+    .from('transactions')
+    .upsert(rows as TablesInsert<'transactions'>[], {
+      onConflict: 'plaid_transaction_id',
+    });
+  if (upsertError) {
+    logger.error('Reconcile: upsert failed', null, { error: upsertError.message });
+    return 0;
+  }
+  return rows.length;
 }
 

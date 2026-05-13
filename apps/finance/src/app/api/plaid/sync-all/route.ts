@@ -9,6 +9,14 @@ const logger = createLogger('sync-all');
 interface RequestBody {
   forceSync?: boolean;
   includeHoldingsDebug?: boolean;
+  /**
+   * When true (default), run the /transactions/get reconcile pass on
+   * every transaction sync below. This is the path the refresh button
+   * uses — the extra Plaid call is cheap (same Transactions product
+   * subscription, no per-call billing) and recovers silently from
+   * occasional cursor-side deletions.
+   */
+  reconcile?: boolean;
 }
 
 interface SyncSubResult {
@@ -25,9 +33,9 @@ interface ItemResult {
 }
 
 export const POST = withAuth('plaid:sync-all', async (request, userId) => {
-  const { forceSync = false, includeHoldingsDebug = false } =
+  const { forceSync = false, includeHoldingsDebug = false, reconcile = true } =
     (await request.json()) as RequestBody;
-  logger.info('Sync all items requested', { userId, forceSync, includeHoldingsDebug });
+  logger.info('Sync all items requested', { userId, forceSync, includeHoldingsDebug, reconcile });
 
   const { data: plaidItems, error: itemsError } = await supabaseAdmin
     .from('plaid_items')
@@ -81,6 +89,7 @@ export const POST = withAuth('plaid:sync-all', async (request, userId) => {
           json: async () => ({
             plaidItemId: item.id,
             forceSync,
+            reconcile,
           }),
         } as unknown as NextRequest;
         const txSyncResponse = await txSyncEndpoint(txSyncRequest, {
