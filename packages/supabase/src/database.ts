@@ -870,6 +870,54 @@ export type Database = {
         }
         Relationships: []
       }
+      transaction_deletion_log: {
+        Row: {
+          account_id: string | null
+          amount: number | null
+          date: string | null
+          deleted: boolean
+          deleted_at: string
+          description: string | null
+          id: string
+          merchant_name: string | null
+          plaid_item_id: string | null
+          plaid_transaction_id: string
+          reason: string
+          user_id: string
+          was_pending: boolean | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount?: number | null
+          date?: string | null
+          deleted: boolean
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          merchant_name?: string | null
+          plaid_item_id?: string | null
+          plaid_transaction_id: string
+          reason: string
+          user_id: string
+          was_pending?: boolean | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number | null
+          date?: string | null
+          deleted?: boolean
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          merchant_name?: string | null
+          plaid_item_id?: string | null
+          plaid_transaction_id?: string
+          reason?: string
+          user_id?: string
+          was_pending?: boolean | null
+        }
+        Relationships: []
+      }
       system_categories: {
         Row: {
           created_at: string

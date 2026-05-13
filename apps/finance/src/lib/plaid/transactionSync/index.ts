@@ -134,13 +134,19 @@ export async function syncTransactionsForItem(params: SyncParams): Promise<SyncR
     // --- Delete pending transactions that have just been posted ---
     await deletePendingReplacements(pendingReplacements);
 
-    // --- Delete transactions Plaid removed (cancelled holds, corrections) ---
-    // We project pending transactions onto the displayed balance, so a
-    // pending hold that gets released has to actually leave the DB or
-    // it'll project against the balance forever.
-    const removedCount = await deleteRemovedTransactions(removedTransactionIds);
+    // --- Delete transactions Plaid removed (pending holds only) ---
+    // Plaid's `removed` list is supposed to be for cancelled pending
+    // holds and de-duplications, but it occasionally fires on real
+    // settled rows (Robinhood connector bugs, cursor anomalies). The
+    // helper applies a strict policy: delete only pending rows; log
+    // everything for the audit trail in transaction_deletion_log.
+    const removedCount = await deleteRemovedTransactions(
+      removedTransactionIds,
+      userId,
+      plaidItemId,
+    );
     if (removedCount > 0) {
-      logger.info('Deleted transactions removed by Plaid', { removedCount });
+      logger.info('Deleted pending transactions Plaid removed', { removedCount });
     }
 
     // --- Ensure category groups + system categories exist ---
@@ -465,24 +471,150 @@ async function deletePendingReplacements(
 }
 
 /**
- * Drop transactions Plaid told us to remove (cancelled holds, duplicates,
- * institution-side corrections). Returns the count actually deleted.
+ * Apply Plaid's `removed` list with a strict safety policy:
  *
- * Without this, pending holds that get released would stay in our DB and
- * project against the displayed balance forever.
+ *   - `pending = true` rows: delete (this is the canonical case the
+ *     `removed` list exists for — cancelled holds need to leave the DB
+ *     so they don't project against the displayed balance forever).
+ *   - `pending = false` rows: SKIP. Plaid occasionally over-eagerly
+ *     marks settled transactions as removed (de-duplication oddities,
+ *     cursor anomalies, brokerage-side connector quirks). Once those
+ *     rows are gone, cursor-based sync never re-emits them. We'd
+ *     rather keep a stale-but-real row than silently lose data; if
+ *     the user notices a true reversal, they can delete it manually.
+ *   - Rows that don't exist in our DB: ignore (nothing to do).
+ *
+ * Every removed-list entry is recorded in `transaction_deletion_log`
+ * (whether we actually deleted it or skipped it) so we have a paper
+ * trail and can recover later if needed. Returns the number actually
+ * deleted.
  */
 async function deleteRemovedTransactions(
-  removedPlaidTransactionIds: string[]
+  removedPlaidTransactionIds: string[],
+  userId: string,
+  plaidItemId: string,
 ): Promise<number> {
   if (removedPlaidTransactionIds.length === 0) return 0;
-  const { error, count } = await supabaseAdmin
+
+  // Fetch the rows so we can decide based on `pending` and snapshot
+  // the metadata into the audit log.
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      'plaid_transaction_id, account_id, pending, amount, date, description, merchant_name',
+    )
+    .in('plaid_transaction_id', removedPlaidTransactionIds);
+  if (lookupError) {
+    logger.error('Failed to look up rows for removed list', lookupError as unknown as Error, {
+      ids_count: removedPlaidTransactionIds.length,
+    });
+    return 0;
+  }
+  const rowsByPlaidId = new Map(
+    (existing ?? []).map((r) => [r.plaid_transaction_id, r] as const),
+  );
+
+  type LogEntry = {
+    user_id: string;
+    plaid_item_id: string;
+    plaid_transaction_id: string;
+    account_id: string | null;
+    amount: number | null;
+    date: string | null;
+    description: string | null;
+    merchant_name: string | null;
+    was_pending: boolean | null;
+    deleted: boolean;
+    reason: string;
+  };
+  const logEntries: LogEntry[] = [];
+  const toDelete: string[] = [];
+
+  for (const plaidId of removedPlaidTransactionIds) {
+    const row = rowsByPlaidId.get(plaidId);
+    if (!row) {
+      logEntries.push({
+        user_id: userId,
+        plaid_item_id: plaidItemId,
+        plaid_transaction_id: plaidId,
+        account_id: null,
+        amount: null,
+        date: null,
+        description: null,
+        merchant_name: null,
+        was_pending: null,
+        deleted: false,
+        reason: 'not_found_in_db',
+      });
+      continue;
+    }
+    if (row.pending === true) {
+      toDelete.push(plaidId);
+      logEntries.push({
+        user_id: userId,
+        plaid_item_id: plaidItemId,
+        plaid_transaction_id: plaidId,
+        account_id: row.account_id,
+        amount: row.amount,
+        date: row.date,
+        description: row.description,
+        merchant_name: row.merchant_name,
+        was_pending: true,
+        deleted: true,
+        reason: 'pending_hold_cancelled',
+      });
+    } else {
+      // Settled — refuse to delete. Plaid's removed list for settled
+      // rows is almost always a connector bug; we'd rather show stale
+      // data than lose real history. The log entry below makes the
+      // decision auditable.
+      logEntries.push({
+        user_id: userId,
+        plaid_item_id: plaidItemId,
+        plaid_transaction_id: plaidId,
+        account_id: row.account_id,
+        amount: row.amount,
+        date: row.date,
+        description: row.description,
+        merchant_name: row.merchant_name,
+        was_pending: false,
+        deleted: false,
+        reason: 'skipped_settled_transaction',
+      });
+    }
+  }
+
+  if (logEntries.length > 0) {
+    const { error: logError } = await supabaseAdmin
+      .from('transaction_deletion_log')
+      .insert(logEntries);
+    if (logError) {
+      // Non-fatal — log to Axiom and continue. The audit log is a
+      // nice-to-have, the actual delete protection still works.
+      logger.error('Failed to write transaction_deletion_log', logError as unknown as Error, {
+        entries_count: logEntries.length,
+      });
+    }
+  }
+
+  if (toDelete.length === 0) {
+    if (logEntries.some((e) => e.was_pending === false)) {
+      logger.warn('Skipped settled-row deletions from Plaid removed list', {
+        skipped_count: logEntries.filter((e) => e.was_pending === false).length,
+        plaid_item_id: plaidItemId,
+      });
+    }
+    return 0;
+  }
+
+  const { error: deleteError, count } = await supabaseAdmin
     .from('transactions')
     .delete({ count: 'exact' })
-    .in('plaid_transaction_id', removedPlaidTransactionIds);
-  if (error) {
-    logger.error('Failed to delete removed transactions', null, {
-      error,
-      ids_count: removedPlaidTransactionIds.length,
+    .in('plaid_transaction_id', toDelete);
+  if (deleteError) {
+    logger.error('Failed to delete removed (pending) transactions', null, {
+      error: deleteError,
+      ids_count: toDelete.length,
     });
     return 0;
   }
