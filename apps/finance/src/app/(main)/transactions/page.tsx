@@ -6,8 +6,8 @@
 "use client";
 
 import PageContainer from "../../../components/layout/PageContainer";
-import SelectCategoryView from "../../../components/SelectCategoryView";
-import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX, FiChevronRight, FiChevronLeft } from "react-icons/fi";
+import SelectCategoryView, { CategoryGroupListView } from "../../../components/SelectCategoryView";
+import { FiRefreshCw, FiFilter, FiSearch, FiLoader, FiX, FiChevronRight } from "react-icons/fi";
 import DynamicIcon from "../../../components/DynamicIcon";
 import { LuReceipt } from "react-icons/lu";
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo, useTransition, memo, Suspense } from "react";
@@ -579,38 +579,67 @@ const CategoryIconBadge = ({ hexColor, iconLib, iconName, size = "md" }) => {
   );
 };
 
+// Per-group selection summary used in both the group-list and drilled
+// views. A group-level entry in selectedGroupIds means "every category
+// in this group" — surfaced as "All N selected" in the subtitle.
+const computeGroupSelection = (group, selectedGroupIds, selectedCategoryIds) => {
+  const total = (group.system_categories || []).length;
+  if (selectedGroupIds.includes(group.id)) {
+    return { selected: total, total, all: true };
+  }
+  const selected = (group.system_categories || []).filter((c) =>
+    selectedCategoryIds.includes(c.id),
+  ).length;
+  return { selected, total, all: false };
+};
+
+// Clicking one category inside a drilled group. If the parent group is
+// currently selected as a whole (legacy bucket-select), expand it into
+// individual selections minus the one the user is toggling off.
+const handleCategoryToggleInGroup = (
+  group,
+  category,
+  selectedGroupIds,
+  selectedCategoryIds,
+  toggleGroup,
+  toggleCategory,
+) => {
+  const isGroupSelected = selectedGroupIds.includes(group.id);
+  if (isGroupSelected) {
+    toggleGroup(group.id);
+    group.system_categories?.forEach((c) => {
+      if (c.id !== category.id && !selectedCategoryIds.includes(c.id))
+        toggleCategory(c.id);
+    });
+  } else {
+    toggleCategory(category.id);
+  }
+};
+
+// Group-list view for the filter drawer. Pure "browse the groups",
+// hands drill-into-a-group control to the parent via onDrillGroup —
+// the parent then pushes a new drawer view whose header back chevron
+// returns the user here.
 const CategoryPickerView = ({
   categoryGroups, loadingCategoryGroups, categoryGroupsError,
   selectedGroupIds, selectedCategoryIds,
   toggleGroup, toggleCategory,
+  onDrillGroup,
 }) => {
   const [search, setSearch] = useState("");
-  const [drilledGroupId, setDrilledGroupId] = useState(null);
+
+  // "Other" pinned to the bottom of the group list; everything else
+  // keeps the server-provided order (already alphabetical). Partition
+  // rather than sort — React Compiler flags sort() as mutation.
+  const orderedGroups = [
+    ...categoryGroups.filter((g) => g.name !== 'Other'),
+    ...categoryGroups.filter((g) => g.name === 'Other'),
+  ];
 
   const isSearching = search.trim().length > 0;
 
-  // Searching exits the drilled view so the user can scan the full
-  // flat result set without confusion. Mirrors SelectCategoryView.
-  useEffect(() => {
-    if (isSearching && drilledGroupId) setDrilledGroupId(null);
-  }, [isSearching, drilledGroupId]);
-
-  // Per-group selection count. A group-level selection in
-  // selectedGroupIds means "every category in this group" — we surface
-  // that as "All N selected" in the subtitle.
-  const computeGroupSelection = (group) => {
-    const total = (group.system_categories || []).length;
-    if (selectedGroupIds.includes(group.id)) {
-      return { selected: total, total, all: true };
-    }
-    const selected = (group.system_categories || []).filter((c) =>
-      selectedCategoryIds.includes(c.id)
-    ).length;
-    return { selected, total, all: false };
-  };
-
   // Flat search results across every group's children.
-  const searchResults = useMemo(() => {
+  const searchResults = (() => {
     if (!isSearching) return [];
     const q = search.toLowerCase();
     const results = [];
@@ -623,58 +652,7 @@ const CategoryPickerView = ({
       }
     }
     return results;
-  }, [orderedGroups, isSearching, search]);
-
-  // "Other" pinned to the bottom of the group list; everything else
-  // keeps the server-provided order (already alphabetical). Partition
-  // rather than sort — React Compiler flags Array.prototype.sort() as a
-  // mutation, which trips its immutability analysis.
-  const orderedGroups = [
-    ...categoryGroups.filter((g) => g.name !== 'Other'),
-    ...categoryGroups.filter((g) => g.name === 'Other'),
-  ];
-
-  const drilledGroup = orderedGroups.find((g) => g.id === drilledGroupId) ?? null;
-
-  // Click a single category inside a drilled group. If the parent group
-  // is currently selected as a whole (legacy bucket-select), expand it
-  // into individual selections minus the one the user is toggling off.
-  const handleCategoryClick = (group, category) => {
-    const isGroupSelected = selectedGroupIds.includes(group.id);
-    if (isGroupSelected) {
-      toggleGroup(group.id);
-      group.system_categories?.forEach((c) => {
-        if (c.id !== category.id && !selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
-      });
-    } else {
-      toggleCategory(category.id);
-    }
-  };
-
-  // "Select all in group" toggle inside the drilled view. Two behaviors:
-  // - currently all selected (either via group-level or every-category-
-  //   individually): clear everything for this group
-  // - otherwise: select via the compact group-level bucket and drop any
-  //   individual selections that overlap
-  const handleToggleAllInGroup = (group) => {
-    const { all, selected, total } = computeGroupSelection(group);
-    const everyOneIndividually = !all && selected === total && total > 0;
-
-    if (all) {
-      toggleGroup(group.id);
-      return;
-    }
-    if (everyOneIndividually) {
-      (group.system_categories || []).forEach((c) => toggleCategory(c.id));
-      return;
-    }
-    // Drop individual selections first, then promote to a group-level
-    // selection so the URL state stays compact.
-    (group.system_categories || []).forEach((c) => {
-      if (selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
-    });
-    toggleGroup(group.id);
-  };
+  })();
 
   if (loadingCategoryGroups) {
     return (
@@ -716,7 +694,16 @@ const CategoryPickerView = ({
                 <button
                   key={`${group.id}:${category.id}`}
                   type="button"
-                  onClick={() => handleCategoryClick(group, category)}
+                  onClick={() =>
+                    handleCategoryToggleInGroup(
+                      group,
+                      category,
+                      selectedGroupIds,
+                      selectedCategoryIds,
+                      toggleGroup,
+                      toggleCategory,
+                    )
+                  }
                   className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
                 >
                   <CategoryIconBadge
@@ -739,59 +726,6 @@ const CategoryPickerView = ({
             })}
           </div>
         )
-      ) : drilledGroup ? (
-        (() => {
-          const { selected, total, all } = computeGroupSelection(drilledGroup);
-          const everyOneIndividually = !all && selected === total && total > 0;
-          const allSelected = all || everyOneIndividually;
-          return (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  type="button"
-                  onClick={() => setDrilledGroupId(null)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors min-w-0"
-                >
-                  <FiChevronLeft className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate">{drilledGroup.name}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleAllInGroup(drilledGroup)}
-                  className="text-[11px] font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity flex-shrink-0 ml-3"
-                >
-                  {allSelected ? 'Clear all' : 'Select all'}
-                </button>
-              </div>
-              <div>
-                {(drilledGroup.system_categories || []).map((category) => {
-                  const isSelected = all || selectedCategoryIds.includes(category.id);
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => handleCategoryClick(drilledGroup, category)}
-                      className="flex items-center justify-between w-full py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: category.hex_color || drilledGroup.hex_color || 'var(--color-muted)' }}
-                        />
-                        <span className="text-sm text-[var(--color-fg)] truncate">{category.label}</span>
-                      </div>
-                      {isSelected && (
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
-                          <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()
       ) : (
         <div>
           {orderedGroups.map((group) => {
@@ -807,7 +741,16 @@ const CategoryPickerView = ({
                 <button
                   key={group.id}
                   type="button"
-                  onClick={() => handleCategoryClick(group, category)}
+                  onClick={() =>
+                    handleCategoryToggleInGroup(
+                      group,
+                      category,
+                      selectedGroupIds,
+                      selectedCategoryIds,
+                      toggleGroup,
+                      toggleCategory,
+                    )
+                  }
                   className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
                 >
                   <CategoryIconBadge
@@ -827,7 +770,7 @@ const CategoryPickerView = ({
               );
             }
 
-            const { selected, total, all } = computeGroupSelection(group);
+            const { selected, total, all } = computeGroupSelection(group, selectedGroupIds, selectedCategoryIds);
             const hasSelection = all || selected > 0;
             const subtitle =
               all || (selected === total && total > 0)
@@ -839,7 +782,7 @@ const CategoryPickerView = ({
               <button
                 key={group.id}
                 type="button"
-                onClick={() => setDrilledGroupId(group.id)}
+                onClick={() => onDrillGroup?.(group)}
                 className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors text-left"
               >
                 <CategoryIconBadge
@@ -861,6 +804,88 @@ const CategoryPickerView = ({
           })}
         </div>
       )}
+    </div>
+  );
+};
+
+// Drilled view for the filter drawer: flat category list within one
+// group, with checkboxes and a Select all / Clear all affordance. The
+// host drawer renders the back chevron in its own header.
+const CategoryFilterListView = ({
+  group,
+  selectedGroupIds, selectedCategoryIds,
+  toggleGroup, toggleCategory,
+}) => {
+  if (!group) {
+    return <div className="py-8 text-center text-sm text-[var(--color-muted)]">No group selected</div>;
+  }
+  const { selected, total, all } = computeGroupSelection(group, selectedGroupIds, selectedCategoryIds);
+  const everyOneIndividually = !all && selected === total && total > 0;
+  const allSelected = all || everyOneIndividually;
+
+  const handleToggleAll = () => {
+    if (all) {
+      toggleGroup(group.id);
+      return;
+    }
+    if (everyOneIndividually) {
+      (group.system_categories || []).forEach((c) => toggleCategory(c.id));
+      return;
+    }
+    // Drop individual selections first, then promote to a group-level
+    // bucket so the URL stays compact.
+    (group.system_categories || []).forEach((c) => {
+      if (selectedCategoryIds.includes(c.id)) toggleCategory(c.id);
+    });
+    toggleGroup(group.id);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-end mb-2">
+        <button
+          type="button"
+          onClick={handleToggleAll}
+          className="text-[11px] font-medium text-[var(--color-fg)] hover:opacity-70 transition-opacity"
+        >
+          {allSelected ? 'Clear all' : 'Select all'}
+        </button>
+      </div>
+      <div>
+        {(group.system_categories || []).map((category) => {
+          const isSelected = all || selectedCategoryIds.includes(category.id);
+          return (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() =>
+                handleCategoryToggleInGroup(
+                  group,
+                  category,
+                  selectedGroupIds,
+                  selectedCategoryIds,
+                  toggleGroup,
+                  toggleCategory,
+                )
+              }
+              className="flex items-center justify-between w-full py-2.5 px-1 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: category.hex_color || group.hex_color || 'var(--color-muted)' }}
+                />
+                <span className="text-sm text-[var(--color-fg)] truncate">{category.label}</span>
+              </div>
+              {isSelected && (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-[var(--color-fg)] flex-shrink-0">
+                  <path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -977,6 +1002,11 @@ function TransactionsContent() {
   const [currentDrawerView, setCurrentDrawerView] = useState('transaction-details');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [filterDrawerView, setFilterDrawerView] = useState('list');
+  // Drilled-into group state for both pickers. The drawer toggles to a
+  // dedicated view ('select-category-group' or 'categories-group') and
+  // uses its own header back chevron for navigation back to the group list.
+  const [drilledCategoryGroup, setDrilledCategoryGroup] = useState(null);
+  const [drilledFilterGroup, setDrilledFilterGroup] = useState(null);
   const [categoryGroups, setCategoryGroups] = useState([]);
   const [loadingCategoryGroups, setLoadingCategoryGroups] = useState(false);
   const [categoryGroupsError, setCategoryGroupsError] = useState(null);
@@ -1586,7 +1616,20 @@ function TransactionsContent() {
   const closeFiltersDrawer = useCallback(() => {
     setIsFiltersOpen(false);
     setFilterDrawerView('list');
+    setDrilledFilterGroup(null);
   }, []);
+
+  // Drill-aware back navigation for the filter drawer. Drilled views
+  // (categories-group) return to their parent (categories); other
+  // sub-views return to the filter list.
+  const handleFilterDrawerBack = useCallback(() => {
+    if (filterDrawerView === 'categories-group') {
+      setFilterDrawerView('categories');
+      setDrilledFilterGroup(null);
+      return;
+    }
+    setFilterDrawerView('list');
+  }, [filterDrawerView]);
 
   // Type/Status options (used by the picker views)
   const typeOptions = [
@@ -1679,6 +1722,24 @@ function TransactionsContent() {
           selectedCategoryIds={selectedCategoryIds}
           toggleGroup={toggleGroup}
           toggleCategory={toggleCategory}
+          onDrillGroup={(group) => {
+            setDrilledFilterGroup(group);
+            setFilterDrawerView('categories-group');
+          }}
+        />
+      ),
+    },
+    {
+      id: 'categories-group',
+      title: drilledFilterGroup?.name || 'Category',
+      showBackButton: true,
+      content: (
+        <CategoryFilterListView
+          group={drilledFilterGroup}
+          selectedGroupIds={selectedGroupIds}
+          selectedCategoryIds={selectedCategoryIds}
+          toggleGroup={toggleGroup}
+          toggleCategory={toggleCategory}
         />
       ),
     },
@@ -1740,15 +1801,24 @@ function TransactionsContent() {
     setSelectedTransaction(null);
     setCurrentDrawerView('transaction-details');
     setPendingCategory(null); // Reset pending category selection
+    setDrilledCategoryGroup(null);
   };
 
   const handleCategoryClick = () => {
     // Reset pending category when opening select-category view fresh
     setPendingCategory(null);
+    setDrilledCategoryGroup(null);
     setCurrentDrawerView('select-category');
   };
 
   const handleBackToTransaction = () => {
+    // From the drilled-into-a-group view, back returns to the group
+    // list (select-category) rather than all the way to the transaction.
+    if (currentDrawerView === 'select-category-group') {
+      setCurrentDrawerView('select-category');
+      setDrilledCategoryGroup(null);
+      return;
+    }
     if (currentDrawerView !== 'transaction-details') {
       // If going back from select-category view, reset pending category
       if (currentDrawerView === 'select-category') {
@@ -2068,7 +2138,7 @@ function TransactionsContent() {
           views={buildFilterDrawerViews()}
           currentViewId={filterDrawerView}
           onViewChange={setFilterDrawerView}
-          onBack={() => setFilterDrawerView('list')}
+          onBack={handleFilterDrawerBack}
         />
       </PageContainer>
     );
@@ -2244,7 +2314,7 @@ function TransactionsContent() {
         views={buildFilterDrawerViews()}
         currentViewId={filterDrawerView}
         onViewChange={setFilterDrawerView}
-        onBack={() => setFilterDrawerView('list')}
+        onBack={handleFilterDrawerBack}
       />
 
       {/* Transaction Details Drawer */}
@@ -2299,8 +2369,25 @@ function TransactionsContent() {
                 onSelectCategory={handleCategorySelect}
                 currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
                 transactionAmount={selectedTransaction?.amount ?? null}
+                onDrillGroup={(group) => {
+                  setDrilledCategoryGroup(group);
+                  setCurrentDrawerView('select-category-group');
+                }}
               />
             )
+          },
+          {
+            id: 'select-category-group',
+            title: drilledCategoryGroup?.name || 'Category',
+            showBackButton: true,
+            content: (
+              <CategoryGroupListView
+                group={drilledCategoryGroup}
+                onSelectCategory={handleCategorySelect}
+                currentCategoryId={pendingCategory?.id || selectedTransaction?.category_id}
+                transactionAmount={selectedTransaction?.amount ?? null}
+              />
+            ),
           },
           {
             id: 'similar-transactions',
