@@ -320,24 +320,27 @@ export default function BottomAgentInput() {
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
                   className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
                 >
-                  {/* Logo at rest, Siri-style orb when focused. Two
-                      stacked layers crossfade with a subtle scale to
-                      feel like a morph rather than a hard swap:
-                      - Resting layer: masked logo silhouette (solid
-                        fg fill, mask-image clipped to logo shape).
-                      - Focused layer: a true circle composed of four
-                        independently-orbiting colored blobs over a
-                        dark base, plus a glassy top-left highlight
-                        (see .siri-orb / .siri-blob in globals.css).
-                      Blobs are only mounted while focused — no point
-                      running 4 animations off-screen. */}
+                  {/* Logo with a neon aura on focus. Two layers, both
+                      masked to the same logo silhouette:
+                      - Aura (back layer): scaled-up + blurred + filled
+                        with a slowly-rotating conic gradient. Reads
+                        as a colored halo radiating outward in the
+                        exact shape of the logo. Only opaque when
+                        focused.
+                      - Logo (front layer): the real logo. At rest, a
+                        flat fg-colored fill. When focused, a slow
+                        diagonal shine sweeps across it (logo-shine).
+                      Both layers carry the same mask so the back layer
+                      blooms outward while the front layer stays crisp
+                      at native size. */}
                   <div aria-hidden className="ml-3 h-8 w-8 shrink-0 relative">
                     <div
-                      className="absolute inset-0 bg-[var(--color-fg)]"
+                      className="absolute inset-0 logo-aura"
                       style={{
-                        opacity: expanded ? 0 : 1,
-                        transform: expanded ? "scale(0.88)" : "scale(1)",
-                        transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        opacity: expanded ? 0.95 : 0,
+                        transform: expanded ? "scale(1.45)" : "scale(1.05)",
+                        filter: "blur(7px) saturate(140%)",
+                        transition: "opacity 320ms ease, transform 380ms cubic-bezier(0.16, 1, 0.3, 1)",
                         WebkitMaskImage: "url(/logo.svg)",
                         maskImage: "url(/logo.svg)",
                         WebkitMaskSize: "contain",
@@ -349,23 +352,19 @@ export default function BottomAgentInput() {
                       }}
                     />
                     <div
-                      className="absolute inset-0 siri-orb"
+                      className={`absolute inset-0 ${expanded ? "logo-shine" : "bg-[var(--color-fg)]"}`}
                       style={{
-                        opacity: expanded ? 1 : 0,
-                        transform: expanded ? "scale(1)" : "scale(0.82)",
-                        transition: "opacity 260ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+                        transition: "background 300ms ease",
+                        WebkitMaskImage: "url(/logo.svg)",
+                        maskImage: "url(/logo.svg)",
+                        WebkitMaskSize: "contain",
+                        maskSize: "contain",
+                        WebkitMaskRepeat: "no-repeat",
+                        maskRepeat: "no-repeat",
+                        WebkitMaskPosition: "center",
+                        maskPosition: "center",
                       }}
-                    >
-                      {expanded && (
-                        <>
-                          <span className="siri-blob siri-blob-1" />
-                          <span className="siri-blob siri-blob-2" />
-                          <span className="siri-blob siri-blob-3" />
-                          <span className="siri-blob siri-blob-4" />
-                          <span className="siri-blob siri-blob-5" />
-                        </>
-                      )}
-                    </div>
+                    />
                   </div>
                   <input
                     ref={inputRef}
