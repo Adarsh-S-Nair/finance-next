@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { matchesRule } from '../../../../lib/category-rules';
 import type { Json } from '../../../../types/database';
 
 /**
@@ -15,6 +16,13 @@ import type { Json } from '../../../../types/database';
  * Conditions are validated against an allowlist of fields and operators
  * — the model could in theory pass anything in the JSON, and we don't
  * want a malformed condition to silently break rule evaluation.
+ *
+ * Optional `apply_to_existing`: when true, the endpoint also walks the
+ * user's transactions and assigns the rule's category to any that
+ * match the conditions today — useful when the user wants the rule to
+ * cover past activity too, not just future syncs. Direction-mismatched
+ * rows are skipped (an income category can't be applied to a negative
+ * tx and vice versa — the DB trigger would reject those anyway).
  */
 const ALLOWED_FIELDS = new Set(['merchant_name', 'description', 'amount']);
 const ALLOWED_OPERATORS = new Set([
@@ -38,10 +46,12 @@ export const POST = withAuth(
     const body = (await req.json().catch(() => ({}))) as {
       category_id?: string;
       conditions?: RuleCondition[];
+      apply_to_existing?: boolean;
     };
 
     const categoryId = body.category_id?.trim();
     const rawConditions = Array.isArray(body.conditions) ? body.conditions : [];
+    const applyToExisting = body.apply_to_existing === true;
 
     if (!categoryId) {
       return NextResponse.json(
@@ -91,7 +101,7 @@ export const POST = withAuth(
     // Verify the target category exists.
     const { data: cat, error: catError } = await supabaseAdmin
       .from('system_categories')
-      .select('id')
+      .select('id, direction')
       .eq('id', categoryId)
       .maybeSingle();
     if (catError) {
@@ -119,6 +129,87 @@ export const POST = withAuth(
       return NextResponse.json({ error: 'Failed to create rule' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    let appliedToExisting: number | null = null;
+    if (applyToExisting) {
+      appliedToExisting = await applyRuleToExisting(
+        userId,
+        categoryId,
+        cat.direction,
+        conditions,
+      );
+    }
+
+    return NextResponse.json({ ok: true, applied_to_existing: appliedToExisting });
   },
 );
+
+/**
+ * Walks the user's transactions, picks the ones that match the rule
+ * conditions today, filters by direction compatibility, and bulk-
+ * updates them to the new category. Returns the number updated.
+ *
+ * Direction filter: the DB trigger blocks assigning an income
+ * category to a negative-amount transaction (and vice versa), so we
+ * pre-filter rather than letting the trigger reject the whole batch.
+ */
+async function applyRuleToExisting(
+  userId: string,
+  categoryId: string,
+  direction: string,
+  conditions: RuleCondition[],
+): Promise<number> {
+  const { data: txs, error } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      'id, amount, description, merchant_name, category_id, accounts!inner(user_id)',
+    )
+    .eq('accounts.user_id', userId);
+  if (error) {
+    console.error('[agent:category-rules:create] tx lookup failed', error);
+    return 0;
+  }
+  const candidates = (txs ?? []) as Array<{
+    id: string;
+    amount: number;
+    description: string | null;
+    merchant_name: string | null;
+    category_id: string | null;
+  }>;
+
+  // Reuse the same matchesRule logic the Plaid sync runs on incoming
+  // transactions so retroactive application is consistent with future
+  // application. Build a minimal rule shape — matchesRule only reads
+  // `conditions`.
+  type RuleShape = Parameters<typeof matchesRule>[1];
+  const ruleShape = {
+    conditions,
+  } as unknown as RuleShape;
+
+  const matching = candidates.filter((tx) => {
+    if (!matchesRule(tx as Parameters<typeof matchesRule>[0], ruleShape)) return false;
+    if (tx.category_id === categoryId) return false; // already there
+    const amt = Number(tx.amount);
+    if (!Number.isFinite(amt) || amt === 0) return true;
+    if (direction === 'both') return true;
+    if (direction === 'income' && amt < 0) return false;
+    if (direction === 'expense' && amt > 0) return false;
+    return true;
+  });
+
+  if (matching.length === 0) return 0;
+
+  const ids = matching.map((t) => t.id);
+  const { error: updateError } = await supabaseAdmin
+    .from('transactions')
+    .update({
+      category_id: categoryId,
+      is_user_categorized: true,
+      is_unmatched_transfer: false,
+    })
+    .in('id', ids);
+  if (updateError) {
+    console.error('[agent:category-rules:create] retro update failed', updateError);
+    return 0;
+  }
+  return matching.length;
+}

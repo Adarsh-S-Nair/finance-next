@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiX } from "react-icons/fi";
 import { Button } from "@zervo/ui";
@@ -35,7 +35,7 @@ type WidgetState =
   | { kind: "checking" }
   | { kind: "idle" }
   | { kind: "committing" }
-  | { kind: "accepted"; silent: boolean }
+  | { kind: "accepted"; silent: boolean; appliedToExisting: number | null }
   | { kind: "declined"; silent: boolean }
   | { kind: "failed"; message: string };
 
@@ -69,7 +69,7 @@ function formatConditionValue(c: RuleCondition): string {
       })}`;
     }
   }
-  return `“${c.value}”`;
+  return String(c.value);
 }
 
 export default function CategoryRuleWidget({
@@ -80,10 +80,15 @@ export default function CategoryRuleWidget({
   data: CategoryRuleData;
 }) {
   const [state, setState] = useState<WidgetState>({ kind: "checking" });
+  // Default: opt INTO retroactive application when there are matches —
+  // it's the surprising-if-missing behavior (the user explicitly asked
+  // "what about my existing Gemini transactions"). Hidden when
+  // approx_match_count is 0 or null, so users only see the option when
+  // it'd actually do something.
+  const [applyToExisting, setApplyToExisting] = useState(true);
 
-  // Same persisted-action check the recat widget uses: on mount, look
-  // up whether the user already accepted/declined this proposal in a
-  // previous session so the widget rehydrates correctly.
+  // Mount-time check: did the user already accept/decline this rule
+  // proposal in a previous session?
   useEffect(() => {
     if (data.error) return;
     let cancelled = false;
@@ -97,7 +102,11 @@ export default function CategoryRuleWidget({
           const body = (await res.json()) as { action?: string | null };
           if (cancelled) return;
           if (body.action === "accepted") {
-            setState({ kind: "accepted", silent: true });
+            setState({
+              kind: "accepted",
+              silent: true,
+              appliedToExisting: null,
+            });
             return;
           }
           if (body.action === "declined") {
@@ -118,6 +127,9 @@ export default function CategoryRuleWidget({
 
   if (data.error) return <WidgetError message={data.error} />;
 
+  const matchCount = data.approx_match_count ?? 0;
+  const showApplyToggle = matchCount > 0;
+
   async function handleAccept() {
     setState({ kind: "committing" });
     try {
@@ -127,6 +139,7 @@ export default function CategoryRuleWidget({
         body: JSON.stringify({
           category_id: data.category.id,
           conditions: data.conditions,
+          apply_to_existing: showApplyToggle && applyToExisting,
         }),
       });
       if (!res.ok) {
@@ -135,6 +148,9 @@ export default function CategoryRuleWidget({
           (body as { error?: string })?.error || `Failed (${res.status})`,
         );
       }
+      const body = (await res.json().catch(() => ({}))) as {
+        applied_to_existing?: number | null;
+      };
       await authFetch("/api/agent/widget-actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,7 +159,11 @@ export default function CategoryRuleWidget({
           action: "accepted",
         }),
       });
-      setState({ kind: "accepted", silent: false });
+      setState({
+        kind: "accepted",
+        silent: false,
+        appliedToExisting: body.applied_to_existing ?? null,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
       setState({ kind: "failed", message });
@@ -179,6 +199,7 @@ export default function CategoryRuleWidget({
             tone="accepted"
             data={data}
             silent={state.silent}
+            appliedToExisting={state.appliedToExisting}
           />
         ) : state.kind === "declined" ? (
           <ResolvedState
@@ -186,6 +207,7 @@ export default function CategoryRuleWidget({
             tone="declined"
             data={data}
             silent={state.silent}
+            appliedToExisting={null}
           />
         ) : (
           <ProposalState
@@ -193,6 +215,9 @@ export default function CategoryRuleWidget({
             data={data}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
+            showApplyToggle={showApplyToggle}
+            applyToExisting={applyToExisting}
+            onApplyToggle={setApplyToExisting}
             onAccept={handleAccept}
             onDecline={handleDecline}
           />
@@ -203,19 +228,25 @@ export default function CategoryRuleWidget({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Proposal — single sentence describing the rule + accept/decline
+// Proposal — WHEN/SET rows, optional retroactive toggle, accept/decline
 // ──────────────────────────────────────────────────────────────────────────
 
 function ProposalState({
   data,
   committing,
   error,
+  showApplyToggle,
+  applyToExisting,
+  onApplyToggle,
   onAccept,
   onDecline,
 }: {
   data: CategoryRuleData;
   committing: boolean;
   error: string | null;
+  showApplyToggle: boolean;
+  applyToExisting: boolean;
+  onApplyToggle: (v: boolean) => void;
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -225,40 +256,61 @@ function ProposalState({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-4"
+      className="space-y-5"
     >
-      <RuleSentence
-        conditions={data.conditions}
-        category={data.category}
-        leading="Auto-categorize transactions where"
-      />
+      <div className="space-y-2.5">
+        {data.conditions.map((c, i) => (
+          <RuleConditionRow
+            key={i}
+            label={i === 0 ? "When" : "And"}
+            condition={c}
+          />
+        ))}
 
-      <RuleMeta
-        approxMatchCount={data.approx_match_count}
-        reasoning={data.reasoning}
-      />
-
-      <div className="flex items-center justify-end gap-2">
-        {error && (
-          <span className="text-[11px] text-rose-500 mr-2">{error}</span>
-        )}
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onDecline}
-          disabled={committing}
-        >
-          Decline
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onAccept}
-          loading={committing}
-        >
-          Create rule
-        </Button>
+        {/* SET row sits inline with the buttons on md+, mirroring the
+            recategorization widget's TO row. Mobile stacks. */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
+          <div className="min-w-0 md:flex-1">
+            <RuleSetRow label="Set" cat={data.category} />
+          </div>
+          <div className="flex items-center justify-end gap-2 flex-shrink-0">
+            {error && (
+              <span className="text-[11px] text-rose-500 mr-2">{error}</span>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onDecline}
+              disabled={committing}
+            >
+              Decline
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onAccept}
+              loading={committing}
+            >
+              Create rule
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {showApplyToggle && (
+        <ApplyToExistingToggle
+          count={data.approx_match_count ?? 0}
+          checked={applyToExisting}
+          onChange={onApplyToggle}
+          disabled={committing}
+        />
+      )}
+
+      {data.reasoning && (
+        <p className="text-xs text-[var(--color-muted)] italic">
+          {data.reasoning}
+        </p>
+      )}
     </motion.div>
   );
 }
@@ -271,10 +323,12 @@ function ResolvedState({
   tone,
   data,
   silent,
+  appliedToExisting,
 }: {
   tone: "accepted" | "declined";
   data: CategoryRuleData;
   silent: boolean;
+  appliedToExisting: number | null;
 }) {
   return (
     <motion.div
@@ -283,34 +337,51 @@ function ResolvedState({
       transition={{ duration: 0.25 }}
       className="space-y-3"
     >
-      <RuleSentence
-        conditions={data.conditions}
-        category={data.category}
-        leading={
-          tone === "accepted"
-            ? "Auto-categorizing transactions where"
-            : "Won't auto-categorize transactions where"
-        }
-        muted={tone === "declined"}
-      />
+      <div className="space-y-2.5">
+        {data.conditions.map((c, i) => (
+          <RuleConditionRow
+            key={i}
+            label={i === 0 ? "When" : "And"}
+            condition={c}
+            muted
+          />
+        ))}
 
-      <motion.div
-        initial={silent ? false : { opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: silent ? 0 : 0.25, duration: 0.25 }}
-        className={`flex items-center gap-1.5 text-xs ${
-          tone === "accepted"
-            ? "text-emerald-500"
-            : "text-[var(--color-muted)]"
-        }`}
-      >
-        {tone === "accepted" ? (
-          <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
-        ) : (
-          <FiX className="h-3.5 w-3.5" strokeWidth={3} />
-        )}
-        {tone === "accepted" ? "Rule created" : "Rule declined"}
-      </motion.div>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
+          <div className="min-w-0 md:flex-1">
+            <RuleSetRow
+              label={tone === "accepted" ? "Active" : "Skipped"}
+              cat={data.category}
+              muted={tone === "declined"}
+            />
+          </div>
+          <motion.div
+            initial={silent ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
+            className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
+              tone === "accepted"
+                ? "text-emerald-500"
+                : "text-[var(--color-muted)]"
+            }`}
+          >
+            {tone === "accepted" ? (
+              <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+            ) : (
+              <FiX className="h-3.5 w-3.5" strokeWidth={3} />
+            )}
+            {tone === "accepted" ? "Rule created" : "Rule declined"}
+          </motion.div>
+        </div>
+      </div>
+
+      {tone === "accepted" && appliedToExisting !== null && appliedToExisting > 0 && (
+        <div className="text-xs text-[var(--color-muted)]">
+          {appliedToExisting === 1
+            ? "Recategorized 1 existing transaction to match."
+            : `Recategorized ${appliedToExisting} existing transactions to match.`}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -319,92 +390,115 @@ function ResolvedState({
 // Bits
 // ──────────────────────────────────────────────────────────────────────────
 
-/**
- * Renders the rule as a single natural sentence. The condition LHS
- * ("merchant is") is rendered muted; the value the user is matching on
- * is bold. The target category gets a colored dot + label inline.
- * Multi-condition rules read "...where merchant is "Spotify" and amount
- * is greater than $10, as Entertainment."
- */
-function RuleSentence({
-  conditions,
-  category,
-  leading,
+function RuleConditionRow({
+  label,
+  condition,
   muted = false,
 }: {
-  conditions: RuleCondition[];
-  category: Category;
-  leading: string;
+  label: string;
+  condition: RuleCondition;
+  muted?: boolean;
+}) {
+  const field = FIELD_LABEL[condition.field] ?? condition.field;
+  const op = OP_LABEL[condition.operator] ?? condition.operator;
+  const value = formatConditionValue(condition);
+  const isAmount = condition.field === "amount";
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-12 flex-shrink-0">
+        {label}
+      </span>
+      <span className="truncate">
+        <span className="text-[var(--color-muted)]">
+          {field} {op}{" "}
+        </span>
+        <span
+          className={
+            muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)] font-medium"
+          }
+        >
+          {isAmount ? value : `“${value}”`}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function RuleSetRow({
+  label,
+  cat,
+  muted = false,
+}: {
+  label: string;
+  cat: Category;
   muted?: boolean;
 }) {
   return (
-    <p
-      className={`text-sm leading-relaxed ${
-        muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
-      }`}
-    >
-      <span className="text-[var(--color-muted)]">{leading} </span>
-      {conditions.map((c, i) => (
-        <Fragment key={i}>
-          {i > 0 && <span className="text-[var(--color-muted)]"> and </span>}
-          <span className="text-[var(--color-muted)]">
-            {FIELD_LABEL[c.field] ?? c.field} {OP_LABEL[c.operator] ?? c.operator}{" "}
-          </span>
-          <span className={muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)] font-medium"}>
-            {formatConditionValue(c)}
-          </span>
-        </Fragment>
-      ))}
-      <span className="text-[var(--color-muted)]">, as </span>
-      <CategoryInline cat={category} muted={muted} />
-      <span className="text-[var(--color-muted)]">.</span>
-    </p>
-  );
-}
-
-function CategoryInline({ cat, muted = false }: { cat: Category; muted?: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 align-middle">
-      <span
-        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: categoryColor(cat) }}
-      />
-      <span
-        className={
-          muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)] font-medium"
-        }
-      >
-        {cat.label}
+    <div className="flex items-center gap-3 text-sm">
+      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] w-12 flex-shrink-0">
+        {label}
       </span>
-    </span>
+      <span className="inline-flex items-center gap-2.5 min-w-0">
+        <span
+          className="w-3 h-3 rounded-full flex-shrink-0"
+          style={{ backgroundColor: categoryColor(cat) }}
+        />
+        <span
+          className={`truncate ${
+            muted ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]"
+          }`}
+        >
+          {cat.label}
+        </span>
+      </span>
+    </div>
   );
 }
 
 /**
- * Secondary context: how many existing transactions the rule would
- * have matched (useful for sanity-checking the rule), and the agent's
- * one-line reasoning if provided. Only renders when at least one is
- * present.
+ * Opt-in toggle to retroactively apply the rule to matching existing
+ * transactions. Default is checked because the most natural ask
+ * ("auto-categorize Gemini going forward") usually implies "and fix
+ * the existing ones too" — the user almost always wants both.
  */
-function RuleMeta({
-  approxMatchCount,
-  reasoning,
+function ApplyToExistingToggle({
+  count,
+  checked,
+  onChange,
+  disabled,
 }: {
-  approxMatchCount: number | null;
-  reasoning: string | null;
+  count: number;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled: boolean;
 }) {
-  const showCount = approxMatchCount !== null && approxMatchCount > 0;
-  if (!showCount && !reasoning) return null;
   return (
-    <div className="text-xs text-[var(--color-muted)] space-y-1">
-      {showCount && (
-        <div>
-          {approxMatchCount === 1
-            ? "1 existing transaction would have matched."
-            : `${approxMatchCount} existing transactions would have matched.`}
-        </div>
-      )}
-      {reasoning && <div className="italic">{reasoning}</div>}
-    </div>
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      disabled={disabled}
+      className="flex items-center gap-2.5 text-xs text-left rounded-md hover:bg-[var(--color-surface-alt)]/40 transition-colors -mx-1 px-1 py-1 disabled:opacity-50"
+    >
+      <span
+        className={`flex h-4 w-4 items-center justify-center rounded border transition-colors flex-shrink-0 ${
+          checked
+            ? "bg-[var(--color-fg)] border-[var(--color-fg)]"
+            : "border-[var(--color-border)] bg-transparent"
+        }`}
+      >
+        {checked && (
+          <FiCheck
+            className="h-3 w-3 text-[var(--color-bg)]"
+            strokeWidth={3.5}
+          />
+        )}
+      </span>
+      <span className="text-[var(--color-fg)]">
+        Also recategorize{" "}
+        <span className="font-medium">
+          {count === 1 ? "1 existing match" : `${count} existing matches`}
+        </span>
+      </span>
+    </button>
   );
 }

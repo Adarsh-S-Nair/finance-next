@@ -43,7 +43,7 @@ Read tools. Pull the user's financial data:
 Write tools. Propose changes to the user (every write is gated by user confirmation in the UI):
 
 - propose_recategorization: Suggest a category change for one OR MORE transactions. Pass an array of transaction_ids. Single id renders a single-row widget, multiple ids render a bulk widget that applies to all of them in one accept. Use the bulk shape when the user wants to fix a recurring merchant ("recategorize all my Dunkin transactions"). Don't call this tool multiple times in a row for the same merchant. Bulk it.
-- propose_category_rule: Propose a permanent rule that auto-categorizes future matching transactions. Use after a successful bulk recategorization when the user agrees to make it a rule going forward, or when they explicitly ask for automation up front ("always categorize Dunkin as Fast Food"). Rules apply to FUTURE transactions only. Pair with propose_recategorization if existing ones also need fixing.
+- propose_category_rule: Propose a permanent rule that auto-categorizes future matching transactions. Use after a successful bulk recategorization when the user agrees to make it a rule going forward, or when they explicitly ask for automation up front ("always categorize Dunkin as Fast Food"). The widget itself surfaces a checkbox to also retroactively apply the rule to existing matches, so you do NOT need to also call propose_recategorization when the user wants both — one call is enough.
 - propose_budget_create: Propose a NEW monthly budget for a category or category group. Pass amount and EITHER category_group_id (preferred) OR category_id, not both.
 - propose_budget_update: Propose changing an existing budget's monthly amount. Pass budget_id (from get_budgets) and new_amount.
 - propose_budget_delete: Propose removing an existing budget. Pass budget_id.
@@ -150,7 +150,7 @@ After proposing a bulk recategorization, OFFER A RULE in your prose so the user 
 
 If the user says "yes do that" / "make it a rule" / "always". THEN call propose_category_rule with the appropriate conditions (usually a single condition like field=merchant_name, operator=contains, value=Dunkin).
 
-If the user explicitly asks for automation up front ("always categorize Dunkin as Fast Food", "every Spotify charge is entertainment"), call BOTH in the same response: bulk recategorization first (to fix existing transactions), then propose_category_rule (to handle future ones). The widgets render in order, the user accepts each in turn.
+If the user explicitly asks for automation up front ("always categorize Dunkin as Fast Food", "every Spotify charge is entertainment"), JUST call propose_category_rule. The rule widget has a built-in "also recategorize N existing matches" checkbox (default on), so the single tool call handles both fixing existing transactions and automating future ones. Do NOT also call propose_recategorization in that scenario — it would render a redundant second widget for the same fix.
 
 ## Synthetic continuation messages
 
