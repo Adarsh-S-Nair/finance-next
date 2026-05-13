@@ -627,19 +627,13 @@ const CategoryPickerView = ({
 
   // "Other" pinned to the bottom of the group list; everything else
   // keeps the server-provided order (already alphabetical from the
-  // category_groups fetch).
-  const orderedGroups = useMemo(() => {
-    return [...categoryGroups].sort((a, b) => {
-      const aOther = a.name === 'Other' ? 1 : 0;
-      const bOther = b.name === 'Other' ? 1 : 0;
-      return aOther - bOther;
-    });
-  }, [categoryGroups]);
-
-  const drilledGroup = useMemo(
-    () => orderedGroups.find((g) => g.id === drilledGroupId) ?? null,
-    [orderedGroups, drilledGroupId]
+  // category_groups fetch). Plain expression — React Compiler memoizes;
+  // a manual useMemo here trips its preserve-memoization analysis.
+  const orderedGroups = [...categoryGroups].sort(
+    (a, b) => (a.name === 'Other' ? 1 : 0) - (b.name === 'Other' ? 1 : 0)
   );
+
+  const drilledGroup = orderedGroups.find((g) => g.id === drilledGroupId) ?? null;
 
   // Click a single category inside a drilled group. If the parent group
   // is currently selected as a whole (legacy bucket-select), expand it

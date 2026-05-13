@@ -29,27 +29,26 @@ export default function SelectCategoryView({
     return null;
   }, [transactionAmount]);
 
-  const directionFilteredGroups = useMemo(() => {
-    const filtered = !allowedDirection
-      ? categoryGroups
-      : categoryGroups
-          .map((group) => {
-            const allowed = (group.system_categories || []).filter(
-              (cat) => !cat.direction || cat.direction === allowedDirection || cat.direction === "both"
-            );
-            if (allowed.length === 0) return null;
-            return { ...group, system_categories: allowed };
-          })
-          .filter(Boolean);
+  // Plain expressions; React Compiler memoizes. A manual useMemo here
+  // trips the preserve-manual-memoization analysis because of the spread
+  // + sort pattern and would skip the whole component from compilation.
+  const directionAllowed = !allowedDirection
+    ? categoryGroups
+    : categoryGroups
+        .map((group) => {
+          const allowed = (group.system_categories || []).filter(
+            (cat) => !cat.direction || cat.direction === allowedDirection || cat.direction === "both"
+          );
+          if (allowed.length === 0) return null;
+          return { ...group, system_categories: allowed };
+        })
+        .filter(Boolean);
 
-    // "Other" is the catch-all bucket; keep it pinned to the bottom so
-    // primary spending/income groups dominate the user's attention.
-    return [...filtered].sort((a, b) => {
-      const aOther = a.name === "Other" ? 1 : 0;
-      const bOther = b.name === "Other" ? 1 : 0;
-      return aOther - bOther;
-    });
-  }, [categoryGroups, allowedDirection]);
+  // "Other" is the catch-all bucket; keep it pinned to the bottom so
+  // primary spending/income groups dominate the user's attention.
+  const directionFilteredGroups = [...directionAllowed].sort(
+    (a, b) => (a.name === "Other" ? 1 : 0) - (b.name === "Other" ? 1 : 0)
+  );
 
   const isSearching = searchQuery.trim().length > 0;
 
