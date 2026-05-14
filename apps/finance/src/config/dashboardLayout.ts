@@ -37,9 +37,23 @@ export const dashboardLayout: DashboardLayout = {
       component: 'NetWorthBanner',
     },
     {
-      id: 'monthly-overview',
-      component: 'MonthlyOverviewCard',
-      height: 'h-[400px]',
+      id: 'monthly-row',
+      type: 'row',
+      items: [
+        {
+          id: 'budgets',
+          component: 'BudgetsCard',
+          width: 'lg:w-[320px] lg:flex-shrink-0',
+          mobileHeight: 'h-auto lg:h-full',
+        },
+        {
+          id: 'monthly-overview',
+          component: 'MonthlyOverviewCard',
+          width: 'lg:flex-1 lg:min-w-0',
+          mobileHeight: 'h-[400px] lg:h-full',
+        },
+      ],
+      height: 'lg:h-[400px]',
     },
     {
       id: 'cashflow-row',
@@ -73,10 +87,6 @@ export const dashboardLayout: DashboardLayout = {
       type: 'row',
       className: 'flex flex-col md:flex-row lg:flex-col gap-10',
       items: [
-        {
-          id: 'budgets',
-          component: 'BudgetsCard',
-        },
         {
           id: 'calendar',
           component: 'CalendarCard',
