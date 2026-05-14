@@ -9,7 +9,7 @@ import DynamicIcon from "../DynamicIcon";
 import { FiTag } from "react-icons/fi";
 import { ViewAllLink } from "@zervo/ui";
 
-const MAX_ROWS = 4;
+const MAX_ROWS = 3;
 
 // Color the per-budget bar by how close it is to the cap. Under 85% uses the
 // category's own color; past that we shift to amber/rose so the user notices
@@ -37,38 +37,46 @@ function BudgetRow({ budget }) {
   const percentage = Number(budget.percentage) || 0;
   const widthPct = Math.min(100, percentage);
   const barColor = barColorFor(percentage, hex);
+  const pctDisplay = Math.round(percentage);
 
   return (
-    <div className="group">
-      <div className="flex items-center gap-2.5 mb-1.5">
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
         <div
-          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: hex || "var(--color-accent)" }}
         >
           <DynamicIcon
             iconLib={iconLib}
             iconName={iconName}
-            className="h-3 w-3 text-white"
+            className="h-3.5 w-3.5 text-white"
             style={{ strokeWidth: 2.5 }}
             fallback={FiTag}
           />
         </div>
-        <span className="text-xs font-medium text-[var(--color-fg)] truncate flex-1">
+        <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
           {label}
         </span>
-        <span className="text-[11px] tabular-nums text-[var(--color-muted)] flex-shrink-0">
-          <span className="text-[var(--color-fg)] font-medium">
-            {formatCurrency(spent)}
-          </span>
-          <span className="mx-1">/</span>
-          {formatCurrency(total)}
+        <span
+          className="text-[11px] tabular-nums font-semibold flex-shrink-0"
+          style={{ color: barColor }}
+        >
+          {pctDisplay}%
         </span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+      <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500 ease-out"
           style={{ width: `${widthPct}%`, backgroundColor: barColor }}
         />
+      </div>
+      <div className="flex items-baseline justify-between text-[11px] tabular-nums">
+        <span className="text-[var(--color-fg)] font-medium">
+          {formatCurrency(spent)}
+        </span>
+        <span className="text-[var(--color-muted)]">
+          of {formatCurrency(total)}
+        </span>
       </div>
     </div>
   );
@@ -116,20 +124,24 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
         </div>
         <div className="animate-pulse">
           <div className="h-10 bg-[var(--color-border)] rounded w-24 mb-3" />
-          <div className="h-1.5 bg-[var(--color-border)] rounded-full mb-2" />
-          <div className="flex justify-between mb-6">
+          <div className="h-2 bg-[var(--color-border)] rounded-full mb-2.5" />
+          <div className="flex justify-between mb-8">
             <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
             <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
           </div>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {[...Array(3)].map((_, i) => (
-              <div key={i}>
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-6 h-6 rounded-full bg-[var(--color-border)]" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded flex-1" />
+              <div key={i} className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-border)]" />
+                  <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
+                </div>
+                <div className="h-2 bg-[var(--color-border)] rounded-full" />
+                <div className="flex justify-between">
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
                   <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
                 </div>
-                <div className="h-1.5 bg-[var(--color-border)] rounded-full" />
               </div>
             ))}
           </div>
@@ -172,7 +184,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
         <ViewAllLink href="/budgets" />
       </div>
 
-      <div className="mb-6">
+      <div className="mb-8">
         <div className="flex flex-col gap-1 mb-4">
           <span className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
             <CurrencyAmount amount={remaining} />
@@ -182,7 +194,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
           </span>
         </div>
 
-        <div className="h-1.5 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2">
+        <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2.5">
           <div
             className="h-full rounded-full transition-all duration-500 ease-out"
             style={{
@@ -198,7 +210,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
         </div>
       </div>
 
-      <div className="mt-auto space-y-3.5">
+      <div className="mt-auto space-y-6">
         {budgets.slice(0, MAX_ROWS).map((budget) => (
           <BudgetRow key={budget.id} budget={budget} />
         ))}

@@ -258,7 +258,18 @@ export default function TopHoldingsCard({ mockData } = {}) {
           <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
-        <div className="h-[110px] animate-pulse rounded-lg bg-[var(--color-border)] opacity-30" />
+        <div className="h-[55px] flex items-center gap-3">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-[var(--color-border)]" />
+          <div className="flex-1">
+            <div className="mb-1.5 h-3 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
+            <div className="h-2 w-1/3 animate-pulse rounded bg-[var(--color-border)]" />
+          </div>
+          <div className="text-right">
+            <div className="mb-1 h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
+            <div className="ml-auto h-2 w-10 animate-pulse rounded bg-[var(--color-border)]" />
+          </div>
+        </div>
+        <div className="mt-2 h-[75px] animate-pulse rounded bg-[var(--color-border)] opacity-30" />
         <div className="mt-4 flex items-center justify-center gap-2">
           <div className="h-1.5 w-4 rounded-full bg-[var(--color-border)]" />
           <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-border)]" />
@@ -286,6 +297,10 @@ export default function TopHoldingsCard({ mockData } = {}) {
     setDirection(i > safeIndex ? 1 : -1);
     setActiveIndex(i);
   };
+  const goPrev = () => jumpTo((safeIndex - 1 + holdings.length) % holdings.length);
+  const goNext = () => jumpTo((safeIndex + 1) % holdings.length);
+
+  const multiple = holdings.length > 1;
 
   return (
     <div className="w-full">
@@ -294,7 +309,7 @@ export default function TopHoldingsCard({ mockData } = {}) {
         <ViewAllLink href="/investments" />
       </div>
 
-      <div className="relative overflow-hidden h-[110px]">
+      <div className="relative overflow-hidden h-[140px]">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={current.ticker + safeIndex}
@@ -303,17 +318,10 @@ export default function TopHoldingsCard({ mockData } = {}) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: direction * -24 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0"
+            className="absolute inset-0 flex flex-col"
           >
-            {/* Sparkline backdrop — fills the card area behind the
-                content so the chart is the canvas, not an afterthought. */}
-            <div className="absolute inset-0 pointer-events-none">
-              <Sparkline data={sparkData} fill gradientId={current.ticker} />
-            </div>
-
-            {/* Content overlay — logo + name on the left, market value
-                + gain% on the right, vertically centered. */}
-            <div className="relative h-full flex items-center gap-3 px-1">
+            {/* Top: holding info on a clean background */}
+            <div className="flex items-center gap-3 px-1 pt-1 flex-shrink-0">
               <HoldingLogo
                 ticker={current.ticker}
                 logo={meta?.logo}
@@ -344,11 +352,51 @@ export default function TopHoldingsCard({ mockData } = {}) {
                 )}
               </div>
             </div>
+
+            {/* Bottom: sparkline as a footer chart, anchored under the
+                content so the text stays clean. */}
+            <div className="relative flex-1 mt-2">
+              <Sparkline data={sparkData} fill gradientId={current.ticker} />
+            </div>
           </motion.div>
         </AnimatePresence>
+
+        {/* Edge-click navigation — split the card into left/right
+            halves. Ghost chevrons fade in on hover so the affordance is
+            discoverable without crowding the header. */}
+        {multiple && (
+          <>
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label="Previous holding"
+              className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-start pl-1 group focus:outline-none"
+            >
+              <span
+                aria-hidden="true"
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--color-surface)]/80 backdrop-blur-sm text-[var(--color-fg)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity text-base leading-none shadow-sm"
+              >
+                &#8249;
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label="Next holding"
+              className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-end pr-1 group focus:outline-none"
+            >
+              <span
+                aria-hidden="true"
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--color-surface)]/80 backdrop-blur-sm text-[var(--color-fg)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity text-base leading-none shadow-sm"
+              >
+                &#8250;
+              </span>
+            </button>
+          </>
+        )}
       </div>
 
-      {holdings.length > 1 && (
+      {multiple && (
         <div className="mt-4 flex items-center justify-center gap-2">
           {holdings.map((h, i) => (
             <button
