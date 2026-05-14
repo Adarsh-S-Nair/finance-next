@@ -12,31 +12,72 @@ import { formatShares } from "../../lib/formatShares";
 const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true);
 
 /**
- * Tiny inline SVG sparkline — 30-day daily close.
+ * Inline SVG sparkline — 30-day daily close.
+ *
+ * Two modes:
+ *  - default (`fill` false): fixed width/height, used inline.
+ *  - `fill`: stretches to fill its parent via a normalized viewBox and
+ *    renders a gradient area under the line for use as a card backdrop.
  */
-function Sparkline({ data, width = 64, height = 24 }) {
+function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) {
   if (!data || data.length < 2) {
+    if (fill) return <div className="w-full h-full" aria-hidden="true" />;
     return <div style={{ width, height }} aria-hidden="true" />;
   }
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
-  const padY = 2;
-  const drawableH = height - padY * 2;
+  const vbW = 100;
+  const vbH = 100;
+  const padY = 4;
+  const drawableH = vbH - padY * 2;
   const points = data
     .map((val, i) => {
-      const x = (i / (data.length - 1)) * width;
+      const x = (i / (data.length - 1)) * vbW;
       const y = padY + drawableH - ((val - min) / range) * drawableH;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
   const isUp = data[data.length - 1] >= data[0];
+  const stroke = isUp ? "#10b981" : "#f43f5e";
+
+  if (fill) {
+    const gid = `spark-grad-${gradientId || "x"}`;
+    const areaPoints = `0,${vbH} ${points} ${vbW},${vbH}`;
+    return (
+      <svg
+        viewBox={`0 0 ${vbW} ${vbH}`}
+        preserveAspectRatio="none"
+        className="w-full h-full"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={areaPoints} fill={`url(#${gid})`} />
+        <polyline
+          points={points}
+          fill="none"
+          stroke={stroke}
+          strokeOpacity={0.7}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    );
+  }
+
   return (
     <svg width={width} height={height} className="flex-shrink-0 overflow-visible">
       <polyline
         points={points}
         fill="none"
-        stroke={isUp ? "#10b981" : "#f43f5e"}
+        stroke={stroke}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -217,18 +258,12 @@ export default function TopHoldingsCard({ mockData } = {}) {
           <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
-        <div className="flex items-center gap-3 py-2">
-          <div className="h-10 w-10 animate-pulse rounded-full bg-[var(--color-border)]" />
-          <div className="flex-1">
-            <div className="mb-1.5 h-3 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
-            <div className="h-2 w-1/3 animate-pulse rounded bg-[var(--color-border)]" />
-          </div>
-          <div className="text-right">
-            <div className="mb-1 h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
-            <div className="ml-auto h-2 w-10 animate-pulse rounded bg-[var(--color-border)]" />
-          </div>
+        <div className="h-[110px] animate-pulse rounded-lg bg-[var(--color-border)] opacity-30" />
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <div className="h-1.5 w-4 rounded-full bg-[var(--color-border)]" />
+          <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-border)]" />
+          <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-border)]" />
         </div>
-        <div className="mt-3 h-6 w-full animate-pulse rounded bg-[var(--color-border)] opacity-40" />
       </div>
     );
   }
@@ -246,43 +281,20 @@ export default function TopHoldingsCard({ mockData } = {}) {
       ? ((price - current.avg_cost) / current.avg_cost) * 100
       : 0;
 
-  const goPrev = () => {
-    setDirection(-1);
-    setActiveIndex((prev) => (prev - 1 + holdings.length) % holdings.length);
-  };
-  const goNext = () => {
-    setDirection(1);
-    setActiveIndex((prev) => (prev + 1) % holdings.length);
+  const jumpTo = (i) => {
+    if (i === safeIndex) return;
+    setDirection(i > safeIndex ? 1 : -1);
+    setActiveIndex(i);
   };
 
   return (
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="card-header">Top Holdings</h3>
-        <div className="flex items-center gap-2">
-          {holdings.length > 1 && (
-            <div className="flex items-center gap-0.5 -mr-1">
-              <button
-                onClick={goPrev}
-                className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
-                aria-label="Previous holding"
-              >
-                <span className="text-sm leading-none">&#8249;</span>
-              </button>
-              <button
-                onClick={goNext}
-                className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
-                aria-label="Next holding"
-              >
-                <span className="text-sm leading-none">&#8250;</span>
-              </button>
-            </div>
-          )}
-          <ViewAllLink href="/investments" />
-        </div>
+        <ViewAllLink href="/investments" />
       </div>
 
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden h-[110px]">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={current.ticker + safeIndex}
@@ -291,8 +303,17 @@ export default function TopHoldingsCard({ mockData } = {}) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: direction * -24 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute inset-0"
           >
-            <div className="flex items-center gap-3 py-2">
+            {/* Sparkline backdrop — fills the card area behind the
+                content so the chart is the canvas, not an afterthought. */}
+            <div className="absolute inset-0 pointer-events-none">
+              <Sparkline data={sparkData} fill gradientId={current.ticker} />
+            </div>
+
+            {/* Content overlay — logo + name on the left, market value
+                + gain% on the right, vertically centered. */}
+            <div className="relative h-full flex items-center gap-3 px-1">
               <HoldingLogo
                 ticker={current.ticker}
                 logo={meta?.logo}
@@ -323,23 +344,23 @@ export default function TopHoldingsCard({ mockData } = {}) {
                 )}
               </div>
             </div>
-
-            <div className="mt-3 flex justify-center">
-              <Sparkline data={sparkData} width={260} height={40} />
-            </div>
           </motion.div>
         </AnimatePresence>
       </div>
 
       {holdings.length > 1 && (
-        <div className="flex items-center gap-1 mt-4">
-          {holdings.map((_, i) => (
-            <div
-              key={i}
-              className={`h-[3px] transition-all duration-500 ${
+        <div className="mt-4 flex items-center justify-center gap-2">
+          {holdings.map((h, i) => (
+            <button
+              key={h.ticker}
+              type="button"
+              onClick={() => jumpTo(i)}
+              aria-label={`Show holding ${i + 1} of ${holdings.length}`}
+              aria-current={i === safeIndex}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
                 i === safeIndex
-                  ? "flex-1 bg-[var(--color-fg)]"
-                  : "flex-1 bg-[var(--color-fg)]/[0.15]"
+                  ? "w-4 bg-[var(--color-fg)]"
+                  : "w-1.5 bg-[var(--color-fg)]/[0.2] hover:bg-[var(--color-fg)]/[0.4]"
               }`}
             />
           ))}
