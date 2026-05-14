@@ -167,12 +167,7 @@ export default function DashboardPage() {
 
   // Items that should be hidden based on current state
   const isItemHidden = (component) => {
-    if (component === 'BudgetsCard') {
-      // Budgets is pro-only — used to be implicit via sidebar-group gating
-      // before the card moved into the main column.
-      if (!isPro) return true;
-      if (!budgetsLoading && !hasBudgets) return true;
-    }
+    if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
     return false;
   };
 

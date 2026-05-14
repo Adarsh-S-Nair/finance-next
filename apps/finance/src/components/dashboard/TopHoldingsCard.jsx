@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase/client";
 import { useUser } from "../providers/UserProvider";
 import { ViewAllLink } from "@zervo/ui";
@@ -186,6 +188,8 @@ async function fetchTopHoldings(userId) {
 
 export default function TopHoldingsCard({ mockData } = {}) {
   const { user, isPro } = useUser();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
 
   // Top holdings is a multi-source query (Supabase + two REST
   // endpoints + sparkline fetches) so it's the prime candidate for
@@ -213,69 +217,101 @@ export default function TopHoldingsCard({ mockData } = {}) {
           <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-border)]" />
           <div className="h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
         </div>
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="h-8 w-8 animate-pulse rounded-full bg-[var(--color-border)]" />
-              <div className="flex-1">
-                <div className="mb-1.5 h-2.5 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
-                <div className="h-2 w-1/3 animate-pulse rounded bg-[var(--color-border)]" />
-              </div>
-              <div className="h-2.5 w-12 animate-pulse rounded bg-[var(--color-border)]" />
-            </div>
-          ))}
+        <div className="flex items-center gap-3 py-2">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-[var(--color-border)]" />
+          <div className="flex-1">
+            <div className="mb-1.5 h-3 w-2/3 animate-pulse rounded bg-[var(--color-border)]" />
+            <div className="h-2 w-1/3 animate-pulse rounded bg-[var(--color-border)]" />
+          </div>
+          <div className="text-right">
+            <div className="mb-1 h-3 w-14 animate-pulse rounded bg-[var(--color-border)]" />
+            <div className="ml-auto h-2 w-10 animate-pulse rounded bg-[var(--color-border)]" />
+          </div>
         </div>
+        <div className="mt-3 h-6 w-full animate-pulse rounded bg-[var(--color-border)] opacity-40" />
       </div>
     );
   }
+
+  // Clamp the active index if the holdings list shrinks (e.g. on refetch).
+  const safeIndex = Math.min(activeIndex, holdings.length - 1);
+  const current = holdings[safeIndex];
+  const meta = tickerMeta[current.ticker];
+  const displayName = meta?.name || current.ticker;
+  const sparkData = sparklines[current.ticker];
+  const quote = quotes[current.ticker];
+  const price = quote?.price;
+  const gainPct =
+    current.avg_cost > 0 && price != null
+      ? ((price - current.avg_cost) / current.avg_cost) * 100
+      : 0;
+
+  const goPrev = () => {
+    setDirection(-1);
+    setActiveIndex((prev) => (prev - 1 + holdings.length) % holdings.length);
+  };
+  const goNext = () => {
+    setDirection(1);
+    setActiveIndex((prev) => (prev + 1) % holdings.length);
+  };
 
   return (
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="card-header">Top Holdings</h3>
-        <ViewAllLink href="/investments" />
+        <div className="flex items-center gap-2">
+          {holdings.length > 1 && (
+            <div className="flex items-center gap-0.5 -mr-1">
+              <button
+                onClick={goPrev}
+                className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                aria-label="Previous holding"
+              >
+                <span className="text-sm leading-none">&#8249;</span>
+              </button>
+              <button
+                onClick={goNext}
+                className="w-6 h-6 flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] transition-colors"
+                aria-label="Next holding"
+              >
+                <span className="text-sm leading-none">&#8250;</span>
+              </button>
+            </div>
+          )}
+          <ViewAllLink href="/investments" />
+        </div>
       </div>
 
-      <div className="flex flex-col -mx-2">
-        {holdings.map((h) => {
-          const meta = tickerMeta[h.ticker];
-          const displayName = meta?.name || h.ticker;
-          const sparkData = sparklines[h.ticker];
-          const quote = quotes[h.ticker];
-          const price = quote?.price;
-          const gainPct =
-            h.avg_cost > 0 && price != null
-              ? (((price - h.avg_cost) / h.avg_cost) * 100)
-              : 0;
-
-          return (
-            <div
-              key={h.ticker}
-              className="flex items-center gap-3 py-4 px-2 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-            >
+      <div className="relative overflow-hidden">
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
+          <motion.div
+            key={current.ticker + safeIndex}
+            custom={direction}
+            initial={{ opacity: 0, x: direction * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction * -24 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="flex items-center gap-3 py-2">
               <HoldingLogo
-                ticker={h.ticker}
+                ticker={current.ticker}
                 logo={meta?.logo}
-                assetType={h.asset_type}
-                size={32}
+                assetType={current.asset_type}
+                size={40}
               />
 
-              <div className="min-w-0 flex-1 mr-3">
-                <div className="font-medium text-[var(--color-fg)] truncate text-xs">
+              <div className="min-w-0 flex-1 mr-2">
+                <div className="font-medium text-[var(--color-fg)] truncate text-sm">
                   {displayName}
                 </div>
                 <div className="text-[11px] text-[var(--color-muted)] mt-0.5 truncate">
-                  {formatShares(h.shares)} shares
+                  {formatShares(current.shares)} shares
                 </div>
               </div>
 
-              <div className="hidden sm:block lg:hidden xl:block">
-                <Sparkline data={sparkData} width={64} height={24} />
-              </div>
-
               <div className="text-right flex-shrink-0">
-                <div className="font-semibold text-xs tabular-nums text-[var(--color-fg)]">
-                  {formatCurrency(h.marketValue)}
+                <div className="font-semibold text-sm tabular-nums text-[var(--color-fg)]">
+                  {formatCurrency(current.marketValue)}
                 </div>
                 {price != null && (
                   <div
@@ -287,9 +323,28 @@ export default function TopHoldingsCard({ mockData } = {}) {
                 )}
               </div>
             </div>
-          );
-        })}
+
+            <div className="mt-3 flex justify-center">
+              <Sparkline data={sparkData} width={260} height={40} />
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
+
+      {holdings.length > 1 && (
+        <div className="flex items-center gap-1 mt-4">
+          {holdings.map((_, i) => (
+            <div
+              key={i}
+              className={`h-[3px] transition-all duration-500 ${
+                i === safeIndex
+                  ? "flex-1 bg-[var(--color-fg)]"
+                  : "flex-1 bg-[var(--color-fg)]/[0.15]"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
