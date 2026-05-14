@@ -52,9 +52,13 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
         aria-hidden="true"
       >
         <defs>
+          {/* Bottom stop is intentionally non-zero so the area stays
+              faintly visible all the way down to the chart's bottom
+              edge. Fading to opacity 0 made the chart look "cut off"
+              mid-card whenever the valleys sat near the bottom. */}
           <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.28" />
-            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0.10" />
           </linearGradient>
         </defs>
         <polygon points={areaPoints} fill={`url(#${gid})`} />
@@ -62,7 +66,7 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
           points={points}
           fill="none"
           stroke={stroke}
-          strokeOpacity={0.7}
+          strokeOpacity={0.9}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
