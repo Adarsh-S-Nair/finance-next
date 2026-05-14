@@ -41,8 +41,8 @@ export const dashboardLayout: DashboardLayout = {
       type: 'row',
       items: [
         {
-          id: 'budgets',
-          component: 'BudgetsCard',
+          id: 'top-categories',
+          component: 'TopCategoriesCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
           mobileHeight: 'h-auto lg:h-full',
         },
@@ -66,8 +66,8 @@ export const dashboardLayout: DashboardLayout = {
           mobileHeight: 'h-[380px] lg:h-full',
         },
         {
-          id: 'top-categories',
-          component: 'TopCategoriesCard',
+          id: 'budgets',
+          component: 'BudgetsCard',
           width: 'lg:w-[320px] lg:flex-shrink-0',
           mobileHeight: 'h-auto lg:h-full',
         },

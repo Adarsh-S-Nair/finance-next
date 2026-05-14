@@ -78,22 +78,25 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
     router.push(`/transactions?${params.toString()}`);
   };
 
-  const { averageCashflow } = useMemo(() => {
-    if (!chartData.length) return { averageCashflow: 0 };
+  const { averageCashflow, averageIncome, averageSpending } = useMemo(() => {
+    if (!chartData.length) {
+      return { averageCashflow: 0, averageIncome: 0, averageSpending: 0 };
+    }
     const totalEarning = chartData.reduce((acc, curr) => acc + (curr.earning || 0), 0);
     const totalSpendingAmt = chartData.reduce((acc, curr) => acc + Math.abs(curr.spending || 0), 0);
     const hasAny = totalEarning > 0 || totalSpendingAmt > 0;
-    const totalNet = chartData.reduce((acc, curr) => {
-      return acc + ((curr.earning || 0) - (curr.spending || 0));
-    }, 0);
+    const totalNet = totalEarning - totalSpendingAmt;
     return {
       averageCashflow: hasAny ? totalNet / chartData.length : 0,
+      averageIncome: hasAny ? totalEarning / chartData.length : 0,
+      averageSpending: hasAny ? totalSpendingAmt / chartData.length : 0,
     };
   }, [chartData]);
 
-  // Hovered month or total averages
-  const displayIncome = hoveredData?.earning ?? null;
-  const displaySpending = hoveredData?.spending ?? null;
+  // Hovered month overrides the running averages.
+  const displayIncome = hoveredData?.earning ?? averageIncome;
+  const displaySpending = hoveredData?.spending ?? averageSpending;
+  const breakdownLabel = hoveredData?.monthName ?? 'Average';
 
   const isPositiveCashflow = averageCashflow >= 0;
   const showLoading = isLoading;
@@ -129,20 +132,20 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
             <CurrencyAmount amount={averageCashflow} />
           </div>
 
-          {/* Month + Income / Spending breakdown on hover — positioned top-right */}
-          {hoveredData && (
-            <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 text-[11px] animate-fade-in">
-              <span className="card-header mb-1">{hoveredData.monthName}</span>
-              <div className="flex items-center gap-1 text-[var(--color-muted)]">
-                <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
-                <span>in</span>
-              </div>
-              <div className="flex items-center gap-1 text-[var(--color-muted)]">
-                <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displaySpending} /></span>
-                <span>out</span>
-              </div>
+          {/* Income / Spending breakdown — positioned top-right.
+              Defaults to monthly averages; swaps to the hovered month
+              when the user is interacting with the chart. */}
+          <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 text-[11px]">
+            <span className="card-header mb-1">{breakdownLabel}</span>
+            <div className="flex items-center gap-1 text-[var(--color-muted)]">
+              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
+              <span>in</span>
             </div>
-          )}
+            <div className="flex items-center gap-1 text-[var(--color-muted)]">
+              <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displaySpending} /></span>
+              <span>out</span>
+            </div>
+          </div>
         </div>
 
         {/* Chart */}
