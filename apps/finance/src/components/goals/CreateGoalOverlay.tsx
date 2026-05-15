@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX } from "react-icons/fi";
-import { LuPlus, LuTrash2, LuShield, LuLock } from "react-icons/lu";
+import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { Button } from "@zervo/ui";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
@@ -22,6 +22,9 @@ type SpendingMonth = {
   earning?: number | string;
   spending?: number | string;
   isComplete?: boolean;
+  monthName?: string;
+  year?: number;
+  formattedMonth?: string;
   [key: string]: unknown;
 };
 
@@ -55,16 +58,24 @@ export default function CreateGoalOverlay({
       : null,
   );
 
-  const avgMonthlySpend = useMemo(() => {
+  // Anchor the suggestion to the most recent 3 complete months — that's
+  // the window we display in the breakdown, so the math the user sees
+  // matches the number we show. Fall back to all available months if
+  // fewer than 3 are complete.
+  const { avgMonthlySpend, sampleMonths } = useMemo(() => {
     const months = spendingPayload?.data ?? [];
-    if (months.length === 0) return null;
+    if (months.length === 0) return { avgMonthlySpend: null, sampleMonths: [] };
     const completed = months.filter((m) => m.isComplete);
     const sample = completed.length > 0 ? completed : months;
     const nonZero = sample.filter((m) => Number(m.spending || 0) > 0);
     const source = nonZero.length > 0 ? nonZero : sample;
-    if (source.length === 0) return null;
-    const total = source.reduce((sum, m) => sum + Number(m.spending || 0), 0);
-    return total / source.length;
+    if (source.length === 0) return { avgMonthlySpend: null, sampleMonths: [] };
+    const recent = source.slice(-3);
+    const total = recent.reduce((sum, m) => sum + Number(m.spending || 0), 0);
+    return {
+      avgMonthlySpend: total / recent.length,
+      sampleMonths: recent,
+    };
   }, [spendingPayload]);
 
   const [name, setName] = useState("");
@@ -266,10 +277,11 @@ export default function CreateGoalOverlay({
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.13 }}
-                  className="mt-8"
+                  className="mt-10"
                 >
                   <EmergencyFundSuggestion
                     avgMonthlySpend={avgMonthlySpend}
+                    sampleMonths={sampleMonths}
                     multiplier={efMultiplier}
                     onChange={setEfMultiplier}
                   />
@@ -535,93 +547,126 @@ function AmountInput({
 }
 
 /**
- * Read-only display for fields the user can't edit (e.g. emergency-fund
- * name). Looks visually distinct from an input — no underline, with a
- * lock icon — so users don't mistake it for a normal disabled state.
+ * Read-only field that mirrors a standard input visually but is clearly
+ * non-editable: muted background, no focus state, default cursor.
  */
 function LockedField({ value }: { value: string }) {
   return (
-    <div className="flex items-center gap-2 py-2 text-base text-[var(--color-fg)]">
-      <LuShield size={14} className="text-[var(--color-muted)]" />
-      <span>{value}</span>
-      <span className="inline-flex items-center gap-1 ml-auto text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-        <LuLock size={10} />
-        Locked
-      </span>
+    <div
+      aria-disabled="true"
+      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-alt)] px-3 py-2 text-base text-[var(--color-fg)]/70 cursor-default select-none"
+    >
+      {value}
     </div>
   );
 }
 
 function EmergencyFundSuggestion({
   avgMonthlySpend,
+  sampleMonths,
   multiplier,
   onChange,
 }: {
   avgMonthlySpend: number | null;
+  sampleMonths: SpendingMonth[];
   multiplier: number;
   onChange: (n: number) => void;
 }) {
   const suggested =
     avgMonthlySpend != null ? avgMonthlySpend * multiplier : null;
 
+  if (avgMonthlySpend == null) {
+    return (
+      <div>
+        <SectionLabel className="mb-1">Suggested target</SectionLabel>
+        <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
+          —
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
+          We&apos;ll suggest a target once we&apos;ve analyzed a few months
+          of your spending. For now, enter what feels right below.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <LuShield size={14} className="text-[var(--color-muted)]" />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-          Suggested target
-        </span>
+    <div>
+      <SectionLabel className="mb-1">Suggested target</SectionLabel>
+      <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
+        {formatCurrency(suggested ?? 0)}
+      </div>
+      <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
+        {formatCurrency(avgMonthlySpend)} average monthly spending × {multiplier}{" "}
+        {multiplier === 1 ? "month" : "months"} of runway.
+      </p>
+
+      {/* Runway slider */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+            Runway
+          </span>
+          <span className="text-xs text-[var(--color-fg)] tabular-nums">
+            {multiplier} {multiplier === 1 ? "month" : "months"}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={12}
+          step={1}
+          value={multiplier}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full accent-[var(--color-fg)]"
+        />
+        <div className="flex justify-between text-[10px] text-[var(--color-muted)] mt-0.5">
+          <span>1mo</span>
+          <span>6mo</span>
+          <span>12mo</span>
+        </div>
       </div>
 
-      {avgMonthlySpend == null ? (
-        <>
-          <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
-            —
-          </div>
-          <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-            We&apos;ll suggest a target once we&apos;ve analyzed a few months
-            of your spending. For now, enter what feels right below.
-          </p>
-        </>
-      ) : (
-        <>
-          <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
-            {formatCurrency(suggested ?? 0)}
-          </div>
-          <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-            Based on{" "}
-            <span className="text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(avgMonthlySpend)}/mo
-            </span>{" "}
-            average spending over the last few months × {multiplier}{" "}
-            {multiplier === 1 ? "month" : "months"} of runway.
-          </p>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                Runway
+      {/* Breakdown of how the average was computed */}
+      {sampleMonths.length > 0 && (
+        <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
+          <SectionLabel className="mb-2">How we got this number</SectionLabel>
+          <div className="space-y-1.5">
+            {sampleMonths.map((m, i) => (
+              <div
+                key={`${m.year}-${m.monthName}-${i}`}
+                className="flex items-baseline justify-between text-xs"
+              >
+                <span className="text-[var(--color-muted)]">
+                  {m.formattedMonth ?? `${m.monthName} ${m.year}`}
+                </span>
+                <span className="text-[var(--color-fg)] tabular-nums">
+                  {formatCurrency(Number(m.spending || 0))}
+                </span>
+              </div>
+            ))}
+            <div className="flex items-baseline justify-between text-xs pt-2 mt-1 border-t border-[var(--color-border)]">
+              <span className="text-[var(--color-muted)]">
+                Average{" "}
+                <span className="text-[var(--color-muted)]/70">
+                  · {sampleMonths.length}{" "}
+                  {sampleMonths.length === 1 ? "month" : "months"}
+                </span>
               </span>
-              <span className="text-xs text-[var(--color-fg)] tabular-nums">
-                {multiplier} {multiplier === 1 ? "month" : "months"}
+              <span className="text-[var(--color-fg)] font-medium tabular-nums">
+                {formatCurrency(avgMonthlySpend)}
               </span>
             </div>
-            <input
-              type="range"
-              min={1}
-              max={12}
-              step={1}
-              value={multiplier}
-              onChange={(e) => onChange(Number(e.target.value))}
-              className="w-full accent-[var(--color-fg)]"
-            />
-            <div className="flex justify-between text-[10px] text-[var(--color-muted)] mt-0.5">
-              <span>1mo</span>
-              <span>6mo</span>
-              <span>12mo</span>
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[var(--color-muted)]">
+                × {multiplier} {multiplier === 1 ? "month" : "months"} of runway
+              </span>
+              <span className="text-[var(--color-fg)] font-medium tabular-nums">
+                {formatCurrency(suggested ?? 0)}
+              </span>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
