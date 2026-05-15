@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiTag } from "react-icons/fi";
-import { LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuPlus, LuTrash2, LuInfo } from "react-icons/lu";
 import { Button } from "@zervo/ui";
 import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
@@ -667,14 +668,17 @@ function EmergencyFundSuggestion({
         <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
           <SectionLabel className="mb-2">Your essential spending</SectionLabel>
           <p className="text-[11px] text-[var(--color-muted)] leading-relaxed mb-3">
-            Average monthly spend in essential categories, from your actual
-            transactions over the last few complete months.
+            Average monthly spend in <em>Rent and Utilities</em>,{" "}
+            <em>Loan Payments</em>, <em>Food and Drink</em>,{" "}
+            <em>Medical</em>, and <em>Transportation</em> over the last few
+            complete months.
           </p>
           <div className="space-y-2">
             {essentialGroups.map((g) => (
               <CategoryGroupRow key={g.id} group={g} />
             ))}
           </div>
+          <MissingExpenseNote essentialGroups={essentialGroups} />
         </div>
       )}
 
@@ -696,6 +700,55 @@ function EmergencyFundSuggestion({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Helper note shown under the essentials breakdown explaining why a big
+ * expected bill (mortgage, car loan, etc.) might not appear. Plaid's
+ * categorization is imperfect for ACH outflows — mortgage payments
+ * frequently land in "Transfer Out" instead of "Loan Payments" and get
+ * filtered out as a transfer. The fix is in the user's hands: they can
+ * recategorize from the transactions page.
+ *
+ * If the user IS missing "Loan Payments" specifically, surface a more
+ * pointed message — that's the highest-leverage category that's also
+ * the most likely to be miscategorized.
+ */
+function MissingExpenseNote({
+  essentialGroups,
+}: {
+  essentialGroups: CategoryGroupSpend[];
+}) {
+  const hasLoanPayments = essentialGroups.some(
+    (g) => g.label === "Loan Payments",
+  );
+
+  return (
+    <div className="mt-4 flex items-start gap-2 text-[11px] text-[var(--color-muted)] leading-relaxed">
+      <LuInfo size={12} className="mt-0.5 flex-shrink-0" />
+      <p>
+        {hasLoanPayments ? (
+          <>
+            Don&apos;t see a bill you expect? It may be categorized
+            differently — e.g. as a transfer.{" "}
+          </>
+        ) : (
+          <>
+            We didn&apos;t find any spending in <em>Loan Payments</em>. If
+            you pay a mortgage or car loan, it&apos;s likely categorized
+            as a transfer instead.{" "}
+          </>
+        )}
+        <Link
+          href="/transactions"
+          className="underline hover:text-[var(--color-fg)]"
+        >
+          Recategorize in your transactions
+        </Link>
+        .
+      </p>
     </div>
   );
 }
