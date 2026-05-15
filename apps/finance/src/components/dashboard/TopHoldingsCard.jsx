@@ -52,10 +52,17 @@ function Sparkline({ data, width = 64, height = 24, fill = false }) {
   if (fill) {
     const areaPoints = `0,${vbH} ${points} ${vbW},${vbH}`;
     return (
+      // `absolute inset-0` forces the SVG box to the parent's exact
+      // dimensions. Without this, an SVG with viewBox + percent CSS
+      // sizing falls back to intrinsic sizing (often taller than the
+      // parent), overflows the 140px card body, and gets visually
+      // clipped at the bottom by the card's overflow-hidden — what
+      // looked like the chart "being cut off" was actually the SVG
+      // bleeding past the card boundary.
       <svg
         viewBox={`0 0 ${vbW} ${vbH}`}
         preserveAspectRatio="none"
-        className="w-full h-full"
+        className="absolute inset-0 w-full h-full"
         aria-hidden="true"
       >
         {/* Uniform area fill — a gradient that faded to transparent
