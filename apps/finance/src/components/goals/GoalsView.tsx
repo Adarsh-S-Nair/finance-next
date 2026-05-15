@@ -7,7 +7,7 @@ import PageContainer from "../layout/PageContainer";
 import { formatCurrency } from "../../lib/formatCurrency";
 import CashAllocationStrip from "./CashAllocationStrip";
 import GoalRow from "./GoalRow";
-import CreateGoalModal from "./CreateGoalModal";
+import CreateGoalOverlay from "./CreateGoalOverlay";
 import {
   type Goal,
   MOCK_GOALS,
@@ -181,7 +181,7 @@ export default function GoalsView() {
           </div>
         </EmptyState>
 
-        <CreateGoalModal
+        <CreateGoalOverlay
           isOpen={createOpen}
           onClose={() => {
             setCreateOpen(false);
@@ -360,7 +360,7 @@ export default function GoalsView() {
         </div>
       </section>
 
-      <CreateGoalModal
+      <CreateGoalOverlay
         isOpen={createOpen}
         onClose={() => {
           setCreateOpen(false);
