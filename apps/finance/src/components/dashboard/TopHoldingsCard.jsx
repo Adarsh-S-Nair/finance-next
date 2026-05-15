@@ -19,7 +19,7 @@ const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true)
  *  - `fill`: stretches to fill its parent via a normalized viewBox and
  *    renders a gradient area under the line for use as a card backdrop.
  */
-function Sparkline({ data, width = 64, height = 24, fill = false }) {
+function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) {
   if (!data || data.length < 2) {
     if (fill) return <div className="w-full h-full" aria-hidden="true" />;
     return <div style={{ width, height }} aria-hidden="true" />;
@@ -50,6 +50,7 @@ function Sparkline({ data, width = 64, height = 24, fill = false }) {
   const stroke = isUp ? "#10b981" : "#f43f5e";
 
   if (fill) {
+    const gid = `spark-grad-${gradientId || "x"}`;
     const areaPoints = `0,${vbH} ${points} ${vbW},${vbH}`;
     return (
       // `absolute inset-0` forces the SVG box to the parent's exact
@@ -65,11 +66,18 @@ function Sparkline({ data, width = 64, height = 24, fill = false }) {
         className="absolute inset-0 w-full h-full"
         aria-hidden="true"
       >
-        {/* Uniform area fill — a gradient that faded to transparent
-            at the bottom made the chart look truncated whenever the
-            line ran low. A flat 18% tint keeps the entire shape
-            evenly visible from line down to chart bottom. */}
-        <polygon points={areaPoints} fill={stroke} fillOpacity={0.18} />
+        <defs>
+          {/* Fade the area fully out by the chart bottom. The
+              asymmetric padding (padBottom=18) keeps the line's
+              baseline well above the viewBox bottom, so the chart's
+              visible body stays opaque while the gradient tail fades
+              cleanly into the card. */}
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={areaPoints} fill={`url(#${gid})`} />
         <polyline
           points={points}
           fill="none"
@@ -367,7 +375,7 @@ export default function TopHoldingsCard({ mockData } = {}) {
             {/* Bottom: sparkline as a footer chart, anchored under the
                 content so the text stays clean. */}
             <div className="relative flex-1 mt-2">
-              <Sparkline data={sparkData} fill />
+              <Sparkline data={sparkData} fill gradientId={current.ticker} />
             </div>
           </motion.div>
         </AnimatePresence>
