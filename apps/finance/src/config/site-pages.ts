@@ -22,6 +22,10 @@ export const SITE_PAGES: Record<string, PageConfig> = {
     title: 'Budgets',
     header: 'Budgets',
   },
+  '/goals': {
+    title: 'Goals',
+    header: 'Goals',
+  },
   '/settings': {
     title: 'Settings',
     header: 'Settings',
