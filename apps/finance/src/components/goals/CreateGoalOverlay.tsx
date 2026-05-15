@@ -81,19 +81,20 @@ export default function CreateGoalOverlay({
   const isEmergency = emergencyFundMode || editGoal?.kind === "emergency_fund";
 
   // Pull the user's spending broken down by category group over the last
-  // ~4 months. `forBudget=true` enforces complete-month bucketing and
-  // applies a consistency filter (categories the user actually spends on
-  // every month, not one-offs). That gives us a clean monthly_avg per
-  // group, which we then filter to essentials. This avoids the
-  // double-counting problem we had when summing recurring detection +
-  // budgeted essentials — the same dollar can only appear once when it
-  // all comes from the underlying transaction stream.
+  // ~4 complete months. `forBudget=true` anchors to complete-month
+  // boundaries and excludes the current month. We deliberately pass
+  // `consistent=false` here — the default 2/3-of-months consistency
+  // filter is great for budget suggestions but wrong for the
+  // emergency-fund baseline. A mortgage paid once in a 4-month window
+  // (because earlier months are missing from sync) is still a real
+  // monthly obligation; the consistency filter would silently drop
+  // the entire Loan Payments group in that case.
   const { data: spendingPayload } = useAuthedQuery<{
     categories?: CategoryGroupSpend[];
   }>(
     ["goals:essentials-baseline", user?.id],
     isOpen && isEmergency && !isEdit && user?.id
-      ? "/api/transactions/spending-by-category?groupBy=group&forBudget=true&days=120"
+      ? "/api/transactions/spending-by-category?groupBy=group&forBudget=true&consistent=false&days=120"
       : null,
   );
 
