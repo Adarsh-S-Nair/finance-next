@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
-import { matchesRule } from '../../../../lib/category-rules';
+import {
+  matchesRule,
+  canonicalizeRuleOperator,
+} from '../../../../lib/category-rules';
 import type { Json } from '../../../../types/database';
 
 /**
@@ -33,25 +36,6 @@ const ALLOWED_OPERATORS = new Set([
   'is_greater_than',
   'is_less_than',
 ]);
-
-/**
- * Collapse the `is` / `equals` alias pair onto the field-appropriate
- * canonical operator. See the matching helper in `lib/agent/tools.ts`
- * for the full rationale — short version: `matchesRule` treats them as
- * identical, but the UI convention uses `equals` for amount and `is`
- * for string fields, so two rules that should be the same render
- * differently in Settings if the agent picks the wrong alias. The
- * proposeCategoryRule tool already canonicalises before this route is
- * called; we do it again here in case the rule was posted directly.
- */
-function canonicalizeRuleOperator(field: string, operator: string): string {
-  if (field === 'amount') {
-    if (operator === 'is') return 'equals';
-  } else {
-    if (operator === 'equals') return 'is';
-  }
-  return operator;
-}
 
 type RuleCondition = {
   field: string;

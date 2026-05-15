@@ -1,4 +1,11 @@
-import { matchesRule, applyRulesToTransactions } from '../../lib/category-rules';
+import {
+  matchesRule,
+  applyRulesToTransactions,
+  canonicalizeRuleOperator,
+  conditionSubsumes,
+  rulesEntail,
+  ruleRelationship,
+} from '../../lib/category-rules';
 
 describe('Category Rules Logic', () => {
   describe('matchesRule', () => {
@@ -141,6 +148,171 @@ describe('Category Rules Logic', () => {
       applyRulesToTransactions(transactions, rules);
 
       expect(transactions[0].category_id).toBe('high-priority');
+    });
+  });
+
+  // Behavioural aliases: `is`/`equals` are treated identically by
+  // matchesRule, but the UI convention uses `equals` for amount and
+  // `is` for string fields. Canonicalisation collapses the alias pair
+  // onto the convention so two rules covering the same match space
+  // don't render with different operator strings.
+  describe('canonicalizeRuleOperator', () => {
+    it('maps amount is → amount equals', () => {
+      expect(canonicalizeRuleOperator('amount', 'is')).toBe('equals');
+    });
+    it('maps string equals → string is', () => {
+      expect(canonicalizeRuleOperator('description', 'equals')).toBe('is');
+      expect(canonicalizeRuleOperator('merchant_name', 'equals')).toBe('is');
+    });
+    it('passes other operators through unchanged', () => {
+      expect(canonicalizeRuleOperator('description', 'contains')).toBe('contains');
+      expect(canonicalizeRuleOperator('description', 'starts_with')).toBe('starts_with');
+      expect(canonicalizeRuleOperator('amount', 'is_greater_than')).toBe('is_greater_than');
+      expect(canonicalizeRuleOperator('amount', 'is_less_than')).toBe('is_less_than');
+    });
+  });
+
+  describe('conditionSubsumes', () => {
+    // Same field + same value: operator order is is < starts_with < contains.
+    // a subsumes b iff a's match space is narrower-or-equal to b's match space.
+    it('detects is X ⊆ contains X for string fields with same value', () => {
+      const a = { field: 'description', operator: 'is', value: 'Instant transfer' };
+      const b = { field: 'description', operator: 'contains', value: 'Instant transfer' };
+      expect(conditionSubsumes(a, b)).toBe(true);
+      expect(conditionSubsumes(b, a)).toBe(false);
+    });
+    it('detects is X ⊆ starts_with X for string fields', () => {
+      const a = { field: 'description', operator: 'is', value: 'Spotify' };
+      const b = { field: 'description', operator: 'starts_with', value: 'Spotify' };
+      expect(conditionSubsumes(a, b)).toBe(true);
+      expect(conditionSubsumes(b, a)).toBe(false);
+    });
+    it('detects starts_with X ⊆ contains X for string fields', () => {
+      const a = { field: 'description', operator: 'starts_with', value: 'foo' };
+      const b = { field: 'description', operator: 'contains', value: 'foo' };
+      expect(conditionSubsumes(a, b)).toBe(true);
+      expect(conditionSubsumes(b, a)).toBe(false);
+    });
+    it('treats is/equals as canonical aliases per field type', () => {
+      // string field: equals canonicalises to is
+      const sa = { field: 'description', operator: 'is', value: 'X' };
+      const sb = { field: 'description', operator: 'equals', value: 'X' };
+      expect(conditionSubsumes(sa, sb)).toBe(true);
+      expect(conditionSubsumes(sb, sa)).toBe(true);
+      // amount field: is canonicalises to equals
+      const aa = { field: 'amount', operator: 'is', value: 84.47 };
+      const ab = { field: 'amount', operator: 'equals', value: 84.47 };
+      expect(conditionSubsumes(aa, ab)).toBe(true);
+      expect(conditionSubsumes(ab, aa)).toBe(true);
+    });
+    it('handles case/whitespace differences in string values', () => {
+      const a = { field: 'description', operator: 'is', value: '  Instant Transfer  ' };
+      const b = { field: 'description', operator: 'contains', value: 'instant transfer' };
+      expect(conditionSubsumes(a, b)).toBe(true);
+    });
+    it('compares amount values by magnitude', () => {
+      const a = { field: 'amount', operator: 'equals', value: -84.47 };
+      const b = { field: 'amount', operator: 'equals', value: 84.47 };
+      expect(conditionSubsumes(a, b)).toBe(true);
+    });
+    it('returns false for incomparable amount operators (equals vs gt)', () => {
+      const a = { field: 'amount', operator: 'equals', value: 50 };
+      const b = { field: 'amount', operator: 'is_greater_than', value: 50 };
+      expect(conditionSubsumes(a, b)).toBe(false);
+      expect(conditionSubsumes(b, a)).toBe(false);
+    });
+    it('returns false when fields differ', () => {
+      const a = { field: 'description', operator: 'is', value: 'X' };
+      const b = { field: 'merchant_name', operator: 'is', value: 'X' };
+      expect(conditionSubsumes(a, b)).toBe(false);
+    });
+    it('returns false when values differ (even when substring-related)', () => {
+      // Deliberately conservative — substring relations on values are
+      // not currently mapped (predictability over cleverness).
+      const a = { field: 'description', operator: 'is', value: 'Instant transfer' };
+      const b = { field: 'description', operator: 'contains', value: 'Instant' };
+      expect(conditionSubsumes(a, b)).toBe(false);
+    });
+  });
+
+  describe('ruleRelationship', () => {
+    // The user-reported screenshot case: two rules for the same
+    // amount, differing only in the description operator (is vs
+    // contains). The previous opaque-key implementation missed this
+    // and let both rules sit in the DB.
+    it('catches the operator-mismatch duplicate from the screenshot', () => {
+      const oldConds = [
+        { field: 'description', operator: 'is', value: 'Instant transfer' },
+        { field: 'amount', operator: 'equals', value: 84.47 },
+      ];
+      const newConds = [
+        { field: 'description', operator: 'contains', value: 'Instant transfer' },
+        { field: 'amount', operator: 'equals', value: 84.47 },
+      ];
+      // New is broader than old (is X ⊊ contains X).
+      expect(ruleRelationship(newConds, oldConds)).toBe('new_broadens');
+      // And the reverse perspective: old is narrower than new.
+      expect(ruleRelationship(oldConds, newConds)).toBe('new_narrows');
+    });
+    it('detects identical for same field+value+canonicalised operator', () => {
+      const a = [
+        { field: 'description', operator: 'contains', value: 'Spotify' },
+        { field: 'amount', operator: 'is', value: 9.99 },
+      ];
+      const b = [
+        { field: 'description', operator: 'contains', value: 'Spotify' },
+        { field: 'amount', operator: 'equals', value: 9.99 },
+      ];
+      expect(ruleRelationship(a, b)).toBe('identical');
+    });
+    it('detects new_narrows when new has extra conditions', () => {
+      const existing = [
+        { field: 'description', operator: 'contains', value: 'instant transfer' },
+      ];
+      const proposed = [
+        { field: 'description', operator: 'contains', value: 'instant transfer' },
+        { field: 'amount', operator: 'equals', value: 84.47 },
+      ];
+      expect(ruleRelationship(proposed, existing)).toBe('new_narrows');
+    });
+    it('returns null for disjoint rules', () => {
+      const a = [{ field: 'merchant_name', operator: 'is', value: 'Spotify' }];
+      const b = [{ field: 'merchant_name', operator: 'is', value: 'Netflix' }];
+      expect(ruleRelationship(a, b)).toBeNull();
+    });
+    it('returns null for partial overlap (mixed-axis differences)', () => {
+      // amount differs on one axis, description matches on another —
+      // structurally incomparable, neither entails the other.
+      const a = [
+        { field: 'description', operator: 'contains', value: 'X' },
+        { field: 'amount', operator: 'equals', value: 10 },
+      ];
+      const b = [
+        { field: 'description', operator: 'contains', value: 'X' },
+        { field: 'amount', operator: 'equals', value: 20 },
+      ];
+      expect(ruleRelationship(a, b)).toBeNull();
+    });
+  });
+
+  describe('rulesEntail', () => {
+    it('a entails b when a is more specific on every axis', () => {
+      const a = [
+        { field: 'description', operator: 'is', value: 'X' },
+        { field: 'amount', operator: 'equals', value: 1 },
+      ];
+      const b = [
+        { field: 'description', operator: 'contains', value: 'X' },
+      ];
+      expect(rulesEntail(a, b)).toBe(true);
+    });
+    it('a does not entail b when b requires something a is silent on', () => {
+      const a = [{ field: 'description', operator: 'contains', value: 'X' }];
+      const b = [
+        { field: 'description', operator: 'contains', value: 'X' },
+        { field: 'amount', operator: 'equals', value: 1 },
+      ];
+      expect(rulesEntail(a, b)).toBe(false);
     });
   });
 });

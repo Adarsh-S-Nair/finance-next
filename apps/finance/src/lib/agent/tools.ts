@@ -20,7 +20,13 @@ import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
 import { isBudgetOver } from '../budget';
 import { fetchQuotesForTickers } from '../quotes';
-import { matchesRule, fetchUserRules } from '../category-rules';
+import {
+  matchesRule,
+  fetchUserRules,
+  canonicalizeRuleOperator,
+  ruleRelationship,
+  type RuleRelationship,
+} from '../category-rules';
 
 type ToolDefinition = Anthropic.Messages.Tool;
 
@@ -1905,85 +1911,10 @@ const ALLOWED_RULE_OPERATORS = new Set([
   'is_less_than',
 ]);
 
-/**
- * Collapse the `is` / `equals` operator pair onto the field-appropriate
- * canonical form. They're behavioural aliases — `matchesRule` treats
- * them identically — but the transactions-page UI uses `equals` for
- * amount and `is` for string fields. When the agent picks the "wrong"
- * alias, two rules that target the same set of transactions render
- * with different labels in Settings and our structural overlap
- * detection (which keys on the literal operator string) misses the
- * duplicate. Canonicalising on write means future rules slot into the
- * existing convention; canonicalising in `ruleConditionKey` catches
- * any pre-existing rules from before this fix.
- */
-function canonicalizeRuleOperator(field: string, operator: string): string {
-  if (field === 'amount') {
-    if (operator === 'is') return 'equals';
-  } else {
-    if (operator === 'equals') return 'is';
-  }
-  return operator;
-}
-
-/**
- * Stable string key for a rule condition. Amount values are compared
- * by magnitude so a rule written as `84.47` is treated as the same
- * condition as one stored as `-84.47` — matches the magnitude-based
- * behaviour of `matchesRule` itself. Operator is canonicalised so the
- * `is`/`equals` alias pair collapses to a single key.
- */
-function ruleConditionKey(c: {
-  field: string;
-  operator: string;
-  value: string | number;
-}): string {
-  const operator = canonicalizeRuleOperator(c.field, c.operator);
-  const value =
-    c.field === 'amount'
-      ? String(Math.abs(parseFloat(String(c.value))))
-      : String(c.value).toLowerCase().trim();
-  return `${c.field}|${operator}|${value}`;
-}
-
-type RuleRelationship = 'identical' | 'new_narrows' | 'new_broadens';
-
-/**
- * Structural relationship between a proposed rule's conditions and an
- * existing rule's conditions. Conditions are AND-ed, so:
- * - same set → 'identical' (the upsert RPC already handles this case,
- *   but we still surface it so the widget can label clearly).
- * - existing ⊊ new (new has every condition existing has, plus more)
- *   → 'new_narrows' — new matches a subset of what existing matches.
- * - new ⊊ existing → 'new_broadens' — new matches a superset.
- * - otherwise → null (partial overlap or disjoint; not worth flagging
- *   structurally since the rules genuinely catch different patterns).
- */
-function ruleRelationship(
-  newConds: Array<{ field: string; operator: string; value: string | number }>,
-  existingConds: Array<{ field: string; operator: string; value: string | number }>,
-): RuleRelationship | null {
-  const newKeys = new Set(newConds.map(ruleConditionKey));
-  const existingKeys = new Set(existingConds.map(ruleConditionKey));
-  let allExistingInNew = true;
-  for (const k of existingKeys) {
-    if (!newKeys.has(k)) {
-      allExistingInNew = false;
-      break;
-    }
-  }
-  let allNewInExisting = true;
-  for (const k of newKeys) {
-    if (!existingKeys.has(k)) {
-      allNewInExisting = false;
-      break;
-    }
-  }
-  if (allExistingInNew && allNewInExisting) return 'identical';
-  if (allExistingInNew) return 'new_narrows';
-  if (allNewInExisting) return 'new_broadens';
-  return null;
-}
+// Rule comparison helpers (canonicalizeRuleOperator, ruleRelationship,
+// RuleRelationship type) live in ../category-rules so they can be
+// unit-tested and reused by the API route. Imported at the top of this
+// file.
 
 async function proposeCategoryRule(
   userId: string,
