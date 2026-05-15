@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LuPlus, LuShield, LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { Button, ConfirmOverlay } from "@zervo/ui";
+import { LuPlus, LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { Button, ConfirmOverlay, EmptyState } from "@zervo/ui";
 import PageContainer from "../layout/PageContainer";
 import { formatCurrency } from "../../lib/formatCurrency";
 import CashAllocationStrip from "./CashAllocationStrip";
@@ -25,7 +25,6 @@ export default function GoalsView() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  // Drag-and-drop state for reordering active goals.
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -34,13 +33,12 @@ export default function GoalsView() {
     [goals, editingGoalId],
   );
 
-  // Run the allocation waterfall over only the active goals.
   const { allocated, unallocated } = useMemo(
     () => allocateCash(goals, cashPool),
     [goals, cashPool],
   );
 
-  const activeAllocated = allocated; // already filtered to active inside allocateCash
+  const activeAllocated = allocated;
   const completedGoals = useMemo(
     () => goals.filter((g) => g.status === "complete"),
     [goals],
@@ -56,7 +54,16 @@ export default function GoalsView() {
     [goals],
   );
 
+  const hasAnyGoals = goals.length > 0;
+  const totalAllocated = activeAllocated.reduce((sum, g) => sum + g.allocated, 0);
+
   // ─── Handlers ───────────────────────────────────────────────────────
+
+  const openCreate = (emergencyMode = false) => {
+    setEditingGoalId(null);
+    setCreateEmergencyMode(emergencyMode);
+    setCreateOpen(true);
+  };
 
   const handleSaveGoal = (saved: Goal) => {
     setGoals((prev) => {
@@ -97,14 +104,10 @@ export default function GoalsView() {
 
   // ─── Drag-and-drop reordering ───────────────────────────────────────
 
-  const handleDragStart = (id: string) => {
-    setDraggingId(id);
-  };
-
+  const handleDragStart = (id: string) => setDraggingId(id);
   const handleDragOver = (id: string) => {
     if (draggingId && draggingId !== id) setDragOverId(id);
   };
-
   const handleDragEnd = () => {
     setDraggingId(null);
     setDragOverId(null);
@@ -115,7 +118,6 @@ export default function GoalsView() {
       handleDragEnd();
       return;
     }
-
     const fromGoal = goals.find((g) => g.id === draggingId);
     const toGoal = goals.find((g) => g.id === targetId);
     if (!fromGoal || !toGoal) {
@@ -123,8 +125,6 @@ export default function GoalsView() {
       return;
     }
 
-    // Protected goals can't be demoted below an unprotected goal, and
-    // an unprotected goal can't be promoted above a protected one.
     const violatesProtection =
       (fromGoal.isProtected && !toGoal.isProtected) ||
       (!fromGoal.isProtected && toGoal.isProtected);
@@ -135,7 +135,6 @@ export default function GoalsView() {
 
     setGoals((prev) => {
       const active = prev.filter((g) => g.status === "active");
-      const inactive = prev.filter((g) => g.status !== "active");
       const sorted = [...active].sort((a, b) => {
         if (a.isProtected !== b.isProtected) return a.isProtected ? -1 : 1;
         return a.priority - b.priority;
@@ -148,8 +147,6 @@ export default function GoalsView() {
       const [moved] = sorted.splice(fromIdx, 1);
       sorted.splice(toIdx, 0, moved);
 
-      // Re-number priorities to match new order. Protected goals get
-      // negative priorities so they always sort first.
       const reordered = sorted.map((g, i) => ({
         ...g,
         priority: g.isProtected ? -1 - (sorted.length - i) : i,
@@ -162,9 +159,44 @@ export default function GoalsView() {
     handleDragEnd();
   };
 
-  // ─── Render ─────────────────────────────────────────────────────────
+  // ─── Empty state ────────────────────────────────────────────────────
 
-  const totalAllocated = activeAllocated.reduce((sum, g) => sum + g.allocated, 0);
+  if (!hasAnyGoals) {
+    return (
+      <PageContainer title="Goals" showHeader={false}>
+        <EmptyState>
+          <div className="py-16 lg:py-24 max-w-xl">
+            <h2 className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] leading-[1.15] mb-6">
+              Save for what matters.<br />
+              Stay safe while you do.
+            </h2>
+            <p className="text-sm text-[var(--color-muted)] leading-relaxed max-w-md mb-10">
+              Set up a protected emergency fund first — it fills before any
+              other goal. Then save toward trips, big purchases, or anything
+              else you have in mind.
+            </p>
+            <Button size="lg" onClick={() => openCreate(true)}>
+              Set up your emergency fund
+            </Button>
+          </div>
+        </EmptyState>
+
+        <CreateGoalModal
+          isOpen={createOpen}
+          onClose={() => {
+            setCreateOpen(false);
+            setCreateEmergencyMode(false);
+          }}
+          onSave={handleSaveGoal}
+          existingGoals={goals}
+          editGoal={null}
+          emergencyFundMode={createEmergencyMode}
+        />
+      </PageContainer>
+    );
+  }
+
+  // ─── Main render ────────────────────────────────────────────────────
 
   return (
     <PageContainer
@@ -173,11 +205,7 @@ export default function GoalsView() {
         <Button
           size="sm"
           variant="matte"
-          onClick={() => {
-            setEditingGoalId(null);
-            setCreateEmergencyMode(false);
-            setCreateOpen(true);
-          }}
+          onClick={() => openCreate(false)}
           className="gap-1.5 !rounded-full pl-3 pr-4"
         >
           <LuPlus className="w-3.5 h-3.5" />
@@ -185,156 +213,151 @@ export default function GoalsView() {
         </Button>
       }
     >
-      <section className="flex flex-col gap-10">
-        {/* Setup nudge if no emergency fund */}
-        {!hasEmergencyFund && (
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-alt)] p-4 flex items-start gap-3">
-            <div className="p-2 rounded-full bg-[var(--color-surface)] text-[var(--color-muted)] flex-shrink-0">
-              <LuShield size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--color-fg)]">
-                Set up your emergency fund first
-              </p>
-              <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-                A protected savings goal that fills before any other goal. We
-                recommend a few months of essential spending so you have a
-                cushion before saving for non-essentials.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setCreateEmergencyMode(true);
-                setEditingGoalId(null);
-                setCreateOpen(true);
-              }}
-            >
-              Set up
-            </Button>
-          </div>
-        )}
+      <section className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+        <div className="lg:w-2/3 flex flex-col gap-10">
+          <CashAllocationStrip
+            allocated={activeAllocated}
+            unallocated={unallocated}
+            cashPool={cashPool}
+          />
 
-        {/* Cash allocation strip */}
-        <CashAllocationStrip
-          allocated={activeAllocated}
-          unallocated={unallocated}
-          cashPool={cashPool}
-        />
-
-        {/* Active goals list */}
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-baseline gap-3">
-              <h2 className="text-lg font-medium text-[var(--color-fg)]">
-                Your goals
-              </h2>
-              <span className="text-xs text-[var(--color-muted)] tabular-nums">
-                {formatCurrency(totalAllocated)} flowing in
-              </span>
-            </div>
-            <p className="text-[11px] text-[var(--color-muted)] hidden sm:block">
-              Drag to reorder — higher in the list fills first.
-            </p>
-          </div>
-
-          {activeAllocated.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-[var(--color-border)] p-10 text-center">
-              <p className="text-sm text-[var(--color-muted)]">
-                No active goals yet.
-              </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setCreateOpen(true)}
-                className="mt-4"
-              >
-                Create your first goal
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1 -mx-3">
-              {activeAllocated.map((g) => (
-                <GoalRow
-                  key={g.id}
-                  goal={g}
-                  isDragging={draggingId === g.id}
-                  isDragTarget={dragOverId === g.id && draggingId !== g.id}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                  onDrop={handleDrop}
-                  onEdit={handleEdit}
-                  onComplete={handleComplete}
-                  onArchive={handleArchive}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Past goals */}
-        {pastGoals.length > 0 && (
           <div>
-            <button
-              type="button"
-              onClick={() => setShowArchived((v) => !v)}
-              className="flex items-center gap-2 text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider hover:text-[var(--color-fg)] mb-4"
-            >
-              {showArchived ? (
-                <LuChevronDown size={14} />
-              ) : (
-                <LuChevronRight size={14} />
-              )}
-              Past goals · {pastGoals.length}
-            </button>
-            {showArchived && (
-              <div className="flex flex-col -mx-3">
-                {pastGoals.map((g, i) => (
-                  <div
+            <div className="mb-4 flex items-baseline justify-between gap-3">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-lg font-medium text-[var(--color-fg)]">
+                  Your goals
+                </h2>
+                {totalAllocated > 0 && (
+                  <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                    {formatCurrency(totalAllocated)} flowing in
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-[var(--color-muted)] hidden sm:block">
+                Drag to reorder
+              </p>
+            </div>
+
+            {activeAllocated.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[var(--color-border)] p-10 text-center">
+                <p className="text-sm text-[var(--color-muted)]">
+                  No active goals — past ones are below.
+                </p>
+              </div>
+            ) : (
+              <div className="-mx-3">
+                {activeAllocated.map((g, i) => (
+                  <GoalRow
                     key={g.id}
-                    className={`flex items-center gap-3 py-3 px-3 ${
-                      i < pastGoals.length - 1
-                        ? "border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
-                        : ""
-                    }`}
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0 opacity-60"
-                      style={{ backgroundColor: g.color }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[var(--color-fg)] truncate">
-                        {g.name}
-                      </p>
-                      <p className="text-[11px] text-[var(--color-muted)] tabular-nums">
-                        {g.status === "complete" ? "Completed" : "Archived"} ·{" "}
-                        {formatCurrency(g.target)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setGoals((prev) =>
-                          prev.map((x) =>
-                            x.id === g.id
-                              ? { ...x, status: "active" as const }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)]"
-                    >
-                      Reactivate
-                    </button>
-                  </div>
+                    goal={g}
+                    isLast={i === activeAllocated.length - 1}
+                    isDragging={draggingId === g.id}
+                    isDragTarget={dragOverId === g.id && draggingId !== g.id}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
+                    onDrop={handleDrop}
+                    onEdit={handleEdit}
+                    onComplete={handleComplete}
+                    onArchive={handleArchive}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             )}
           </div>
-        )}
+
+          {pastGoals.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider hover:text-[var(--color-fg)] mb-4"
+              >
+                {showArchived ? (
+                  <LuChevronDown size={12} />
+                ) : (
+                  <LuChevronRight size={12} />
+                )}
+                Past goals · {pastGoals.length}
+              </button>
+              {showArchived && (
+                <div className="-mx-3">
+                  {pastGoals.map((g, i) => (
+                    <div
+                      key={g.id}
+                      className={`flex items-center gap-3 py-3 px-3 ${
+                        i < pastGoals.length - 1
+                          ? "border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
+                          : ""
+                      }`}
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0 opacity-50"
+                        style={{ backgroundColor: g.color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[var(--color-fg)] truncate">
+                          {g.name}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
+                          {g.status === "complete" ? "Completed" : "Archived"} ·{" "}
+                          {formatCurrency(g.target)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGoals((prev) =>
+                            prev.map((x) =>
+                              x.id === g.id
+                                ? { ...x, status: "active" as const }
+                                : x,
+                            ),
+                          )
+                        }
+                        className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                      >
+                        Reactivate
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="lg:w-1/3 flex flex-col gap-6">
+          {!hasEmergencyFund && (
+            <div className="rounded-lg border border-[var(--color-border)] p-4">
+              <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
+                Set up your emergency fund
+              </p>
+              <p className="text-xs text-[var(--color-muted)] leading-relaxed mb-3">
+                A protected goal that fills before any other. Recommended
+                before saving toward non-essentials.
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => openCreate(true)}
+                className="!rounded-full"
+              >
+                Set it up
+              </Button>
+            </div>
+          )}
+
+          <div>
+            <div className="card-header mb-3">How it works</div>
+            <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+              Your cash is split among active goals by priority. The top goal
+              fills first, then the next, and so on. Reorder by dragging.
+              Protected goals always fill before unprotected ones.
+            </p>
+          </div>
+        </div>
       </section>
 
       <CreateGoalModal

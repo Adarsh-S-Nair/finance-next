@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { LuShield } from "react-icons/lu";
 import { Tooltip } from "@zervo/ui";
 import { formatCurrency } from "../../lib/formatCurrency";
 import type { AllocatedGoal } from "./types";
@@ -19,22 +18,15 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
   const segments = allocated.filter((g) => g.allocated > 0);
   const denom = Math.max(cashPool, 1);
 
-  const hovered = hoveredId
-    ? allocated.find((g) => g.id === hoveredId) ?? null
-    : null;
-
   return (
     <div>
-      <div className="mb-4 flex items-baseline justify-between gap-4">
-        <div>
-          <div className="card-header mb-1">Cash allocation</div>
-          <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
-            {formatCurrency(totalAllocated)}
-            <span className="text-sm text-[var(--color-muted)] font-normal">
-              {" "}
-              of {formatCurrency(cashPool)} available
-            </span>
-          </div>
+      <div className="card-header mb-2">Cash allocation</div>
+      <div className="flex items-baseline justify-between gap-4 mb-3">
+        <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
+          {formatCurrency(totalAllocated)}
+          <span className="text-sm text-[var(--color-muted)] font-normal">
+            {" "}of {formatCurrency(cashPool)}
+          </span>
         </div>
         {unallocated > 0 && (
           <div className="text-xs text-[var(--color-muted)] tabular-nums whitespace-nowrap">
@@ -44,10 +36,10 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
       </div>
 
       <div
-        className="relative h-10 w-full rounded-lg overflow-hidden flex bg-[var(--color-surface-alt)] border border-[color-mix(in_oklab,var(--color-fg),transparent_92%)]"
+        className="relative h-2 w-full rounded-full overflow-hidden flex bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
         onMouseLeave={() => setHoveredId(null)}
       >
-        {segments.map((g, i) => {
+        {segments.map((g) => {
           const widthPct = (g.allocated / denom) * 100;
           const isHovered = hoveredId === g.id;
           return (
@@ -68,63 +60,41 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
               <button
                 type="button"
                 onMouseEnter={() => setHoveredId(g.id)}
-                className="relative h-full transition-all duration-150 cursor-pointer flex items-center justify-center group"
+                className="relative h-full transition-opacity duration-150 cursor-pointer"
                 style={{
                   width: `${widthPct}%`,
                   backgroundColor: g.color,
-                  opacity: hoveredId && !isHovered ? 0.55 : 1,
-                  borderRight:
-                    i < segments.length - 1
-                      ? "1px solid color-mix(in oklab, white, transparent 80%)"
-                      : "none",
+                  opacity: hoveredId && !isHovered ? 0.5 : 1,
                 }}
                 aria-label={`${g.name}: ${formatCurrency(g.allocated)} of ${formatCurrency(g.target)}`}
-              >
-                {g.isProtected && widthPct > 5 && (
-                  <LuShield
-                    className="text-white/80"
-                    size={14}
-                    aria-hidden
-                  />
-                )}
-              </button>
+              />
             </Tooltip>
           );
         })}
-        {unallocated > 0 && (
-          <Tooltip
-            side="top"
-            content={
-              <div className="text-xs">
-                <div className="font-medium text-[var(--color-fg)]">Unallocated</div>
-                <div className="text-[var(--color-muted)] tabular-nums mt-0.5">
-                  {formatCurrency(unallocated)} not yet assigned to a goal
-                </div>
-              </div>
-            }
-          >
-            <button
-              type="button"
-              className="h-full flex-1 cursor-default"
-              aria-label="Unallocated cash"
-              style={{
-                background:
-                  "repeating-linear-gradient(45deg, color-mix(in oklab, var(--color-fg), transparent 90%), color-mix(in oklab, var(--color-fg), transparent 90%) 6px, transparent 6px, transparent 12px)",
-              }}
-            />
-          </Tooltip>
-        )}
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--color-muted)] tabular-nums">
-        <span>
-          {hovered
-            ? `${hovered.name} · ${formatCurrency(hovered.allocated)} / ${formatCurrency(hovered.target)}`
-            : `${segments.length} ${segments.length === 1 ? "goal" : "goals"} funded`}
-        </span>
-        {segments.length < allocated.length && (
-          <span>
-            {allocated.length - segments.length} unfunded
+      <div className="mt-2 flex items-center gap-4 text-[11px] text-[var(--color-muted)]">
+        {segments.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            onMouseEnter={() => setHoveredId(g.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            className={`flex items-center gap-1.5 transition-opacity ${
+              hoveredId && hoveredId !== g.id ? "opacity-50" : ""
+            }`}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: g.color }}
+            />
+            <span className="truncate max-w-[8rem]">{g.name}</span>
+          </button>
+        ))}
+        {unallocated > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[color-mix(in_oklab,var(--color-fg),transparent_85%)]" />
+            <span>Unallocated</span>
           </span>
         )}
       </div>

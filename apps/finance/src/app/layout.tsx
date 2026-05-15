@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { Outfit, Poppins, Instrument_Sans } from 'next/font/google';
 import { GeistSans } from 'geist/font/sans';
-import Topbar from "../components/layout/Topbar";
 import ToastProvider from "../components/providers/ToastProvider";
 import { ThemeProvider } from "../components/providers/ThemeProvider";
 import { AuthProvider } from "../components/providers/AuthProvider";
@@ -75,7 +74,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <AccountsProvider>
                 <NetWorthProvider>
                   <HouseholdsProvider>
-                  <Topbar />
                   {children}
                   {process.env.NEXT_PUBLIC_DEBUG_MEMORY === '1' ? <DebugFetchMonitor /> : null}
                   </HouseholdsProvider>

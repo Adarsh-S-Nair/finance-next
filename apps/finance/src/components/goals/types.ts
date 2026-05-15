@@ -63,75 +63,14 @@ export function allocateCash(
 
 // ─── Mock seed data ───────────────────────────────────────────────────
 
+/** Mock cash pool used by the prototype. */
 export const MOCK_CASH_POOL = 19000;
 
 /** Used by the deterministic emergency-fund suggestion flow. */
 export const MOCK_MONTHLY_ESSENTIAL_SPEND = 4200;
 
-export const MOCK_GOALS: Goal[] = [
-  {
-    id: "g_emergency_fund",
-    name: "Emergency Fund",
-    kind: "emergency_fund",
-    target: 15000,
-    priority: 0,
-    status: "active",
-    isProtected: true,
-    color: "#64748b",
-    lineItems: [],
-  },
-  {
-    id: "g_trip",
-    name: "European Trip",
-    kind: "custom",
-    target: 3200,
-    targetDate: "2026-07-15",
-    priority: 1,
-    status: "active",
-    isProtected: false,
-    color: "#0891b2",
-    lineItems: [
-      { id: "li_flights", name: "Flights", target: 800 },
-      { id: "li_hotel", name: "Hotel", target: 1400 },
-      { id: "li_food", name: "Food", target: 600 },
-      { id: "li_activities", name: "Activities", target: 400 },
-    ],
-  },
-  {
-    id: "g_couch",
-    name: "Living Room Couch",
-    kind: "custom",
-    target: 1200,
-    priority: 2,
-    status: "active",
-    isProtected: false,
-    color: "#7c3aed",
-    lineItems: [],
-  },
-  {
-    id: "g_anniv",
-    name: "Anniversary Gift",
-    kind: "custom",
-    target: 500,
-    targetDate: "2026-08-20",
-    priority: 3,
-    status: "active",
-    isProtected: false,
-    color: "#db2777",
-    lineItems: [],
-  },
-  {
-    id: "g_laptop_done",
-    name: "New Laptop",
-    kind: "custom",
-    target: 2000,
-    priority: 99,
-    status: "complete",
-    isProtected: false,
-    color: "#65a30d",
-    lineItems: [],
-  },
-];
+/** No seed goals — users start empty and create their own. */
+export const MOCK_GOALS: Goal[] = [];
 
 /** A rotating palette for new goals so they look distinct in the strip. */
 export const GOAL_COLOR_PALETTE = [
