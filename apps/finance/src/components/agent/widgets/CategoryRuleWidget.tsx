@@ -730,12 +730,19 @@ function OverlappingRulesSection({
   );
 }
 
-function describeRelationship(rel: RuleRelationship): string {
-  if (rel === "identical") return "Same conditions";
-  if (rel === "new_narrows") return "Broader version of this rule";
-  return "Narrower version of this rule";
+function relationshipTag(rel: RuleRelationship): string {
+  if (rel === "identical") return "same";
+  if (rel === "new_narrows") return "broader";
+  return "narrower";
 }
 
+/**
+ * Minimal overlap row. One line, no card chrome. The full row IS the
+ * checkbox — click anywhere to toggle replace. Conditions on the left,
+ * category dot + name and relationship tag in a single muted meta line
+ * underneath. Strikethrough on the conditions when the user has chosen
+ * to replace, telegraphing "this one is going away on accept".
+ */
 function OverlappingRuleRow({
   rule,
   replace,
@@ -762,44 +769,50 @@ function OverlappingRuleRow({
     })
     .join(" AND ");
   return (
-    <div className="flex items-start gap-3 rounded-md bg-[var(--color-surface-alt)]/40 px-3 py-2.5">
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
-          {describeRelationship(rule.relationship)}
-        </div>
-        <div className="text-xs text-[var(--color-fg)] truncate">{summary}</div>
-        {rule.category && (
-          <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: categoryColor(rule.category) }}
-            />
-            <span className="truncate">→ {rule.category.label}</span>
-          </div>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onToggleReplace}
-        disabled={disabled}
-        className="flex items-center gap-2 text-xs text-left rounded-md hover:bg-[var(--color-surface-alt)]/40 transition-colors px-1 py-1 disabled:opacity-50 flex-shrink-0"
+    <button
+      type="button"
+      onClick={onToggleReplace}
+      disabled={disabled}
+      className="flex w-full items-start gap-3 text-left rounded-md hover:bg-[var(--color-surface-alt)]/40 transition-colors -mx-1 px-1 py-1 disabled:opacity-50"
+    >
+      <span
+        className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded border transition-colors flex-shrink-0 ${
+          replace
+            ? "bg-[var(--color-fg)] border-[var(--color-fg)]"
+            : "border-[var(--color-border)] bg-transparent"
+        }`}
       >
+        {replace && (
+          <FiCheck
+            className="h-3 w-3 text-[var(--color-bg)]"
+            strokeWidth={3.5}
+          />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
         <span
-          className={`flex h-4 w-4 items-center justify-center rounded border transition-colors flex-shrink-0 ${
+          className={`block text-xs truncate ${
             replace
-              ? "bg-[var(--color-fg)] border-[var(--color-fg)]"
-              : "border-[var(--color-border)] bg-transparent"
+              ? "text-[var(--color-muted)] line-through"
+              : "text-[var(--color-fg)]"
           }`}
         >
-          {replace && (
-            <FiCheck
-              className="h-3 w-3 text-[var(--color-bg)]"
-              strokeWidth={3.5}
-            />
-          )}
+          {summary}
         </span>
-        <span className="text-[var(--color-fg)]">Replace</span>
-      </button>
-    </div>
+        <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--color-muted)] truncate">
+          {rule.category && (
+            <>
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: categoryColor(rule.category) }}
+              />
+              <span className="truncate">{rule.category.label}</span>
+              <span className="text-[var(--color-muted)]/60">·</span>
+            </>
+          )}
+          <span className="italic">{relationshipTag(rule.relationship)}</span>
+        </span>
+      </span>
+    </button>
   );
 }
