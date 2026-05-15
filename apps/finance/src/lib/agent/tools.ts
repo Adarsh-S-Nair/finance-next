@@ -664,23 +664,38 @@ export const TOOLS: ToolDefinition[] = [
   {
     name: 'propose_category_rule',
     description:
-      "Propose a permanent category rule that auto-categorizes future " +
-      "transactions matching a pattern. Renders an inline accept/decline widget; " +
-      "does NOT write until the user accepts.\n\n" +
-      "Use this in two situations:\n" +
-      "1. AFTER a successful bulk recategorization, when the user says they'd " +
-      "   like the same change to apply going forward.\n" +
-      "2. When the user explicitly asks for automation up front (e.g. " +
-      "   'always categorize Dunkin as Fast Food', 'every Spotify charge is " +
-      "   entertainment').\n\n" +
-      "Rules apply to FUTURE transactions automatically (during Plaid sync). " +
-      "They do NOT retroactively touch existing transactions — pair with " +
-      "propose_recategorization (in a separate turn or earlier in this turn) " +
-      "if the user wants to fix existing ones too.\n\n" +
-      "Conditions are AND-ed together. The most common shape is a single " +
-      "merchant_name match: [{ field: 'merchant_name', operator: 'contains', " +
-      "value: 'Dunkin' }]. Match on 'merchant_name' when available; fall back " +
-      "to 'description' for transactions where merchant_name is null.",
+      "Propose a permanent category rule that auto-categorizes matching " +
+      "transactions. Renders an inline accept/decline widget; does NOT write " +
+      "until the user accepts. The widget includes an 'also recategorize N " +
+      "existing matches' checkbox (default on), so this ONE call handles both " +
+      "retro fixes and future automation — do NOT also call " +
+      "propose_recategorization for the same set of transactions.\n\n" +
+      "Use this whenever 3+ transactions share an obvious recurring pattern " +
+      "(same merchant, OR same description + same amount), even if the user " +
+      "didn't explicitly say 'make a rule'. The pattern is the signal. Also " +
+      "use it when the user explicitly asks for automation ('always categorize " +
+      "Dunkin as Fast Food', 'every Spotify charge is entertainment').\n\n" +
+      "Conditions are AND-ed. Picking them:\n" +
+      "- Specific merchants (Dunkin, Spotify, Netflix, Whole Foods): ONE " +
+      "  condition is enough — merchant_name contains \"Dunkin\".\n" +
+      "- GENERIC descriptions or merchant names (instant transfer, ach, ach " +
+      "  credit, deposit, transfer, payment, withdrawal, zelle, venmo, paypal, " +
+      "  atm, debit card payment, electronic payment): ONE condition will catch " +
+      "  many unrelated transactions. You MUST add an amount condition (\"amount " +
+      "  is <exact_value>\") and/or another narrowing field. If you'd find " +
+      "  yourself writing 'fair warning, this rule will also catch X' — narrow " +
+      "  BEFORE proposing, not after.\n" +
+      "- The rule's conditions should mirror what justified the change. If 3 " +
+      "  transactions share description='Instant transfer' AND amount=84.47, " +
+      "  the rule MUST be [{description contains 'instant transfer'}, {amount " +
+      "  is 84.47}]. Not just the description.\n\n" +
+      "Amount values are written as positive magnitudes (84.47, not -84.47). " +
+      "The matcher compares on absolute value, so the rule fires for both " +
+      "directions; the category's own income/expense direction enforces the " +
+      "rest.\n\n" +
+      "Prefer merchant_name when it's populated and specific; fall back to " +
+      "description when merchant_name is null or the description is the actual " +
+      "distinguishing signal.",
     input_schema: {
       type: 'object',
       properties: {

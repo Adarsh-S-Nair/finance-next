@@ -270,7 +270,7 @@ function ProposalState({
       className="space-y-5"
     >
       {isBulk ? (
-        <BulkTransactionList transactions={transactions} />
+        <BulkTransactionList transactions={transactions} fallbackCategory={current} />
       ) : (
         <TransactionHeader
           tx={transactions[0]}
@@ -319,11 +319,38 @@ function ProposalState({
 
 /**
  * Compact list of transactions for the bulk recategorization layout.
- * Mirrors TransactionListWidget's row pattern (icon + name + meta +
- * amount) so the user reads it as "the same thing as a transactions
- * widget, but it's the set we're about to change".
+ * Two render modes:
+ *
+ *  - **Recurring stack** (`isRecurringPattern` true): every transaction
+ *    shares the same merchant/description and amount magnitude, so the
+ *    individual rows are noise — the pattern IS the point. Collapse to
+ *    a single header with the count, amount, and a list of dates.
+ *  - **Heterogeneous list** (default): each transaction is meaningfully
+ *    different (e.g., Starbucks + Dunkin + Blue Bottle → Coffee), so the
+ *    row list still reads cleanly.
+ *
+ * `fallbackCategory` is the category we paint the icon with when Plaid
+ * has no merchant icon URL — usually for internal transfers like
+ * "Instant transfer" that have no merchant entity. Without this fallback
+ * the icon collapses to a generic gray tag chip and visually loses its
+ * link to the FROM/TO category.
  */
-function BulkTransactionList({ transactions }: { transactions: Transaction[] }) {
+function BulkTransactionList({
+  transactions,
+  fallbackCategory,
+}: {
+  transactions: Transaction[];
+  fallbackCategory: Category | null;
+}) {
+  const recurring = isRecurringPattern(transactions);
+  if (recurring) {
+    return (
+      <RecurringPatternStack
+        transactions={transactions}
+        fallbackCategory={fallbackCategory}
+      />
+    );
+  }
   return (
     <div>
       <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
@@ -333,7 +360,7 @@ function BulkTransactionList({ transactions }: { transactions: Transaction[] }) 
         {transactions.map((tx) => (
           <div key={tx.id} className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <BulkRowIcon tx={tx} />
+              <BulkRowIcon tx={tx} fallbackCategory={fallbackCategory} />
               <div className="min-w-0">
                 <div className="text-sm text-[var(--color-fg)] truncate">
                   {tx.merchant_name || tx.description}
@@ -354,7 +381,123 @@ function BulkTransactionList({ transactions }: { transactions: Transaction[] }) 
   );
 }
 
-function BulkRowIcon({ tx }: { tx: Transaction }) {
+/**
+ * Returns true when every transaction in the bulk shares the same
+ * displayed name (merchant_name fallback to description) AND the same
+ * amount magnitude. Two transactions don't count as a "pattern" —
+ * require at least 3 so the collapse only fires for genuine recurring
+ * activity (insurance, subscriptions, payroll, etc.).
+ */
+function isRecurringPattern(transactions: Transaction[]): boolean {
+  if (transactions.length < 3) return false;
+  const nameOf = (tx: Transaction) =>
+    (tx.merchant_name || tx.description || "").trim().toLowerCase();
+  const firstName = nameOf(transactions[0]);
+  if (!firstName) return false;
+  const firstAmount = Math.abs(transactions[0].amount);
+  return transactions.every(
+    (tx) => nameOf(tx) === firstName && Math.abs(tx.amount) === firstAmount,
+  );
+}
+
+function RecurringPatternStack({
+  transactions,
+  fallbackCategory,
+}: {
+  transactions: Transaction[];
+  fallbackCategory: Category | null;
+}) {
+  const head = transactions[0];
+  const name = head.merchant_name || head.description;
+  const amount = head.amount;
+  // Dates summarised inline. With >5 occurrences we show first 4 + "+N
+  // more" so the header doesn't blow up on long histories.
+  const datesSorted = transactions
+    .map((tx) => tx.date)
+    .filter((d): d is string => !!d)
+    .sort();
+  const MAX_DATES = 4;
+  const dateLabel =
+    datesSorted.length <= MAX_DATES
+      ? datesSorted.map((d) => formatDate(d)).join(" · ")
+      : `${datesSorted
+          .slice(0, MAX_DATES)
+          .map((d) => formatDate(d))
+          .join(" · ")} · +${datesSorted.length - MAX_DATES} more`;
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+        Recurring · {transactions.length} transactions
+      </div>
+      <div className="flex items-center justify-between gap-3 rounded-md bg-[var(--color-surface-alt)]/40 px-3 py-2.5">
+        <div className="flex items-center gap-3 min-w-0">
+          <RecurringStackIcon tx={head} fallbackCategory={fallbackCategory} />
+          <div className="min-w-0">
+            <div className="text-sm text-[var(--color-fg)] truncate font-medium">
+              {name}
+            </div>
+            <div className="text-[11px] text-[var(--color-muted)] truncate">
+              {dateLabel}
+            </div>
+          </div>
+        </div>
+        <div className="text-sm tabular-nums text-[var(--color-fg)] flex-shrink-0 text-right">
+          <div>
+            {amount > 0 ? "+" : ""}
+            {formatCurrency(amount)}
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)]">
+            × {transactions.length}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Layered icon for the recurring stack — front icon plus two faint
+ * offset copies behind it to telegraph "more than one of these". When
+ * we don't have an icon_url we still use a colored circle with the
+ * category icon so the stack reads as something concrete.
+ */
+function RecurringStackIcon({
+  tx,
+  fallbackCategory,
+}: {
+  tx: Transaction;
+  fallbackCategory: Category | null;
+}) {
+  return (
+    <div className="relative w-9 h-9 flex-shrink-0">
+      <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 opacity-30">
+        <BulkRowIcon tx={tx} fallbackCategory={fallbackCategory} />
+      </div>
+      <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 opacity-60">
+        <BulkRowIcon tx={tx} fallbackCategory={fallbackCategory} />
+      </div>
+      <div className="absolute inset-0">
+        <BulkRowIcon tx={tx} fallbackCategory={fallbackCategory} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Icon for one row in the bulk list. Prefers Plaid's merchant
+ * `icon_url`; when it's missing or fails to load, falls back to a
+ * colored circle painted with the category's icon + color (matching
+ * the single-tx `MerchantIcon` fallback). Without the fallback,
+ * transactions with no merchant entity (e.g. internal transfers like
+ * "Instant transfer") collapsed to a generic gray tag chip.
+ */
+function BulkRowIcon({
+  tx,
+  fallbackCategory,
+}: {
+  tx: Transaction;
+  fallbackCategory: Category | null;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
   if (tx.icon_url && !imageFailed) {
     return (
@@ -367,9 +510,19 @@ function BulkRowIcon({ tx }: { tx: Transaction }) {
       />
     );
   }
+  const bg = categoryColor(fallbackCategory);
   return (
-    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--color-surface-alt)]">
-      <FiTag className="h-3.5 w-3.5 text-[var(--color-muted)]" />
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: bg }}
+    >
+      <DynamicIcon
+        iconLib={fallbackCategory?.icon_lib ?? null}
+        iconName={fallbackCategory?.icon_name ?? null}
+        className="h-3.5 w-3.5 text-white"
+        fallback={FiTag}
+        style={{ strokeWidth: 2.5 }}
+      />
     </div>
   );
 }
@@ -402,7 +555,10 @@ function ResolvedState({
       className="space-y-5"
     >
       {isBulk ? (
-        <BulkTransactionList transactions={transactions} />
+        <BulkTransactionList
+          transactions={transactions}
+          fallbackCategory={resolvedCategory}
+        />
       ) : (
         <TransactionHeader
           tx={transactions[0]}
