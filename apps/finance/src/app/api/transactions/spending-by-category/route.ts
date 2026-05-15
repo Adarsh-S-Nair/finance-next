@@ -42,6 +42,18 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
   const daysParam = parseInt(searchParams.get('days') || '90', 10);
   const MAX_DAYS = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 90;
   const forBudget = searchParams.get('forBudget') === 'true';
+  // Minimum % of total spending a category must represent to be returned.
+  // Defaults to 1.0% when forBudget=true (filters noise from budget
+  // suggestions) and 0% otherwise. Callers like the goals/emergency-fund
+  // flow can pass `minPercent=0` to opt out — every essential category
+  // matters there, even small ones like a transit commute.
+  const minPercentParam = searchParams.get('minPercent');
+  const minPercent =
+    minPercentParam !== null
+      ? Math.max(0, Number(minPercentParam))
+      : forBudget
+        ? 1.0
+        : 0;
   const startDateParam = searchParams.get('startDate');
   const endDateParam = searchParams.get('endDate');
 
@@ -285,7 +297,7 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
       is_consistent: category.months_with_spending >= consistencyThreshold,
     }))
     .filter((category) => {
-      if (forBudget && category.percentage < 1.0) return false;
+      if (category.percentage < minPercent) return false;
       if (consistentFilter && !category.is_consistent) return false;
       return true;
     });
