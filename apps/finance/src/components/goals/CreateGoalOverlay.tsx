@@ -18,15 +18,60 @@ import {
 
 type DraftLineItem = { id: string; name: string; target: string };
 
-type SpendingMonth = {
-  earning?: number | string;
-  spending?: number | string;
-  isComplete?: boolean;
-  monthName?: string;
-  year?: number;
-  formattedMonth?: string;
+type RecurringStream = {
+  id?: string;
+  description?: string | null;
+  merchant_name?: string | null;
+  frequency?: string | null;
+  average_amount?: number | string | null;
+  last_amount?: number | string | null;
+  stream_type?: string | null;
+  status?: string | null;
+  icon_url?: string | null;
+  category_hex_color?: string | null;
   [key: string]: unknown;
 };
+
+/**
+ * Convert a recurring stream's amount to a monthly figure based on its
+ * frequency. UNKNOWN frequencies are treated as monthly — better to
+ * over-count them than to drop them silently.
+ */
+function streamToMonthly(stream: RecurringStream): number {
+  const amt = Math.abs(Number(stream.average_amount ?? stream.last_amount ?? 0));
+  if (!amt) return 0;
+  switch (stream.frequency) {
+    case "WEEKLY":
+      return amt * 4.33;
+    case "BIWEEKLY":
+      return amt * 2.17;
+    case "SEMI_MONTHLY":
+      return amt * 2;
+    case "MONTHLY":
+      return amt;
+    case "ANNUALLY":
+      return amt / 12;
+    default:
+      return amt;
+  }
+}
+
+function frequencyLabel(freq: string | null | undefined): string {
+  switch (freq) {
+    case "WEEKLY":
+      return "weekly";
+    case "BIWEEKLY":
+      return "biweekly";
+    case "SEMI_MONTHLY":
+      return "twice/mo";
+    case "MONTHLY":
+      return "monthly";
+    case "ANNUALLY":
+      return "yearly";
+    default:
+      return "recurring";
+  }
+}
 
 type Props = {
   isOpen: boolean;
@@ -49,34 +94,39 @@ export default function CreateGoalOverlay({
   const isEdit = !!editGoal;
   const isEmergency = emergencyFundMode || editGoal?.kind === "emergency_fund";
 
-  // Pull real spending data so the emergency-fund suggestion is grounded
-  // in the user's actual numbers, not a hardcoded placeholder.
-  const { data: spendingPayload } = useAuthedQuery<{ data?: SpendingMonth[] }>(
-    ["goals:spending-baseline", user?.id],
+  // Pull recurring outflows so the emergency-fund suggestion reflects the
+  // user's actual fixed obligations — mortgage, subscriptions, etc. —
+  // rather than a noisy monthly-total average that can swing wildly when
+  // one big one-off purchase lands in a single month.
+  const { data: recurringPayload } = useAuthedQuery<{
+    recurring?: RecurringStream[];
+  }>(
+    ["goals:recurring-baseline", user?.id],
     isOpen && isEmergency && !isEdit && user?.id
-      ? "/api/transactions/spending-earning?months=6"
+      ? "/api/recurring/get?streamType=outflow"
       : null,
   );
 
-  // Anchor the suggestion to the most recent 3 complete months — that's
-  // the window we display in the breakdown, so the math the user sees
-  // matches the number we show. Fall back to all available months if
-  // fewer than 3 are complete.
-  const { avgMonthlySpend, sampleMonths } = useMemo(() => {
-    const months = spendingPayload?.data ?? [];
-    if (months.length === 0) return { avgMonthlySpend: null, sampleMonths: [] };
-    const completed = months.filter((m) => m.isComplete);
-    const sample = completed.length > 0 ? completed : months;
-    const nonZero = sample.filter((m) => Number(m.spending || 0) > 0);
-    const source = nonZero.length > 0 ? nonZero : sample;
-    if (source.length === 0) return { avgMonthlySpend: null, sampleMonths: [] };
-    const recent = source.slice(-3);
-    const total = recent.reduce((sum, m) => sum + Number(m.spending || 0), 0);
+  /**
+   * Convert each recurring outflow stream into a per-month amount and sum
+   * them. Streams are sorted desc by monthly cost so the user sees the
+   * impactful items first — Mortgage > Netflix.
+   */
+  const { avgMonthlyRecurring, recurringStreams } = useMemo(() => {
+    const raw = recurringPayload?.recurring ?? [];
+    const annotated = raw
+      .map((s) => ({ stream: s, monthly: streamToMonthly(s) }))
+      .filter((s) => s.monthly > 0);
+    if (annotated.length === 0) {
+      return { avgMonthlyRecurring: null as number | null, recurringStreams: [] };
+    }
+    annotated.sort((a, b) => b.monthly - a.monthly);
+    const total = annotated.reduce((sum, s) => sum + s.monthly, 0);
     return {
-      avgMonthlySpend: total / recent.length,
-      sampleMonths: recent,
+      avgMonthlyRecurring: total,
+      recurringStreams: annotated,
     };
-  }, [spendingPayload]);
+  }, [recurringPayload]);
 
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
@@ -116,13 +166,14 @@ export default function CreateGoalOverlay({
     }
   }, [isOpen, editGoal, emergencyFundMode]);
 
-  // Keep the suggested target in sync with the multiplier and the real
-  // spending number, but only until the user manually edits the field.
+  // Keep the suggested target in sync with the multiplier and the
+  // recurring-obligation baseline, but only until the user manually edits
+  // the field.
   useEffect(() => {
     if (!isOpen || !emergencyFundMode || isEdit || userOverrodeTarget) return;
-    if (avgMonthlySpend == null) return;
-    setTarget(String(Math.round(avgMonthlySpend * efMultiplier)));
-  }, [efMultiplier, avgMonthlySpend, isOpen, emergencyFundMode, isEdit, userOverrodeTarget]);
+    if (avgMonthlyRecurring == null) return;
+    setTarget(String(Math.round(avgMonthlyRecurring * efMultiplier)));
+  }, [efMultiplier, avgMonthlyRecurring, isOpen, emergencyFundMode, isEdit, userOverrodeTarget]);
 
   // Esc to close.
   useEffect(() => {
@@ -271,7 +322,7 @@ export default function CreateGoalOverlay({
                 </motion.p>
               )}
 
-              {/* Emergency-fund suggestion driven by real spending data */}
+              {/* Emergency-fund suggestion driven by recurring obligations */}
               {isEmergency && !isEdit && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
@@ -280,8 +331,8 @@ export default function CreateGoalOverlay({
                   className="mt-10"
                 >
                   <EmergencyFundSuggestion
-                    avgMonthlySpend={avgMonthlySpend}
-                    sampleMonths={sampleMonths}
+                    avgMonthlyRecurring={avgMonthlyRecurring}
+                    recurringStreams={recurringStreams}
                     multiplier={efMultiplier}
                     onChange={setEfMultiplier}
                   />
@@ -561,21 +612,23 @@ function LockedField({ value }: { value: string }) {
   );
 }
 
+type AnnotatedStream = { stream: RecurringStream; monthly: number };
+
 function EmergencyFundSuggestion({
-  avgMonthlySpend,
-  sampleMonths,
+  avgMonthlyRecurring,
+  recurringStreams,
   multiplier,
   onChange,
 }: {
-  avgMonthlySpend: number | null;
-  sampleMonths: SpendingMonth[];
+  avgMonthlyRecurring: number | null;
+  recurringStreams: AnnotatedStream[];
   multiplier: number;
   onChange: (n: number) => void;
 }) {
   const suggested =
-    avgMonthlySpend != null ? avgMonthlySpend * multiplier : null;
+    avgMonthlyRecurring != null ? avgMonthlyRecurring * multiplier : null;
 
-  if (avgMonthlySpend == null) {
+  if (avgMonthlyRecurring == null) {
     return (
       <div>
         <SectionLabel className="mb-1">Suggested target</SectionLabel>
@@ -583,8 +636,8 @@ function EmergencyFundSuggestion({
           —
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-          We&apos;ll suggest a target once we&apos;ve analyzed a few months
-          of your spending. For now, enter what feels right below.
+          We&apos;ll suggest a target once we&apos;ve detected your recurring
+          bills and subscriptions. For now, enter what feels right below.
         </p>
       </div>
     );
@@ -597,7 +650,7 @@ function EmergencyFundSuggestion({
         {formatCurrency(suggested ?? 0)}
       </div>
       <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-        {formatCurrency(avgMonthlySpend)} average monthly spending × {multiplier}{" "}
+        {formatCurrency(avgMonthlyRecurring)} in recurring bills × {multiplier}{" "}
         {multiplier === 1 ? "month" : "months"} of runway.
       </p>
 
@@ -627,34 +680,51 @@ function EmergencyFundSuggestion({
         </div>
       </div>
 
-      {/* Breakdown of how the average was computed */}
-      {sampleMonths.length > 0 && (
+      {/* Breakdown — list of recurring obligations contributing to the total */}
+      {recurringStreams.length > 0 && (
         <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
-          <SectionLabel className="mb-2">How we got this number</SectionLabel>
+          <SectionLabel className="mb-2">Your recurring bills</SectionLabel>
+          <p className="text-[11px] text-[var(--color-muted)] leading-relaxed mb-3">
+            Detected from your transactions. Each amount below is normalized
+            to a monthly cost.
+          </p>
           <div className="space-y-1.5">
-            {sampleMonths.map((m, i) => (
-              <div
-                key={`${m.year}-${m.monthName}-${i}`}
-                className="flex items-baseline justify-between text-xs"
-              >
-                <span className="text-[var(--color-muted)]">
-                  {m.formattedMonth ?? `${m.monthName} ${m.year}`}
-                </span>
-                <span className="text-[var(--color-fg)] tabular-nums">
-                  {formatCurrency(Number(m.spending || 0))}
-                </span>
-              </div>
-            ))}
+            {recurringStreams.map(({ stream, monthly }, i) => {
+              const label =
+                stream.merchant_name ||
+                stream.description ||
+                "Recurring charge";
+              const freq = frequencyLabel(stream.frequency);
+              const showFreq = stream.frequency && stream.frequency !== "MONTHLY";
+              return (
+                <div
+                  key={stream.id ?? `${label}-${i}`}
+                  className="flex items-baseline justify-between gap-3 text-xs"
+                >
+                  <span className="text-[var(--color-fg)] truncate">
+                    {label}
+                    {showFreq && (
+                      <span className="text-[var(--color-muted)]"> · {freq}</span>
+                    )}
+                  </span>
+                  <span className="text-[var(--color-fg)] tabular-nums whitespace-nowrap">
+                    {formatCurrency(monthly)}
+                    <span className="text-[var(--color-muted)]"> /mo</span>
+                  </span>
+                </div>
+              );
+            })}
             <div className="flex items-baseline justify-between text-xs pt-2 mt-1 border-t border-[var(--color-border)]">
               <span className="text-[var(--color-muted)]">
-                Average{" "}
+                Total{" "}
                 <span className="text-[var(--color-muted)]/70">
-                  · {sampleMonths.length}{" "}
-                  {sampleMonths.length === 1 ? "month" : "months"}
+                  · {recurringStreams.length}{" "}
+                  {recurringStreams.length === 1 ? "bill" : "bills"}
                 </span>
               </span>
               <span className="text-[var(--color-fg)] font-medium tabular-nums">
-                {formatCurrency(avgMonthlySpend)}
+                {formatCurrency(avgMonthlyRecurring)}
+                <span className="text-[var(--color-muted)] font-normal"> /mo</span>
               </span>
             </div>
             <div className="flex items-baseline justify-between text-xs">
