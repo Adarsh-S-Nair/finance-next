@@ -693,6 +693,14 @@ export const TOOLS: ToolDefinition[] = [
       "The matcher compares on absolute value, so the rule fires for both " +
       "directions; the category's own income/expense direction enforces the " +
       "rest.\n\n" +
+      "Operator-per-field convention (matches the transactions-page UI):\n" +
+      "- string fields (merchant_name, description): use `is` for exact match, " +
+      "  `contains` for partial, `starts_with` for prefix. DO NOT use `equals` " +
+      "  for strings — it's an alias for `is` and renders inconsistently.\n" +
+      "- amount: use `equals` for exact, `is_greater_than`, `is_less_than`. DO " +
+      "  NOT use `is` for amount — alias for `equals`, same problem. The server " +
+      "  canonicalises either way, but picking the right one keeps the rule " +
+      "  recognisable to the user who created similar ones via the UI.\n\n" +
       "Prefer merchant_name when it's populated and specific; fall back to " +
       "description when merchant_name is null or the description is the actual " +
       "distinguishing signal.",
@@ -1898,21 +1906,44 @@ const ALLOWED_RULE_OPERATORS = new Set([
 ]);
 
 /**
+ * Collapse the `is` / `equals` operator pair onto the field-appropriate
+ * canonical form. They're behavioural aliases — `matchesRule` treats
+ * them identically — but the transactions-page UI uses `equals` for
+ * amount and `is` for string fields. When the agent picks the "wrong"
+ * alias, two rules that target the same set of transactions render
+ * with different labels in Settings and our structural overlap
+ * detection (which keys on the literal operator string) misses the
+ * duplicate. Canonicalising on write means future rules slot into the
+ * existing convention; canonicalising in `ruleConditionKey` catches
+ * any pre-existing rules from before this fix.
+ */
+function canonicalizeRuleOperator(field: string, operator: string): string {
+  if (field === 'amount') {
+    if (operator === 'is') return 'equals';
+  } else {
+    if (operator === 'equals') return 'is';
+  }
+  return operator;
+}
+
+/**
  * Stable string key for a rule condition. Amount values are compared
  * by magnitude so a rule written as `84.47` is treated as the same
  * condition as one stored as `-84.47` — matches the magnitude-based
- * behaviour of `matchesRule` itself.
+ * behaviour of `matchesRule` itself. Operator is canonicalised so the
+ * `is`/`equals` alias pair collapses to a single key.
  */
 function ruleConditionKey(c: {
   field: string;
   operator: string;
   value: string | number;
 }): string {
+  const operator = canonicalizeRuleOperator(c.field, c.operator);
   const value =
     c.field === 'amount'
       ? String(Math.abs(parseFloat(String(c.value))))
       : String(c.value).toLowerCase().trim();
-  return `${c.field}|${c.operator}|${value}`;
+  return `${c.field}|${operator}|${value}`;
 }
 
 type RuleRelationship = 'identical' | 'new_narrows' | 'new_broadens';
@@ -1986,7 +2017,10 @@ async function proposeCategoryRule(
     }
     normalized.push({
       field: c.field,
-      operator: c.operator,
+      // `is` and `equals` are aliases; collapse to the field-appropriate
+      // canonical operator so the new rule slots into the UI convention
+      // and overlap detection treats matching rules as identical.
+      operator: canonicalizeRuleOperator(c.field, c.operator),
       value: c.value,
     });
   }
