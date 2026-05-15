@@ -77,15 +77,26 @@ export function matchesRule(
     const normalizedTxValue = String(transactionValue).toLowerCase();
     const normalizedRuleValue = String(value).toLowerCase();
 
+    // Amount comparisons match on magnitude, not sign. Expenses are
+    // stored as negative numbers (-84.47) but users write rules in the
+    // same way they read amounts on the screen (84.47). Direction is
+    // already enforced by the category's `direction` field at apply
+    // time, so we can compare magnitudes here without conflating
+    // income and expense.
+    const txAmount =
+      field === 'amount' ? Math.abs(parseFloat(String(transactionValue))) : NaN;
+    const ruleAmount =
+      field === 'amount' ? Math.abs(parseFloat(String(value))) : NaN;
+
     switch (operator) {
       case 'is':
         if (field === 'amount') {
-          return parseFloat(String(transactionValue)) === parseFloat(String(value));
+          return txAmount === ruleAmount;
         }
         return normalizedTxValue === normalizedRuleValue;
       case 'equals':
         if (field === 'amount') {
-          return parseFloat(String(transactionValue)) === parseFloat(String(value));
+          return txAmount === ruleAmount;
         }
         return normalizedTxValue === normalizedRuleValue;
       case 'contains':
@@ -93,8 +104,14 @@ export function matchesRule(
       case 'starts_with':
         return normalizedTxValue.startsWith(normalizedRuleValue);
       case 'is_greater_than':
+        if (field === 'amount') {
+          return txAmount > ruleAmount;
+        }
         return parseFloat(String(transactionValue)) > parseFloat(String(value));
       case 'is_less_than':
+        if (field === 'amount') {
+          return txAmount < ruleAmount;
+        }
         return parseFloat(String(transactionValue)) < parseFloat(String(value));
       default:
         return false;

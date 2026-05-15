@@ -47,11 +47,17 @@ export const POST = withAuth(
       category_id?: string;
       conditions?: RuleCondition[];
       apply_to_existing?: boolean;
+      replace_rule_ids?: string[];
     };
 
     const categoryId = body.category_id?.trim();
     const rawConditions = Array.isArray(body.conditions) ? body.conditions : [];
     const applyToExisting = body.apply_to_existing === true;
+    const replaceIds = Array.isArray(body.replace_rule_ids)
+      ? body.replace_rule_ids.filter(
+          (id): id is string => typeof id === 'string' && id.length > 0,
+        )
+      : [];
 
     if (!categoryId) {
       return NextResponse.json(
@@ -112,6 +118,33 @@ export const POST = withAuth(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
+    // Delete any overlapping rules the user opted to replace BEFORE
+    // running the upsert. Doing it in this order means:
+    //  - If a replace_id had identical conditions to the new rule, the
+    //    row is gone, the upsert simply inserts a fresh row with the
+    //    new category — same end state as updating in place.
+    //  - If a replace_id had structurally different conditions, the
+    //    overlap stops firing on future syncs as expected.
+    // Scoped to user_id so a stale id from the model can't touch
+    // another user's rules.
+    let replacedRuleIds: string[] = [];
+    if (replaceIds.length > 0) {
+      const { data: deleted, error: deleteError } = await supabaseAdmin
+        .from('category_rules')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', replaceIds)
+        .select('id');
+      if (deleteError) {
+        console.error('[agent:category-rules:create] replace failed', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to replace overlapping rules' },
+          { status: 500 },
+        );
+      }
+      replacedRuleIds = (deleted ?? []).map((row) => row.id);
+    }
+
     // Use the same RPC the transactions page uses; it handles upsert
     // semantics so re-creating a rule for the same category replaces
     // the existing one.
@@ -139,7 +172,11 @@ export const POST = withAuth(
       );
     }
 
-    return NextResponse.json({ ok: true, applied_to_existing: appliedToExisting });
+    return NextResponse.json({
+      ok: true,
+      applied_to_existing: appliedToExisting,
+      replaced_rule_ids: replacedRuleIds,
+    });
   },
 );
 

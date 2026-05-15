@@ -39,6 +39,15 @@ type MatchingTransaction = {
   category_icon_name: string | null;
 };
 
+type RuleRelationship = 'identical' | 'new_narrows' | 'new_broadens';
+
+type OverlappingRule = {
+  rule_id: string;
+  relationship: RuleRelationship;
+  conditions: RuleCondition[];
+  category: Category | null;
+};
+
 export type CategoryRuleData = {
   category: Category;
   conditions: RuleCondition[];
@@ -48,6 +57,9 @@ export type CategoryRuleData = {
   // updated to surface a preview list. Older persisted conversations
   // won't have it.
   matching_transactions?: MatchingTransaction[];
+  // Optional: existing rules that overlap with this proposal. Older
+  // persisted widgets won't have it either.
+  overlapping_rules?: OverlappingRule[];
   error?: string;
 };
 
@@ -55,7 +67,12 @@ type WidgetState =
   | { kind: "checking" }
   | { kind: "idle" }
   | { kind: "committing" }
-  | { kind: "accepted"; silent: boolean; appliedToExisting: number | null }
+  | {
+      kind: "accepted";
+      silent: boolean;
+      appliedToExisting: number | null;
+      replacedCount: number;
+    }
   | { kind: "declined"; silent: boolean }
   | { kind: "failed"; message: string };
 
@@ -114,6 +131,23 @@ export default function CategoryRuleWidget({
   // implies "and fix the existing ones too". Hidden when no matches.
   const [applyToExisting, setApplyToExisting] = useState(true);
 
+  // Default: replace any overlapping rule that's redundant with the
+  // new one (identical conditions, or one is a strict refinement of
+  // the other). Most users intend to refine their rule, not stack
+  // multiple rules with overlapping match space.
+  const overlapping = data.overlapping_rules ?? [];
+  const [replaceIds, setReplaceIds] = useState<Set<string>>(
+    () => new Set(overlapping.map((r) => r.rule_id)),
+  );
+  function toggleReplace(ruleId: string) {
+    setReplaceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ruleId)) next.delete(ruleId);
+      else next.add(ruleId);
+      return next;
+    });
+  }
+
   // Mount-time check: did the user already accept/decline this proposal
   // in a previous session?
   useEffect(() => {
@@ -133,6 +167,7 @@ export default function CategoryRuleWidget({
               kind: "accepted",
               silent: true,
               appliedToExisting: null,
+              replacedCount: 0,
             });
             return;
           }
@@ -168,6 +203,7 @@ export default function CategoryRuleWidget({
           category_id: data.category.id,
           conditions: data.conditions,
           apply_to_existing: showApplyToggle && applyToExisting,
+          replace_rule_ids: Array.from(replaceIds),
         }),
       });
       if (!res.ok) {
@@ -178,6 +214,7 @@ export default function CategoryRuleWidget({
       }
       const body = (await res.json().catch(() => ({}))) as {
         applied_to_existing?: number | null;
+        replaced_rule_ids?: string[];
       };
       await authFetch("/api/agent/widget-actions", {
         method: "POST",
@@ -191,6 +228,9 @@ export default function CategoryRuleWidget({
         kind: "accepted",
         silent: false,
         appliedToExisting: body.applied_to_existing ?? null,
+        replacedCount: Array.isArray(body.replaced_rule_ids)
+          ? body.replaced_rule_ids.length
+          : 0,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
@@ -228,6 +268,7 @@ export default function CategoryRuleWidget({
             data={data}
             silent={state.silent}
             appliedToExisting={state.appliedToExisting}
+            replacedCount={state.replacedCount}
           />
         ) : state.kind === "declined" ? (
           <ResolvedState
@@ -236,12 +277,16 @@ export default function CategoryRuleWidget({
             data={data}
             silent={state.silent}
             appliedToExisting={null}
+            replacedCount={0}
           />
         ) : (
           <ProposalState
             key="proposal"
             data={data}
             matchingTxs={matchingTxs}
+            overlapping={overlapping}
+            replaceIds={replaceIds}
+            onToggleReplace={toggleReplace}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
             showApplyToggle={showApplyToggle}
@@ -265,6 +310,9 @@ export default function CategoryRuleWidget({
 function ProposalState({
   data,
   matchingTxs,
+  overlapping,
+  replaceIds,
+  onToggleReplace,
   committing,
   error,
   showApplyToggle,
@@ -275,6 +323,9 @@ function ProposalState({
 }: {
   data: CategoryRuleData;
   matchingTxs: MatchingTransaction[];
+  overlapping: OverlappingRule[];
+  replaceIds: Set<string>;
+  onToggleReplace: (ruleId: string) => void;
   committing: boolean;
   error: string | null;
   showApplyToggle: boolean;
@@ -301,6 +352,15 @@ function ProposalState({
         ))}
         <RuleSetRow label="Set" cat={data.category} />
       </div>
+
+      {overlapping.length > 0 && (
+        <OverlappingRulesSection
+          overlapping={overlapping}
+          replaceIds={replaceIds}
+          onToggleReplace={onToggleReplace}
+          disabled={committing}
+        />
+      )}
 
       {matchingTxs.length > 0 && (
         <div>
@@ -365,11 +425,13 @@ function ResolvedState({
   data,
   silent,
   appliedToExisting,
+  replacedCount,
 }: {
   tone: "accepted" | "declined";
   data: CategoryRuleData;
   silent: boolean;
   appliedToExisting: number | null;
+  replacedCount: number;
 }) {
   return (
     <motion.div
@@ -421,6 +483,14 @@ function ResolvedState({
           {appliedToExisting === 1
             ? "Recategorized 1 existing transaction to match."
             : `Recategorized ${appliedToExisting} existing transactions to match.`}
+        </div>
+      )}
+
+      {tone === "accepted" && replacedCount > 0 && (
+        <div className="text-xs text-[var(--color-muted)]">
+          {replacedCount === 1
+            ? "Replaced 1 overlapping rule."
+            : `Replaced ${replacedCount} overlapping rules.`}
         </div>
       )}
     </motion.div>
@@ -618,5 +688,118 @@ function ApplyToExistingToggle({
         </span>
       </span>
     </button>
+  );
+}
+
+/**
+ * Surfaces existing rules whose match space overlaps with this proposal
+ * and lets the user pick which ones to delete on accept. Without this,
+ * accepting a refined version of an existing rule would silently leave
+ * both rules in place — the wider one would still fire on the same
+ * transactions, and "newer wins" semantics could create surprising
+ * behaviour if the categories ever diverge.
+ */
+function OverlappingRulesSection({
+  overlapping,
+  replaceIds,
+  onToggleReplace,
+  disabled,
+}: {
+  overlapping: OverlappingRule[];
+  replaceIds: Set<string>;
+  onToggleReplace: (ruleId: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+        Overlapping rules
+      </div>
+      <div className="space-y-2">
+        {overlapping.map((rule) => (
+          <OverlappingRuleRow
+            key={rule.rule_id}
+            rule={rule}
+            replace={replaceIds.has(rule.rule_id)}
+            onToggleReplace={() => onToggleReplace(rule.rule_id)}
+            disabled={disabled}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function describeRelationship(rel: RuleRelationship): string {
+  if (rel === "identical") return "Same conditions";
+  if (rel === "new_narrows") return "Broader version of this rule";
+  return "Narrower version of this rule";
+}
+
+function OverlappingRuleRow({
+  rule,
+  replace,
+  onToggleReplace,
+  disabled,
+}: {
+  rule: OverlappingRule;
+  replace: boolean;
+  onToggleReplace: () => void;
+  disabled: boolean;
+}) {
+  const summary = rule.conditions
+    .map((c) => {
+      const field = FIELD_LABEL[c.field] ?? c.field;
+      const op = OP_LABEL[c.operator] ?? c.operator;
+      const value =
+        c.field === "amount"
+          ? `$${Number(c.value).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`
+          : `“${c.value}”`;
+      return `${field} ${op} ${value}`;
+    })
+    .join(" AND ");
+  return (
+    <div className="flex items-start gap-3 rounded-md bg-[var(--color-surface-alt)]/40 px-3 py-2.5">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          {describeRelationship(rule.relationship)}
+        </div>
+        <div className="text-xs text-[var(--color-fg)] truncate">{summary}</div>
+        {rule.category && (
+          <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: categoryColor(rule.category) }}
+            />
+            <span className="truncate">→ {rule.category.label}</span>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onToggleReplace}
+        disabled={disabled}
+        className="flex items-center gap-2 text-xs text-left rounded-md hover:bg-[var(--color-surface-alt)]/40 transition-colors px-1 py-1 disabled:opacity-50 flex-shrink-0"
+      >
+        <span
+          className={`flex h-4 w-4 items-center justify-center rounded border transition-colors flex-shrink-0 ${
+            replace
+              ? "bg-[var(--color-fg)] border-[var(--color-fg)]"
+              : "border-[var(--color-border)] bg-transparent"
+          }`}
+        >
+          {replace && (
+            <FiCheck
+              className="h-3 w-3 text-[var(--color-bg)]"
+              strokeWidth={3.5}
+            />
+          )}
+        </span>
+        <span className="text-[var(--color-fg)]">Replace</span>
+      </button>
+    </div>
   );
 }

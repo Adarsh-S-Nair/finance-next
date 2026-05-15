@@ -55,6 +55,50 @@ describe('Category Rules Logic', () => {
       };
       expect(matchesRule(transaction, rule)).toBe(false);
     });
+
+    // Expense amounts are stored as negative numbers in the DB, but
+    // users (and the agent) write rules in positive magnitudes. The
+    // matcher compares magnitudes so the same rule fires for the same
+    // dollar amount regardless of direction.
+    it('should match positive rule value against negative expense amount', () => {
+      const expense = { merchant_name: 'Acme', description: 'Insurance', amount: -84.47 };
+      const rule = {
+        conditions: [{ field: 'amount', operator: 'is', value: 84.47 }]
+      };
+      expect(matchesRule(expense, rule)).toBe(true);
+    });
+
+    it('should match equals operator against negative expense amount', () => {
+      const expense = { merchant_name: 'Acme', amount: -84.47 };
+      const rule = {
+        conditions: [{ field: 'amount', operator: 'equals', value: '84.47' }]
+      };
+      expect(matchesRule(expense, rule)).toBe(true);
+    });
+
+    it('should match is_greater_than against negative amount on magnitude', () => {
+      const expense = { merchant_name: 'Acme', amount: -100 };
+      const rule = {
+        conditions: [{ field: 'amount', operator: 'is_greater_than', value: '50' }]
+      };
+      expect(matchesRule(expense, rule)).toBe(true);
+    });
+
+    it('should match is_less_than against negative amount on magnitude', () => {
+      const expense = { merchant_name: 'Acme', amount: -25 };
+      const rule = {
+        conditions: [{ field: 'amount', operator: 'is_less_than', value: '50' }]
+      };
+      expect(matchesRule(expense, rule)).toBe(true);
+    });
+
+    it('should not match different magnitudes even if signs match', () => {
+      const expense = { merchant_name: 'Acme', amount: -84.47 };
+      const rule = {
+        conditions: [{ field: 'amount', operator: 'is', value: 99.99 }]
+      };
+      expect(matchesRule(expense, rule)).toBe(false);
+    });
   });
 
   describe('applyRulesToTransactions', () => {

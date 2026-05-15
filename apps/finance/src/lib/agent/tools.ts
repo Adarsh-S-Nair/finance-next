@@ -20,7 +20,7 @@ import { supabaseAdmin } from '../supabase/admin';
 import { getBudgetProgress } from '../spending';
 import { isBudgetOver } from '../budget';
 import { fetchQuotesForTickers } from '../quotes';
-import { matchesRule } from '../category-rules';
+import { matchesRule, fetchUserRules } from '../category-rules';
 
 type ToolDefinition = Anthropic.Messages.Tool;
 
@@ -1882,6 +1882,63 @@ const ALLOWED_RULE_OPERATORS = new Set([
   'is_less_than',
 ]);
 
+/**
+ * Stable string key for a rule condition. Amount values are compared
+ * by magnitude so a rule written as `84.47` is treated as the same
+ * condition as one stored as `-84.47` — matches the magnitude-based
+ * behaviour of `matchesRule` itself.
+ */
+function ruleConditionKey(c: {
+  field: string;
+  operator: string;
+  value: string | number;
+}): string {
+  const value =
+    c.field === 'amount'
+      ? String(Math.abs(parseFloat(String(c.value))))
+      : String(c.value).toLowerCase().trim();
+  return `${c.field}|${c.operator}|${value}`;
+}
+
+type RuleRelationship = 'identical' | 'new_narrows' | 'new_broadens';
+
+/**
+ * Structural relationship between a proposed rule's conditions and an
+ * existing rule's conditions. Conditions are AND-ed, so:
+ * - same set → 'identical' (the upsert RPC already handles this case,
+ *   but we still surface it so the widget can label clearly).
+ * - existing ⊊ new (new has every condition existing has, plus more)
+ *   → 'new_narrows' — new matches a subset of what existing matches.
+ * - new ⊊ existing → 'new_broadens' — new matches a superset.
+ * - otherwise → null (partial overlap or disjoint; not worth flagging
+ *   structurally since the rules genuinely catch different patterns).
+ */
+function ruleRelationship(
+  newConds: Array<{ field: string; operator: string; value: string | number }>,
+  existingConds: Array<{ field: string; operator: string; value: string | number }>,
+): RuleRelationship | null {
+  const newKeys = new Set(newConds.map(ruleConditionKey));
+  const existingKeys = new Set(existingConds.map(ruleConditionKey));
+  let allExistingInNew = true;
+  for (const k of existingKeys) {
+    if (!newKeys.has(k)) {
+      allExistingInNew = false;
+      break;
+    }
+  }
+  let allNewInExisting = true;
+  for (const k of newKeys) {
+    if (!existingKeys.has(k)) {
+      allNewInExisting = false;
+      break;
+    }
+  }
+  if (allExistingInNew && allNewInExisting) return 'identical';
+  if (allExistingInNew) return 'new_narrows';
+  if (allNewInExisting) return 'new_broadens';
+  return null;
+}
+
 async function proposeCategoryRule(
   userId: string,
   input: ProposeCategoryRuleInput,
@@ -2008,6 +2065,53 @@ async function proposeCategoryRule(
     };
   });
 
+  // Detect overlapping rules. Two rules whose conditions are
+  // structurally related (identical / one is a subset of the other)
+  // either replace each other or silently coexist — neither outcome
+  // is obvious from the widget alone. Surface them so the user can
+  // choose between "replace existing" and "keep both" before committing.
+  const existingRules = await fetchUserRules(userId);
+  const overlaps: Array<{
+    rule_id: string;
+    relationship: RuleRelationship;
+    conditions: typeof normalized;
+    category: ReturnType<typeof shapeCategory>;
+  }> = [];
+  const overlapCategoryIds = new Set<string>();
+  for (const er of existingRules) {
+    const erConds = (er.conditions as unknown as typeof normalized) ?? [];
+    const rel = ruleRelationship(normalized, erConds);
+    if (!rel) continue;
+    overlaps.push({
+      rule_id: er.id,
+      relationship: rel,
+      conditions: erConds,
+      category: null,
+    });
+    overlapCategoryIds.add(er.category_id);
+  }
+  if (overlaps.length > 0 && overlapCategoryIds.size > 0) {
+    const { data: overlapCats } = await supabaseAdmin
+      .from('system_categories')
+      .select(
+        `id, label, hex_color,
+         category_groups(name, icon_lib, icon_name, hex_color)`,
+      )
+      .in('id', Array.from(overlapCategoryIds));
+    const catById = new Map(
+      (overlapCats ?? []).map((c) => [
+        c.id,
+        shapeCategory(c as Parameters<typeof shapeCategory>[0]),
+      ]),
+    );
+    for (const o of overlaps) {
+      const existingRule = existingRules.find((r) => r.id === o.rule_id);
+      if (existingRule) {
+        o.category = catById.get(existingRule.category_id) ?? null;
+      }
+    }
+  }
+
   // Mark which user_id this rule is FOR — useful for the rule-creation
   // endpoint, harmless to expose to the widget (it's the caller's id).
   return {
@@ -2017,6 +2121,7 @@ async function proposeCategoryRule(
     reasoning: input.reasoning ?? null,
     approx_match_count: matching.length,
     matching_transactions: previewMatching,
+    overlapping_rules: overlaps,
   };
 }
 
