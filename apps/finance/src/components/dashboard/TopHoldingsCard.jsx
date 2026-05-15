@@ -19,7 +19,7 @@ const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true)
  *  - `fill`: stretches to fill its parent via a normalized viewBox and
  *    renders a gradient area under the line for use as a card backdrop.
  */
-function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) {
+function Sparkline({ data, width = 64, height = 24, fill = false }) {
   if (!data || data.length < 2) {
     if (fill) return <div className="w-full h-full" aria-hidden="true" />;
     return <div style={{ width, height }} aria-hidden="true" />;
@@ -29,12 +29,20 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
   const range = max - min || 1;
   const vbW = 100;
   const vbH = 100;
-  const padY = 4;
-  const drawableH = vbH - padY * 2;
+  // Asymmetric padding for `fill` mode: the polyline's baseline (the
+  // low points in the data) gets compressed upward, leaving real
+  // polygon area below it. Without this, volatile assets where most
+  // days sit near the data min end up with the chart's "baseline"
+  // sitting at the very bottom of the viewBox — the connecting line
+  // is invisible and the chart reads as disconnected triangular
+  // spikes that look cut off.
+  const padTop = fill ? 6 : 2;
+  const padBottom = fill ? 18 : 2;
+  const drawableH = vbH - padTop - padBottom;
   const points = data
     .map((val, i) => {
       const x = (i / (data.length - 1)) * vbW;
-      const y = padY + drawableH - ((val - min) / range) * drawableH;
+      const y = padTop + drawableH - ((val - min) / range) * drawableH;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
@@ -42,7 +50,6 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
   const stroke = isUp ? "#10b981" : "#f43f5e";
 
   if (fill) {
-    const gid = `spark-grad-${gradientId || "x"}`;
     const areaPoints = `0,${vbH} ${points} ${vbW},${vbH}`;
     return (
       <svg
@@ -51,22 +58,15 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
         className="w-full h-full"
         aria-hidden="true"
       >
-        <defs>
-          {/* Bottom stop is intentionally non-zero so the area stays
-              faintly visible all the way down to the chart's bottom
-              edge. Fading to opacity 0 made the chart look "cut off"
-              mid-card whenever the valleys sat near the bottom. */}
-          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
-            <stop offset="100%" stopColor={stroke} stopOpacity="0.10" />
-          </linearGradient>
-        </defs>
-        <polygon points={areaPoints} fill={`url(#${gid})`} />
+        {/* Uniform area fill — a gradient that faded to transparent
+            at the bottom made the chart look truncated whenever the
+            line ran low. A flat 18% tint keeps the entire shape
+            evenly visible from line down to chart bottom. */}
+        <polygon points={areaPoints} fill={stroke} fillOpacity={0.18} />
         <polyline
           points={points}
           fill="none"
           stroke={stroke}
-          strokeOpacity={0.9}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -360,7 +360,7 @@ export default function TopHoldingsCard({ mockData } = {}) {
             {/* Bottom: sparkline as a footer chart, anchored under the
                 content so the text stays clean. */}
             <div className="relative flex-1 mt-2">
-              <Sparkline data={sparkData} fill gradientId={current.ticker} />
+              <Sparkline data={sparkData} fill />
             </div>
           </motion.div>
         </AnimatePresence>
