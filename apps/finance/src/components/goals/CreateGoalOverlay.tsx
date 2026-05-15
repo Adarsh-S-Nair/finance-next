@@ -19,50 +19,32 @@ import {
 
 type DraftLineItem = { id: string; name: string; target: string };
 
-type RecurringStream = {
-  id?: string;
-  description?: string | null;
-  merchant_name?: string | null;
-  frequency?: string | null;
-  average_amount?: number | string | null;
-  last_amount?: number | string | null;
-  stream_type?: string | null;
-  status?: string | null;
-  icon_url?: string | null;
-  category_hex_color?: string | null;
-  category_icon_lib?: string | null;
-  category_icon_name?: string | null;
-  [key: string]: unknown;
-};
-
-type BudgetRecord = {
+/**
+ * One row from /api/transactions/spending-by-category?groupBy=group.
+ * Each entry represents a category group (e.g. "Rent and Utilities")
+ * with the user's monthly average spend in that group.
+ */
+type CategoryGroupSpend = {
   id: string;
-  amount: number | string;
-  category_group_id?: string | null;
-  category_id?: string | null;
-  category_groups?: {
-    name?: string | null;
-    icon_name?: string | null;
-    icon_lib?: string | null;
-    hex_color?: string | null;
-  } | null;
-  system_categories?: {
-    label?: string | null;
-    icon_name?: string | null;
-    icon_lib?: string | null;
-    hex_color?: string | null;
-  } | null;
+  label: string;
+  hex_color?: string | null;
+  icon_lib?: string | null;
+  icon_name?: string | null;
+  monthly_avg: number;
+  total_spent: number;
+  months_with_spending: number;
 };
 
 /**
- * Budgets in these category groups are treated as "essential monthly
- * obligations" for the emergency-fund calculation. The list mirrors
- * Plaid's PFC groups for housing/utilities/loans/food/transit/medical
- * plus the Insurance subcategory (which lives under General Services).
+ * Category groups that count as essential monthly obligations for the
+ * emergency-fund baseline. Mirrors Plaid's PFC groups for
+ * housing/utilities/loans/food/transit/medical. We avoid going more
+ * granular than group level here — a user might categorize some
+ * restaurants as "Food and Drink" and that's still a recurring need
+ * if they lose their income, even if not strictly "essential."
  *
- * Anything outside this allowlist is excluded by default — users tend
- * to budget for non-essentials too (entertainment, subscriptions) and
- * we don't want those inflating the emergency-fund target.
+ * General Services covers a wide range (legal, accounting, insurance,
+ * etc.) so it's not in the allowlist by default.
  */
 const ESSENTIAL_GROUP_NAMES = new Set([
   "Rent and Utilities",
@@ -72,63 +54,8 @@ const ESSENTIAL_GROUP_NAMES = new Set([
   "Transportation",
 ]);
 
-const ESSENTIAL_CATEGORY_LABELS = new Set(["Insurance"]);
-
-function isEssentialBudget(b: BudgetRecord): boolean {
-  const groupName = b.category_groups?.name;
-  if (groupName && ESSENTIAL_GROUP_NAMES.has(groupName)) return true;
-  const catLabel = b.system_categories?.label;
-  if (catLabel && ESSENTIAL_CATEGORY_LABELS.has(catLabel)) return true;
-  return false;
-}
-
-function budgetLabel(b: BudgetRecord): string {
-  return (
-    b.category_groups?.name ||
-    b.system_categories?.label ||
-    "Budget"
-  );
-}
-
-/**
- * Convert a recurring stream's amount to a monthly figure based on its
- * frequency. UNKNOWN frequencies are treated as monthly — better to
- * over-count them than to drop them silently.
- */
-function streamToMonthly(stream: RecurringStream): number {
-  const amt = Math.abs(Number(stream.average_amount ?? stream.last_amount ?? 0));
-  if (!amt) return 0;
-  switch (stream.frequency) {
-    case "WEEKLY":
-      return amt * 4.33;
-    case "BIWEEKLY":
-      return amt * 2.17;
-    case "SEMI_MONTHLY":
-      return amt * 2;
-    case "MONTHLY":
-      return amt;
-    case "ANNUALLY":
-      return amt / 12;
-    default:
-      return amt;
-  }
-}
-
-function frequencyLabel(freq: string | null | undefined): string {
-  switch (freq) {
-    case "WEEKLY":
-      return "weekly";
-    case "BIWEEKLY":
-      return "biweekly";
-    case "SEMI_MONTHLY":
-      return "twice/mo";
-    case "MONTHLY":
-      return "monthly";
-    case "ANNUALLY":
-      return "yearly";
-    default:
-      return "recurring";
-  }
+function isEssentialGroup(g: CategoryGroupSpend): boolean {
+  return ESSENTIAL_GROUP_NAMES.has(g.label);
 }
 
 type Props = {
@@ -152,66 +79,38 @@ export default function CreateGoalOverlay({
   const isEdit = !!editGoal;
   const isEmergency = emergencyFundMode || editGoal?.kind === "emergency_fund";
 
-  // Pull recurring outflows so the emergency-fund suggestion reflects the
-  // user's actual fixed obligations — mortgage, subscriptions, etc.
-  const { data: recurringPayload } = useAuthedQuery<{
-    recurring?: RecurringStream[];
+  // Pull the user's spending broken down by category group over the last
+  // ~4 months. `forBudget=true` enforces complete-month bucketing and
+  // applies a consistency filter (categories the user actually spends on
+  // every month, not one-offs). That gives us a clean monthly_avg per
+  // group, which we then filter to essentials. This avoids the
+  // double-counting problem we had when summing recurring detection +
+  // budgeted essentials — the same dollar can only appear once when it
+  // all comes from the underlying transaction stream.
+  const { data: spendingPayload } = useAuthedQuery<{
+    categories?: CategoryGroupSpend[];
   }>(
-    ["goals:recurring-baseline", user?.id],
+    ["goals:essentials-baseline", user?.id],
     isOpen && isEmergency && !isEdit && user?.id
-      ? "/api/recurring/get?streamType=outflow"
+      ? "/api/transactions/spending-by-category?groupBy=group&forBudget=true&days=120"
       : null,
   );
 
-  // Plaid's recurring detection misses a lot — big ACH bills like mortgage,
-  // variable essentials like groceries and gas. Pull the user's budgets so
-  // we can include their explicit allocations for essential categories as
-  // an additional signal. The two sources together give a much more honest
-  // monthly-obligation baseline than either alone.
-  const { data: budgetsPayload } = useAuthedQuery<{ data?: BudgetRecord[] }>(
-    ["goals:budgets-baseline", user?.id],
-    isOpen && isEmergency && !isEdit && user?.id ? "/api/budgets" : null,
-  );
-
   /**
-   * Convert each recurring outflow stream into a per-month amount and sum
-   * them. Streams are sorted desc by monthly cost so the user sees the
-   * impactful items first.
+   * Filter to essential groups and sort desc by monthly average. The
+   * sum is the monthly-essentials baseline.
    */
-  const { recurringStreams, recurringMonthly } = useMemo(() => {
-    const raw = recurringPayload?.recurring ?? [];
-    const annotated = raw
-      .map((s) => ({ stream: s, monthly: streamToMonthly(s) }))
-      .filter((s) => s.monthly > 0);
-    annotated.sort((a, b) => b.monthly - a.monthly);
-    const total = annotated.reduce((sum, s) => sum + s.monthly, 0);
-    return { recurringStreams: annotated, recurringMonthly: total };
-  }, [recurringPayload]);
-
-  /**
-   * Match the user's budgets against the "essential" allowlist and sum
-   * them. Sorted desc so the biggest line item leads.
-   */
-  const { essentialBudgets, essentialBudgetMonthly } = useMemo(() => {
-    const raw = budgetsPayload?.data ?? [];
-    const annotated = raw
-      .filter((b) => isEssentialBudget(b))
-      .map((b) => ({ budget: b, monthly: Number(b.amount || 0) }))
-      .filter((b) => b.monthly > 0);
-    annotated.sort((a, b) => b.monthly - a.monthly);
-    const total = annotated.reduce((sum, b) => sum + b.monthly, 0);
-    return { essentialBudgets: annotated, essentialBudgetMonthly: total };
-  }, [budgetsPayload]);
-
-  /**
-   * Combined monthly essentials = recurring streams + essential budgets.
-   * Null if both sources are empty so the UI can show its waiting copy.
-   */
-  const avgMonthlyEssentials = useMemo(() => {
-    const total = recurringMonthly + essentialBudgetMonthly;
-    if (total <= 0) return null;
-    return total;
-  }, [recurringMonthly, essentialBudgetMonthly]);
+  const { essentialGroups, avgMonthlyEssentials } = useMemo(() => {
+    const raw = spendingPayload?.categories ?? [];
+    const filtered = raw
+      .filter((g) => isEssentialGroup(g) && g.monthly_avg > 0)
+      .sort((a, b) => b.monthly_avg - a.monthly_avg);
+    const total = filtered.reduce((sum, g) => sum + g.monthly_avg, 0);
+    return {
+      essentialGroups: filtered,
+      avgMonthlyEssentials: total > 0 ? total : null,
+    };
+  }, [spendingPayload]);
 
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
@@ -416,8 +315,7 @@ export default function CreateGoalOverlay({
                 >
                   <EmergencyFundSuggestion
                     avgMonthlyEssentials={avgMonthlyEssentials}
-                    recurringStreams={recurringStreams}
-                    essentialBudgets={essentialBudgets}
+                    essentialGroups={essentialGroups}
                     multiplier={efMultiplier}
                     onChange={setEfMultiplier}
                   />
@@ -697,19 +595,14 @@ function LockedField({ value }: { value: string }) {
   );
 }
 
-type AnnotatedStream = { stream: RecurringStream; monthly: number };
-type AnnotatedBudget = { budget: BudgetRecord; monthly: number };
-
 function EmergencyFundSuggestion({
   avgMonthlyEssentials,
-  recurringStreams,
-  essentialBudgets,
+  essentialGroups,
   multiplier,
   onChange,
 }: {
   avgMonthlyEssentials: number | null;
-  recurringStreams: AnnotatedStream[];
-  essentialBudgets: AnnotatedBudget[];
+  essentialGroups: CategoryGroupSpend[];
   multiplier: number;
   onChange: (n: number) => void;
 }) {
@@ -724,9 +617,9 @@ function EmergencyFundSuggestion({
           —
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-          We&apos;ll suggest a target once we&apos;ve detected your recurring
-          bills, or once you&apos;ve set up budgets for essentials like rent
-          and utilities. For now, enter what feels right below.
+          We&apos;ll suggest a target once we&apos;ve seen a few months of
+          your spending in essential categories like rent, utilities, and
+          groceries. For now, enter what feels right below.
         </p>
       </div>
     );
@@ -769,38 +662,17 @@ function EmergencyFundSuggestion({
         </div>
       </div>
 
-      {/* Recurring bills section */}
-      {recurringStreams.length > 0 && (
+      {/* Breakdown: essential spending by category group */}
+      {essentialGroups.length > 0 && (
         <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
-          <SectionLabel className="mb-2">Recurring bills</SectionLabel>
+          <SectionLabel className="mb-2">Your essential spending</SectionLabel>
           <p className="text-[11px] text-[var(--color-muted)] leading-relaxed mb-3">
-            Detected from your transactions. Each amount is normalized to a
-            monthly cost.
+            Average monthly spend in essential categories, from your actual
+            transactions over the last few complete months.
           </p>
           <div className="space-y-2">
-            {recurringStreams.map(({ stream, monthly }, i) => (
-              <RecurringStreamRow
-                key={stream.id ?? `${stream.description}-${i}`}
-                stream={stream}
-                monthly={monthly}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Essential budgets section */}
-      {essentialBudgets.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
-          <SectionLabel className="mb-2">From your budgets</SectionLabel>
-          <p className="text-[11px] text-[var(--color-muted)] leading-relaxed mb-3">
-            Categories you&apos;ve already budgeted for that count as
-            essentials — useful for bills our recurring detection might
-            miss (e.g. mortgage, groceries).
-          </p>
-          <div className="space-y-2">
-            {essentialBudgets.map(({ budget, monthly }) => (
-              <BudgetEssentialRow key={budget.id} budget={budget} monthly={monthly} />
+            {essentialGroups.map((g) => (
+              <CategoryGroupRow key={g.id} group={g} />
             ))}
           </div>
         </div>
@@ -823,96 +695,13 @@ function EmergencyFundSuggestion({
             {formatCurrency(suggested ?? 0)}
           </span>
         </div>
-        {recurringStreams.length > 0 && essentialBudgets.length > 0 && (
-          <p className="text-[10px] text-[var(--color-muted)] leading-relaxed mt-3">
-            If a recurring bill is already covered by a budget category
-            above, you may want to lower the target to avoid double-counting.
-          </p>
-        )}
       </div>
     </div>
   );
 }
 
-function StreamIcon({ stream }: { stream: RecurringStream }) {
-  const showLogo = !!(stream.icon_url && stream.merchant_name);
-  return (
-    <div
-      className="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-      style={{
-        backgroundColor: showLogo
-          ? "transparent"
-          : stream.category_hex_color || "var(--color-muted)",
-      }}
-    >
-      {showLogo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={stream.icon_url ?? ""}
-          alt={stream.merchant_name ?? ""}
-          className="w-full h-full object-cover rounded-full"
-          loading="lazy"
-        />
-      ) : (
-        <DynamicIcon
-          iconLib={stream.category_icon_lib}
-          iconName={stream.category_icon_name}
-          className="h-3 w-3 text-white"
-          style={{ strokeWidth: 2.5 }}
-          fallback={FiTag}
-        />
-      )}
-    </div>
-  );
-}
-
-function RecurringStreamRow({
-  stream,
-  monthly,
-}: {
-  stream: RecurringStream;
-  monthly: number;
-}) {
-  const label =
-    stream.merchant_name || stream.description || "Recurring charge";
-  const freq = frequencyLabel(stream.frequency);
-  const showFreq = stream.frequency && stream.frequency !== "MONTHLY";
-  return (
-    <div className="flex items-center gap-3 text-xs">
-      <StreamIcon stream={stream} />
-      <div className="flex-1 min-w-0">
-        <div className="text-[var(--color-fg)] truncate">{label}</div>
-        {showFreq && (
-          <div className="text-[10px] text-[var(--color-muted)] mt-0.5">
-            {freq}
-          </div>
-        )}
-      </div>
-      <div className="text-[var(--color-fg)] tabular-nums whitespace-nowrap">
-        {formatCurrency(monthly)}
-        <span className="text-[var(--color-muted)]"> /mo</span>
-      </div>
-    </div>
-  );
-}
-
-function BudgetEssentialRow({
-  budget,
-  monthly,
-}: {
-  budget: BudgetRecord;
-  monthly: number;
-}) {
-  const label = budgetLabel(budget);
-  const color =
-    budget.category_groups?.hex_color ||
-    budget.system_categories?.hex_color ||
-    "var(--color-muted)";
-  const iconLib =
-    budget.category_groups?.icon_lib || budget.system_categories?.icon_lib;
-  const iconName =
-    budget.category_groups?.icon_name || budget.system_categories?.icon_name;
-
+function CategoryGroupRow({ group }: { group: CategoryGroupSpend }) {
+  const color = group.hex_color || "var(--color-muted)";
   return (
     <div className="flex items-center gap-3 text-xs">
       <div
@@ -920,18 +709,18 @@ function BudgetEssentialRow({
         style={{ backgroundColor: color }}
       >
         <DynamicIcon
-          iconLib={iconLib}
-          iconName={iconName}
+          iconLib={group.icon_lib}
+          iconName={group.icon_name}
           className="h-3 w-3 text-white"
           style={{ strokeWidth: 2.5 }}
           fallback={FiTag}
         />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[var(--color-fg)] truncate">{label}</div>
+        <div className="text-[var(--color-fg)] truncate">{group.label}</div>
       </div>
       <div className="text-[var(--color-fg)] tabular-nums whitespace-nowrap">
-        {formatCurrency(monthly)}
+        {formatCurrency(group.monthly_avg)}
         <span className="text-[var(--color-muted)]"> /mo</span>
       </div>
     </div>
