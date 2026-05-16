@@ -14,6 +14,7 @@ import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
 import TopHoldingsCard from "../../../components/dashboard/TopHoldingsCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
+import GoalsCard from "../../../components/dashboard/GoalsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
@@ -27,6 +28,7 @@ const componentMap = {
   'SpendingVsEarningCard': SpendingVsEarningCard,
   'TopHoldingsCard': TopHoldingsCard,
   'BudgetsCard': BudgetsCard,
+  'GoalsCard': GoalsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,
   'NetWorthBanner': NetWorthBanner,
