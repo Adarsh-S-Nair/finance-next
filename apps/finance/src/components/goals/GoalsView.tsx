@@ -12,7 +12,7 @@ import { useAccounts } from "../providers/AccountsProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { authFetch } from "../../lib/api/fetch";
 import CashAllocationStrip from "./CashAllocationStrip";
-import GoalRing from "./GoalRing";
+import GoalRow from "./GoalRow";
 import CreateGoalOverlay from "./CreateGoalOverlay";
 import { type Goal, allocateCash, rowToGoal } from "./types";
 
@@ -330,10 +330,10 @@ export default function GoalsView() {
             ) : (
               <motion.div
                 layout
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
+                className="flex flex-col divide-y divide-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
               >
                 {activeAllocated.map((g, i) => (
-                  <GoalRing
+                  <GoalRow
                     key={g.id}
                     goal={g}
                     index={i}
