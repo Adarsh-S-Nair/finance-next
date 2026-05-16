@@ -173,6 +173,20 @@ export const TOOLS: ToolDefinition[] = [
             'auto, student) and exclude credit card payments. Defaults to ' +
             'false (show everything) so the model has to opt in.',
         },
+        silent: {
+          type: 'boolean',
+          description:
+            'When true, the data still comes back to you but the widget ' +
+            'is suppressed — no transaction list rendered to the user. ' +
+            'Pass silent: true when you are looking up transactions purely ' +
+            'to construct the parameters of a subsequent propose_* call ' +
+            '(propose_recategorization, propose_category_rule, etc.). The ' +
+            'propose_* widgets render their own matching-transaction ' +
+            'preview, so a visible get_recent_transactions widget ' +
+            'immediately above them is duplicate noise. Only render the ' +
+            'widget (silent omitted or false) when the lookup itself is ' +
+            'the answer to the user\'s question.',
+        },
       },
     },
   },
@@ -937,6 +951,11 @@ interface RecentTransactionsInput {
   category_query?: string;
   account_query?: string;
   exclude_transfers?: boolean;
+  // When true, the model still gets the transaction data but the
+  // widget is suppressed. Used as preamble to a propose_* call so
+  // the user doesn't see a duplicate list right before the rule
+  // / recategorization widget renders its own matching-tx preview.
+  silent?: boolean;
 }
 interface SpendingByCategoryInput {
   period?: 'this_month' | 'last_month' | 'last_30_days' | 'last_90_days';
