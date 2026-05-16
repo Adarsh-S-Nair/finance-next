@@ -382,3 +382,56 @@ body {
 .legal-prose a:hover {
   text-decoration-color: currentColor;
 }
+
+/* Minimal slider — 2px track, small fg-colored thumb. The fill colour
+   from the start of the track to the thumb position is driven by an
+   inline `background` gradient on the element itself. Used by the
+   emergency-fund runway picker. Single source of styling for both
+   Webkit and Firefox. */
+.zervo-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+.zervo-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-fg);
+  border: 3px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-fg);
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+.zervo-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+}
+.zervo-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-fg);
+  border: 3px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-fg);
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+.zervo-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.2);
+}
+.zervo-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1px var(--color-fg), 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 80%);
+}
+.zervo-slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 1px var(--color-fg), 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 80%);
+}

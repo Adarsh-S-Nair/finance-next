@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiTag } from "react-icons/fi";
 import { LuPlus, LuTrash2, LuInfo } from "react-icons/lu";
-import { Button } from "@zervo/ui";
+import { Button, Skeleton } from "@zervo/ui";
 import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
@@ -89,7 +89,7 @@ export default function CreateGoalOverlay({
   // (because earlier months are missing from sync) is still a real
   // monthly obligation; the consistency filter would silently drop
   // the entire Loan Payments group in that case.
-  const { data: spendingPayload } = useAuthedQuery<{
+  const { data: spendingPayload, isLoading: isLoadingEssentials } = useAuthedQuery<{
     categories?: CategoryGroupSpend[];
   }>(
     ["goals:essentials-baseline", user?.id],
@@ -97,6 +97,9 @@ export default function CreateGoalOverlay({
       ? "/api/transactions/spending-by-category?groupBy=group&forBudget=true&consistent=false&minPercent=0&days=120"
       : null,
   );
+
+  const essentialsLoading =
+    isEmergency && !isEdit && isLoadingEssentials && !spendingPayload;
 
   /**
    * Filter to essential groups and sort desc by monthly average. The
@@ -320,6 +323,7 @@ export default function CreateGoalOverlay({
                     essentialGroups={essentialGroups}
                     multiplier={efMultiplier}
                     onChange={setEfMultiplier}
+                    loading={essentialsLoading}
                   />
                 </motion.div>
               )}
@@ -580,10 +584,11 @@ function AmountInput({
 }
 
 /**
- * Tappable 1..12 row that replaces the native range slider for the
- * runway picker. Minimal chrome — just the numbers, with the selected
- * one in fg color and the rest muted. Hover bumps muted numbers
- * slightly to suggest tappability without adding pill/button borders.
+ * Minimal slider for the runway picker. 2px track, small fg-colored
+ * thumb, inline gradient `background` so the filled portion of the
+ * track shows real progress without a custom track element. All thumb
+ * styling lives in globals.css (.zervo-slider) so Webkit and Firefox
+ * stay in sync.
  */
 function RunwayPicker({
   value,
@@ -592,7 +597,11 @@ function RunwayPicker({
   value: number;
   onChange: (n: number) => void;
 }) {
-  const options = Array.from({ length: 12 }, (_, i) => i + 1);
+  const min = 1;
+  const max = 12;
+  const pct = ((value - min) / (max - min)) * 100;
+  const trackBg = `linear-gradient(to right, var(--color-fg) 0%, var(--color-fg) ${pct}%, color-mix(in oklab, var(--color-fg), transparent 88%) ${pct}%, color-mix(in oklab, var(--color-fg), transparent 88%) 100%)`;
+
   return (
     <div className="mt-8">
       <div className="flex items-baseline justify-between mb-3">
@@ -603,26 +612,21 @@ function RunwayPicker({
           {value} {value === 1 ? "month" : "months"}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-1 tabular-nums">
-        {options.map((n) => {
-          const isActive = n === value;
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(n)}
-              aria-label={`${n} ${n === 1 ? "month" : "months"} runway`}
-              aria-pressed={isActive}
-              className={`flex-1 min-w-0 py-1.5 text-sm transition-colors duration-150 ${
-                isActive
-                  ? "text-[var(--color-fg)] font-semibold"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
-              }`}
-            >
-              {n}
-            </button>
-          );
-        })}
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="zervo-slider"
+        style={{ background: trackBg }}
+        aria-label="Months of runway"
+      />
+      <div className="mt-2 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
+        <span>1mo</span>
+        <span>6mo</span>
+        <span>12mo</span>
       </div>
     </div>
   );
@@ -633,14 +637,20 @@ function EmergencyFundSuggestion({
   essentialGroups,
   multiplier,
   onChange,
+  loading = false,
 }: {
   avgMonthlyEssentials: number | null;
   essentialGroups: CategoryGroupSpend[];
   multiplier: number;
   onChange: (n: number) => void;
+  loading?: boolean;
 }) {
   const suggested =
     avgMonthlyEssentials != null ? avgMonthlyEssentials * multiplier : null;
+
+  if (loading) {
+    return <EmergencyFundSuggestionSkeleton />;
+  }
 
   if (avgMonthlyEssentials == null) {
     return (
@@ -759,6 +769,67 @@ function MissingExpenseNote({
         </Link>
         .
       </p>
+    </div>
+  );
+}
+
+/**
+ * Loading state for the emergency-fund suggestion. The spending-by-category
+ * query can take a while on large transaction histories, and showing an
+ * empty modal during that window feels broken. Mirrors the structure of
+ * the loaded state so the layout doesn't jump when data arrives.
+ */
+function EmergencyFundSuggestionSkeleton() {
+  return (
+    <div>
+      <SectionLabel className="mb-1">Suggested target</SectionLabel>
+      <Skeleton className="h-8 w-40 rounded mb-2" />
+      <Skeleton className="h-3 w-72 rounded" />
+
+      <div className="mt-8">
+        <div className="flex items-baseline justify-between mb-3">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+            Runway
+          </span>
+          <Skeleton className="h-3 w-16 rounded" />
+        </div>
+        <Skeleton className="h-[2px] w-full rounded-full" />
+        <div className="mt-2 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
+          <span>1mo</span>
+          <span>6mo</span>
+          <span>12mo</span>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
+        <SectionLabel className="mb-2">Your essential spending</SectionLabel>
+        <Skeleton className="h-3 w-full rounded mb-1.5" />
+        <Skeleton className="h-3 w-2/3 rounded mb-4" />
+        <div className="space-y-2.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
+              <Skeleton className="h-3 flex-1 rounded" />
+              <Skeleton className="h-3 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
+        <div className="flex items-baseline justify-between mb-1.5">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+            Monthly essentials
+          </span>
+          <Skeleton className="h-3 w-16 rounded" />
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+            × runway
+          </span>
+          <Skeleton className="h-3 w-20 rounded" />
+        </div>
+      </div>
     </div>
   );
 }
