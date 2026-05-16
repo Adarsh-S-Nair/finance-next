@@ -383,16 +383,17 @@ body {
   text-decoration-color: currentColor;
 }
 
-/* Minimal slider — 2px track, small fg-colored thumb. The fill colour
-   from the start of the track to the thumb position is driven by an
-   inline `background` gradient on the element itself. Used by the
-   emergency-fund runway picker. Single source of styling for both
-   Webkit and Firefox. */
+/* Solid slider — 8px track with rounded ends. The filled portion (from
+   the start of the track to the thumb) is solid fg; the rest is a
+   muted neutral. Painted via an inline `background` gradient on the
+   element so we don't need a separate track element. Thumb is a
+   chunky 18px fg circle so the control feels physical. Single
+   source of styling for both Webkit and Firefox. */
 .zervo-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 2px;
+  height: 8px;
   border-radius: 9999px;
   outline: none;
   cursor: pointer;
@@ -402,36 +403,35 @@ body {
 .zervo-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--color-fg);
-  border: 3px solid var(--color-bg);
-  box-shadow: 0 0 0 1px var(--color-fg);
+  border: none;
   cursor: grab;
   transition: transform 0.15s ease;
+  margin-top: 0; /* thumb auto-centers vertically on webkit */
 }
 .zervo-slider::-webkit-slider-thumb:active {
   cursor: grabbing;
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 .zervo-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--color-fg);
-  border: 3px solid var(--color-bg);
-  box-shadow: 0 0 0 1px var(--color-fg);
+  border: none;
   cursor: grab;
   transition: transform 0.15s ease;
 }
 .zervo-slider::-moz-range-thumb:active {
   cursor: grabbing;
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 .zervo-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 1px var(--color-fg), 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 80%);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 78%);
 }
 .zervo-slider:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 1px var(--color-fg), 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 80%);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-fg), transparent 78%);
 }
