@@ -6,7 +6,7 @@ import { ViewAllLink } from "@zervo/ui";
 import { useUser } from "../providers/UserProvider";
 import { useAccounts } from "../providers/AccountsProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
-import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
+import { formatCurrency } from "../../lib/formatCurrency";
 import { allocateCash, rowToGoal, type Goal } from "../goals/types";
 
 const GREEN_FILL = "#16a34a"; // emerald-600
@@ -64,10 +64,6 @@ export default function GoalsCard() {
   );
 
   const topGoals = allocated.slice(0, MAX_ROWS);
-  const totalAllocated = allocated.reduce((sum, g) => sum + g.allocated, 0);
-  const totalTarget = allocated.reduce((sum, g) => sum + g.target, 0);
-  const overallPct =
-    totalTarget > 0 ? Math.min(100, (totalAllocated / totalTarget) * 100) : 0;
 
   const loading = authLoading || (isLoading && !goalsPayload);
 
@@ -79,28 +75,20 @@ export default function GoalsCard() {
         <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Goals</h3>
         </div>
-        <div className="animate-pulse">
-          <div className="h-10 bg-[var(--color-border)] rounded w-24 mb-3" />
-          <div className="h-2 bg-[var(--color-border)] rounded-full mb-2.5" />
-          <div className="flex justify-between mb-8">
-            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
-            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
-          </div>
-          <div className="space-y-6">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
-                </div>
-                <div className="h-2 bg-[var(--color-border)] rounded-full" />
-                <div className="flex justify-between">
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
-                </div>
+        <div className="animate-pulse space-y-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
               </div>
-            ))}
-          </div>
+              <div className="h-2 bg-[var(--color-border)] rounded-full" />
+              <div className="flex justify-between">
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -153,36 +141,7 @@ export default function GoalsCard() {
         <ViewAllLink href="/goals" />
       </div>
 
-      {/* Headline: total flowing in across all goals. */}
-      <div className="mb-8">
-        <div className="flex flex-col gap-1 mb-4">
-          <span className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
-            <CurrencyAmount amount={totalAllocated} />
-          </span>
-          <span className="text-sm text-[var(--color-muted)] font-medium">
-            Flowing into {goals.length}{" "}
-            {goals.length === 1 ? "goal" : "goals"}
-          </span>
-        </div>
-
-        {/* Overall progress bar. */}
-        <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2.5">
-          <div
-            className="h-full rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${overallPct}%`, backgroundColor: GREEN_FILL }}
-          />
-        </div>
-        <div className="flex items-baseline justify-between text-[11px] tabular-nums">
-          <span className="text-[var(--color-fg)] font-medium">
-            {Math.round(overallPct)}%
-          </span>
-          <span className="text-[var(--color-muted)]">
-            of {formatCurrency(totalTarget)}
-          </span>
-        </div>
-      </div>
-
-      {/* Top goals (priority order; emergency fund leads). */}
+      {/* Top goals in priority order — emergency fund leads. */}
       <div className="space-y-6">
         {topGoals.map((g) => {
           const pct = Math.round(g.progress * 100);
