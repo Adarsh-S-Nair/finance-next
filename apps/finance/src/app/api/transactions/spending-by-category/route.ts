@@ -31,6 +31,12 @@ interface CategoryDatum {
   hex_color: string;
   icon_name: string | null;
   icon_lib: string | null;
+  // Parent group is captured when grouping by category so callers can
+  // re-group on the client (e.g. the goals page renders categories
+  // nested under their parent group with a per-category toggle).
+  // Null when groupBy=group, since each row IS the group.
+  group_id: string | null;
+  group_name: string | null;
   total_spent: number;
   transaction_count: number;
   months_seen: Set<string>;
@@ -213,6 +219,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
     let hex_color: string;
     let icon_name: string | null;
     let icon_lib: string | null;
+    let group_id: string | null = null;
+    let group_name: string | null = null;
 
     if (groupBy === 'group') {
       key = category.category_groups?.id || 'other';
@@ -226,6 +234,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
       hex_color = category.hex_color || category.category_groups?.hex_color || '#6B7280';
       icon_name = category.category_groups?.icon_name ?? null;
       icon_lib = category.category_groups?.icon_lib ?? null;
+      group_id = category.category_groups?.id ?? null;
+      group_name = category.category_groups?.name ?? null;
     }
 
     const rawAmount = Number(transaction.amount);
@@ -256,6 +266,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
         hex_color,
         icon_name,
         icon_lib,
+        group_id,
+        group_name,
         total_spent: 0,
         transaction_count: 0,
         months_seen: new Set(),
@@ -280,6 +292,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
         hex_color: c.hex_color,
         icon_name: c.icon_name,
         icon_lib: c.icon_lib,
+        group_id: c.group_id,
+        group_name: c.group_name,
         total_spent: c.total_spent,
         transaction_count: c.transaction_count,
         months_with_spending: monthsWith,

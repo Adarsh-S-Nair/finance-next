@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiTag } from "react-icons/fi";
-import { LuPlus, LuTrash2, LuInfo } from "react-icons/lu";
+import { LuPlus, LuTrash2, LuInfo, LuChevronRight, LuX } from "react-icons/lu";
 import { Button, Skeleton } from "@zervo/ui";
 import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
@@ -21,31 +21,45 @@ import {
 type DraftLineItem = { id: string; name: string; target: string };
 
 /**
- * One row from /api/transactions/spending-by-category?groupBy=group.
- * Each entry represents a category group (e.g. "Rent and Utilities")
- * with the user's monthly average spend in that group.
+ * One row from /api/transactions/spending-by-category (per-category mode).
+ * `group_id` / `group_name` are populated only in per-category mode and
+ * tell us which group the row belongs to so we can re-group on the client.
  */
-type CategoryGroupSpend = {
+type CategorySpend = {
   id: string;
   label: string;
   hex_color?: string | null;
   icon_lib?: string | null;
   icon_name?: string | null;
+  group_id?: string | null;
+  group_name?: string | null;
   monthly_avg: number;
   total_spent: number;
   months_with_spending: number;
 };
 
 /**
+ * Client-side grouping: a parent category group + the individual
+ * categories the user has spending in.
+ */
+type EssentialGroup = {
+  id: string;
+  name: string;
+  hex_color: string | null;
+  icon_lib: string | null;
+  icon_name: string | null;
+  categories: CategorySpend[];
+  /** Sum of monthly_avg across non-excluded categories. */
+  monthly_avg: number;
+};
+
+/**
  * Category groups that count as essential monthly obligations for the
  * emergency-fund baseline. Mirrors Plaid's PFC groups for
- * housing/utilities/loans/food/transit/medical. We avoid going more
- * granular than group level here — a user might categorize some
- * restaurants as "Food and Drink" and that's still a recurring need
- * if they lose their income, even if not strictly "essential."
- *
- * General Services covers a wide range (legal, accounting, insurance,
- * etc.) so it's not in the allowlist by default.
+ * housing/utilities/loans/food/transit/medical. General Services covers
+ * a wide range (legal, accounting, insurance, etc.) so it's not in the
+ * allowlist by default — Insurance specifically would need to be opted
+ * in at the category level.
  */
 const ESSENTIAL_GROUP_NAMES = new Set([
   "Rent and Utilities",
@@ -55,8 +69,8 @@ const ESSENTIAL_GROUP_NAMES = new Set([
   "Transportation",
 ]);
 
-function isEssentialGroup(g: CategoryGroupSpend): boolean {
-  return ESSENTIAL_GROUP_NAMES.has(g.label);
+function isEssentialGroupName(name: string | null | undefined): boolean {
+  return !!name && ESSENTIAL_GROUP_NAMES.has(name);
 }
 
 type Props = {
@@ -90,32 +104,84 @@ export default function CreateGoalOverlay({
   // monthly obligation; the consistency filter would silently drop
   // the entire Loan Payments group in that case.
   const { data: spendingPayload, isLoading: isLoadingEssentials } = useAuthedQuery<{
-    categories?: CategoryGroupSpend[];
+    categories?: CategorySpend[];
   }>(
     ["goals:essentials-baseline", user?.id],
     isOpen && isEmergency && !isEdit && user?.id
-      ? "/api/transactions/spending-by-category?groupBy=group&forBudget=true&consistent=false&minPercent=0&days=120"
+      ? "/api/transactions/spending-by-category?forBudget=true&consistent=false&minPercent=0&days=120"
       : null,
   );
 
   const essentialsLoading =
     isEmergency && !isEdit && isLoadingEssentials && !spendingPayload;
 
+  // Categories the user has explicitly opted out of for this goal's
+  // baseline calculation. e.g. someone might exclude BNPL because it's
+  // not a fixed obligation, or exclude restaurants from Food and Drink
+  // because they'd stop eating out in an emergency.
+  const [excludedCategoryIds, setExcludedCategoryIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const toggleCategoryExcluded = (categoryId: string) => {
+    setExcludedCategoryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
+    });
+  };
+
   /**
-   * Filter to essential groups and sort desc by monthly average. The
-   * sum is the monthly-essentials baseline.
+   * Group the per-category response by category group, filter to the
+   * essentials allowlist, apply user exclusions, and compute totals.
+   *
+   * Each group's `monthly_avg` is the sum of its included categories'
+   * monthly averages — so as the user toggles a row off, the parent
+   * group's total updates live without a refetch.
    */
   const { essentialGroups, avgMonthlyEssentials } = useMemo(() => {
     const raw = spendingPayload?.categories ?? [];
-    const filtered = raw
-      .filter((g) => isEssentialGroup(g) && g.monthly_avg > 0)
-      .sort((a, b) => b.monthly_avg - a.monthly_avg);
-    const total = filtered.reduce((sum, g) => sum + g.monthly_avg, 0);
+
+    const byGroup = new Map<string, EssentialGroup>();
+    for (const c of raw) {
+      if (!isEssentialGroupName(c.group_name)) continue;
+      if (c.monthly_avg <= 0) continue;
+      const gid = c.group_id || c.group_name || "unknown";
+      if (!byGroup.has(gid)) {
+        byGroup.set(gid, {
+          id: gid,
+          name: c.group_name || "Other",
+          // Per-category rows carry the parent group's icon/color in
+          // the endpoint output, so we can re-use those for the header.
+          hex_color: c.hex_color ?? null,
+          icon_lib: c.icon_lib ?? null,
+          icon_name: c.icon_name ?? null,
+          categories: [],
+          monthly_avg: 0,
+        });
+      }
+      byGroup.get(gid)!.categories.push(c);
+    }
+
+    const groups: EssentialGroup[] = Array.from(byGroup.values()).map((g) => {
+      const includedAvg = g.categories
+        .filter((c) => !excludedCategoryIds.has(c.id))
+        .reduce((sum, c) => sum + c.monthly_avg, 0);
+      const sortedCategories = [...g.categories].sort(
+        (a, b) => b.monthly_avg - a.monthly_avg,
+      );
+      return { ...g, categories: sortedCategories, monthly_avg: includedAvg };
+    });
+
+    groups.sort((a, b) => b.monthly_avg - a.monthly_avg);
+    const total = groups.reduce((sum, g) => sum + g.monthly_avg, 0);
+
     return {
-      essentialGroups: filtered,
+      essentialGroups: groups,
       avgMonthlyEssentials: total > 0 ? total : null,
     };
-  }, [spendingPayload]);
+  }, [spendingPayload, excludedCategoryIds]);
 
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
@@ -139,6 +205,7 @@ export default function CreateGoalOverlay({
         })),
       );
       setUserOverrodeTarget(false);
+      setExcludedCategoryIds(new Set());
     } else if (emergencyFundMode) {
       setName("Emergency Fund");
       setTarget("");
@@ -146,12 +213,14 @@ export default function CreateGoalOverlay({
       setLineItems([]);
       setEfMultiplier(3);
       setUserOverrodeTarget(false);
+      setExcludedCategoryIds(new Set());
     } else {
       setName("");
       setTarget("");
       setTargetDate("");
       setLineItems([]);
       setUserOverrodeTarget(false);
+      setExcludedCategoryIds(new Set());
     }
   }, [isOpen, editGoal, emergencyFundMode]);
 
@@ -321,6 +390,8 @@ export default function CreateGoalOverlay({
                   <EmergencyFundSuggestion
                     avgMonthlyEssentials={avgMonthlyEssentials}
                     essentialGroups={essentialGroups}
+                    excludedCategoryIds={excludedCategoryIds}
+                    onToggleCategory={toggleCategoryExcluded}
                     multiplier={efMultiplier}
                     onChange={setEfMultiplier}
                     loading={essentialsLoading}
@@ -635,12 +706,16 @@ function RunwayPicker({
 function EmergencyFundSuggestion({
   avgMonthlyEssentials,
   essentialGroups,
+  excludedCategoryIds,
+  onToggleCategory,
   multiplier,
   onChange,
   loading = false,
 }: {
   avgMonthlyEssentials: number | null;
-  essentialGroups: CategoryGroupSpend[];
+  essentialGroups: EssentialGroup[];
+  excludedCategoryIds: Set<string>;
+  onToggleCategory: (categoryId: string) => void;
   multiplier: number;
   onChange: (n: number) => void;
   loading?: boolean;
@@ -693,9 +768,14 @@ function EmergencyFundSuggestion({
             <em>Medical</em>, and <em>Transportation</em> over the last few
             complete months.
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {essentialGroups.map((g) => (
-              <CategoryGroupRow key={g.id} group={g} />
+              <CategoryGroupRow
+                key={g.id}
+                group={g}
+                excludedCategoryIds={excludedCategoryIds}
+                onToggleCategory={onToggleCategory}
+              />
             ))}
           </div>
           <MissingExpenseNote essentialGroups={essentialGroups} />
@@ -739,10 +819,10 @@ function EmergencyFundSuggestion({
 function MissingExpenseNote({
   essentialGroups,
 }: {
-  essentialGroups: CategoryGroupSpend[];
+  essentialGroups: EssentialGroup[];
 }) {
   const hasLoanPayments = essentialGroups.some(
-    (g) => g.label === "Loan Payments",
+    (g) => g.name === "Loan Payments",
   );
 
   return (
@@ -834,29 +914,119 @@ function EmergencyFundSuggestionSkeleton() {
   );
 }
 
-function CategoryGroupRow({ group }: { group: CategoryGroupSpend }) {
+/**
+ * Expandable group row. Header shows the group's icon + name + summed
+ * monthly average (across non-excluded categories). Clicking the header
+ * toggles a panel below listing each underlying category — each with
+ * its own monthly average and a toggle to exclude/include it from the
+ * essentials baseline.
+ */
+function CategoryGroupRow({
+  group,
+  excludedCategoryIds,
+  onToggleCategory,
+}: {
+  group: EssentialGroup;
+  excludedCategoryIds: Set<string>;
+  onToggleCategory: (categoryId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const color = group.hex_color || "var(--color-muted)";
+  const hasExclusions = group.categories.some((c) =>
+    excludedCategoryIds.has(c.id),
+  );
+
   return (
-    <div className="flex items-center gap-3 text-xs">
-      <div
-        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ backgroundColor: color }}
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-3 py-1.5 px-1 -mx-1 rounded text-xs hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors"
       >
-        <DynamicIcon
-          iconLib={group.icon_lib}
-          iconName={group.icon_name}
-          className="h-3 w-3 text-white"
-          style={{ strokeWidth: 2.5 }}
-          fallback={FiTag}
+        <LuChevronRight
+          size={12}
+          className={`text-[var(--color-muted)] flex-shrink-0 transition-transform ${
+            expanded ? "rotate-90" : ""
+          }`}
         />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[var(--color-fg)] truncate">{group.label}</div>
-      </div>
-      <div className="text-[var(--color-fg)] tabular-nums whitespace-nowrap">
-        {formatCurrency(group.monthly_avg)}
-        <span className="text-[var(--color-muted)]"> /mo</span>
-      </div>
+        <div
+          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: color }}
+        >
+          <DynamicIcon
+            iconLib={group.icon_lib}
+            iconName={group.icon_name}
+            className="h-3 w-3 text-white"
+            style={{ strokeWidth: 2.5 }}
+            fallback={FiTag}
+          />
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <div className="text-[var(--color-fg)] truncate">{group.name}</div>
+          {hasExclusions && (
+            <div className="text-[10px] text-[var(--color-muted)] mt-0.5">
+              Some categories excluded
+            </div>
+          )}
+        </div>
+        <div className="text-[var(--color-fg)] tabular-nums whitespace-nowrap">
+          {formatCurrency(group.monthly_avg)}
+          <span className="text-[var(--color-muted)]"> /mo</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="ml-9 mt-1 mb-2 space-y-1 pl-3 border-l border-[var(--color-border)]">
+          {group.categories.map((c) => {
+            const excluded = excludedCategoryIds.has(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onToggleCategory(c.id)}
+                aria-pressed={!excluded}
+                className="w-full flex items-center justify-between gap-3 py-1 px-1.5 -mx-1.5 rounded text-[11px] hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors group"
+              >
+                <span
+                  className={`truncate text-left ${
+                    excluded
+                      ? "text-[var(--color-muted)] line-through"
+                      : "text-[var(--color-fg)]"
+                  }`}
+                >
+                  {c.label}
+                </span>
+                <span className="flex items-center gap-2 flex-shrink-0">
+                  <span
+                    className={`tabular-nums ${
+                      excluded
+                        ? "text-[var(--color-muted)] line-through"
+                        : "text-[var(--color-fg)]"
+                    }`}
+                  >
+                    {formatCurrency(c.monthly_avg)}
+                    <span className="text-[var(--color-muted)]"> /mo</span>
+                  </span>
+                  {excluded ? (
+                    <LuPlus
+                      size={12}
+                      className="text-[var(--color-muted)] group-hover:text-[var(--color-fg)]"
+                      aria-label="Include in essentials"
+                    />
+                  ) : (
+                    <LuX
+                      size={12}
+                      className="text-[var(--color-muted)] group-hover:text-[var(--color-danger)]"
+                      aria-label="Exclude from essentials"
+                    />
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
