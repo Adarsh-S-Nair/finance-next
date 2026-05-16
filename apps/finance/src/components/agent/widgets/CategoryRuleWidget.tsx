@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiCheck, FiX, FiTag } from "react-icons/fi";
 import { Button } from "@zervo/ui";
@@ -131,22 +131,15 @@ export default function CategoryRuleWidget({
   // implies "and fix the existing ones too". Hidden when no matches.
   const [applyToExisting, setApplyToExisting] = useState(true);
 
-  // Default: replace any overlapping rule that's redundant with the
-  // new one (identical conditions, or one is a strict refinement of
-  // the other). Most users intend to refine their rule, not stack
-  // multiple rules with overlapping match space.
+  // Overlapping rules detected by the propose tool are ALWAYS replaced
+  // when the user accepts the new rule. Asking the user to opt-in to
+  // removing a rule that already overlaps (same conditions / narrower /
+  // broader on the same axis) is pointless friction — keeping both
+  // creates dead-weight duplicates and there's no scenario where the
+  // user benefits from that. We still show the overlapping rules in
+  // the widget so the user can see what's being replaced.
   const overlapping = data.overlapping_rules ?? [];
-  const [replaceIds, setReplaceIds] = useState<Set<string>>(
-    () => new Set(overlapping.map((r) => r.rule_id)),
-  );
-  function toggleReplace(ruleId: string) {
-    setReplaceIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(ruleId)) next.delete(ruleId);
-      else next.add(ruleId);
-      return next;
-    });
-  }
+  const replaceIds = overlapping.map((r) => r.rule_id);
 
   // Mount-time check: did the user already accept/decline this proposal
   // in a previous session?
@@ -203,7 +196,7 @@ export default function CategoryRuleWidget({
           category_id: data.category.id,
           conditions: data.conditions,
           apply_to_existing: showApplyToggle && applyToExisting,
-          replace_rule_ids: Array.from(replaceIds),
+          replace_rule_ids: replaceIds,
         }),
       });
       if (!res.ok) {
@@ -285,8 +278,6 @@ export default function CategoryRuleWidget({
             data={data}
             matchingTxs={matchingTxs}
             overlapping={overlapping}
-            replaceIds={replaceIds}
-            onToggleReplace={toggleReplace}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
             showApplyToggle={showApplyToggle}
@@ -311,8 +302,6 @@ function ProposalState({
   data,
   matchingTxs,
   overlapping,
-  replaceIds,
-  onToggleReplace,
   committing,
   error,
   showApplyToggle,
@@ -324,8 +313,6 @@ function ProposalState({
   data: CategoryRuleData;
   matchingTxs: MatchingTransaction[];
   overlapping: OverlappingRule[];
-  replaceIds: Set<string>;
-  onToggleReplace: (ruleId: string) => void;
   committing: boolean;
   error: string | null;
   showApplyToggle: boolean;
@@ -342,38 +329,32 @@ function ProposalState({
       transition={{ duration: 0.2 }}
       className="space-y-5"
     >
-      <div className="space-y-2.5">
-        {data.conditions.map((c, i) => (
-          <RuleConditionRow
-            key={i}
-            label={i === 0 ? "When" : "And"}
-            condition={c}
-          />
-        ))}
-        <RuleSetRow label="Set" cat={data.category} />
+      <div>
+        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+          New rule
+        </div>
+        <div className="space-y-2.5">
+          {data.conditions.map((c, i) => (
+            <RuleConditionRow
+              key={i}
+              label={i === 0 ? "When" : "And"}
+              condition={c}
+            />
+          ))}
+          <RuleSetRow label="Set" cat={data.category} />
+        </div>
       </div>
 
       {overlapping.length > 0 && (
-        <OverlappingRulesSection
-          overlapping={overlapping}
-          replaceIds={replaceIds}
-          onToggleReplace={onToggleReplace}
-          disabled={committing}
-        />
+        <ReplacesSection overlapping={overlapping} />
       )}
 
       {matchingTxs.length > 0 && (
-        <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
-            Existing matches
-          </div>
-          <PagedList
-            items={matchingTxs}
-            getKey={(tx) => tx.id}
-            renderItem={(tx) => <MatchingTransactionRow tx={tx} />}
-            empty={null}
-          />
-        </div>
+        <MatchesSection
+          matchingTxs={matchingTxs}
+          targetCategory={data.category}
+          animateToTarget={false}
+        />
       )}
 
       {showApplyToggle && (
@@ -433,58 +414,85 @@ function ResolvedState({
   appliedToExisting: number | null;
   replacedCount: number;
 }) {
+  const matchingTxs = data.matching_transactions ?? [];
+  const showMatches =
+    tone === "accepted" &&
+    matchingTxs.length > 0 &&
+    appliedToExisting !== null &&
+    appliedToExisting > 0;
   return (
     <motion.div
       initial={silent ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="space-y-3"
+      className="space-y-5"
     >
-      <div className="space-y-2.5">
-        {data.conditions.map((c, i) => (
-          <RuleConditionRow
-            key={i}
-            label={i === 0 ? "When" : "And"}
-            condition={c}
-            muted
-          />
-        ))}
-
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
-          <div className="min-w-0 md:flex-1">
-            <RuleSetRow
-              label={tone === "accepted" ? "Active" : "Skipped"}
-              cat={data.category}
-              muted={tone === "declined"}
+      <div>
+        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+          New rule
+        </div>
+        <div className="space-y-2.5">
+          {data.conditions.map((c, i) => (
+            <RuleConditionRow
+              key={i}
+              label={i === 0 ? "When" : "And"}
+              condition={c}
+              muted
             />
+          ))}
+
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4 pt-1">
+            <div className="min-w-0 md:flex-1">
+              <RuleSetRow
+                label={tone === "accepted" ? "Active" : "Skipped"}
+                cat={data.category}
+                muted={tone === "declined"}
+              />
+            </div>
+            <motion.div
+              initial={silent ? false : { opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
+              className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
+                tone === "accepted"
+                  ? "text-emerald-500"
+                  : "text-[var(--color-muted)]"
+              }`}
+            >
+              {tone === "accepted" ? (
+                <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
+              ) : (
+                <FiX className="h-3.5 w-3.5" strokeWidth={3} />
+              )}
+              {tone === "accepted" ? "Rule created" : "Rule declined"}
+            </motion.div>
           </div>
-          <motion.div
-            initial={silent ? false : { opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
-            className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
-              tone === "accepted"
-                ? "text-emerald-500"
-                : "text-[var(--color-muted)]"
-            }`}
-          >
-            {tone === "accepted" ? (
-              <FiCheck className="h-3.5 w-3.5" strokeWidth={3} />
-            ) : (
-              <FiX className="h-3.5 w-3.5" strokeWidth={3} />
-            )}
-            {tone === "accepted" ? "Rule created" : "Rule declined"}
-          </motion.div>
         </div>
       </div>
 
-      {tone === "accepted" && appliedToExisting !== null && appliedToExisting > 0 && (
-        <div className="text-xs text-[var(--color-muted)]">
-          {appliedToExisting === 1
-            ? "Recategorized 1 existing transaction to match."
-            : `Recategorized ${appliedToExisting} existing transactions to match.`}
-        </div>
+      {/* When the user opted to also recategorize existing matches,
+          show those rows again here with their icons and category
+          labels animating into the new category — gives the action
+          a tactile "yes, those just moved" feel rather than just a
+          terse "Recategorized 3 transactions" line. */}
+      {showMatches && (
+        <MatchesSection
+          matchingTxs={matchingTxs}
+          targetCategory={data.category}
+          animateToTarget={!silent}
+        />
       )}
+
+      {tone === "accepted" &&
+        appliedToExisting !== null &&
+        appliedToExisting > 0 &&
+        !showMatches && (
+          <div className="text-xs text-[var(--color-muted)]">
+            {appliedToExisting === 1
+              ? "Recategorized 1 existing transaction to match."
+              : `Recategorized ${appliedToExisting} existing transactions to match.`}
+          </div>
+        )}
 
       {tone === "accepted" && replacedCount > 0 && (
         <div className="text-xs text-[var(--color-muted)]">
@@ -567,12 +575,128 @@ function RuleSetRow({
 }
 
 /**
- * One row in the preview list. Same row shape as TransactionListWidget —
- * merchant icon + name + (date · current category) + amount — so the
- * preview reads as a smaller version of the standard transactions
- * widget that the user already knows.
+ * Wraps the matches list with a contextual header. When every match
+ * shares the same current category (the common "recategorize a
+ * recurring pattern" case), the header swaps from a plain "EXISTING
+ * MATCHES" label to a visual "Car Payment → Insurance" transition
+ * indicator with category dots — so the change reads at a glance
+ * without the user having to scan the per-row category labels.
+ *
+ * `animateToTarget`: when true (resolved/accepted state), each row's
+ * icon background colour and category label crossfade to the target
+ * category's colour/label with a small stagger. Gives the accept
+ * action a tactile "yes, those just moved" feel.
  */
-function MatchingTransactionRow({ tx }: { tx: MatchingTransaction }) {
+function MatchesSection({
+  matchingTxs,
+  targetCategory,
+  animateToTarget,
+}: {
+  matchingTxs: MatchingTransaction[];
+  targetCategory: Category;
+  animateToTarget: boolean;
+}) {
+  const sharedFromCategory = useMemo(
+    () => detectSharedCurrentCategory(matchingTxs),
+    [matchingTxs],
+  );
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+        {sharedFromCategory ? (
+          <span className="inline-flex items-center gap-2">
+            <span>Existing matches</span>
+            <span className="text-[var(--color-muted)]/60">·</span>
+            <CategoryPill
+              label={sharedFromCategory.label}
+              color={sharedFromCategory.color}
+            />
+            <span className="text-[var(--color-muted)]">→</span>
+            <CategoryPill
+              label={targetCategory.label}
+              color={categoryColor(targetCategory)}
+            />
+          </span>
+        ) : (
+          <span>
+            Existing matches{" "}
+            <span className="text-[var(--color-muted)]/60">·</span>{" "}
+            <span className="text-[var(--color-muted)]">→</span>{" "}
+            <CategoryPill
+              label={targetCategory.label}
+              color={categoryColor(targetCategory)}
+            />
+          </span>
+        )}
+      </div>
+      <PagedList
+        items={matchingTxs}
+        getKey={(tx) => tx.id}
+        renderItem={(tx, index) => (
+          <MatchingTransactionRow
+            tx={tx}
+            target={animateToTarget ? targetCategory : null}
+            staggerIndex={index}
+          />
+        )}
+        empty={null}
+      />
+    </div>
+  );
+}
+
+/**
+ * Inline category dot + label, sized to live inside the uppercase
+ * mini-header next to "Existing matches". Reuses the muted header
+ * typography so it doesn't shout louder than the section title.
+ */
+function CategoryPill({ label, color }: { label: string; color: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[var(--color-fg)] font-medium">
+      <span
+        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+        style={{ backgroundColor: color }}
+      />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+type SharedCategoryHint = { label: string; color: string };
+
+function detectSharedCurrentCategory(
+  txs: MatchingTransaction[],
+): SharedCategoryHint | null {
+  if (txs.length === 0) return null;
+  const first = txs[0];
+  if (!first.category_label) return null;
+  const sharedLabel = first.category_label;
+  const sharedColor = first.category_color;
+  for (const tx of txs) {
+    if (tx.category_label !== sharedLabel) return null;
+    if (tx.category_color !== sharedColor) return null;
+  }
+  return { label: sharedLabel, color: sharedColor ?? "#71717a" };
+}
+
+/**
+ * One row in the preview list. Same row shape as TransactionListWidget —
+ * merchant icon + name + (date · current category) + amount.
+ *
+ * When `target` is set (resolved/accepted state), the icon's background
+ * colour and the meta-line category label crossfade to the target
+ * category with a small per-row stagger. The animation makes the
+ * "these transactions just changed category" outcome land visually.
+ */
+function MatchingTransactionRow({
+  tx,
+  target,
+  staggerIndex = 0,
+}: {
+  tx: MatchingTransaction;
+  target: Category | null;
+  staggerIndex?: number;
+}) {
   const isIncome = tx.amount > 0;
   return (
     <div className="flex items-center justify-between gap-3 py-2.5">
@@ -582,6 +706,8 @@ function MatchingTransactionRow({ tx }: { tx: MatchingTransaction }) {
           color={tx.category_color}
           iconLib={tx.category_icon_lib}
           iconName={tx.category_icon_name}
+          target={target}
+          staggerIndex={staggerIndex}
         />
         <div className="min-w-0">
           <div className="text-sm text-[var(--color-fg)] truncate">
@@ -589,7 +715,20 @@ function MatchingTransactionRow({ tx }: { tx: MatchingTransaction }) {
           </div>
           <div className="text-[11px] text-[var(--color-muted)] truncate">
             {formatDate(tx.date)}
-            {tx.category_label ? ` · ${tx.category_label}` : ""}
+            {target ? (
+              <motion.span
+                key={target.id ?? target.label}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.25 + staggerIndex * 0.08, duration: 0.3 }}
+              >
+                {` · ${target.label}`}
+              </motion.span>
+            ) : tx.category_label ? (
+              ` · ${tx.category_label}`
+            ) : (
+              ""
+            )}
           </div>
         </div>
       </div>
@@ -605,16 +744,33 @@ function MatchingTransactionRow({ tx }: { tx: MatchingTransaction }) {
   );
 }
 
+/**
+ * Renders the row icon. Three layers, in priority order:
+ *  1. Plaid's merchant `icon_url` when available (real logo)
+ *  2. A colored circle with the category icon (DynamicIcon)
+ *  3. Generic tag icon fallback
+ *
+ * When `target` is supplied, the colored-circle and tag-fallback
+ * branches animate their background colour and the inner icon glyph
+ * to the target category's colour and icon. The image branch (a real
+ * merchant logo) doesn't animate — the logo is the identity of the
+ * merchant, not the category, so swapping its background would mostly
+ * be invisible anyway.
+ */
 function MerchantIcon({
   iconUrl,
   color,
   iconLib,
   iconName,
+  target,
+  staggerIndex = 0,
 }: {
   iconUrl: string | null;
   color: string | null;
   iconLib: string | null;
   iconName: string | null;
+  target: Category | null;
+  staggerIndex?: number;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   if (iconUrl && !imageFailed) {
@@ -628,19 +784,76 @@ function MerchantIcon({
       />
     );
   }
+  const fromColor = color || "var(--color-surface-alt)";
+  const toColor = target ? categoryColor(target) : fromColor;
+  const targetIconLib = target?.icon_lib ?? iconLib;
+  const targetIconName = target?.icon_name ?? iconName;
   return (
-    <div
-      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: color || "var(--color-surface-alt)" }}
+    <motion.div
+      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden"
+      initial={false}
+      animate={{ backgroundColor: toColor }}
+      transition={{
+        duration: 0.5,
+        delay: target ? staggerIndex * 0.08 : 0,
+        ease: "easeOut",
+      }}
+      style={{ backgroundColor: fromColor }}
     >
-      <DynamicIcon
-        iconLib={iconLib}
-        iconName={iconName}
-        className="h-3.5 w-3.5 text-white"
-        fallback={FiTag}
-        style={{ strokeWidth: 2.5 }}
-      />
-    </div>
+      {target ? (
+        <>
+          {/* Old icon fades out, new icon fades in — gives the icon
+              glyph itself a real "this changed" beat even when the
+              from/to colours are close. */}
+          <motion.span
+            key="from-icon"
+            className="absolute inset-0 flex items-center justify-center"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{
+              duration: 0.25,
+              delay: staggerIndex * 0.08,
+              ease: "easeOut",
+            }}
+          >
+            <DynamicIcon
+              iconLib={iconLib}
+              iconName={iconName}
+              className="h-3.5 w-3.5 text-white"
+              fallback={FiTag}
+              style={{ strokeWidth: 2.5 }}
+            />
+          </motion.span>
+          <motion.span
+            key="to-icon"
+            className="absolute inset-0 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{
+              duration: 0.25,
+              delay: 0.3 + staggerIndex * 0.08,
+              ease: "easeOut",
+            }}
+          >
+            <DynamicIcon
+              iconLib={targetIconLib}
+              iconName={targetIconName}
+              className="h-3.5 w-3.5 text-white"
+              fallback={FiTag}
+              style={{ strokeWidth: 2.5 }}
+            />
+          </motion.span>
+        </>
+      ) : (
+        <DynamicIcon
+          iconLib={iconLib}
+          iconName={iconName}
+          className="h-3.5 w-3.5 text-white"
+          fallback={FiTag}
+          style={{ strokeWidth: 2.5 }}
+        />
+      )}
+    </motion.div>
   );
 }
 
@@ -692,38 +905,22 @@ function ApplyToExistingToggle({
 }
 
 /**
- * Surfaces existing rules whose match space overlaps with this proposal
- * and lets the user pick which ones to delete on accept. Without this,
- * accepting a refined version of an existing rule would silently leave
- * both rules in place — the wider one would still fire on the same
- * transactions, and "newer wins" semantics could create surprising
- * behaviour if the categories ever diverge.
+ * Static "this will be replaced" listing for rules whose match space
+ * overlaps with the new proposal. No toggle — overlapping rules are
+ * always deleted on accept, because keeping a structurally-redundant
+ * rule alongside the new one would just create dead-weight duplicates.
+ * The strikethrough conditions are purely a "here's what's going
+ * away" indicator for the user.
  */
-function OverlappingRulesSection({
-  overlapping,
-  replaceIds,
-  onToggleReplace,
-  disabled,
-}: {
-  overlapping: OverlappingRule[];
-  replaceIds: Set<string>;
-  onToggleReplace: (ruleId: string) => void;
-  disabled: boolean;
-}) {
+function ReplacesSection({ overlapping }: { overlapping: OverlappingRule[] }) {
   return (
     <div>
       <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
-        Overlapping rules
+        Replaces
       </div>
       <div className="space-y-2">
         {overlapping.map((rule) => (
-          <OverlappingRuleRow
-            key={rule.rule_id}
-            rule={rule}
-            replace={replaceIds.has(rule.rule_id)}
-            onToggleReplace={() => onToggleReplace(rule.rule_id)}
-            disabled={disabled}
-          />
+          <OverlappingRuleRow key={rule.rule_id} rule={rule} />
         ))}
       </div>
     </div>
@@ -737,23 +934,11 @@ function relationshipTag(rel: RuleRelationship): string {
 }
 
 /**
- * Minimal overlap row. One line, no card chrome. The full row IS the
- * checkbox — click anywhere to toggle replace. Conditions on the left,
- * category dot + name and relationship tag in a single muted meta line
- * underneath. Strikethrough on the conditions when the user has chosen
- * to replace, telegraphing "this one is going away on accept".
+ * Single row in the "Replaces" section. Conditions are always shown
+ * struck-through (this one IS being deleted on accept), with the
+ * target category and relationship tag beneath. No interaction.
  */
-function OverlappingRuleRow({
-  rule,
-  replace,
-  onToggleReplace,
-  disabled,
-}: {
-  rule: OverlappingRule;
-  replace: boolean;
-  onToggleReplace: () => void;
-  disabled: boolean;
-}) {
+function OverlappingRuleRow({ rule }: { rule: OverlappingRule }) {
   const summary = rule.conditions
     .map((c) => {
       const field = FIELD_LABEL[c.field] ?? c.field;
@@ -769,34 +954,9 @@ function OverlappingRuleRow({
     })
     .join(" AND ");
   return (
-    <button
-      type="button"
-      onClick={onToggleReplace}
-      disabled={disabled}
-      className="flex w-full items-start gap-3 text-left rounded-md hover:bg-[var(--color-surface-alt)]/40 transition-colors -mx-1 px-1 py-1 disabled:opacity-50"
-    >
-      <span
-        className={`mt-0.5 flex h-4 w-4 items-center justify-center rounded border transition-colors flex-shrink-0 ${
-          replace
-            ? "bg-[var(--color-fg)] border-[var(--color-fg)]"
-            : "border-[var(--color-border)] bg-transparent"
-        }`}
-      >
-        {replace && (
-          <FiCheck
-            className="h-3 w-3 text-[var(--color-bg)]"
-            strokeWidth={3.5}
-          />
-        )}
-      </span>
+    <div className="flex items-start gap-3 -mx-1 px-1 py-1">
       <span className="min-w-0 flex-1">
-        <span
-          className={`block text-xs truncate ${
-            replace
-              ? "text-[var(--color-muted)] line-through"
-              : "text-[var(--color-fg)]"
-          }`}
-        >
+        <span className="block text-xs truncate text-[var(--color-muted)] line-through">
           {summary}
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--color-muted)] truncate">
@@ -813,6 +973,6 @@ function OverlappingRuleRow({
           <span className="italic">{relationshipTag(rule.relationship)}</span>
         </span>
       </span>
-    </button>
+    </div>
   );
 }
