@@ -5,19 +5,51 @@ import { LuPlus, LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { Button, ConfirmOverlay, EmptyState } from "@zervo/ui";
 import PageContainer from "../layout/PageContainer";
 import { formatCurrency } from "../../lib/formatCurrency";
+import { useAccounts } from "../providers/AccountsProvider";
 import CashAllocationStrip from "./CashAllocationStrip";
 import GoalRow from "./GoalRow";
 import CreateGoalOverlay from "./CreateGoalOverlay";
-import {
-  type Goal,
-  MOCK_GOALS,
-  MOCK_CASH_POOL,
-  allocateCash,
-} from "./types";
+import { type Goal, MOCK_GOALS, allocateCash } from "./types";
+
+/**
+ * Plaid depository subtypes we treat as part of the user's "available
+ * cash" pool. Checking + savings + money market + cash management +
+ * HSA + CDs — anything that can be drawn from without selling
+ * something. Credit, loan, investment, and brokerage accounts don't
+ * count toward goal funding.
+ */
+const DEPOSITORY_SUBTYPES = new Set([
+  "checking",
+  "savings",
+  "money market",
+  "cash management",
+  "hsa",
+  "cd",
+]);
+
+function isDepository(typeOrSubtype: string | null | undefined): boolean {
+  if (!typeOrSubtype) return false;
+  return DEPOSITORY_SUBTYPES.has(typeOrSubtype.toLowerCase());
+}
 
 export default function GoalsView() {
   const [goals, setGoals] = useState<Goal[]>(MOCK_GOALS);
-  const [cashPool] = useState<number>(MOCK_CASH_POOL);
+  const { accounts: institutionGroups } = useAccounts();
+
+  // Cash pool = sum of all depository balances across the user's
+  // connected Plaid accounts. Goals are abstract allocations against
+  // this total — a "savings goal" doesn't need its own dedicated
+  // account, the dollars just need to exist somewhere liquid. Both
+  // checking AND savings count, since the user can pull from either.
+  const cashPool = useMemo(() => {
+    const flat = institutionGroups.flatMap(
+      (g: { accounts?: { type: string | null; balance: number }[] }) =>
+        g.accounts ?? [],
+    );
+    return flat
+      .filter((a) => isDepository(a.type))
+      .reduce((sum, a) => sum + (a.balance || 0), 0);
+  }, [institutionGroups]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createEmergencyMode, setCreateEmergencyMode] = useState(false);
