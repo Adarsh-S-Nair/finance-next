@@ -89,7 +89,12 @@ export const TOOLS: ToolDefinition[] = [
           type: 'integer',
           description:
             'Rolling window: how many days back to search from today. Defaults to 30. ' +
-            'Ignored if `month` or `start_date`/`end_date` is provided.',
+            'Ignored if `month` or `start_date`/`end_date` is provided. ' +
+            'When the goal is to find ALL transactions matching a recurring ' +
+            'pattern (recategorization lookups, "my X transactions", insurance, ' +
+            'subscriptions), use 365 — the 30-day default will miss matches ' +
+            'from earlier months and the agent will mistake a monthly recurring ' +
+            'charge for a one-off.',
           minimum: 1,
           maximum: 365,
         },
