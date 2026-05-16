@@ -324,27 +324,24 @@ export default function CreateGoalOverlay({
                 </motion.div>
               )}
 
-              {/* Name field */}
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.18 }}
-                className="mt-10"
-              >
-                <SectionLabel>Name</SectionLabel>
-                {isEmergency && !isEdit ? (
-                  <LockedField value={name} />
-                ) : (
+              {/* Name field — hidden for emergency fund (name is fixed and
+                  the modal title already says "Your emergency fund") */}
+              {!isEmergency && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18 }}
+                  className="mt-10"
+                >
+                  <SectionLabel>Name</SectionLabel>
                   <UnderlineInput
                     value={name}
                     onChange={setName}
-                    placeholder={
-                      isEmergency ? "Emergency Fund" : "e.g. European Trip"
-                    }
-                    autoFocus={!isEmergency}
+                    placeholder="e.g. European Trip"
+                    autoFocus
                   />
-                )}
-              </motion.div>
+                </motion.div>
+              )}
 
               {/* Target amount — bareword style */}
               <motion.div
@@ -583,16 +580,50 @@ function AmountInput({
 }
 
 /**
- * Read-only field that mirrors a standard input visually but is clearly
- * non-editable: muted background, no focus state, default cursor.
+ * Tappable 1..12 row that replaces the native range slider for the
+ * runway picker. Minimal chrome — just the numbers, with the selected
+ * one in fg color and the rest muted. Hover bumps muted numbers
+ * slightly to suggest tappability without adding pill/button borders.
  */
-function LockedField({ value }: { value: string }) {
+function RunwayPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const options = Array.from({ length: 12 }, (_, i) => i + 1);
   return (
-    <div
-      aria-disabled="true"
-      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-alt)] px-3 py-2 text-base text-[var(--color-fg)]/70 cursor-default select-none"
-    >
-      {value}
+    <div className="mt-8">
+      <div className="flex items-baseline justify-between mb-3">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          Runway
+        </span>
+        <span className="text-xs text-[var(--color-fg)] tabular-nums">
+          {value} {value === 1 ? "month" : "months"}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-1 tabular-nums">
+        {options.map((n) => {
+          const isActive = n === value;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              aria-label={`${n} ${n === 1 ? "month" : "months"} runway`}
+              aria-pressed={isActive}
+              className={`flex-1 min-w-0 py-1.5 text-sm transition-colors duration-150 ${
+                isActive
+                  ? "text-[var(--color-fg)] font-semibold"
+                  : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+              }`}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -638,31 +669,9 @@ function EmergencyFundSuggestion({
         {multiplier} {multiplier === 1 ? "month" : "months"} of runway.
       </p>
 
-      {/* Runway slider */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-            Runway
-          </span>
-          <span className="text-xs text-[var(--color-fg)] tabular-nums">
-            {multiplier} {multiplier === 1 ? "month" : "months"}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={1}
-          max={12}
-          step={1}
-          value={multiplier}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full accent-[var(--color-fg)]"
-        />
-        <div className="flex justify-between text-[10px] text-[var(--color-muted)] mt-0.5">
-          <span>1mo</span>
-          <span>6mo</span>
-          <span>12mo</span>
-        </div>
-      </div>
+      {/* Runway picker — tappable 1..12 row, no chrome */}
+      <RunwayPicker value={multiplier} onChange={onChange} />
+
 
       {/* Breakdown: essential spending by category group */}
       {essentialGroups.length > 0 && (
