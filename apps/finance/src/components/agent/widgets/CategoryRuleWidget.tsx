@@ -277,7 +277,6 @@ export default function CategoryRuleWidget({
             key="proposal"
             data={data}
             matchingTxs={matchingTxs}
-            overlapping={overlapping}
             committing={state.kind === "committing"}
             error={state.kind === "failed" ? state.message : null}
             showApplyToggle={showApplyToggle}
@@ -301,7 +300,6 @@ export default function CategoryRuleWidget({
 function ProposalState({
   data,
   matchingTxs,
-  overlapping,
   committing,
   error,
   showApplyToggle,
@@ -312,7 +310,6 @@ function ProposalState({
 }: {
   data: CategoryRuleData;
   matchingTxs: MatchingTransaction[];
-  overlapping: OverlappingRule[];
   committing: boolean;
   error: string | null;
   showApplyToggle: boolean;
@@ -344,10 +341,6 @@ function ProposalState({
           <RuleSetRow label="Set" cat={data.category} />
         </div>
       </div>
-
-      {overlapping.length > 0 && (
-        <ReplacesSection overlapping={overlapping} />
-      )}
 
       {matchingTxs.length > 0 && (
         <MatchesSection
@@ -904,75 +897,11 @@ function ApplyToExistingToggle({
   );
 }
 
-/**
- * Static "this will be replaced" listing for rules whose match space
- * overlaps with the new proposal. No toggle — overlapping rules are
- * always deleted on accept, because keeping a structurally-redundant
- * rule alongside the new one would just create dead-weight duplicates.
- * The strikethrough conditions are purely a "here's what's going
- * away" indicator for the user.
- */
-function ReplacesSection({ overlapping }: { overlapping: OverlappingRule[] }) {
-  return (
-    <div>
-      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
-        Replaces
-      </div>
-      <div className="space-y-2">
-        {overlapping.map((rule) => (
-          <OverlappingRuleRow key={rule.rule_id} rule={rule} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function relationshipTag(rel: RuleRelationship): string {
-  if (rel === "identical") return "same";
-  if (rel === "new_narrows") return "broader";
-  return "narrower";
-}
-
-/**
- * Single row in the "Replaces" section. Conditions are always shown
- * struck-through (this one IS being deleted on accept), with the
- * target category and relationship tag beneath. No interaction.
- */
-function OverlappingRuleRow({ rule }: { rule: OverlappingRule }) {
-  const summary = rule.conditions
-    .map((c) => {
-      const field = FIELD_LABEL[c.field] ?? c.field;
-      const op = OP_LABEL[c.operator] ?? c.operator;
-      const value =
-        c.field === "amount"
-          ? `$${Number(c.value).toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}`
-          : `“${c.value}”`;
-      return `${field} ${op} ${value}`;
-    })
-    .join(" AND ");
-  return (
-    <div className="flex items-start gap-3 -mx-1 px-1 py-1">
-      <span className="min-w-0 flex-1">
-        <span className="block text-xs truncate text-[var(--color-muted)] line-through">
-          {summary}
-        </span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--color-muted)] truncate">
-          {rule.category && (
-            <>
-              <span
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: categoryColor(rule.category) }}
-              />
-              <span className="truncate">{rule.category.label}</span>
-              <span className="text-[var(--color-muted)]/60">·</span>
-            </>
-          )}
-          <span className="italic">{relationshipTag(rule.relationship)}</span>
-        </span>
-      </span>
-    </div>
-  );
-}
+// Overlapping rules used to render in a "Replaces" section here so
+// the user could see what was being deleted. UI was removed —
+// overlap-replace is implicit plumbing now, not user-facing surface.
+// The widget still ships `replace_rule_ids` to the API on accept; the
+// DB just stops carrying redundant rules. If we ever need to surface
+// it again (e.g. an overlap with a DIFFERENT target category, where
+// the deletion is less obviously transparent), bring this section
+// back behind a "show replaces" link.
