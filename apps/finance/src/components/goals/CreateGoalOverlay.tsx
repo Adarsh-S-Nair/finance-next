@@ -346,7 +346,7 @@ export default function CreateGoalOverlay({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] bg-[var(--color-content-bg)] flex flex-col"
+          className="fixed inset-0 z-[100] bg-[var(--color-content-bg)] overflow-y-auto"
         >
           <button
             type="button"
@@ -357,8 +357,8 @@ export default function CreateGoalOverlay({
             <FiX className="h-5 w-5" />
           </button>
 
-          <div className="flex-1 overflow-y-auto px-6 pt-20 pb-8">
-            <div className="w-full max-w-md mx-auto">
+          <div className="min-h-screen flex items-start md:items-center justify-center px-6 pt-20 pb-8">
+            <div className="w-full max-w-md">
               <motion.h1
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -418,7 +418,38 @@ export default function CreateGoalOverlay({
                 </motion.div>
               )}
 
-              {/* Target lives in the sticky footer below — no inline render. */}
+              {/* Target + submit — sit inline at the natural end of the form.
+                  When the form is taller than the viewport, the wrapper
+                  sticks to the bottom of the scroll container so the user
+                  can always see the number and act without scrolling. */}
+              <div className="sticky bottom-0 mt-10 pt-2 pb-6 bg-[var(--color-content-bg)]">
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.22 }}
+                >
+                  <SectionLabel className="mb-1">Target</SectionLabel>
+                  <AmountInput
+                    value={target}
+                    onChange={(v) => {
+                      setTarget(v);
+                      if (isEmergency && !isEdit) setUserOverrodeTarget(true);
+                    }}
+                    autoFocus={false}
+                  />
+                  <Button
+                    onClick={handleSave}
+                    disabled={!canSave}
+                    className="w-full h-11 mt-6"
+                  >
+                    {isEdit
+                      ? "Save changes"
+                      : isEmergency
+                        ? "Set up emergency fund"
+                        : "Create goal"}
+                  </Button>
+                </motion.div>
+              </div>
 
               {/* Target date — only for custom goals */}
               {!isEmergency && (
@@ -509,35 +540,6 @@ export default function CreateGoalOverlay({
                 </motion.div>
               )}
 
-            </div>
-          </div>
-
-          {/* Sticky footer — target + submit. Always visible so the user
-              can see the number and act without scrolling. */}
-          <div className="border-t border-[var(--color-border)] bg-[var(--color-content-bg)] px-6 pt-4 pb-5 md:pb-6">
-            <div className="w-full max-w-md mx-auto flex items-end gap-4">
-              <div className="flex-1 min-w-0">
-                <SectionLabel className="mb-0">Target</SectionLabel>
-                <AmountInput
-                  value={target}
-                  onChange={(v) => {
-                    setTarget(v);
-                    if (isEmergency && !isEdit) setUserOverrodeTarget(true);
-                  }}
-                  autoFocus={false}
-                />
-              </div>
-              <Button
-                onClick={handleSave}
-                disabled={!canSave}
-                className="h-11 px-5 flex-shrink-0"
-              >
-                {isEdit
-                  ? "Save"
-                  : isEmergency
-                    ? "Set up"
-                    : "Create"}
-              </Button>
             </div>
           </div>
         </motion.div>
