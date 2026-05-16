@@ -625,6 +625,21 @@ function AmountInput({
   autoFocus?: boolean;
 }) {
   const inputId = "goal-target-input";
+  const [focused, setFocused] = useState(false);
+
+  // While focused, show the raw value (no commas, no formatting) so
+  // editing feels normal — typing in the middle of "$16,578" with
+  // commas reflowing under the cursor is jarring. When blurred,
+  // show a comma-grouped number so the target reads at a glance.
+  const displayValue = (() => {
+    if (focused || !value) return value;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return value;
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 2,
+    }).format(num);
+  })();
+
   return (
     <div
       className="flex items-baseline gap-1 cursor-text"
@@ -635,15 +650,24 @@ function AmountInput({
       </span>
       <input
         id={inputId}
-        type="number"
+        type="text"
         inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={displayValue}
+        onChange={(e) => {
+          // Strip commas before storing. Reject anything that isn't a
+          // valid partial number so we don't end up with "12.3.4".
+          const cleaned = e.target.value.replace(/,/g, "");
+          if (cleaned === "" || /^\d*\.?\d*$/.test(cleaned)) {
+            onChange(cleaned);
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         autoFocus={autoFocus}
         placeholder="0"
-        className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums bg-transparent border-none outline-none p-0 m-0 focus:ring-0 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none placeholder:text-[var(--color-muted)]/40"
+        className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums bg-transparent border-none outline-none p-0 m-0 focus:ring-0 appearance-none placeholder:text-[var(--color-muted)]/40"
         style={{
-          width: `${Math.max((value?.toString().length || 1) * 0.65 + 0.3, 2)}em`,
+          width: `${Math.max((displayValue?.toString().length || 1) * 0.65 + 0.3, 2)}em`,
         }}
       />
     </div>
@@ -726,44 +750,27 @@ function EmergencyFundSuggestion({
   if (avgMonthlyEssentials == null) {
     return (
       <div>
-        <SectionLabel className="mb-1">Suggested target</SectionLabel>
-        <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
-          —
-        </div>
-        <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
+        <p className="text-xs text-[var(--color-muted)] leading-relaxed">
           We&apos;ll suggest a target once we&apos;ve seen a few months of
           your spending in essential categories like rent, utilities, and
           groceries. For now, enter what feels right below.
         </p>
+        <RunwayPicker value={multiplier} onChange={onChange} />
       </div>
     );
   }
 
   return (
     <div>
-      <SectionLabel className="mb-1">Suggested target</SectionLabel>
-      <div className="text-2xl font-medium text-[var(--color-fg)] tabular-nums">
-        {formatCurrency(suggested ?? 0)}
-      </div>
-      <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
-        {formatCurrency(avgMonthlyEssentials)} in monthly essentials ×{" "}
-        {multiplier} {multiplier === 1 ? "month" : "months"} of runway.
-      </p>
-
-      {/* Runway picker — tappable 1..12 row, no chrome */}
+      {/* Runway picker comes first — it drives the math the user sees
+          at the bottom. The big "suggested target" headline used to live
+          here too but it just restated the bottom-of-form summary. */}
       <RunwayPicker value={multiplier} onChange={onChange} />
-
 
       {/* Breakdown: essential spending by category group */}
       {essentialGroups.length > 0 && (
         <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
-          <SectionLabel className="mb-2">Your essential spending</SectionLabel>
-          <p className="text-[11px] text-[var(--color-muted)] leading-relaxed mb-3">
-            Average monthly spend in <em>Rent and Utilities</em>,{" "}
-            <em>Loan Payments</em>, <em>Food and Drink</em>,{" "}
-            <em>Medical</em>, and <em>Transportation</em> over the last few
-            complete months.
-          </p>
+          <SectionLabel className="mb-3">Your essential spending</SectionLabel>
           <motion.div className="space-y-1" layout transition={{ duration: 0.25, ease: "easeOut" }}>
             {essentialGroups.map((g) => (
               <CategoryGroupRow
@@ -858,10 +865,7 @@ function MissingExpenseNote({
 function EmergencyFundSuggestionSkeleton() {
   return (
     <div>
-      <SectionLabel className="mb-1">Suggested target</SectionLabel>
-      <Skeleton className="h-8 w-40 rounded mb-2" />
-      <Skeleton className="h-3 w-72 rounded" />
-
+      {/* Runway slider — placeholder for the real picker. */}
       <div className="mt-8">
         <div className="flex items-baseline justify-between mb-3">
           <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
@@ -869,7 +873,7 @@ function EmergencyFundSuggestionSkeleton() {
           </span>
           <Skeleton className="h-3 w-16 rounded" />
         </div>
-        <Skeleton className="h-[2px] w-full rounded-full" />
+        <Skeleton className="h-2 w-full rounded-full" />
         <div className="mt-2 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
           <span>1mo</span>
           <span>6mo</span>
@@ -877,32 +881,30 @@ function EmergencyFundSuggestionSkeleton() {
         </div>
       </div>
 
+      {/* Essential spending rows. */}
       <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
-        <SectionLabel className="mb-2">Your essential spending</SectionLabel>
-        <Skeleton className="h-3 w-full rounded mb-1.5" />
-        <Skeleton className="h-3 w-2/3 rounded mb-4" />
+        <SectionLabel className="mb-3">Your essential spending</SectionLabel>
         <div className="space-y-2.5">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3">
               <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
               <Skeleton className="h-3 flex-1 rounded" />
-              <Skeleton className="h-3 w-16 rounded" />
+              <Skeleton className="h-3 w-20 rounded" />
             </div>
           ))}
         </div>
       </div>
 
+      {/* Math summary. */}
       <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          <span className="text-[var(--color-muted)] text-xs">
             Monthly essentials
           </span>
           <Skeleton className="h-3 w-16 rounded" />
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
-            × runway
-          </span>
+          <span className="text-[var(--color-muted)] text-xs">× runway</span>
           <Skeleton className="h-3 w-20 rounded" />
         </div>
       </div>
