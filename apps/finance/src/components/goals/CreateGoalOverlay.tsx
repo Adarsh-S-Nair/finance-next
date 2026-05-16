@@ -346,7 +346,7 @@ export default function CreateGoalOverlay({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] bg-[var(--color-content-bg)] overflow-y-auto"
+          className="fixed inset-0 z-[100] bg-[var(--color-content-bg)] flex flex-col"
         >
           <button
             type="button"
@@ -357,8 +357,8 @@ export default function CreateGoalOverlay({
             <FiX className="h-5 w-5" />
           </button>
 
-          <div className="min-h-screen flex items-center justify-center px-6 py-20">
-            <div className="w-full max-w-md">
+          <div className="flex-1 overflow-y-auto px-6 pt-20 pb-8">
+            <div className="w-full max-w-md mx-auto">
               <motion.h1
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -418,23 +418,7 @@ export default function CreateGoalOverlay({
                 </motion.div>
               )}
 
-              {/* Target amount — bareword style */}
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.22 }}
-                className="mt-8"
-              >
-                <SectionLabel className="mb-1">Target</SectionLabel>
-                <AmountInput
-                  value={target}
-                  onChange={(v) => {
-                    setTarget(v);
-                    if (isEmergency && !isEdit) setUserOverrodeTarget(true);
-                  }}
-                  autoFocus={isEmergency && !isEdit}
-                />
-              </motion.div>
+              {/* Target lives in the sticky footer below — no inline render. */}
 
               {/* Target date — only for custom goals */}
               {!isEmergency && (
@@ -525,25 +509,35 @@ export default function CreateGoalOverlay({
                 </motion.div>
               )}
 
-              {/* Submit */}
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.34 }}
-                className="mt-10"
+            </div>
+          </div>
+
+          {/* Sticky footer — target + submit. Always visible so the user
+              can see the number and act without scrolling. */}
+          <div className="border-t border-[var(--color-border)] bg-[var(--color-content-bg)] px-6 pt-4 pb-5 md:pb-6">
+            <div className="w-full max-w-md mx-auto flex items-end gap-4">
+              <div className="flex-1 min-w-0">
+                <SectionLabel className="mb-0">Target</SectionLabel>
+                <AmountInput
+                  value={target}
+                  onChange={(v) => {
+                    setTarget(v);
+                    if (isEmergency && !isEdit) setUserOverrodeTarget(true);
+                  }}
+                  autoFocus={false}
+                />
+              </div>
+              <Button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="h-11 px-5 flex-shrink-0"
               >
-                <Button
-                  onClick={handleSave}
-                  disabled={!canSave}
-                  className="w-full h-11"
-                >
-                  {isEdit
-                    ? "Save changes"
-                    : isEmergency
-                      ? "Set up emergency fund"
-                      : "Create goal"}
-                </Button>
-              </motion.div>
+                {isEdit
+                  ? "Save"
+                  : isEmergency
+                    ? "Set up"
+                    : "Create"}
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -768,7 +762,7 @@ function EmergencyFundSuggestion({
             <em>Medical</em>, and <em>Transportation</em> over the last few
             complete months.
           </p>
-          <div className="space-y-1">
+          <motion.div className="space-y-1" layout transition={{ duration: 0.25, ease: "easeOut" }}>
             {essentialGroups.map((g) => (
               <CategoryGroupRow
                 key={g.id}
@@ -777,7 +771,7 @@ function EmergencyFundSuggestion({
                 onToggleCategory={onToggleCategory}
               />
             ))}
-          </div>
+          </motion.div>
           <MissingExpenseNote essentialGroups={essentialGroups} />
         </div>
       )}
@@ -937,19 +931,20 @@ function CategoryGroupRow({
   );
 
   return (
-    <div>
+    <motion.div layout="position" transition={{ duration: 0.25, ease: "easeOut" }}>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
         className="w-full flex items-center gap-3 py-1.5 px-1 -mx-1 rounded text-xs hover:bg-[color-mix(in_oklab,var(--color-fg),transparent_96%)] transition-colors"
       >
-        <LuChevronRight
-          size={12}
-          className={`text-[var(--color-muted)] flex-shrink-0 transition-transform ${
-            expanded ? "rotate-90" : ""
-          }`}
-        />
+        <motion.span
+          animate={{ rotate: expanded ? 90 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="text-[var(--color-muted)] flex-shrink-0 flex items-center"
+        >
+          <LuChevronRight size={12} />
+        </motion.span>
         <div
           className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: color }}
@@ -976,8 +971,17 @@ function CategoryGroupRow({
         </div>
       </button>
 
-      {expanded && (
-        <div className="ml-9 mt-1 mb-2 space-y-1 pl-3 border-l border-[var(--color-border)]">
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div className="ml-9 mt-1 mb-2 space-y-1 pl-3 border-l border-[var(--color-border)]">
           {group.categories.map((c) => {
             const excluded = excludedCategoryIds.has(c.id);
             return (
@@ -1025,8 +1029,10 @@ function CategoryGroupRow({
               </button>
             );
           })}
-        </div>
-      )}
-    </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

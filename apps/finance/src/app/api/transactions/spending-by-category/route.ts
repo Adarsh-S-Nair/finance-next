@@ -294,16 +294,22 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
 
   // Divisor for the monthly_avg calculation. `seen` uses months_seen
   // (the user's distinct spending months for this category). `window`
-  // uses the analysis window's complete-month count when available and
-  // falls back to months_seen if we don't have a clean window (i.e.
-  // non-forBudget calls where completeMonths is 0).
-  const windowMonthsForAvg =
-    avgBy === 'window' && completeMonths > 0 ? completeMonths : null;
+  // mode applies a hybrid rule designed for emergency-fund essentials:
+  //   - If the category appears in 2+ months, divide by completeMonths.
+  //     This handles date-drift cases (e.g. a phone bill billed twice
+  //     in Mar and once in Apr should average to $48, not $71).
+  //   - If the category appears in only 1 month, divide by months_seen
+  //     (= 1). A single occurrence of a known monthly obligation —
+  //     mortgage, rent, etc. — usually means we have sparse sync, not
+  //     that the bill itself is sparse. Dividing by the full window
+  //     would silently dilute a $5,000 mortgage to $1,250/mo.
+  const useWindowAvg = avgBy === 'window' && completeMonths > 0;
 
   const categoriesArray = Object.values(categoryData)
     .map((c) => {
       const monthsWith = c.months_seen.size;
-      const divisor = windowMonthsForAvg ?? monthsWith;
+      const divisor =
+        useWindowAvg && monthsWith > 1 ? completeMonths : monthsWith;
       const monthlyAvg = divisor > 0 ? Math.round(c.total_spent / divisor) : 0;
       return {
         id: c.id,
