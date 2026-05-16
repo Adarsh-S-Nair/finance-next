@@ -1,6 +1,7 @@
-// Goals prototype — mock types, seed data, allocation algorithm.
-// Everything in this file is in-memory only. No DB, no API. Once the UI
-// shape settles, this becomes the schema + a server-side helper.
+// Client-side Goal types and helpers. The DB is the source of truth
+// (savings_goals + savings_goal_line_items tables); this file holds
+// the camelCase shape the UI consumes plus the transform from a raw
+// API response.
 
 export type GoalKind = "emergency_fund" | "custom";
 export type GoalStatus = "active" | "complete" | "archived";
@@ -26,7 +27,62 @@ export type Goal = {
   /** Display color used in the allocation strip and the row fill. */
   color: string;
   lineItems: GoalLineItem[];
+  /** Emergency-fund-only: months of runway the user picked. */
+  efMultiplier?: number | null;
+  /** Emergency-fund-only: system_categories IDs opted out of the auto-calc. */
+  excludedEssentialCategoryIds?: string[];
 };
+
+// Raw row shape from /api/goals (matches the savings_goals table).
+type RawLineItemRow = {
+  id: string;
+  goal_id: string;
+  name: string;
+  target_amount: number | string;
+  sort_order?: number;
+};
+
+type RawGoalRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: string;
+  target_amount: number | string;
+  target_date: string | null;
+  priority: number;
+  status: string;
+  is_protected: boolean;
+  color: string;
+  icon: string | null;
+  ef_multiplier: number | null;
+  excluded_essential_category_ids: string[] | null;
+  line_items?: RawLineItemRow[];
+};
+
+/**
+ * Map a DB row (snake_case) into the client Goal type (camelCase). Keeps
+ * the UI components stable as we move from mock state to the API.
+ */
+export function rowToGoal(row: RawGoalRow): Goal {
+  return {
+    id: row.id,
+    name: row.name,
+    kind: (row.kind as GoalKind) ?? "custom",
+    target: Number(row.target_amount),
+    targetDate: row.target_date ?? undefined,
+    priority: row.priority,
+    status: (row.status as GoalStatus) ?? "active",
+    isProtected: !!row.is_protected,
+    color: row.color,
+    lineItems: (row.line_items ?? []).map((li) => ({
+      id: li.id,
+      name: li.name,
+      target: Number(li.target_amount),
+    })),
+    efMultiplier: row.ef_multiplier ?? null,
+    excludedEssentialCategoryIds: row.excluded_essential_category_ids ?? [],
+  };
+}
 
 export type AllocatedGoal = Goal & {
   /** Dollars currently flowing into this goal from the cash pool. */

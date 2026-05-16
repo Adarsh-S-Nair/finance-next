@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LuPlus, LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, ConfirmOverlay, EmptyState } from "@zervo/ui";
 import PageContainer from "../layout/PageContainer";
 import { formatCurrency } from "../../lib/formatCurrency";
+import { useUser } from "../providers/UserProvider";
 import { useAccounts } from "../providers/AccountsProvider";
+import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
+import { authFetch } from "../../lib/api/fetch";
 import CashAllocationStrip from "./CashAllocationStrip";
 import GoalRow from "./GoalRow";
 import CreateGoalOverlay from "./CreateGoalOverlay";
-import { type Goal, MOCK_GOALS, allocateCash } from "./types";
+import { type Goal, allocateCash, rowToGoal } from "./types";
 
 /**
  * Plaid depository subtypes we treat as part of the user's "available
@@ -32,15 +36,39 @@ function isDepository(typeOrSubtype: string | null | undefined): boolean {
   return DEPOSITORY_SUBTYPES.has(typeOrSubtype.toLowerCase());
 }
 
+type GoalsListResponse = {
+  data?: Parameters<typeof rowToGoal>[0][];
+};
+
 export default function GoalsView() {
-  const [goals, setGoals] = useState<Goal[]>(MOCK_GOALS);
+  const { user } = useUser();
+  const queryClient = useQueryClient();
   const { accounts: institutionGroups } = useAccounts();
+
+  // Fetch goals from the API. react-query handles cross-mount caching
+  // so navigating away and back paints from cache instead of flashing
+  // an empty state — exactly what we wanted after the bug report where
+  // the user thought their save was lost.
+  const goalsKey = useMemo(() => ["goals:list", user?.id], [user?.id]);
+  const { data: goalsPayload, isLoading: goalsLoading } =
+    useAuthedQuery<GoalsListResponse>(
+      goalsKey,
+      user?.id ? "/api/goals" : null,
+    );
+
+  const goals: Goal[] = useMemo(
+    () => (goalsPayload?.data ?? []).map(rowToGoal),
+    [goalsPayload],
+  );
+
+  const refetchGoals = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: goalsKey });
+  }, [queryClient, goalsKey]);
 
   // Cash pool = sum of all depository balances across the user's
   // connected Plaid accounts. Goals are abstract allocations against
   // this total — a "savings goal" doesn't need its own dedicated
-  // account, the dollars just need to exist somewhere liquid. Both
-  // checking AND savings count, since the user can pull from either.
+  // account, the dollars just need to exist somewhere liquid.
   const cashPool = useMemo(() => {
     const flat = institutionGroups.flatMap(
       (g: { accounts?: { type: string | null; balance: number }[] }) =>
@@ -97,41 +125,55 @@ export default function GoalsView() {
     setCreateOpen(true);
   };
 
-  const handleSaveGoal = (saved: Goal) => {
-    setGoals((prev) => {
-      const exists = prev.some((g) => g.id === saved.id);
-      if (exists) return prev.map((g) => (g.id === saved.id ? saved : g));
-      return [...prev, saved];
-    });
-    setEditingGoalId(null);
-    setCreateEmergencyMode(false);
-  };
-
   const handleEdit = (id: string) => {
     setEditingGoalId(id);
     setCreateOpen(true);
   };
 
-  const handleComplete = (id: string) => {
-    setGoals((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, status: "complete" as const } : g)),
-    );
-  };
+  /**
+   * Single mutation primitive used by complete/archive/reactivate and by
+   * any other "patch a single field" call site. Falls back silently if
+   * the request fails — react-query refetches on next focus anyway.
+   */
+  const patchGoal = useCallback(
+    async (id: string, patch: Record<string, unknown>) => {
+      try {
+        const res = await authFetch(`/api/goals/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) console.error("[goals] patch failed", await res.text());
+      } catch (e) {
+        console.error("[goals] patch threw", e);
+      } finally {
+        refetchGoals();
+      }
+    },
+    [refetchGoals],
+  );
 
-  const handleArchive = (id: string) => {
-    setGoals((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, status: "archived" as const } : g)),
-    );
-  };
+  const handleComplete = (id: string) => patchGoal(id, { status: "complete" });
+  const handleArchive = (id: string) => patchGoal(id, { status: "archived" });
+  const handleReactivate = (id: string) => patchGoal(id, { status: "active" });
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDeleteId) return;
-    setGoals((prev) => prev.filter((g) => g.id !== pendingDeleteId));
-    setPendingDeleteId(null);
+    try {
+      const res = await authFetch(`/api/goals/${pendingDeleteId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) console.error("[goals] delete failed", await res.text());
+    } catch (e) {
+      console.error("[goals] delete threw", e);
+    } finally {
+      setPendingDeleteId(null);
+      refetchGoals();
+    }
   };
 
   // ─── Drag-and-drop reordering ───────────────────────────────────────
@@ -145,7 +187,7 @@ export default function GoalsView() {
     setDragOverId(null);
   };
 
-  const handleDrop = (targetId: string) => {
+  const handleDrop = async (targetId: string) => {
     if (!draggingId || draggingId === targetId) {
       handleDragEnd();
       return;
@@ -165,33 +207,48 @@ export default function GoalsView() {
       return;
     }
 
-    setGoals((prev) => {
-      const active = prev.filter((g) => g.status === "active");
-      const sorted = [...active].sort((a, b) => {
-        if (a.isProtected !== b.isProtected) return a.isProtected ? -1 : 1;
-        return a.priority - b.priority;
-      });
-
-      const fromIdx = sorted.findIndex((g) => g.id === draggingId);
-      const toIdx = sorted.findIndex((g) => g.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-
-      const [moved] = sorted.splice(fromIdx, 1);
-      sorted.splice(toIdx, 0, moved);
-
-      const reordered = sorted.map((g, i) => ({
-        ...g,
-        priority: g.isProtected ? -1 - (sorted.length - i) : i,
-      }));
-
-      const byId = new Map(reordered.map((g) => [g.id, g]));
-      return prev.map((g) => byId.get(g.id) ?? g);
+    // Compute the new order client-side, then send the full list of
+    // active goal IDs to the reorder endpoint. The endpoint partitions
+    // by is_protected and assigns priorities — we don't need to
+    // pre-compute them here.
+    const active = goals.filter((g) => g.status === "active");
+    const sorted = [...active].sort((a, b) => {
+      if (a.isProtected !== b.isProtected) return a.isProtected ? -1 : 1;
+      return a.priority - b.priority;
     });
+    const fromIdx = sorted.findIndex((g) => g.id === draggingId);
+    const toIdx = sorted.findIndex((g) => g.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) {
+      handleDragEnd();
+      return;
+    }
+    const [moved] = sorted.splice(fromIdx, 1);
+    sorted.splice(toIdx, 0, moved);
 
     handleDragEnd();
+
+    try {
+      const res = await authFetch("/api/goals/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: sorted.map((g) => g.id) }),
+      });
+      if (!res.ok) console.error("[goals] reorder failed", await res.text());
+    } catch (e) {
+      console.error("[goals] reorder threw", e);
+    } finally {
+      refetchGoals();
+    }
   };
 
   // ─── Empty state ────────────────────────────────────────────────────
+
+  // While goals are loading for the first time, keep the page area blank
+  // rather than flashing the FTUX empty state — the user almost lost
+  // their mind over this once.
+  if (!user?.id || (goalsLoading && !goalsPayload)) {
+    return <PageContainer title="Goals" showHeader={false}><div /></PageContainer>;
+  }
 
   if (!hasAnyGoals) {
     return (
@@ -219,7 +276,7 @@ export default function GoalsView() {
             setCreateOpen(false);
             setCreateEmergencyMode(false);
           }}
-          onSave={handleSaveGoal}
+          onSaved={refetchGoals}
           existingGoals={goals}
           editGoal={null}
           emergencyFundMode={createEmergencyMode}
@@ -339,15 +396,7 @@ export default function GoalsView() {
                       </div>
                       <button
                         type="button"
-                        onClick={() =>
-                          setGoals((prev) =>
-                            prev.map((x) =>
-                              x.id === g.id
-                                ? { ...x, status: "active" as const }
-                                : x,
-                            ),
-                          )
-                        }
+                        onClick={() => handleReactivate(g.id)}
                         className="text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)]"
                       >
                         Reactivate
@@ -399,7 +448,7 @@ export default function GoalsView() {
           setEditingGoalId(null);
           setCreateEmergencyMode(false);
         }}
-        onSave={handleSaveGoal}
+        onSaved={refetchGoals}
         existingGoals={goals}
         editGoal={editingGoal}
         emergencyFundMode={createEmergencyMode}

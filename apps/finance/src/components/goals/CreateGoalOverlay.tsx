@@ -10,13 +10,9 @@ import { Button, Skeleton } from "@zervo/ui";
 import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
+import { authFetch } from "../../lib/api/fetch";
 import { formatCurrency } from "../../lib/formatCurrency";
-import {
-  type Goal,
-  type GoalKind,
-  type GoalLineItem,
-  nextGoalColor,
-} from "./types";
+import { type Goal, type GoalKind, nextGoalColor } from "./types";
 
 type DraftLineItem = { id: string; name: string; target: string };
 
@@ -76,8 +72,10 @@ function isEssentialGroupName(name: string | null | undefined): boolean {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (goal: Goal) => void;
-  existingGoals: Goal[];
+  /** Called after a successful create/update so the parent can refetch. */
+  onSaved: () => void;
+  /** Active goals already on the user's list, used to pick a non-duplicate color for a new one. */
+  existingGoals?: Goal[];
   editGoal?: Goal | null;
   emergencyFundMode?: boolean;
 };
@@ -85,8 +83,8 @@ type Props = {
 export default function CreateGoalOverlay({
   isOpen,
   onClose,
-  onSave,
-  existingGoals,
+  onSaved,
+  existingGoals = [],
   editGoal = null,
   emergencyFundMode = false,
 }: Props) {
@@ -285,42 +283,78 @@ export default function CreateGoalOverlay({
     targetNum > 0 &&
     lineItems.every((li) => li.name.trim() && Number(li.target) > 0);
 
-  const handleSave = () => {
-    if (!canSave) return;
+  const [saving, setSaving] = useState(false);
+
+  /**
+   * Build the API payload from form state and send POST or PATCH
+   * depending on whether we're editing. Line items are part of the
+   * goal payload (replace-on-update semantics on the server).
+   */
+  const handleSave = async () => {
+    if (!canSave || saving) return;
+    setSaving(true);
+
     const kind: GoalKind = isEmergency ? "emergency_fund" : "custom";
-    const finalLineItems: GoalLineItem[] = lineItems.map((li) => ({
-      id: li.id,
+    const finalLineItems = lineItems.map((li, i) => ({
       name: li.name.trim(),
-      target: Number(li.target),
+      target_amount: Number(li.target),
+      sort_order: i,
     }));
 
-    if (isEdit && editGoal) {
-      onSave({
-        ...editGoal,
-        name: name.trim(),
-        target: targetNum,
-        targetDate: targetDate || undefined,
-        lineItems: finalLineItems,
-      });
-    } else {
-      const maxPriority = existingGoals.reduce(
-        (m, g) => (g.status === "active" ? Math.max(m, g.priority) : m),
-        -1,
-      );
-      onSave({
-        id: `g_${Date.now()}`,
-        name: name.trim(),
-        kind,
-        target: targetNum,
-        targetDate: targetDate || undefined,
-        priority: isEmergency ? -1 : maxPriority + 1,
-        status: "active",
-        isProtected: isEmergency,
-        color: isEmergency ? "#64748b" : nextGoalColor(existingGoals),
-        lineItems: finalLineItems,
-      });
+    try {
+      if (isEdit && editGoal) {
+        const res = await authFetch(`/api/goals/${editGoal.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            target_amount: targetNum,
+            target_date: targetDate || null,
+            ef_multiplier: isEmergency ? efMultiplier : null,
+            excluded_essential_category_ids: isEmergency
+              ? Array.from(excludedCategoryIds)
+              : undefined,
+            line_items: finalLineItems,
+          }),
+        });
+        if (!res.ok) {
+          const detail = await res.text().catch(() => "");
+          console.error("[goal:update] failed:", detail);
+          setSaving(false);
+          return;
+        }
+      } else {
+        const res = await authFetch("/api/goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            kind,
+            target_amount: targetNum,
+            target_date: targetDate || null,
+            color: isEmergency ? "#64748b" : nextGoalColor(existingGoals),
+            is_protected: isEmergency,
+            ef_multiplier: isEmergency ? efMultiplier : null,
+            excluded_essential_category_ids: isEmergency
+              ? Array.from(excludedCategoryIds)
+              : [],
+            line_items: finalLineItems,
+          }),
+        });
+        if (!res.ok) {
+          const detail = await res.text().catch(() => "");
+          console.error("[goal:create] failed:", detail);
+          setSaving(false);
+          return;
+        }
+      }
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.error("[goal:save] threw:", e);
+    } finally {
+      setSaving(false);
     }
-    onClose();
   };
 
   if (typeof document === "undefined") return null;
@@ -439,14 +473,16 @@ export default function CreateGoalOverlay({
                   />
                   <Button
                     onClick={handleSave}
-                    disabled={!canSave}
+                    disabled={!canSave || saving}
                     className="w-full h-11 mt-6"
                   >
-                    {isEdit
-                      ? "Save changes"
-                      : isEmergency
-                        ? "Set up emergency fund"
-                        : "Create goal"}
+                    {saving
+                      ? "Saving..."
+                      : isEdit
+                        ? "Save changes"
+                        : isEmergency
+                          ? "Set up emergency fund"
+                          : "Create goal"}
                   </Button>
                 </motion.div>
               </div>

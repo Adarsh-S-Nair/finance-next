@@ -783,6 +783,98 @@ export type Database = {
           },
         ]
       }
+      savings_goal_line_items: {
+        Row: {
+          created_at: string
+          goal_id: string
+          id: string
+          name: string
+          sort_order: number
+          target_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          goal_id: string
+          id?: string
+          name: string
+          sort_order?: number
+          target_amount: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          goal_id?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          target_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_goal_line_items_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      savings_goals: {
+        Row: {
+          color: string
+          created_at: string
+          ef_multiplier: number | null
+          excluded_essential_category_ids: string[]
+          icon: string | null
+          id: string
+          is_protected: boolean
+          kind: string
+          name: string
+          priority: number
+          status: string
+          target_amount: number
+          target_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          ef_multiplier?: number | null
+          excluded_essential_category_ids?: string[]
+          icon?: string | null
+          id?: string
+          is_protected?: boolean
+          kind?: string
+          name: string
+          priority?: number
+          status?: string
+          target_amount: number
+          target_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          ef_multiplier?: number | null
+          excluded_essential_category_ids?: string[]
+          icon?: string | null
+          id?: string
+          is_protected?: boolean
+          kind?: string
+          name?: string
+          priority?: number
+          status?: string
+          target_amount?: number
+          target_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       stock_market_data: {
         Row: {
           atr_14: number | null
