@@ -60,6 +60,16 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
       : forBudget
         ? 1.0
         : 0;
+  // How `monthly_avg` is computed. `seen` (default) divides total spend
+  // by the number of distinct months the user spent in this category —
+  // right for budget suggestions ("when you DO spend here, what's the
+  // typical month?"). `window` divides by the full number of months in
+  // the analysis window — right for emergency-fund essentials ("what's
+  // the actual monthly burn rate?"). The two differ when a bill drifts
+  // dates (e.g. a phone bill that hits Mar 1 + Mar 31 + Apr 30 looks
+  // like $71/mo under `seen` but is really $48/mo under `window`).
+  const avgBy =
+    searchParams.get('avgBy') === 'window' ? 'window' : 'seen';
   const startDateParam = searchParams.get('startDate');
   const endDateParam = searchParams.get('endDate');
 
@@ -282,10 +292,19 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
   const effectiveMonths = completeMonths > 0 ? completeMonths : 1;
   const consistencyThreshold = Math.max(1, Math.ceil(effectiveMonths * (2 / 3)));
 
+  // Divisor for the monthly_avg calculation. `seen` uses months_seen
+  // (the user's distinct spending months for this category). `window`
+  // uses the analysis window's complete-month count when available and
+  // falls back to months_seen if we don't have a clean window (i.e.
+  // non-forBudget calls where completeMonths is 0).
+  const windowMonthsForAvg =
+    avgBy === 'window' && completeMonths > 0 ? completeMonths : null;
+
   const categoriesArray = Object.values(categoryData)
     .map((c) => {
       const monthsWith = c.months_seen.size;
-      const monthlyAvg = monthsWith > 0 ? Math.round(c.total_spent / monthsWith) : 0;
+      const divisor = windowMonthsForAvg ?? monthsWith;
+      const monthlyAvg = divisor > 0 ? Math.round(c.total_spent / divisor) : 0;
       return {
         id: c.id,
         label: c.label,

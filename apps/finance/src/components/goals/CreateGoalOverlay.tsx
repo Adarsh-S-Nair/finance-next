@@ -108,7 +108,7 @@ export default function CreateGoalOverlay({
   }>(
     ["goals:essentials-baseline", user?.id],
     isOpen && isEmergency && !isEdit && user?.id
-      ? "/api/transactions/spending-by-category?forBudget=true&consistent=false&minPercent=0&days=120"
+      ? "/api/transactions/spending-by-category?forBudget=true&consistent=false&minPercent=0&avgBy=window&days=120"
       : null,
   );
 
