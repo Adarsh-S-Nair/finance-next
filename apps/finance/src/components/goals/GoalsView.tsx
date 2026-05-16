@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { LuPlus, LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, ConfirmOverlay, EmptyState } from "@zervo/ui";
@@ -288,20 +289,7 @@ export default function GoalsView() {
   // ─── Main render ────────────────────────────────────────────────────
 
   return (
-    <PageContainer
-      title="Goals"
-      action={
-        <Button
-          size="sm"
-          variant="matte"
-          onClick={() => openCreate(false)}
-          className="gap-1.5 !rounded-full pl-3 pr-4"
-        >
-          <LuPlus className="w-3.5 h-3.5" />
-          New Goal
-        </Button>
-      }
-    >
+    <PageContainer title="Goals">
       <section className="flex flex-col lg:flex-row gap-8 lg:gap-12">
         <div className="lg:w-2/3 flex flex-col gap-10">
           <CashAllocationStrip
@@ -312,34 +300,40 @@ export default function GoalsView() {
 
           <div>
             <div className="mb-4 flex items-baseline justify-between gap-3">
-              <div className="flex items-baseline gap-3">
+              <div className="flex items-baseline gap-3 min-w-0">
                 <h2 className="text-lg font-medium text-[var(--color-fg)]">
                   Your goals
                 </h2>
                 {totalAllocated > 0 && (
-                  <span className="text-xs text-[var(--color-muted)] tabular-nums">
+                  <span className="text-xs text-[var(--color-muted)] tabular-nums truncate">
                     {formatCurrency(totalAllocated)} flowing in
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-[var(--color-muted)] hidden sm:block">
-                Drag to reorder
-              </p>
+              <Button
+                size="sm"
+                variant="matte"
+                onClick={() => openCreate(false)}
+                className="gap-1.5 !rounded-full pl-3 pr-4 flex-shrink-0"
+              >
+                <LuPlus className="w-3.5 h-3.5" />
+                New Goal
+              </Button>
             </div>
 
             {activeAllocated.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[var(--color-border)] p-10 text-center">
+              <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-10 text-center">
                 <p className="text-sm text-[var(--color-muted)]">
                   No active goals — past ones are below.
                 </p>
               </div>
             ) : (
-              <div className="-mx-3">
+              <motion.div layout className="flex flex-col gap-3">
                 {activeAllocated.map((g, i) => (
                   <GoalRow
                     key={g.id}
                     goal={g}
-                    isLast={i === activeAllocated.length - 1}
+                    index={i}
                     isDragging={draggingId === g.id}
                     isDragTarget={dragOverId === g.id && draggingId !== g.id}
                     onDragStart={handleDragStart}
@@ -352,7 +346,7 @@ export default function GoalsView() {
                     onDelete={handleDelete}
                   />
                 ))}
-              </div>
+              </motion.div>
             )}
           </div>
 

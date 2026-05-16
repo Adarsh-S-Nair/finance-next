@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Tooltip } from "@zervo/ui";
 import { formatCurrency } from "../../lib/formatCurrency";
 import type { AllocatedGoal } from "./types";
@@ -11,7 +12,11 @@ type Props = {
   cashPool: number;
 };
 
-export default function CashAllocationStrip({ allocated, unallocated, cashPool }: Props) {
+export default function CashAllocationStrip({
+  allocated,
+  unallocated,
+  cashPool,
+}: Props) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const totalAllocated = allocated.reduce((sum, g) => sum + g.allocated, 0);
@@ -19,13 +24,18 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
   const denom = Math.max(cashPool, 1);
 
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
       <div className="card-header mb-2">Cash allocation</div>
       <div className="flex items-baseline justify-between gap-4 mb-3">
         <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
           {formatCurrency(totalAllocated)}
           <span className="text-sm text-[var(--color-muted)] font-normal">
-            {" "}of {formatCurrency(cashPool)}
+            {" "}
+            of {formatCurrency(cashPool)}
           </span>
         </div>
         {unallocated > 0 && (
@@ -35,11 +45,13 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
         )}
       </div>
 
+      {/* Thicker strip — 12px instead of 8px so it carries the visual weight
+          of the section. Each segment animates its width on mount. */}
       <div
-        className="relative h-2 w-full rounded-full overflow-hidden flex bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
+        className="relative h-3 w-full rounded-full overflow-hidden flex bg-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
         onMouseLeave={() => setHoveredId(null)}
       >
-        {segments.map((g) => {
+        {segments.map((g, i) => {
           const widthPct = (g.allocated / denom) * 100;
           const isHovered = hoveredId === g.id;
           return (
@@ -48,7 +60,9 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
               side="top"
               content={
                 <div className="text-xs">
-                  <div className="font-medium text-[var(--color-fg)]">{g.name}</div>
+                  <div className="font-medium text-[var(--color-fg)]">
+                    {g.name}
+                  </div>
                   <div className="text-[var(--color-muted)] tabular-nums mt-0.5">
                     {formatCurrency(g.allocated)} of {formatCurrency(g.target)}
                     {" · "}
@@ -57,15 +71,20 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
                 </div>
               }
             >
-              <button
+              <motion.button
                 type="button"
                 onMouseEnter={() => setHoveredId(g.id)}
-                className="relative h-full transition-opacity duration-150 cursor-pointer"
-                style={{
+                initial={{ width: 0 }}
+                animate={{
                   width: `${widthPct}%`,
-                  backgroundColor: g.color,
                   opacity: hoveredId && !isHovered ? 0.5 : 1,
                 }}
+                transition={{
+                  width: { delay: 0.1 + i * 0.06, duration: 0.7, ease: "easeOut" },
+                  opacity: { duration: 0.15 },
+                }}
+                className="relative h-full cursor-pointer"
+                style={{ backgroundColor: g.color }}
                 aria-label={`${g.name}: ${formatCurrency(g.allocated)} of ${formatCurrency(g.target)}`}
               />
             </Tooltip>
@@ -73,7 +92,7 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
         })}
       </div>
 
-      <div className="mt-2 flex items-center gap-4 text-[11px] text-[var(--color-muted)]">
+      <div className="mt-3 flex items-center gap-4 text-[11px] text-[var(--color-muted)] flex-wrap">
         {segments.map((g) => (
           <button
             key={g.id}
@@ -98,6 +117,6 @@ export default function CashAllocationStrip({ allocated, unallocated, cashPool }
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
