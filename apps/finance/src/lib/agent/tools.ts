@@ -2039,7 +2039,11 @@ async function proposeCategoryRule(
       date: tx.date,
       icon_url: tx.icon_url,
       category_label: cat?.label ?? null,
-      category_color: cat?.hex_color ?? group?.hex_color ?? null,
+      // Group color first, leaf as fallback — matches get_recent_transactions
+      // and the transactions-page chip. The reverse order would render the
+      // same transaction with a different icon colour here than in the
+      // transactions list above, which reads as a bug to the user.
+      category_color: group?.hex_color ?? cat?.hex_color ?? null,
       category_icon_lib: group?.icon_lib ?? null,
       category_icon_name: group?.icon_name ?? null,
     };
