@@ -328,7 +328,10 @@ export default function GoalsView() {
                 </p>
               </div>
             ) : (
-              <motion.div layout className="flex flex-col gap-3">
+              <motion.div
+                layout
+                className="flex flex-col divide-y divide-[color-mix(in_oklab,var(--color-fg),transparent_94%)]"
+              >
                 {activeAllocated.map((g, i) => (
                   <GoalRow
                     key={g.id}

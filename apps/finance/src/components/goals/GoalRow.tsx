@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LuShield,
-  LuChevronDown,
   LuChevronRight,
   LuGripVertical,
   LuEllipsis,
@@ -41,12 +39,10 @@ type Props = {
 const GREEN_FILL = "#16a34a"; // tailwind emerald-600
 
 /**
- * Single goal row — a card with a thick green progress bar, the goal's
- * own color reduced to a small accent dot, and a hover lift.
- *
- * Animations on mount via framer-motion: a staggered fade+slide for
- * the card, and a width transition for the progress bar so the user
- * sees the dollars flowing in rather than appearing instantly.
+ * Editorial-style goal row. No card, no border, no icons — just large
+ * typography on the page background with a thin progress underline.
+ * The drag handle and actions menu are hover-only and live in the
+ * row's outer margin so they don't compete with the type.
  */
 export default function GoalRow({
   goal,
@@ -71,14 +67,38 @@ export default function GoalRow({
   const isFull = goal.progress >= 1;
   const fillPct = Math.min(100, Math.max(0, goal.progress * 100));
 
+  // Compose the muted meta line. Order: protection → deadline → pace →
+  // line-item count → fallback. Use middle-dots for separators.
+  const metaParts: string[] = [];
+  if (goal.isProtected) metaParts.push("Protected");
+  if (goal.targetDate) metaParts.push(`Due ${relativeTargetDate(goal.targetDate)}`);
+  if (goal.targetDate && pace !== "no_date" && pace !== "complete") {
+    if (pace === "behind") metaParts.push("Behind pace");
+    else if (pace === "ahead") metaParts.push("Ahead of pace");
+    else if (pace === "on_pace") metaParts.push("On pace");
+    else if (pace === "unfunded") metaParts.push("Not yet funded");
+  }
+  if (hasLineItems) {
+    metaParts.push(`${goal.lineItems.length} ${goal.lineItems.length === 1 ? "item" : "items"}`);
+  }
+  if (!goal.targetDate && !goal.isProtected && !hasLineItems) {
+    metaParts.push(isUnfunded ? "Waiting on funds" : "No deadline");
+  }
+  if (isFull && !metaParts.includes("Funded in full")) {
+    // Replace the trailing "no deadline" / pace tag with a celebratory one.
+    metaParts.length = 0;
+    if (goal.isProtected) metaParts.push("Protected");
+    metaParts.push("Funded in full");
+  }
+
   return (
     <motion.div
       layout="position"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: isDragging ? 0.35 : 1, y: 0 }}
       transition={{
-        delay: Math.min(index * 0.04, 0.3),
-        duration: 0.3,
+        delay: Math.min(index * 0.05, 0.4),
+        duration: 0.35,
         ease: "easeOut",
       }}
       draggable
@@ -101,177 +121,151 @@ export default function GoalRow({
         onDrop(goal.id);
       }}
       onDragEnd={() => onDragEnd()}
-      className="group relative"
+      className={`group relative ${isDragTarget ? "rounded-lg" : ""}`}
     >
-      <div
-        className={`
-          relative rounded-2xl border transition-all duration-200
-          ${
-            isDragTarget
-              ? "border-emerald-500/60 bg-[color-mix(in_oklab,var(--color-success),transparent_94%)] shadow-md"
-              : "border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] bg-[var(--color-bg)] hover:border-[color-mix(in_oklab,var(--color-fg),transparent_86%)] hover:shadow-sm hover:-translate-y-px"
-          }
-        `}
-      >
-        {/* Header row (name + amount). Click toggles expansion if line items exist. */}
+      {/* Drop-target wash. Sits behind the type, very subtle. */}
+      {isDragTarget && (
         <div
-          className="flex items-start gap-3 px-4 pt-4 pb-3"
-          onClick={() => hasLineItems && setExpanded((v) => !v)}
-          style={{ cursor: hasLineItems ? "pointer" : "default" }}
-        >
-          {/* Drag affordance (hover-only). */}
-          <button
-            type="button"
-            aria-label="Drag to reorder"
-            className="text-[var(--color-muted)] opacity-0 group-hover:opacity-50 hover:opacity-100 cursor-grab active:cursor-grabbing -ml-1 mt-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <LuGripVertical size={14} />
-          </button>
+          aria-hidden
+          className="absolute -inset-x-3 -inset-y-2 rounded-xl bg-[color-mix(in_oklab,var(--color-success),transparent_92%)] pointer-events-none"
+        />
+      )}
 
-          {/* Color dot + protected shield. */}
-          <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
-            <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: goal.color }}
-              aria-hidden
-            />
-            {goal.isProtected && (
-              <LuShield
-                size={12}
-                className="text-[var(--color-muted)]"
-                aria-label="Protected goal"
-              />
+      {/* Drag handle — sits in the left margin so it doesn't push the
+          type around. Visible on hover. */}
+      <button
+        type="button"
+        aria-label="Drag to reorder"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute left-0 top-7 -translate-x-7 text-[var(--color-muted)] opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab active:cursor-grabbing transition-opacity hidden md:block"
+      >
+        <LuGripVertical size={14} />
+      </button>
+
+      <div
+        className="relative py-6"
+        onClick={() => hasLineItems && setExpanded((v) => !v)}
+        style={{ cursor: hasLineItems ? "pointer" : "default" }}
+      >
+        {/* Title + amount + actions. */}
+        <div className="flex items-baseline justify-between gap-6">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-[22px] sm:text-[26px] font-medium tracking-tight text-[var(--color-fg)] leading-tight truncate">
+              {goal.name}
+            </h3>
+            {hasLineItems && (
+              <motion.span
+                animate={{ rotate: expanded ? 90 : 0 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="text-[var(--color-muted)] flex-shrink-0"
+              >
+                <LuChevronRight size={16} />
+              </motion.span>
             )}
           </div>
 
-          {/* Main column: name on top, meta line below. */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-[15px] font-semibold text-[var(--color-fg)] truncate">
-                  {goal.name}
-                </p>
-                {hasLineItems && (
-                  <motion.span
-                    animate={{ rotate: expanded ? 90 : 0 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
-                    className="text-[var(--color-muted)] flex-shrink-0"
+          <div className="flex items-baseline gap-2 flex-shrink-0">
+            <p className="text-[22px] sm:text-[26px] font-medium tracking-tight tabular-nums leading-tight whitespace-nowrap">
+              <span
+                className={
+                  isFull
+                    ? "text-emerald-600"
+                    : isUnfunded
+                      ? "text-[var(--color-muted)]"
+                      : "text-[var(--color-fg)]"
+                }
+              >
+                {isUnfunded ? "—" : formatCurrency(goal.allocated)}
+              </span>
+              <span className="text-[var(--color-muted)] text-sm font-normal">
+                {" "}/ {formatCurrency(goal.target)}
+              </span>
+            </p>
+
+            {/* Actions — hover-reveal, sits flush with the amount. */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Dropdown
+                trigger={
+                  <button
+                    type="button"
+                    aria-label={`Actions for ${goal.name}`}
+                    className="p-1 text-[var(--color-muted)] hover:text-[var(--color-fg)] rounded"
                   >
-                    <LuChevronRight size={14} />
-                  </motion.span>
-                )}
-              </div>
-              <p className="text-sm tabular-nums whitespace-nowrap flex-shrink-0">
-                <span className="font-semibold text-[var(--color-fg)]">
-                  {formatCurrency(goal.allocated)}
-                </span>
-                <span className="text-[var(--color-muted)] font-normal">
-                  {" "}/ {formatCurrency(goal.target)}
-                </span>
-              </p>
-            </div>
-
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--color-muted)]">
-              {goal.targetDate ? (
-                <span>Due {relativeTargetDate(goal.targetDate)}</span>
-              ) : null}
-              <PaceTag pace={pace} hasDate={!!goal.targetDate} />
-              {hasLineItems && (
-                <>
-                  <span>·</span>
-                  <span>
-                    {goal.lineItems.length}{" "}
-                    {goal.lineItems.length === 1 ? "item" : "items"}
-                  </span>
-                </>
-              )}
-              {!goal.targetDate && !hasLineItems && pace === "unfunded" && (
-                <span>Waiting on funds</span>
-              )}
-              {!goal.targetDate && !hasLineItems && pace !== "unfunded" && (
-                <span>No deadline</span>
-              )}
-            </div>
-          </div>
-
-          {/* Actions menu */}
-          <div onClick={(e) => e.stopPropagation()}>
-            <Dropdown
-              trigger={
-                <button
-                  type="button"
-                  aria-label={`Actions for ${goal.name}`}
-                  className="p-1.5 text-[var(--color-muted)] hover:text-[var(--color-fg)] rounded opacity-0 group-hover:opacity-100"
-                >
-                  <LuEllipsis size={16} />
-                </button>
-              }
-              items={[
-                {
-                  label: "Edit",
-                  icon: <LuPencil size={14} />,
-                  onClick: () => onEdit(goal.id),
-                },
-                {
-                  label: "Mark complete",
-                  icon: <LuCheck size={14} />,
-                  onClick: () => onComplete(goal.id),
-                },
-                {
-                  label: "Archive",
-                  icon: <LuArchive size={14} />,
-                  onClick: () => onArchive(goal.id),
-                },
-                ...(goal.isProtected
-                  ? []
-                  : [
-                      {
-                        label: "Delete",
-                        icon: <LuTrash2 size={14} />,
-                        onClick: () => onDelete(goal.id),
-                      },
-                    ]),
-              ]}
-            />
-          </div>
-        </div>
-
-        {/* Thick green progress bar — animates width from 0 on mount. */}
-        <div className="px-4 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 rounded-full bg-[color-mix(in_oklab,var(--color-fg),transparent_93%)] overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${fillPct}%` }}
-                transition={{
-                  delay: Math.min(index * 0.04, 0.3) + 0.1,
-                  duration: 0.7,
-                  ease: "easeOut",
-                }}
-                className="h-full rounded-full"
-                style={{
-                  backgroundColor: GREEN_FILL,
-                  // Add a soft glow when fully funded — small celebratory cue.
-                  boxShadow: isFull
-                    ? `0 0 12px ${GREEN_FILL}55`
-                    : undefined,
-                }}
+                    <LuEllipsis size={16} />
+                  </button>
+                }
+                items={[
+                  {
+                    label: "Edit",
+                    icon: <LuPencil size={14} />,
+                    onClick: () => onEdit(goal.id),
+                  },
+                  {
+                    label: "Mark complete",
+                    icon: <LuCheck size={14} />,
+                    onClick: () => onComplete(goal.id),
+                  },
+                  {
+                    label: "Archive",
+                    icon: <LuArchive size={14} />,
+                    onClick: () => onArchive(goal.id),
+                  },
+                  ...(goal.isProtected
+                    ? []
+                    : [
+                        {
+                          label: "Delete",
+                          icon: <LuTrash2 size={14} />,
+                          onClick: () => onDelete(goal.id),
+                        },
+                      ]),
+                ]}
               />
             </div>
-            <span
-              className={`text-[11px] tabular-nums w-12 text-right ${
-                isFull
-                  ? "text-emerald-600 font-semibold"
-                  : "text-[var(--color-muted)]"
-              }`}
-            >
-              {isUnfunded ? "—" : `${pct}%`}
-            </span>
           </div>
         </div>
 
-        {/* Expandable line items — animate height + opacity. */}
+        {/* Meta line below the title — tiny caps, muted. */}
+        <div className="mt-2 flex items-baseline justify-between gap-4 text-[10px] uppercase tracking-[0.14em]">
+          <p
+            className={`truncate ${
+              isFull
+                ? "text-emerald-600"
+                : pace === "behind"
+                  ? "text-amber-600 dark:text-amber-500"
+                  : "text-[var(--color-muted)]"
+            }`}
+          >
+            {metaParts.join(" · ")}
+          </p>
+          <p className="text-[var(--color-muted)] tabular-nums flex-shrink-0">
+            {isUnfunded ? "0%" : `${pct}%`}
+          </p>
+        </div>
+
+        {/* Thin progress underline. 2px, green, animates in from 0. */}
+        <div className="mt-4 h-[2px] w-full bg-[color-mix(in_oklab,var(--color-fg),transparent_93%)] overflow-hidden rounded-full">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${fillPct}%` }}
+            transition={{
+              delay: Math.min(index * 0.05, 0.4) + 0.15,
+              duration: 0.8,
+              ease: "easeOut",
+            }}
+            className="h-full rounded-full"
+            style={{
+              backgroundColor: GREEN_FILL,
+              boxShadow: isFull ? `0 0 10px ${GREEN_FILL}55` : undefined,
+            }}
+          />
+        </div>
+
+        {/* Expandable line items. Indented text list with their own
+            mini progress underlines. */}
         <AnimatePresence initial={false}>
           {expanded && hasLineItems && (
             <motion.div
@@ -282,46 +276,48 @@ export default function GoalRow({
               transition={{ duration: 0.22, ease: "easeOut" }}
               className="overflow-hidden"
             >
-              <div className="px-4 pb-4 pt-1 border-t border-[color-mix(in_oklab,var(--color-fg),transparent_94%)]">
-                <div className="space-y-3 mt-3">
-                  {goal.lineItems.map((li, idx) => {
-                    const consumedBefore = goal.lineItems
-                      .slice(0, idx)
-                      .reduce((s, x) => s + x.target, 0);
-                    const itemAllocated = Math.max(
-                      0,
-                      Math.min(li.target, goal.allocated - consumedBefore),
-                    );
-                    const itemPct =
-                      li.target > 0 ? (itemAllocated / li.target) * 100 : 0;
-                    return (
-                      <div key={li.id}>
-                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                          <span className="text-xs text-[var(--color-fg)] truncate">
-                            {li.name}
+              <div className="pt-6 pl-6 space-y-5">
+                {goal.lineItems.map((li, idx) => {
+                  const consumedBefore = goal.lineItems
+                    .slice(0, idx)
+                    .reduce((s, x) => s + x.target, 0);
+                  const itemAllocated = Math.max(
+                    0,
+                    Math.min(li.target, goal.allocated - consumedBefore),
+                  );
+                  const itemPct =
+                    li.target > 0 ? (itemAllocated / li.target) * 100 : 0;
+                  return (
+                    <div key={li.id}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm text-[var(--color-fg)] truncate">
+                          {li.name}
+                        </span>
+                        <span className="text-sm tabular-nums whitespace-nowrap">
+                          <span className="text-[var(--color-fg)]">
+                            {formatCurrency(itemAllocated)}
                           </span>
-                          <span className="text-[11px] text-[var(--color-muted)] tabular-nums">
-                            {formatCurrency(itemAllocated)} /{" "}
-                            {formatCurrency(li.target)}
+                          <span className="text-[var(--color-muted)] text-xs">
+                            {" "}/ {formatCurrency(li.target)}
                           </span>
-                        </div>
-                        <div className="h-1 w-full rounded-full bg-[color-mix(in_oklab,var(--color-fg),transparent_93%)] overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(100, itemPct)}%` }}
-                            transition={{
-                              delay: 0.05 + idx * 0.04,
-                              duration: 0.5,
-                              ease: "easeOut",
-                            }}
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: GREEN_FILL }}
-                          />
-                        </div>
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="mt-2 h-px w-full bg-[color-mix(in_oklab,var(--color-fg),transparent_93%)] overflow-hidden rounded-full">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, itemPct)}%` }}
+                          transition={{
+                            delay: 0.05 + idx * 0.05,
+                            duration: 0.55,
+                            ease: "easeOut",
+                          }}
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: GREEN_FILL }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
           )}
@@ -331,41 +327,6 @@ export default function GoalRow({
   );
 }
 
-function PaceTag({ pace, hasDate }: { pace: Pace; hasDate: boolean }) {
-  if (!hasDate) return null;
-  if (pace === "no_date" || pace === "complete") return null;
-
-  if (pace === "behind") {
-    return (
-      <>
-        <span>·</span>
-        <span className="text-amber-600 dark:text-amber-500">Behind pace</span>
-      </>
-    );
-  }
-  if (pace === "ahead") {
-    return (
-      <>
-        <span>·</span>
-        <span className="text-emerald-600 dark:text-emerald-500">Ahead</span>
-      </>
-    );
-  }
-  if (pace === "on_pace") {
-    return (
-      <>
-        <span>·</span>
-        <span className="text-emerald-600 dark:text-emerald-500">On pace</span>
-      </>
-    );
-  }
-  if (pace === "unfunded") {
-    return (
-      <>
-        <span>·</span>
-        <span>Not yet funded</span>
-      </>
-    );
-  }
-  return null;
-}
+// PaceTag was previously inlined into the meta line; deprecated and
+// removed in favor of the metaParts join above.
+export type { Pace };
