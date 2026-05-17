@@ -36,20 +36,21 @@ export const dashboardLayout: DashboardLayout = {
       id: 'net-worth-banner',
       component: 'NetWorthBanner',
     },
+    // Paired row: line chart + donut share the same month dropdown
+    // (the dropdown lives in MonthlyOverviewCard's header but the
+    // selected month is owned by the dashboard page and threaded into
+    // both cards). Line chart shows the trend; donut shows where the
+    // money went — answering the same "what about this month?"
+    // question with two complementary views.
     {
-      id: 'monthly-overview',
-      component: 'MonthlyOverviewCard',
-      height: 'h-[400px]',
-    },
-    {
-      id: 'cashflow-row',
+      id: 'monthly-row',
       type: 'row',
       items: [
         {
-          id: 'cashflow',
-          component: 'SpendingVsEarningCard',
+          id: 'monthly-overview',
+          component: 'MonthlyOverviewCard',
           width: 'lg:flex-1 lg:min-w-0',
-          mobileHeight: 'h-[380px] lg:h-full',
+          mobileHeight: 'h-[400px] lg:h-full',
         },
         {
           id: 'top-categories',
@@ -58,7 +59,15 @@ export const dashboardLayout: DashboardLayout = {
           mobileHeight: 'h-auto lg:h-full',
         },
       ],
-      height: 'lg:h-[380px]',
+      height: 'lg:h-[400px]',
+    },
+    // Cashflow stands on its own row now — different question
+    // (income vs. spending over 6 months) so it shouldn't share the
+    // monthly-row's period dropdown.
+    {
+      id: 'cashflow',
+      component: 'SpendingVsEarningCard',
+      height: 'h-[380px]',
     },
   ],
 

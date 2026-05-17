@@ -61,6 +61,26 @@ export default function DashboardPage() {
     user?.id ? "/api/dashboard/summary?months=6&categoryPeriod=thisMonth" : null,
   );
 
+  // Shared period state for the monthly-overview + top-categories pair.
+  // Both cards used to have their own period control (line chart had a
+  // month dropdown, donut had a This Month / Last 30 Days toggle) which
+  // was confusing — they're answering the same question. Lifting the
+  // state here makes the line chart's month dropdown drive the donut
+  // too. Available months come from the transactions ledger; we default
+  // to the newest (which is the current month for an active user).
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const { data: monthsData } = useAuthedQuery(
+    ["dashboard:available-months", user?.id],
+    user?.id ? "/api/transactions/available-months" : null,
+  );
+  const availableMonths = monthsData?.months ?? [];
+  useEffect(() => {
+    if (selectedMonth) return;
+    if (availableMonths.length > 0) {
+      setSelectedMonth(availableMonths[0].value);
+    }
+  }, [availableMonths, selectedMonth]);
+
   // Budgets — fed into BudgetsCard + used to decide whether the card
   // even renders. Same caching rationale as the summary above.
   const {
@@ -165,6 +185,15 @@ export default function DashboardPage() {
   // Components that receive additional pre-fetched props
   const extraPropsMap = {
     'BudgetsCard': { budgets, loading: budgetsLoading },
+    'MonthlyOverviewCard': {
+      month: selectedMonth,
+      availableMonths,
+      onMonthChange: setSelectedMonth,
+    },
+    'TopCategoriesCard': {
+      month: selectedMonth,
+      availableMonths,
+    },
   };
 
   // Items that should be hidden based on current state

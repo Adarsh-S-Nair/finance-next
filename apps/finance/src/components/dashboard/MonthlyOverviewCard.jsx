@@ -29,20 +29,37 @@ function SkeletonLoader() {
   );
 }
 
-export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) {
+export default function MonthlyOverviewCard({
+  initialMonth,
+  onBack,
+  mockData,
+  // Controlled-mode props. When `month` is provided the dashboard owns
+  // the selected month + available months list (so the same dropdown
+  // can also drive the TopCategoriesCard). When omitted the card falls
+  // back to its own local state — needed for the standalone usage on
+  // the /spending detail page.
+  month: controlledMonth,
+  availableMonths: controlledAvailableMonths,
+  onMonthChange: controlledOnMonthChange,
+}) {
+  const isControlled = controlledMonth !== undefined;
   const [activeIndex, setActiveIndex] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(
+  const [internalSelectedMonth, setInternalSelectedMonth] = useState(
     mockData?.selectedMonth || initialMonth || null,
   );
+  const selectedMonth = isControlled ? controlledMonth : internalSelectedMonth;
+  const setSelectedMonth = isControlled
+    ? (controlledOnMonthChange ?? (() => {}))
+    : setInternalSelectedMonth;
 
   const { user, loading: authLoading } = useUser();
 
   useEffect(() => {
-    if (mockData) return;
+    if (mockData || isControlled) return;
     if (initialMonth) {
-      setSelectedMonth(initialMonth);
+      setInternalSelectedMonth(initialMonth);
     }
-  }, [initialMonth, mockData]);
+  }, [initialMonth, mockData, isControlled]);
 
   const generatePlaceholderChartData = () => {
     const now = new Date();
@@ -57,26 +74,30 @@ export default function MonthlyOverviewCard({ initialMonth, onBack, mockData }) 
   };
 
   // Available months — cached so the month dropdown is instant on
-  // re-visit. Queries are disabled when mock data is provided so the
-  // storybook preview doesn't fire real network calls.
+  // re-visit. Queries are disabled when mock data is provided, or when
+  // the parent is feeding the months list via controlled props.
   const useQueries = !mockData && !authLoading && !!user?.id;
   const { data: monthsData } = useAuthedQuery(
     ['monthly-overview:available-months', user?.id],
-    useQueries ? '/api/transactions/available-months' : null,
+    useQueries && !isControlled ? '/api/transactions/available-months' : null,
   );
   const availableMonths = useMemo(
-    () => mockData?.availableMonths ?? monthsData?.months ?? [],
-    [mockData?.availableMonths, monthsData?.months],
+    () =>
+      controlledAvailableMonths ??
+      mockData?.availableMonths ??
+      monthsData?.months ??
+      [],
+    [controlledAvailableMonths, mockData?.availableMonths, monthsData?.months],
   );
 
   // Pick the newest month once the list arrives (unless an explicit
-  // initialMonth was passed in).
+  // initialMonth was passed in, or the parent is driving us).
   useEffect(() => {
-    if (mockData || initialMonth || selectedMonth) return;
+    if (mockData || isControlled || initialMonth || internalSelectedMonth) return;
     if (availableMonths.length > 0) {
-      setSelectedMonth(availableMonths[0].value);
+      setInternalSelectedMonth(availableMonths[0].value);
     }
-  }, [availableMonths, initialMonth, mockData, selectedMonth]);
+  }, [availableMonths, initialMonth, mockData, isControlled, internalSelectedMonth]);
 
   // Monthly chart data for the selected month. Each month gets its
   // own cache key so switching months still lands instantly once

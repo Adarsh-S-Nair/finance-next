@@ -5,7 +5,6 @@ import { authFetch } from "../../lib/api/fetch";
 import { useUser } from "../providers/UserProvider";
 import { useRouter } from "next/navigation";
 import { CurrencyAmount } from "../../lib/formatCurrency";
-import { SegmentedTabs } from "@zervo/ui";
 import InteractiveDonut from "../InteractiveDonut";
 
 const MAX_ROWS = 5;
@@ -13,8 +12,6 @@ const DONUT_SIZE = 220;
 // Anything under this threshold rolls into Other so every visible slice
 // has enough arc to read as a real segment (not a sliver).
 const MIN_SEGMENT_PCT = 3;
-
-type ViewMode = "thisMonth" | "last30";
 
 type CategoryData = {
   id: string;
@@ -38,42 +35,48 @@ type ExternalData = {
   totalSpending?: number;
 };
 
-function getRangeFor(viewMode: ViewMode) {
-  const today = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-  if (viewMode === "last30") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 29);
-    return { startDate: fmt(start), endDate: fmt(today), label: "Last 30 Days" };
-  }
-
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { startDate: fmt(start), endDate: fmt(today), label: "This Month" };
-}
-
-const viewOptions = [
-  { label: "This Month", value: "thisMonth" },
-  { label: "Last 30 Days", value: "last30" },
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-function Header({
-  viewMode,
-  setViewMode,
-}: {
-  viewMode: ViewMode;
-  setViewMode: (value: ViewMode) => void;
-}) {
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Translate a "YYYY-MM" key into the date range + label the API and
+// donut center text need. End-date is capped to today when the key
+// points at the current calendar month so partial-month totals don't
+// claim spending hasn't happened yet for days we haven't lived.
+function rangeFor(monthKey: string | null) {
+  if (!monthKey) return null;
+  const [yStr, mStr] = monthKey.split("-");
+  const y = parseInt(yStr, 10);
+  const m = parseInt(mStr, 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  const start = new Date(y, m - 1, 1);
+  const today = new Date();
+  const isCurrentMonth =
+    today.getFullYear() === y && today.getMonth() === m - 1;
+  const end = isCurrentMonth ? today : new Date(y, m, 0); // last day of month
+
+  return {
+    startDate: fmt(start),
+    endDate: fmt(end),
+    label: `${MONTH_NAMES[m - 1]} ${y}`,
+  };
+}
+
+function Header() {
   return (
     <div className="flex items-center justify-between mb-5">
       <div className="card-header">Top Spending</div>
-      <SegmentedTabs
-        options={viewOptions}
-        value={viewMode}
-        onChange={(v: string) => setViewMode(v as ViewMode)}
-        size="sm"
-      />
     </div>
   );
 }
@@ -91,9 +94,14 @@ function Skeleton() {
 
 type Props = {
   data?: ExternalData;
+  // YYYY-MM key driven by the dashboard's shared period dropdown. When
+  // omitted the card falls back to the current calendar month so the
+  // standalone usage (and any caller that hasn't migrated yet) still
+  // works.
+  month?: string | null;
 };
 
-export default function TopCategoriesCard({ data: externalData }: Props = {}) {
+export default function TopCategoriesCard({ data: externalData, month }: Props = {}) {
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState<CategoryData[]>([]);
@@ -101,13 +109,19 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("thisMonth");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const range = useMemo(() => getRangeFor(viewMode), [viewMode]);
+  const effectiveMonth = month ?? currentMonthKey();
+  const range = useMemo(() => rangeFor(effectiveMonth), [effectiveMonth]);
+  // The prefetched dashboard summary is always populated for the
+  // current real calendar month, so we can use it as a fast-path
+  // only when the dashboard's shared dropdown is parked there.
+  const isCurrentMonth = effectiveMonth === currentMonthKey();
 
   useEffect(() => {
-    if (externalData && viewMode === "thisMonth") {
+    if (!range) return;
+
+    if (externalData && isCurrentMonth) {
       setCategories((externalData.categories || []).slice(0, 20));
       setTotalSpending(externalData.totalSpending || 0);
       setLoading(false);
@@ -124,7 +138,7 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
     async function fetchData() {
       try {
         if (!hasLoaded) setLoading(true);
-        const url = `/api/transactions/spending-by-category?startDate=${range.startDate}&endDate=${range.endDate}`;
+        const url = `/api/transactions/spending-by-category?startDate=${range!.startDate}&endDate=${range!.endDate}`;
         const res = await authFetch(url);
         if (!res.ok) throw new Error("Failed to fetch data");
         const data = await res.json();
@@ -142,10 +156,9 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
   }, [
     authLoading,
     user?.id,
-    viewMode,
     externalData,
-    range.startDate,
-    range.endDate,
+    isCurrentMonth,
+    range,
     hasLoaded,
   ]);
 
@@ -184,25 +197,22 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
     return named;
   }, [categories, totalSpending]);
 
-  // Map the donut's view-mode toggle onto the transactions page's
-  // date-range filter so clicking a slice lands you on the exact same
-  // window you were looking at. thisMonth → the "this month" preset,
-  // last30 → the "last 30 days" preset.
-  const transactionsDateRange = viewMode === "thisMonth" ? "month" : "30days";
-
+  // Land on /transactions with the exact same window selected so
+  // clicking a slice keeps the user in context. The transactions page
+  // accepts startDate/endDate directly, which avoids reparsing
+  // "month"/"30days" presets that don't fit the new month-driven model.
   const onSegmentClick = (seg: Segment) => {
-    if (!seg) return;
+    if (!seg || !range) return;
+    const qs = `startDate=${range.startDate}&endDate=${range.endDate}`;
     if (seg.isOther) {
       if (!seg.otherIds?.length) return;
       router.push(
-        `/transactions?categoryIds=${seg.otherIds.join(",")}&dateRange=${transactionsDateRange}`,
+        `/transactions?categoryIds=${seg.otherIds.join(",")}&${qs}`,
       );
       return;
     }
     if (!seg.id) return;
-    router.push(
-      `/transactions?categoryIds=${seg.id}&dateRange=${transactionsDateRange}`,
-    );
+    router.push(`/transactions?categoryIds=${seg.id}&${qs}`);
   };
 
   const isEmpty = segments.length === 0 || totalSpending === 0;
@@ -210,7 +220,7 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
 
   return (
     <div className="h-full flex flex-col">
-      <Header viewMode={viewMode} setViewMode={setViewMode} />
+      <Header />
 
       {showSkeleton ? (
         <Skeleton />
@@ -224,7 +234,7 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
             <CurrencyAmount amount={0} />
           </div>
           <div className="text-xs text-[var(--color-muted)]">
-            No spending in {range.label.toLowerCase()}
+            No spending in {range?.label ?? "this month"}
           </div>
         </div>
       ) : (
@@ -238,7 +248,7 @@ export default function TopCategoriesCard({ data: externalData }: Props = {}) {
           <InteractiveDonut
             segments={segments}
             total={totalSpending}
-            centerLabel={range.label}
+            centerLabel={range?.label ?? ""}
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onClick={onSegmentClick}
