@@ -7,15 +7,23 @@ type AnySupabase = SupabaseClient<Database>;
 type BudgetRow = Tables<'budgets'>;
 type SystemCategoryRow = Tables<'system_categories'>;
 
+type CategoryGroupBrief = Pick<
+  Tables<'category_groups'>,
+  'id' | 'name' | 'icon_name' | 'icon_lib' | 'hex_color'
+>;
+
 interface BudgetWithRelations extends BudgetRow {
-  category_groups: Pick<
-    Tables<'category_groups'>,
-    'id' | 'name' | 'icon_name' | 'icon_lib' | 'hex_color'
-  > | null;
-  system_categories: Pick<
-    SystemCategoryRow,
-    'id' | 'label' | 'group_id' | 'hex_color'
-  > | null;
+  category_groups: CategoryGroupBrief | null;
+  // Category-level budgets (Mortgage Payment, etc.) don't have a
+  // direct category_groups join, but their parent group has the icon
+  // and brand color we need to render the row properly. Nesting the
+  // join here lets the client read the icon via either path without
+  // a second roundtrip.
+  system_categories:
+    | (Pick<SystemCategoryRow, 'id' | 'label' | 'group_id' | 'hex_color'> & {
+        category_groups: CategoryGroupBrief | null;
+      })
+    | null;
 }
 
 export interface BudgetProgress extends BudgetWithRelations {
@@ -62,7 +70,10 @@ export async function getBudgetProgress(
       `
       *,
       category_groups (id, name, icon_name, icon_lib, hex_color),
-      system_categories (id, label, group_id, hex_color)
+      system_categories (
+        id, label, group_id, hex_color,
+        category_groups (id, name, icon_name, icon_lib, hex_color)
+      )
     `
     )
     .eq('user_id', userId);
@@ -273,7 +284,10 @@ export async function getBudgetHistory(
       `
       *,
       category_groups (id, name, icon_name, icon_lib, hex_color),
-      system_categories (id, label, group_id, hex_color)
+      system_categories (
+        id, label, group_id, hex_color,
+        category_groups (id, name, icon_name, icon_lib, hex_color)
+      )
     `
     )
     .eq('user_id', userId);

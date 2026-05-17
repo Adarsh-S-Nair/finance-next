@@ -11,21 +11,34 @@ import { ViewAllLink } from "@zervo/ui";
 
 const MAX_ROWS = 3;
 
-// Color the per-budget bar by how close it is to the cap. Under 85% uses the
-// category's own color; past that we shift to amber/rose so the user notices
-// without having to read percentages.
-const barColorFor = (percentage, hex) => {
-  if (percentage >= 100) return "#f43f5e"; // rose-500
-  if (percentage >= 85) return "#f59e0b"; // amber-500
+// Color the per-budget bar by how close it is to the cap. We use
+// rounded-dollar comparison for the "over" check so a few cents past
+// the cap doesn't paint a budget red — the user reads $4,858 / $4,858
+// as "at the cap", not as "over". Real over (rounded dollars exceeding
+// the cap) gets rose; the 85-100% warning band stays amber; otherwise
+// the category's own brand color.
+const barColorFor = (spent, total, hex) => {
+  const isOver = Math.round(spent) > Math.round(total);
+  if (isOver) return "#f43f5e"; // rose-500
+  const pct = total > 0 ? (spent / total) * 100 : 0;
+  if (pct >= 85) return "#f59e0b"; // amber-500
   return hex || "var(--color-accent)";
 };
 
 function BudgetRow({ budget }) {
-  const iconLib = budget.category_groups?.icon_lib;
-  const iconName = budget.category_groups?.icon_name;
+  // Icon + brand color live on the category_group. Direct group
+  // budgets carry them on `budget.category_groups`; category-level
+  // budgets (e.g. "Mortgage Payment" under Loan Payments) carry them
+  // on the nested `system_categories.category_groups` join we ask
+  // for in spending.ts. Fall through both before giving up.
+  const parentGroup =
+    budget.category_groups ?? budget.system_categories?.category_groups ?? null;
+  const iconLib = parentGroup?.icon_lib;
+  const iconName = parentGroup?.icon_name;
   const hex =
     budget.category_groups?.hex_color ||
     budget.system_categories?.hex_color ||
+    parentGroup?.hex_color ||
     null;
   const label =
     budget.category_groups?.name ||
@@ -36,7 +49,7 @@ function BudgetRow({ budget }) {
   const spent = Number(budget.spent) || 0;
   const percentage = Number(budget.percentage) || 0;
   const widthPct = Math.min(100, percentage);
-  const barColor = barColorFor(percentage, hex);
+  const barColor = barColorFor(spent, total, hex);
   const pctDisplay = Math.round(percentage);
 
   return (
@@ -114,7 +127,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
   const overallPct = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-  const overallBarColor = barColorFor(overallPct, null);
+  const overallBarColor = barColorFor(totalSpent, totalBudget, null);
 
   if (loading) {
     return (
