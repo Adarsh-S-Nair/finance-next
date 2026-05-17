@@ -117,6 +117,10 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
   // current real calendar month, so we can use it as a fast-path
   // only when the dashboard's shared dropdown is parked there.
   const isCurrentMonth = effectiveMonth === currentMonthKey();
+  // When the parent owns the month the section title also lives in
+  // the parent (shared row header above both cards), so we skip the
+  // per-card title. Standalone callers (landing-page mock) keep it.
+  const showCardHeader = month === undefined;
 
   useEffect(() => {
     if (!range) return;
@@ -220,7 +224,7 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
 
   return (
     <div className="h-full flex flex-col">
-      <Header />
+      {showCardHeader && <Header />}
 
       {showSkeleton ? (
         <Skeleton />

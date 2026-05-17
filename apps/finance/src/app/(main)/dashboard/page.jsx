@@ -203,12 +203,15 @@ export default function DashboardPage() {
     return false;
   };
 
-  // Shared period dropdown for the monthly-row — sits above both cards
-  // so the control visibly belongs to the section, not just the line
-  // chart. Hidden until we know what months are available.
+  // Shared header for the monthly-row — section title on the left,
+  // period dropdown on the right. The dropdown's selected month
+  // implies the time scope so we don't repeat it in the title.
   const monthlyRowHeader =
     availableMonths.length > 0 ? (
-      <div className="flex items-center justify-end mb-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-medium tracking-tight text-[var(--color-fg)]">
+          Spending
+        </h2>
         <Dropdown
           label={
             availableMonths.find((m) => m.value === selectedMonth)?.label ||

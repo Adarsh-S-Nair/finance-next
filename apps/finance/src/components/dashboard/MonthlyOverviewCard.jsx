@@ -253,54 +253,57 @@ export default function MonthlyOverviewCard({
         <SkeletonLoader />
       ) : (
         <div className="flex flex-col h-full">
-          {/* Header row: title + dropdown */}
-          <div className="flex items-center justify-between mb-6">
-            <div
-              className={`flex items-center gap-1 ${onBack ? 'cursor-pointer group' : ''}`}
-              onClick={onBack}
-            >
-              {onBack && (
-                <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
+          {/* In controlled mode the title + dropdown live in the
+              dashboard's shared section header above us, so we render
+              no card-header at all and let the numbers + chart fill
+              the card. The on-chart tooltip still shows the hovered
+              date so dropping the inline "May 17" caption isn't a
+              real loss of context. Uncontrolled callers (landing
+              mock, /spending detail) keep the full header. */}
+          {!isControlled && (
+            <div className="flex items-center justify-between mb-6">
+              <div
+                className={`flex items-center gap-1 ${onBack ? 'cursor-pointer group' : ''}`}
+                onClick={onBack}
+              >
+                {onBack && (
+                  <div className="p-1 -ml-2 transition-colors text-[var(--color-muted)] group-hover:text-[var(--color-fg)]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </div>
+                )}
+                <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
+                  Monthly Spending
                 </div>
-              )}
-              <div className={`card-header ${onBack ? 'group-hover:text-[var(--color-fg)] transition-colors' : ''}`}>
-                Monthly Spending
+              </div>
+
+              <div className="flex items-center gap-3">
+                {currentData?.dateString && (
+                  <span className="text-[11px] font-medium text-[var(--color-muted)]">
+                    {currentData.dateString}
+                  </span>
+                )}
+                {availableMonths.length > 0 && (
+                  <Dropdown
+                    label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
+                    items={availableMonths.map((month) => ({
+                      label: month.label,
+                      onClick: () => setSelectedMonth(month.value),
+                      selected: month.value === selectedMonth
+                    }))}
+                    size="sm"
+                    align="right"
+                  />
+                )}
+                {availableMonths.length === 0 && (
+                  <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
+                    {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                )}
               </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              {currentData?.dateString && (
-                <span className="text-[11px] font-medium text-[var(--color-muted)]">
-                  {currentData.dateString}
-                </span>
-              )}
-              {/* When the dashboard owns the month state the dropdown
-                  lives in the shared row header above us, not inside
-                  this card. Only render the inline dropdown for
-                  uncontrolled callers (storybook mock, /spending
-                  detail page). */}
-              {!isControlled && availableMonths.length > 0 && (
-                <Dropdown
-                  label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
-                  items={availableMonths.map((month) => ({
-                    label: month.label,
-                    onClick: () => setSelectedMonth(month.value),
-                    selected: month.value === selectedMonth
-                  }))}
-                  size="sm"
-                  align="right"
-                />
-              )}
-              {!isControlled && availableMonths.length === 0 && (
-                <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
-                  {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
-                </span>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Numbers side by side */}
           <div className="flex items-start gap-8 mb-6">
