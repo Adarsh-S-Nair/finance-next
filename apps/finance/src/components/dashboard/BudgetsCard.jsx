@@ -5,40 +5,41 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
+import DynamicIcon from "../DynamicIcon";
+import { FiTag } from "react-icons/fi";
 import { ViewAllLink } from "@zervo/ui";
 
 const MAX_ROWS = 3;
 
-// Editorial direction: no per-row progress bars — the typography is
-// the design. The percentage on each row is colored by status, which
-// is what carries the at-a-glance "should I worry?" signal.
-//
-// Status thresholds:
-//   - "over"     : displayed dollar amount strictly exceeds the cap
-//                  (cents within the same whole dollar don't count
-//                  as over — Math.round on both sides keeps this
-//                  honest)
-//   - "at"       : exactly at the cap (rose 100% reads as alarming
-//                  when the user actually hit their target — emerald
-//                  feels more like "you nailed it")
-//   - "warn"     : 85-99% (amber attention zone)
-//   - "normal"   : everything else (foreground)
-function statusFor(spent, total) {
-  if (Math.round(spent) > Math.round(total)) return "over";
+// Color the per-budget bar by how close it is to the cap. We use
+// rounded-dollar comparison for the "over" check so a few cents past
+// the cap doesn't paint a budget red — the user reads $4,858 / $4,858
+// as "at the cap", not as "over". Real over (rounded dollars exceeding
+// the cap) gets rose; the 85-100% warning band stays amber; otherwise
+// the category's own brand color.
+const barColorFor = (spent, total, hex) => {
+  const isOver = Math.round(spent) > Math.round(total);
+  if (isOver) return "#f43f5e"; // rose-500
   const pct = total > 0 ? (spent / total) * 100 : 0;
-  if (pct >= 100) return "at";
-  if (pct >= 85) return "warn";
-  return "normal";
-}
-
-const STATUS_TEXT = {
-  over: "text-rose-500",
-  at: "text-emerald-500",
-  warn: "text-amber-500",
-  normal: "text-[var(--color-fg)]",
+  if (pct >= 85) return "#f59e0b"; // amber-500
+  return hex || "var(--color-accent)";
 };
 
 function BudgetRow({ budget }) {
+  // Icon + brand color live on the category_group. Direct group
+  // budgets carry them on `budget.category_groups`; category-level
+  // budgets (e.g. "Mortgage Payment" under Loan Payments) carry them
+  // on the nested `system_categories.category_groups` join we ask
+  // for in spending.ts. Fall through both before giving up.
+  const parentGroup =
+    budget.category_groups ?? budget.system_categories?.category_groups ?? null;
+  const iconLib = parentGroup?.icon_lib;
+  const iconName = parentGroup?.icon_name;
+  const hex =
+    budget.category_groups?.hex_color ||
+    budget.system_categories?.hex_color ||
+    parentGroup?.hex_color ||
+    null;
   const label =
     budget.category_groups?.name ||
     budget.system_categories?.label ||
@@ -47,29 +48,46 @@ function BudgetRow({ budget }) {
   const total = Number(budget.amount) || 0;
   const spent = Number(budget.spent) || 0;
   const percentage = Number(budget.percentage) || 0;
-  const status = statusFor(spent, total);
-  // The numeric percentage isn't clamped — show the real overage when
-  // a budget is genuinely past its cap. "123%" reads truer than
-  // "100%" in that case.
+  const widthPct = Math.min(100, percentage);
+  const barColor = barColorFor(spent, total, hex);
   const pctDisplay = Math.round(percentage);
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium text-[var(--color-fg)] truncate">
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: hex || "var(--color-accent)" }}
+        >
+          <DynamicIcon
+            iconLib={iconLib}
+            iconName={iconName}
+            className="h-3.5 w-3.5 text-white"
+            style={{ strokeWidth: 2.5 }}
+            fallback={FiTag}
+          />
+        </div>
+        <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
           {label}
         </span>
         <span
-          className={`text-[11px] tabular-nums font-semibold flex-shrink-0 ${STATUS_TEXT[status]}`}
+          className="text-[11px] tabular-nums font-semibold flex-shrink-0"
+          style={{ color: barColor }}
         >
           {pctDisplay}%
         </span>
       </div>
-      <div className="flex items-baseline justify-between text-[11px] tabular-nums text-[var(--color-muted)]">
-        <span>
-          <span className="text-[var(--color-fg)] font-medium">
-            {formatCurrency(spent)}
-          </span>{" "}
+      <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${widthPct}%`, backgroundColor: barColor }}
+        />
+      </div>
+      <div className="flex items-baseline justify-between text-[11px] tabular-nums">
+        <span className="text-[var(--color-fg)] font-medium">
+          {formatCurrency(spent)}
+        </span>
+        <span className="text-[var(--color-muted)]">
           of {formatCurrency(total)}
         </span>
       </div>
@@ -108,6 +126,8 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
+  const overallPct = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+  const overallBarColor = barColorFor(totalSpent, totalBudget, null);
 
   if (loading) {
     return (
@@ -116,17 +136,25 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
           <h3 className="card-header">Budgets</h3>
         </div>
         <div className="animate-pulse">
-          <div className="h-10 bg-[var(--color-border)] rounded w-28 mb-3" />
-          <div className="h-2.5 bg-[var(--color-border)] rounded w-20 mb-6" />
-          <div className="h-2.5 bg-[var(--color-border)] rounded w-40 mb-8" />
-          <div className="space-y-5">
-            {[0, 1, 2].map((i) => (
+          <div className="h-10 bg-[var(--color-border)] rounded w-24 mb-3" />
+          <div className="h-2 bg-[var(--color-border)] rounded-full mb-2.5" />
+          <div className="flex justify-between mb-8">
+            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+            <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+          </div>
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
               <div key={i} className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-border)]" />
                   <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
                   <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
                 </div>
-                <div className="h-2.5 bg-[var(--color-border)] rounded w-28" />
+                <div className="h-2 bg-[var(--color-border)] rounded-full" />
+                <div className="flex justify-between">
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+                </div>
               </div>
             ))}
           </div>
@@ -169,28 +197,33 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
         <ViewAllLink href="/budgets" />
       </div>
 
-      {/* Hero: remaining + spent/total caption. No overall progress
-          bar — the per-row percentages communicate fullness, and the
-          aggregate spent/total below the hero is the only number
-          worth giving headline-adjacent weight. */}
-      <div className="mb-6">
-        <div className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
-          <CurrencyAmount amount={remaining} />
+      <div className="mb-8">
+        <div className="flex flex-col gap-1 mb-4">
+          <span className="text-4xl font-normal text-[var(--color-fg)] tracking-tight">
+            <CurrencyAmount amount={remaining} />
+          </span>
+          <span className="text-sm text-[var(--color-muted)] font-medium">
+            Remaining
+          </span>
         </div>
-        <div className="text-sm text-[var(--color-muted)] font-medium mt-1">
-          Remaining
+
+        <div className="h-2 w-full bg-[var(--color-surface-alt)] rounded-full overflow-hidden mb-2.5">
+          <div
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: `${Math.min(100, overallPct)}%`,
+              backgroundColor: overallBarColor,
+            }}
+          />
         </div>
-        <div className="text-[11px] text-[var(--color-muted)] tabular-nums mt-3">
-          {formatCurrency(totalSpent)} spent · {formatCurrency(totalBudget)} total
+
+        <div className="flex justify-between text-xs font-medium text-[var(--color-muted)]">
+          <span>{formatCurrency(totalSpent)} spent</span>
+          <span>{formatCurrency(totalBudget)} total</span>
         </div>
       </div>
 
-      {/* Hairline divider separates the aggregate hero from the
-          per-budget list so the eye registers them as two distinct
-          beats rather than one continuous block of text. */}
-      <div className="h-px bg-[var(--color-border)] mb-5" />
-
-      <div className="mt-auto space-y-5">
+      <div className="mt-auto space-y-6">
         {budgets.slice(0, MAX_ROWS).map((budget) => (
           <BudgetRow key={budget.id} budget={budget} />
         ))}
