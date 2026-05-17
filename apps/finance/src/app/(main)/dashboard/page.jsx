@@ -21,6 +21,7 @@ import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
+import { Dropdown } from "@zervo/ui";
 
 // Map string keys to actual components
 const componentMap = {
@@ -202,14 +203,35 @@ export default function DashboardPage() {
     return false;
   };
 
+  // Shared period dropdown for the monthly-row — sits above both cards
+  // so the control visibly belongs to the section, not just the line
+  // chart. Hidden until we know what months are available.
+  const monthlyRowHeader =
+    availableMonths.length > 0 ? (
+      <div className="flex items-center justify-end mb-4">
+        <Dropdown
+          label={
+            availableMonths.find((m) => m.value === selectedMonth)?.label ||
+            'Select Month'
+          }
+          items={availableMonths.map((month) => ({
+            label: month.label,
+            onClick: () => setSelectedMonth(month.value),
+            selected: month.value === selectedMonth,
+          }))}
+          size="sm"
+          align="right"
+        />
+      </div>
+    ) : null;
+
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
       const visibleItems = item.items.filter((sub) => !isItemHidden(sub.component));
       if (visibleItems.length === 0) return null;
-      return (
+      const rowEl = (
         <div
-          key={item.id}
           className={item.className || `flex flex-col lg:flex-row gap-10 ${item.height || ''}`}
         >
           {visibleItems.map((subItem) => {
@@ -230,6 +252,16 @@ export default function DashboardPage() {
           })}
         </div>
       );
+
+      if (item.id === 'monthly-row') {
+        return (
+          <div key={item.id}>
+            {monthlyRowHeader}
+            {rowEl}
+          </div>
+        );
+      }
+      return <div key={item.id}>{rowEl}</div>;
     }
 
     if (isItemHidden(item.component)) return null;

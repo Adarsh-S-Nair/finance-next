@@ -277,7 +277,12 @@ export default function MonthlyOverviewCard({
                   {currentData.dateString}
                 </span>
               )}
-              {availableMonths.length > 0 && (
+              {/* When the dashboard owns the month state the dropdown
+                  lives in the shared row header above us, not inside
+                  this card. Only render the inline dropdown for
+                  uncontrolled callers (storybook mock, /spending
+                  detail page). */}
+              {!isControlled && availableMonths.length > 0 && (
                 <Dropdown
                   label={availableMonths.find(m => m.value === selectedMonth)?.label || 'Select Month'}
                   items={availableMonths.map((month) => ({
@@ -289,7 +294,7 @@ export default function MonthlyOverviewCard({
                   align="right"
                 />
               )}
-              {availableMonths.length === 0 && (
+              {!isControlled && availableMonths.length === 0 && (
                 <span className="text-xs text-[var(--color-muted)] px-2 py-1 border border-[var(--color-border)] rounded-md">
                   {new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
