@@ -154,15 +154,7 @@ export default function GoalsCard() {
                 <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
                   {g.name}
                 </span>
-                <span
-                  className={`text-[11px] tabular-nums font-semibold flex-shrink-0 ${
-                    isFull
-                      ? "text-emerald-600"
-                      : isUnfunded
-                        ? "text-[var(--color-muted)]"
-                        : "text-[var(--color-fg)]"
-                  }`}
-                >
+                <span className="text-[11px] tabular-nums font-semibold flex-shrink-0 text-[var(--color-fg)]">
                   {isUnfunded ? "0%" : `${pct}%`}
                 </span>
               </div>

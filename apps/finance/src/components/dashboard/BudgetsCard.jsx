@@ -70,10 +70,7 @@ function BudgetRow({ budget }) {
         <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
           {label}
         </span>
-        <span
-          className="text-[11px] tabular-nums font-semibold flex-shrink-0"
-          style={{ color: barColor }}
-        >
+        <span className="text-[11px] tabular-nums font-semibold flex-shrink-0 text-[var(--color-fg)]">
           {pctDisplay}%
         </span>
       </div>
