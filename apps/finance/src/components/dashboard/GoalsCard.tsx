@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import { ViewAllLink } from "@zervo/ui";
 import { useUser } from "../providers/UserProvider";
 import { useAccounts } from "../providers/AccountsProvider";
@@ -11,18 +10,7 @@ import { formatCurrency } from "../../lib/formatCurrency";
 import { allocateCash, rowToGoal, type Goal } from "../goals/types";
 
 const GREEN_FILL = "#16a34a"; // emerald-600
-// Carousel caps at 5 — past that the dot row gets too crowded and the
-// user should be on /goals anyway. ViewAllLink in the header handles
-// the overflow.
-const MAX_VISIBLE = 5;
-
-// Ring geometry. Sized to feel like a hero number in a sidebar card
-// (~320px wide), with enough stroke to read as a confident gauge
-// rather than a thin progress indicator.
-const RING_SIZE = 160;
-const RING_STROKE = 12;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRC = 2 * Math.PI * RING_RADIUS;
+const MAX_ROWS = 3;
 
 const DEPOSITORY_SUBTYPES = new Set([
   "checking",
@@ -40,17 +28,14 @@ function isDepository(t: string | null | undefined): boolean {
 type RawGoalRow = Parameters<typeof rowToGoal>[0];
 
 /**
- * Dashboard summary of the user's savings goals. Displays one goal at
- * a time as a hero ring with carousel navigation between goals.
- * Replaces the previous bar-row stack so the sidebar has visual
- * variety against the bar-heavy Budgets card directly above it, and
- * so a fully-funded goal lands with the "achievement" weight that a
- * flat bar can't carry.
+ * Dashboard summary of the user's savings goals. Headline shows total
+ * cash flowing into goals; below it sits the top N active goals
+ * (priority order, so emergency fund leads) each with a thin green
+ * progress bar. Mirrors BudgetsCard so the two read as a pair.
  */
 export default function GoalsCard() {
   const { user, loading: authLoading } = useUser();
   const { accounts: institutionGroups } = useAccounts();
-  const [index, setIndex] = useState(0);
 
   const { data: goalsPayload, isLoading } = useAuthedQuery<{
     data?: RawGoalRow[];
@@ -61,8 +46,8 @@ export default function GoalsCard() {
     [goalsPayload],
   );
 
-  // Cash pool — same calc as the /goals page. Needed because progress
-  // is derived from the priority waterfall, not stored.
+  // Cash pool — same calc as the /goals page. We need it because
+  // progress is derived from the priority waterfall, not stored.
   const cashPool = useMemo(() => {
     const flat = institutionGroups.flatMap(
       (g: { accounts?: { type: string | null; balance: number }[] }) =>
@@ -78,18 +63,7 @@ export default function GoalsCard() {
     [goals, cashPool],
   );
 
-  const visibleGoals = allocated.slice(0, MAX_VISIBLE);
-
-  // Snap the index back into range if the goals list shrank (e.g.
-  // the user deleted a goal on another tab and the cache invalidated).
-  useEffect(() => {
-    if (index > visibleGoals.length - 1 && visibleGoals.length > 0) {
-      setIndex(0);
-    }
-  }, [index, visibleGoals.length]);
-
-  const activeIndex = Math.min(index, Math.max(0, visibleGoals.length - 1));
-  const goal = visibleGoals[activeIndex];
+  const topGoals = allocated.slice(0, MAX_ROWS);
 
   const loading = authLoading || (isLoading && !goalsPayload);
 
@@ -101,13 +75,20 @@ export default function GoalsCard() {
         <div className="flex items-center justify-between mb-6">
           <h3 className="card-header">Goals</h3>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center animate-pulse">
-          <div
-            className="rounded-full bg-[var(--color-border)]"
-            style={{ width: RING_SIZE, height: RING_SIZE }}
-          />
-          <div className="h-3 w-28 bg-[var(--color-border)] rounded mt-5" />
-          <div className="h-2.5 w-32 bg-[var(--color-border)] rounded mt-2" />
+        <div className="animate-pulse space-y-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
+              </div>
+              <div className="h-2 bg-[var(--color-border)] rounded-full" />
+              <div className="flex justify-between">
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
+                <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -151,20 +132,6 @@ export default function GoalsCard() {
     );
   }
 
-  if (!goal) return null;
-
-  // ─── Active goal derived values ─────────────────────────────────────
-
-  const pct = Math.round(goal.progress * 100);
-  const isFull = goal.progress >= 1;
-  const isUnfunded = goal.allocated <= 0;
-  const fillFraction = Math.min(1, Math.max(0, goal.progress));
-  const dashOffset = RING_CIRC * (1 - fillFraction);
-
-  const ringStroke = isUnfunded
-    ? "var(--color-border)"
-    : GREEN_FILL;
-
   // ─── Main render ─────────────────────────────────────────────────────
 
   return (
@@ -174,69 +141,21 @@ export default function GoalsCard() {
         <ViewAllLink href="/goals" />
       </div>
 
-      {/* Ring + label area. AnimatePresence swaps the whole block on
-          carousel change with a quick fade+slide so the user feels the
-          transition without it being long enough to slow them down. */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={goal.id}
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col items-center"
-          >
-            <div
-              className="relative"
-              style={{ width: RING_SIZE, height: RING_SIZE }}
-            >
-              <svg
-                width={RING_SIZE}
-                height={RING_SIZE}
-                className="-rotate-90"
-                aria-hidden
-              >
-                {/* Track */}
-                <circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke="var(--color-surface-alt)"
-                  strokeWidth={RING_STROKE}
-                />
-                {/* Progress — strokeDashoffset animates from full-empty
-                    to the actual offset on mount so each goal change
-                    feels like the ring "fills in". */}
-                <motion.circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke={ringStroke}
-                  strokeWidth={RING_STROKE}
-                  strokeLinecap="round"
-                  strokeDasharray={RING_CIRC}
-                  initial={{ strokeDashoffset: RING_CIRC }}
-                  animate={{ strokeDashoffset: dashOffset }}
-                  transition={{
-                    duration: 0.7,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  style={{
-                    // Soft halo when fully funded — gives the "you did
-                    // it" moment a little glow rather than just a
-                    // solid stroke.
-                    filter: isFull
-                      ? `drop-shadow(0 0 8px ${GREEN_FILL}66)`
-                      : undefined,
-                  }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
+      {/* Top goals in priority order — emergency fund leads. */}
+      <div className="space-y-6">
+        {topGoals.map((g) => {
+          const pct = Math.round(g.progress * 100);
+          const isFull = g.progress >= 1;
+          const isUnfunded = g.allocated <= 0;
+          const fillPct = Math.min(100, g.progress * 100);
+          return (
+            <div key={g.id} className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
+                  {g.name}
+                </span>
                 <span
-                  className={`text-3xl font-medium tracking-tight tabular-nums ${
+                  className={`text-[11px] tabular-nums font-semibold flex-shrink-0 ${
                     isFull
                       ? "text-emerald-600"
                       : isUnfunded
@@ -244,45 +163,29 @@ export default function GoalsCard() {
                         : "text-[var(--color-fg)]"
                   }`}
                 >
-                  {pct}%
+                  {isUnfunded ? "0%" : `${pct}%`}
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${fillPct}%`,
+                    backgroundColor: GREEN_FILL,
+                  }}
+                />
+              </div>
+              <div className="flex items-baseline justify-between text-[11px] tabular-nums">
+                <span className="text-[var(--color-fg)] font-medium">
+                  {isUnfunded ? "$0" : formatCurrency(g.allocated)}
+                </span>
+                <span className="text-[var(--color-muted)]">
+                  of {formatCurrency(g.target)}
                 </span>
               </div>
             </div>
-
-            {/* Name + amount under the ring. Centered to match. */}
-            <div className="mt-5 text-center max-w-full">
-              <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                {goal.name}
-              </div>
-              <div className="text-[11px] text-[var(--color-muted)] tabular-nums mt-1">
-                {isUnfunded ? "$0" : formatCurrency(goal.allocated)}{" "}
-                <span className="text-[var(--color-muted)]">of</span>{" "}
-                {formatCurrency(goal.target)}
-              </div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Dot indicators. Active dot widens — gentler than a filled
-            circle vs hollow circle, and it carries the user's sense
-            of position better. Hidden when there's only one goal. */}
-        {visibleGoals.length > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-6">
-            {visibleGoals.map((g, i) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Show ${g.name}`}
-                className={`h-1.5 rounded-full transition-all duration-200 ${
-                  i === activeIndex
-                    ? "w-5 bg-[var(--color-fg)]"
-                    : "w-1.5 bg-[var(--color-border)] hover:bg-[var(--color-muted)]"
-                }`}
-              />
-            ))}
-          </div>
-        )}
+          );
+        })}
       </div>
     </div>
   );
