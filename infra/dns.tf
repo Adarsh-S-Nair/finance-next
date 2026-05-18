@@ -43,6 +43,15 @@ resource "vercel_dns_record" "admin_cname" {
   ttl    = 60
 }
 
+# Developer portal — developer.zervo.app
+resource "vercel_dns_record" "developer_cname" {
+  domain = local.domain
+  name   = "developer"
+  type   = "CNAME"
+  value  = "cname.vercel-dns.com"
+  ttl    = 60
+}
+
 # Impersonation viewer — points at the same finance Vercel project as
 # www. Used so admins entering an impersonation session land on a host
 # with isolated localStorage; the admin's own www.zervo.app session

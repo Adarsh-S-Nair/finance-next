@@ -17,9 +17,11 @@
 # cleanly. Exit 0 = skip, exit 1 = build.
 locals {
   # Vercel runs the ignore command from the project's Root Directory
-  # (apps/finance or apps/admin), so we have to cd up to the repo root first.
-  finance_ignore = "cd ../.. && bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
-  admin_ignore   = "cd ../.. && bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  # (apps/finance, apps/admin, or apps/developer), so we have to cd up to
+  # the repo root first.
+  finance_ignore   = "cd ../.. && bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  admin_ignore     = "cd ../.. && bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
+  developer_ignore = "cd ../.. && bash infra/ignore-build.sh developer apps/developer packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
 }
 
 resource "vercel_project" "finance" {
@@ -56,6 +58,28 @@ resource "vercel_project" "admin" {
   ignore_command = local.admin_ignore
 
   # Preview deploys require the Vercel login password (doesn't affect prod).
+  vercel_authentication = {
+    deployment_type = "standard_protection_new"
+  }
+}
+
+# Developer portal — developer.zervo.app. Same Supabase backend as
+# finance/admin, no allowlist (any signed-in Google user gets in).
+# Hosts the developer-facing APIs (politician trades feed, etc.) and
+# the portal UI for managing keys / usage.
+resource "vercel_project" "developer" {
+  name      = "zervo-developer"
+  framework = "nextjs"
+
+  root_directory = "apps/developer"
+  git_repository = {
+    type              = "github"
+    repo              = var.github_repo
+    production_branch = "main"
+  }
+
+  ignore_command = local.developer_ignore
+
   vercel_authentication = {
     deployment_type = "standard_protection_new"
   }
@@ -126,6 +150,33 @@ resource "vercel_project_environment_variable" "admin_finance_api_url" {
 }
 
 # -----------------------------------------------------------------------------
+# Developer portal env vars — shared Supabase backend, no allowlist.
+# -----------------------------------------------------------------------------
+
+resource "vercel_project_environment_variable" "developer_supabase_url" {
+  project_id = vercel_project.developer.id
+  key        = "NEXT_PUBLIC_SUPABASE_URL"
+  value      = var.supabase_url
+  target     = ["production", "preview", "development"]
+}
+
+resource "vercel_project_environment_variable" "developer_supabase_anon_key" {
+  project_id = vercel_project.developer.id
+  key        = "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  value      = var.supabase_anon_key
+  target     = ["production", "preview", "development"]
+}
+
+resource "vercel_project_environment_variable" "developer_supabase_service_role_key" {
+  project_id = vercel_project.developer.id
+  key        = "SUPABASE_SERVICE_ROLE_KEY"
+  value      = var.supabase_service_role_key
+  sensitive  = true
+  # Vercel disallows `development` for sensitive env vars.
+  target     = ["production", "preview"]
+}
+
+# -----------------------------------------------------------------------------
 # Domain attachments (project ↔ host)
 # -----------------------------------------------------------------------------
 
@@ -143,6 +194,11 @@ resource "vercel_project_domain" "finance_www" {
 resource "vercel_project_domain" "admin_subdomain" {
   project_id = vercel_project.admin.id
   domain     = "admin.zervo.app"
+}
+
+resource "vercel_project_domain" "developer_subdomain" {
+  project_id = vercel_project.developer.id
+  domain     = "developer.zervo.app"
 }
 
 # support.zervo.app serves the *finance* app from a separate origin so

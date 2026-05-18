@@ -58,6 +58,64 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: ^16.2.2
+        version: 16.2.4(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.4
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  apps/developer:
+    dependencies:
+      '@supabase/ssr':
+        specifier: ^0.5.2
+        version: 0.5.2(@supabase/supabase-js@2.104.0)
+      '@supabase/supabase-js':
+        specifier: ^2.57.2
+        version: 2.104.0
+      '@zervo/supabase':
+        specifier: workspace:*
+        version: link:../../packages/supabase
+      '@zervo/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      framer-motion:
+        specifier: ^12.23.12
+        version: 12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      next:
+        specifier: ^16.0.7
+        version: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react:
+        specifier: ^19.2.1
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.2.5(react@19.2.5)
+      react-icons:
+        specifier: ^5.5.0
+        version: 5.6.0(react@19.2.5)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.4
+      '@types/node':
+        specifier: ^22
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      eslint-config-next:
+        specifier: ^16.2.2
         version: 16.2.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       tailwindcss:
         specifier: ^4
@@ -179,7 +237,7 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: ^16.2.2
-        version: 16.2.4(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
+        version: 16.2.4(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.2)
       jest:
         specifier: ^30.1.3
         version: 30.3.0(@types/node@22.19.17)

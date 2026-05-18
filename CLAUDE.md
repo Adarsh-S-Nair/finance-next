@@ -1,15 +1,16 @@
 # Zervo Workspace
 
-pnpm monorepo. Two apps share one codebase:
+pnpm monorepo. Three apps share one codebase:
 
 - `apps/finance` — the personal finance product (this file's historical "finance-next"). Deploys to Vercel at the primary domain.
 - `apps/admin` — internal admin dashboard at `admin.zervo.app`. Same Supabase backend, gated by `ADMIN_EMAILS` allowlist.
+- `apps/developer` — developer portal at `developer.zervo.app`. Same Supabase backend, no allowlist (any signed-in Google user can access). Hosts public developer APIs (e.g. politician trade feeds) and the portal UI for managing keys / usage.
 
 Shared code lives in `packages/*`:
-- `packages/ui` — shared component library (`@zervo/ui`), replaces the old external `@slate-ui/react` dep.
+- `packages/ui` — shared component library (`@zervo/ui`), replaces the old external `@slate-ui/react` dep. Includes `FloatingSidebar`, the floating icon-only navigation pill used by all three apps so navigation feels identical across surfaces.
 - `packages/supabase` — shared `Database` types + service-role admin client factory (`@zervo/supabase`).
 
-Per-app code stays per-app: each app has its own browser/server Supabase clients (finance uses `@supabase/supabase-js` with custom PKCE + fetch patching; admin uses `@supabase/ssr` for cookie-based SSR). They share the Database type and the service-role client factory only.
+Per-app code stays per-app: each app has its own browser/server Supabase clients (finance uses `@supabase/supabase-js` with custom PKCE + fetch patching; admin and developer use `@supabase/ssr` for cookie-based SSR). They share the Database type and the service-role client factory only.
 
 ## Tech Stack (apps/finance)
 
@@ -162,9 +163,10 @@ Example: `apps/finance/src/app/api/budgets/route.js`
 ## Deployment
 
 - **apps/finance**: Vercel project `finance-next` — Root Directory `apps/finance`. Auto-deploy on push to `main`. Domain: `zervo.app`.
-- **apps/admin**: Vercel project `finance-admin` — Root Directory `apps/admin`. Auto-deploy on push to `main`. Domain: `admin.zervo.app`. Same Supabase backend as finance, gated by `ADMIN_EMAILS` allowlist at middleware. Google OAuth via `supabase.auth.signInWithOAuth` (same Supabase Google provider as finance). Page port in dev: `3001` (`pnpm dev:admin`).
+- **apps/admin**: Vercel project `finance-admin` — Root Directory `apps/admin`. Auto-deploy on push to `main`. Domain: `admin.zervo.app`. Same Supabase backend as finance, gated by `ADMIN_EMAILS` allowlist at proxy. Google OAuth via `supabase.auth.signInWithOAuth` (same Supabase Google provider as finance). Page port in dev: `3001` (`pnpm dev:admin`).
+- **apps/developer**: Vercel project `zervo-developer` — Root Directory `apps/developer`. Auto-deploy on push to `main`. Domain: `developer.zervo.app`. Same Supabase backend as finance/admin. No allowlist — any signed-in Google user can access. Page port in dev: `3002` (`pnpm dev:developer`). The Supabase Google provider's redirect URLs list must include `https://developer.zervo.app/auth/callback`.
 
-**Conditional deploys:** Each project has an `ignore_command` (see `infra/vercel.tf`) so pushes only rebuild the project whose paths changed. A commit that touches only `apps/admin` doesn't rebuild finance; `packages/**` and root pnpm files trigger both. Infra-only or docs-only changes skip both.
+**Conditional deploys:** Each project has an `ignore_command` (see `infra/vercel.tf`) so pushes only rebuild the project whose paths changed. A commit that touches only `apps/admin` doesn't rebuild finance or developer; `packages/**` and root pnpm files trigger all three. Infra-only or docs-only changes skip all.
 
 ## Database Migrations
 
