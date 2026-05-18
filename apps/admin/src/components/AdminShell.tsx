@@ -1,13 +1,13 @@
 import { ReactNode } from "react";
 import AdminSidebar from "./AdminSidebar";
-import AdminProfileBar from "./AdminProfileBar";
 import AdminTopbar from "./AdminTopbar";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Top-level layout for signed-in admin routes. Mirrors the structure of
- * finance's AppShell (sidebar pinned left, profile bar at bottom-left,
- * content to the right) but uses admin-specific nav and profile data.
+ * Top-level layout for signed-in admin routes. Renders the shared
+ * floating sidebar on the left and the topbar + page body to the right.
+ * Identity / sign-out live inside the sidebar's bottom more-menu, so
+ * there's no separate profile bar.
  */
 export default async function AdminShell({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -38,14 +38,16 @@ export default async function AdminShell({ children }: { children: ReactNode }) 
 
   return (
     <div className="min-h-screen bg-[var(--color-content-bg)]">
-      <AdminSidebar />
-      <AdminProfileBar
+      <AdminSidebar
         name={name}
         email={user?.email ?? null}
         avatarUrl={avatarUrl}
         initials={initials}
       />
-      <main className="ml-60 min-h-screen">
+      {/* Floating sidebar floats at left:12 with w:14 (56px); content
+          starts past its right edge plus a 12px breathing gap
+          (12 + 56 + 12 = 80px) to match finance's AppShell. */}
+      <main className="min-h-screen md:pl-20">
         <AdminTopbar />
         <div className="max-w-6xl mx-auto px-8 py-10">{children}</div>
       </main>
