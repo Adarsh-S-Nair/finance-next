@@ -1,18 +1,10 @@
-import DeveloperPageHeader from "@/components/DeveloperPageHeader";
-import EndpointPlayground from "@/components/EndpointPlayground";
-import { ENDPOINTS } from "@/lib/api-registry";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-static";
-
-export default function OverviewPage() {
-  return (
-    <>
-      <DeveloperPageHeader title="API Reference" />
-      <div className="divide-y divide-[var(--color-fg)]/[0.08] space-y-16 [&>*:not(:first-child)]:pt-16">
-        {ENDPOINTS.map((e) => (
-          <EndpointPlayground key={e.id} endpoint={e} />
-        ))}
-      </div>
-    </>
-  );
+/**
+ * Root of the developer portal — sends visitors straight to /docs, which
+ * is the most common entry point. Playground lives at /playground for
+ * users who want to skip the reading.
+ */
+export default function RootPage() {
+  redirect("/docs");
 }
