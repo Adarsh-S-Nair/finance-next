@@ -47,32 +47,6 @@ export type ApiEndpoint = {
 
 export const ENDPOINTS: readonly ApiEndpoint[] = [
   {
-    id: "hello",
-    method: "GET",
-    path: "/api/v1/hello",
-    summary: "Hello world",
-    description:
-      "A test endpoint that returns a greeting. Useful for verifying the API is reachable and that your client is wired up correctly. No auth required.",
-    parameters: [
-      {
-        name: "name",
-        in: "query",
-        type: "string",
-        required: false,
-        description: "Who to greet. Trimmed and capped at 100 characters.",
-        example: "Adarsh",
-        default: "world",
-      },
-    ],
-    responses: [
-      {
-        status: 200,
-        description: "The greeting message.",
-        example: { message: "Hello, Adarsh!" },
-      },
-    ],
-  },
-  {
     id: "trades",
     method: "GET",
     path: "/api/v1/trades",
