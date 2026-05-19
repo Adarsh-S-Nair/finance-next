@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { LuExternalLink } from "react-icons/lu";
 import { Button } from "@zervo/ui";
-import type { ApiEndpoint, ApiParameter } from "@/lib/api-registry";
+import type { ApiEndpoint, ApiParameter } from "@zervo/api-spec";
 import {
   CodeBlock,
   MethodBadge,
@@ -16,11 +17,19 @@ import {
 } from "./endpoint-primitives";
 
 /**
+ * Where the public-facing docs live. Hard-coded to prod because the
+ * playground is signed-in only and users land here via the same prod
+ * deploy. In local dev the docs link will still go to prod docs — fine
+ * for now; an env override can be added if local docs round-tripping
+ * becomes a real workflow.
+ */
+const DOCS_BASE_URL = "https://zervo.app/docs/api";
+
+/**
  * Full-page interactive playground for one endpoint. Left column is the
- * request (inputs + URL preview + Send), right column is the response
- * (live result after Send; placeholder otherwise). The "View docs" CTA
- * in the header sends the user back to /docs/[id] for the read-only
- * reference.
+ * request (inputs + URL preview + Send), right column is the live
+ * response. Read-only reference docs live on zervo.app/docs/api — the
+ * "Docs" button in the header opens that page in a new tab.
  */
 export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint }) {
   const params = useMemo(() => endpoint.parameters ?? [], [endpoint.parameters]);
@@ -77,15 +86,21 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
             {endpoint.summary}
           </h2>
         </div>
-        <Link href={`/docs/${endpoint.id}`}>
+        <Link
+          href={`${DOCS_BASE_URL}/${endpoint.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <Button size="sm" variant="outline">
-            View docs
+            <span className="inline-flex items-center gap-1.5">
+              Docs
+              <LuExternalLink className="h-3 w-3" />
+            </span>
           </Button>
         </Link>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-14 gap-y-10">
-        {/* LEFT — Request */}
         <Section title="Request">
           {params.length > 0 ? (
             <div className="space-y-6">
@@ -114,7 +129,6 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
           </div>
         </Section>
 
-        {/* RIGHT — Response */}
         <Section title="Response">
           {error && (
             <p className="text-xs text-[var(--color-danger)]">{error}</p>

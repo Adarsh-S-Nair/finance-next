@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import EndpointPlayground from "@/components/EndpointPlayground";
-import { ENDPOINTS, getEndpoint } from "@/lib/api-registry";
+import { ENDPOINTS, getEndpoint } from "@zervo/api-spec";
 
 export const dynamic = "force-static";
 

@@ -1,11 +1,16 @@
 /**
- * Single source of truth for every public API endpoint exposed by the
- * Zervo developer portal. The route handlers under `src/app/api/v*` are
- * the runtime implementations; the entries here drive the docs UI (the
- * `<EndpointPlayground>` component reads from this registry to render
- * parameter tables, the interactive Try-it form, and the cURL / fetch
- * code samples). Keep the two in lockstep — the registry is what
- * external devs see.
+ * Single source of truth for every public API endpoint exposed by Zervo.
+ *
+ * Two surfaces consume this:
+ *   - apps/finance         renders the public-facing reference docs at
+ *                          `zervo.app/docs/api/[id]` from these entries.
+ *   - apps/developer       renders the signed-in interactive playground
+ *                          at `developer.zervo.app/playground/[id]` from
+ *                          these entries and from matching route handlers
+ *                          under `apps/developer/src/app/api/v*`.
+ *
+ * Keep the entries in lockstep with the route implementations — the
+ * entries here are what external devs see.
  */
 
 export type ParamLocation = "query" | "path" | "body" | "header";
@@ -33,12 +38,12 @@ export type ApiResponseSpec = {
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type ApiEndpoint = {
-  /** Stable URL slug used in playground routes (e.g. `/endpoints/hello`). */
+  /** Stable URL slug used in docs / playground routes (e.g. `/docs/api/trades`). */
   id: string;
   method: HttpMethod;
   /** Path relative to the developer.zervo.app origin. Starts with `/api/v...`. */
   path: string;
-  /** Short noun phrase used as the playground header. */
+  /** Short noun phrase used as the page header. */
   summary: string;
   description?: string;
   parameters?: ApiParameter[];

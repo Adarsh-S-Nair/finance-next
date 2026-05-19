@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ApiEndpoint } from "@/lib/api-registry";
+import type { ApiEndpoint } from "@zervo/api-spec";
 import { MethodBadge } from "./endpoint-primitives";
 
 /**

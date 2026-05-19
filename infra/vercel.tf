@@ -18,7 +18,9 @@
 locals {
   # Vercel runs the ignore command from the project's Root Directory
   # (apps/finance, apps/admin, or apps/developer), so we have to cd up to
-  # the repo root first.
+  # the repo root first. `packages` covers every shared workspace package
+  # (ui, supabase, api-spec, ...) since they're all consumed by at least
+  # one app — any change to them needs to rebuild every app.
   finance_ignore   = "cd ../.. && bash infra/ignore-build.sh finance apps/finance packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
   admin_ignore     = "cd ../.. && bash infra/ignore-build.sh admin apps/admin packages pnpm-lock.yaml pnpm-workspace.yaml package.json"
   developer_ignore = "cd ../.. && bash infra/ignore-build.sh developer apps/developer packages pnpm-lock.yaml pnpm-workspace.yaml package.json"

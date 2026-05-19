@@ -5,17 +5,20 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { FiMenu, FiX } from "react-icons/fi";
 import { useState } from "react";
+import { ENDPOINTS } from "@zervo/api-spec";
 import { BRAND } from "../../config/brand";
 
-const docs = [
-  {
-    title: "Privacy Policy",
-    href: "/docs/privacy"
-  },
-  {
-    title: "Terms of Use",
-    href: "/docs/terms"
-  },
+const legalDocs = [
+  { title: "Privacy Policy", href: "/docs/privacy" },
+  { title: "Terms of Use", href: "/docs/terms" },
+];
+
+const apiDocs = [
+  { title: "Overview", href: "/docs/api" },
+  ...ENDPOINTS.map((e) => ({
+    title: e.summary,
+    href: `/docs/api/${e.id}`,
+  })),
 ];
 
 export default function DocsLayout({ children }) {
@@ -24,7 +27,6 @@ export default function DocsLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-zinc-100">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -48,7 +50,6 @@ export default function DocsLayout({ children }) {
             <span className="text-sm font-medium text-zinc-600">Docs</span>
           </div>
 
-          {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
@@ -62,35 +63,24 @@ export default function DocsLayout({ children }) {
         <div className="flex gap-16 py-12">
           {/* Desktop Sidebar */}
           <aside className="hidden lg:block w-56 flex-shrink-0">
-            <nav className="sticky top-28">
-              <ul className="space-y-1">
-                {docs.map((doc) => {
-                  const isActive = pathname === doc.href;
-                  return (
-                    <li key={doc.href}>
-                      <Link
-                        href={doc.href}
-                        className={`
-                          block px-3 py-2 rounded-lg text-[14px] transition-all
-                          ${isActive
-                            ? "bg-zinc-100 text-zinc-900 font-medium"
-                            : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
-                          }
-                        `}
-                      >
-                        {doc.title}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+            <nav className="sticky top-28 space-y-5">
+              <SidebarGroup label="Legal" items={legalDocs} pathname={pathname} />
+              <SidebarGroup
+                label="API Reference"
+                items={apiDocs}
+                pathname={pathname}
+              />
 
-              {/* Separator */}
-              <div className="my-6 border-t border-zinc-100" />
-
-              {/* Contact */}
-              <div className="text-[13px] text-zinc-400">
-                Questions? <a href={`mailto:${BRAND.supportEmail}`} className="text-zinc-600 hover:text-zinc-900 transition-colors">Contact us</a>
+              <div className="pt-2 border-t border-zinc-100">
+                <div className="pt-4 text-[13px] text-zinc-400">
+                  Questions?{" "}
+                  <a
+                    href={`mailto:${BRAND.supportEmail}`}
+                    className="text-zinc-600 hover:text-zinc-900 transition-colors"
+                  >
+                    Contact us
+                  </a>
+                </div>
               </div>
             </nav>
           </aside>
@@ -102,7 +92,10 @@ export default function DocsLayout({ children }) {
               animate={{ opacity: 1 }}
               className="fixed inset-0 z-50 lg:hidden"
             >
-              <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+              <div
+                className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+                onClick={() => setMobileMenuOpen(false)}
+              />
               <motion.aside
                 initial={{ x: -280 }}
                 animate={{ x: 0 }}
@@ -111,33 +104,28 @@ export default function DocsLayout({ children }) {
               >
                 <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                   <span className="font-medium text-zinc-900">Documentation</span>
-                  <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-zinc-500 hover:text-zinc-900">
+                  <button
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="p-2 text-zinc-500 hover:text-zinc-900"
+                  >
                     <FiX size={20} />
                   </button>
                 </div>
-                <nav className="p-4">
-                  <ul className="space-y-1">
-                    {docs.map((doc) => {
-                      const isActive = pathname === doc.href;
-                      return (
-                        <li key={doc.href}>
-                          <Link
-                            href={doc.href}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={`
-                              block px-3 py-2.5 rounded-lg text-sm transition-all
-                              ${isActive
-                                ? "bg-zinc-100 text-zinc-900 font-medium"
-                                : "text-zinc-500 hover:text-zinc-900"
-                              }
-                            `}
-                          >
-                            {doc.title}
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                <nav className="p-4 space-y-5">
+                  <SidebarGroup
+                    label="Legal"
+                    items={legalDocs}
+                    pathname={pathname}
+                    onNavigate={() => setMobileMenuOpen(false)}
+                    dense
+                  />
+                  <SidebarGroup
+                    label="API Reference"
+                    items={apiDocs}
+                    pathname={pathname}
+                    onNavigate={() => setMobileMenuOpen(false)}
+                    dense
+                  />
                 </nav>
               </motion.aside>
             </motion.div>
@@ -156,14 +144,13 @@ export default function DocsLayout({ children }) {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-zinc-100 py-8 mt-12">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-zinc-400">
             © {new Date().getFullYear()} {BRAND.legalName}
           </p>
           <div className="flex gap-6">
-            {docs.map((doc) => (
+            {legalDocs.map((doc) => (
               <Link
                 key={doc.href}
                 href={doc.href}
@@ -175,6 +162,39 @@ export default function DocsLayout({ children }) {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function SidebarGroup({ label, items, pathname, onNavigate, dense = false }) {
+  const itemClass = dense
+    ? "block px-3 py-2.5 rounded-lg text-sm transition-all"
+    : "block px-3 py-2 rounded-lg text-[14px] transition-all";
+  return (
+    <div className="space-y-1">
+      <div className="px-3 mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-400">
+        {label}
+      </div>
+      <ul className="space-y-1">
+        {items.map((doc) => {
+          const isActive = pathname === doc.href;
+          return (
+            <li key={doc.href}>
+              <Link
+                href={doc.href}
+                onClick={onNavigate}
+                className={
+                  isActive
+                    ? `${itemClass} bg-zinc-100 text-zinc-900 font-medium`
+                    : `${itemClass} text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50`
+                }
+              >
+                {doc.title}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

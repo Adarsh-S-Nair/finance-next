@@ -19,6 +19,7 @@
     "@sentry/nextjs": "^10.49.0",
     "@supabase/supabase-js": "^2.57.2",
     "@tanstack/react-query": "^5.56.2",
+    "@zervo/api-spec": "workspace:*",
     "@zervo/supabase": "workspace:*",
     "@zervo/ui": "workspace:*",
     "clsx": "^2.1.1",

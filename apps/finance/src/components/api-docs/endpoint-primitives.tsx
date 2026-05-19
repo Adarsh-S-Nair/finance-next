@@ -13,22 +13,22 @@ export type ParamValues = Record<string, string>;
 export type CodeLang = "curl" | "fetch" | "node";
 
 /**
- * Small UI bits shared between the docs view and the playground view —
- * extracted so the two surfaces render the same method badge, status
- * pill, code block, and parameter metadata strip. URL + code-sample
- * helpers also live here so both surfaces derive request representations
- * identically from the registry.
+ * Light-theme primitives used by the public API docs surface
+ * (zervo.app/docs/api/...). Parallel to the dark-friendly versions in
+ * apps/developer/src/components/endpoint-primitives.tsx — both consume
+ * the same `@zervo/api-spec` registry but render for different
+ * audiences (logged-in dev vs. anonymous reader).
  */
 
 export function MethodBadge({ method }: { method: HttpMethod }) {
   const color =
     method === "GET"
-      ? "text-emerald-700 dark:text-emerald-300"
+      ? "text-emerald-700"
       : method === "POST"
-        ? "text-sky-700 dark:text-sky-300"
+        ? "text-sky-700"
         : method === "DELETE"
-          ? "text-rose-700 dark:text-rose-300"
-          : "text-amber-700 dark:text-amber-300";
+          ? "text-rose-700"
+          : "text-amber-700";
   return (
     <span className={clsx("text-[10px] font-semibold tracking-[0.12em]", color)}>
       {method}
@@ -41,9 +41,7 @@ export function StatusBadge({ status }: { status: number }) {
     <span
       className={clsx(
         "text-[11px] font-semibold tabular-nums",
-        status < 400
-          ? "text-emerald-700 dark:text-emerald-300"
-          : "text-rose-700 dark:text-rose-300",
+        status < 400 ? "text-emerald-700" : "text-rose-700",
       )}
     >
       {status}
@@ -55,11 +53,7 @@ export function ParamMeta({ param }: { param: ApiParameter }) {
   const parts: string[] = [param.type];
   parts.push(param.required ? "required" : "optional");
   if (param.default !== undefined) parts.push(`default ${String(param.default)}`);
-  return (
-    <span className="text-xs text-[var(--color-muted)]/80">
-      {parts.join(" · ")}
-    </span>
-  );
+  return <span className="text-xs text-zinc-500">{parts.join(" · ")}</span>;
 }
 
 export function Section({
@@ -71,7 +65,7 @@ export function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]/60">
+      <h3 className="text-xs font-medium uppercase tracking-[0.08em] text-zinc-400">
         {title}
       </h3>
       {children}
@@ -91,7 +85,7 @@ export function CodeBlock({
     <div className="relative group">
       <pre
         className={clsx(
-          "rounded bg-[var(--color-fg)]/[0.04] px-4 py-3 text-[12px] font-mono text-[var(--color-fg)] overflow-x-auto leading-relaxed",
+          "rounded bg-zinc-50 border border-zinc-100 px-4 py-3 text-[12px] font-mono text-zinc-800 overflow-x-auto leading-relaxed",
           cornerBadge && "pb-7",
         )}
       >
@@ -113,11 +107,11 @@ export function CodeBlock({
             /* clipboard may be blocked; silently no-op */
           }
         }}
-        className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-fg)]/[0.06] opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label="Copy"
       >
         {copied ? (
-          <LuCheck className="h-3.5 w-3.5 text-[var(--color-success)]" />
+          <LuCheck className="h-3.5 w-3.5 text-emerald-600" />
         ) : (
           <LuCopy className="h-3.5 w-3.5" />
         )}
@@ -169,6 +163,5 @@ export function codeSample(
   if (lang === "fetch") {
     return `const res = await fetch("${url}");\nconst data = await res.json();\nconsole.log(data);`;
   }
-  // node
   return `const res = await fetch("${url}");\nconst data = await res.json();\nconsole.log(data);`;
 }

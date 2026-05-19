@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LuBookOpen, LuTerminal } from "react-icons/lu";
+import { LuTerminal } from "react-icons/lu";
 import { FloatingSidebar, type FloatingSidebarNavItem } from "@zervo/ui";
 import DeveloperMoreMenu from "./DeveloperMoreMenu";
 
@@ -13,14 +13,13 @@ type Props = {
 };
 
 const NAV_ITEMS: Omit<FloatingSidebarNavItem, "active">[] = [
-  { href: "/docs", label: "Docs", icon: LuBookOpen },
   { href: "/playground", label: "Playground", icon: LuTerminal },
 ];
 
 /**
- * Developer portal sidebar. /docs is the read-only reference surface,
- * /playground is the interactive try-it surface — same registry, two
- * focused views.
+ * Developer portal sidebar. The only signed-in surface is the
+ * playground — public reference docs live on zervo.app/docs/api and
+ * each playground page links out to its matching doc page.
  */
 export default function DeveloperSidebar(props: Props) {
   const pathname = usePathname();
