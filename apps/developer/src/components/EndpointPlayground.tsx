@@ -19,6 +19,18 @@ const CODE_LANGS: SegmentedTabOption[] = [
   { value: "node", label: "Node" },
 ];
 
+/**
+ * Two-column playground for one API endpoint.
+ *
+ * LEFT  = everything you _send_ — inputs (with inline docs), URL preview +
+ *         Send, and code samples in the language of your choice.
+ * RIGHT = everything you _get back_ — the live response if you've hit Send,
+ *         plus the canonical example for reference.
+ *
+ * Everything is driven by the endpoint entry passed in; the playground
+ * itself knows nothing about specific endpoints. Adding the next endpoint
+ * is a registry edit + a route handler, no UI work.
+ */
 export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint }) {
   const params = endpoint.parameters ?? [];
 
@@ -64,7 +76,7 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
 
   return (
     <article className="space-y-10">
-      {/* Full-width header */}
+      {/* Header */}
       <header className="space-y-3 max-w-prose">
         <div className="flex items-center gap-2.5">
           <MethodBadge method={endpoint.method} />
@@ -82,42 +94,14 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
         )}
       </header>
 
-      {/* Two-column body: docs on the left, interactive + code on the right.
-          Right column is sticky on lg+ so it stays visible while reading the
-          left-hand docs. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-x-14 gap-y-10">
-        {/* Left: reference docs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-14 gap-y-12">
+        {/* LEFT — Request */}
         <div className="space-y-10 min-w-0">
-          {params.length > 0 && (
-            <Section title="Parameters">
-              <ParamList params={params} />
-            </Section>
-          )}
-
-          <Section title="Response">
-            <div className="space-y-6">
-              {endpoint.responses.map((r) => (
-                <div key={r.status} className="space-y-2">
-                  <div className="flex items-baseline gap-2">
-                    <StatusPill status={r.status} ok={r.status < 400} />
-                    <span className="text-xs text-[var(--color-muted)]">
-                      {r.description}
-                    </span>
-                  </div>
-                  <CodeBlock code={JSON.stringify(r.example, null, 2)} />
-                </div>
-              ))}
-            </div>
-          </Section>
-        </div>
-
-        {/* Right: try-it + code samples (sticky) */}
-        <div className="space-y-10 min-w-0 lg:sticky lg:top-4 lg:self-start">
-          <Section title="Try it">
+          <Section title="Request">
             {params.length > 0 ? (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {params.map((p) => (
-                  <ParamInput
+                  <ParamRow
                     key={p.name}
                     param={p}
                     value={values[p.name] ?? ""}
@@ -137,22 +121,6 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
                 Send
               </Button>
             </div>
-
-            {error && (
-              <p className="mt-3 text-xs text-[var(--color-danger)]">{error}</p>
-            )}
-
-            {response && (
-              <div className="mt-5 space-y-2">
-                <div className="flex items-baseline gap-2">
-                  <StatusPill status={response.status} ok={response.ok} />
-                  <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/70">
-                    Response
-                  </span>
-                </div>
-                <CodeBlock code={response.bodyText} />
-              </div>
-            )}
           </Section>
 
           <Section title="Code">
@@ -164,6 +132,39 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
             />
             <div className="mt-3">
               <CodeBlock code={codeSample(lang, endpoint, values, origin)} />
+            </div>
+          </Section>
+        </div>
+
+        {/* RIGHT — Response */}
+        <div className="space-y-10 min-w-0">
+          {(error || response) && (
+            <Section title="Latest call">
+              {error && (
+                <p className="text-xs text-[var(--color-danger)]">{error}</p>
+              )}
+              {response && (
+                <div className="space-y-2">
+                  <StatusPill status={response.status} ok={response.ok} />
+                  <CodeBlock code={response.bodyText} />
+                </div>
+              )}
+            </Section>
+          )}
+
+          <Section title="Example response">
+            <div className="space-y-6">
+              {endpoint.responses.map((r) => (
+                <div key={r.status} className="space-y-2">
+                  <div className="flex items-baseline gap-2">
+                    <StatusPill status={r.status} ok={r.status < 400} />
+                    <span className="text-xs text-[var(--color-muted)]">
+                      {r.description}
+                    </span>
+                  </div>
+                  <CodeBlock code={JSON.stringify(r.example, null, 2)} />
+                </div>
+              ))}
             </div>
           </Section>
         </div>
@@ -219,7 +220,7 @@ function StatusPill({ status, ok }: { status: number; ok: boolean }) {
   );
 }
 
-function ParamInput({
+function ParamRow({
   param,
   value,
   onChange,
@@ -233,26 +234,36 @@ function ParamInput({
   if (param.type === "boolean") {
     const checked = value === "true";
     return (
-      <label htmlFor={inputId} className="flex items-start gap-3 cursor-pointer">
-        <input
-          id={inputId}
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked ? "true" : "false")}
-          className="mt-0.5"
-        />
-        <div className="min-w-0 flex-1">
-          <ParamLabel param={param} />
-        </div>
-      </label>
+      <div className="space-y-1.5">
+        <ParamLabel param={param} />
+        <label htmlFor={inputId} className="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            id={inputId}
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked ? "true" : "false")}
+          />
+          <span className="text-sm font-mono text-[var(--color-fg)]">
+            {checked ? "true" : "false"}
+          </span>
+        </label>
+        <ParamHelp param={param} />
+      </div>
     );
   }
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={inputId} className="block">
-        <ParamLabel param={param} />
-      </label>
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={inputId}>
+          <ParamLabel param={param} />
+        </label>
+        {param.default !== undefined && (
+          <span className="text-[11px] text-[var(--color-muted)]/70 font-mono">
+            default: {String(param.default)}
+          </span>
+        )}
+      </div>
       <input
         id={inputId}
         type={param.type === "number" ? "number" : "text"}
@@ -261,8 +272,9 @@ function ParamInput({
         placeholder={
           param.default !== undefined ? String(param.default) : undefined
         }
-        className="w-full border-b border-[var(--color-fg)]/[0.12] bg-transparent py-1.5 text-sm font-mono text-[var(--color-fg)] focus:outline-none focus:border-[var(--color-fg)]/[0.3] transition-colors"
+        className="w-full border-b border-[var(--color-fg)]/[0.12] bg-transparent py-1.5 text-sm font-mono text-[var(--color-fg)] placeholder:text-[var(--color-muted)]/50 focus:outline-none focus:border-[var(--color-fg)]/[0.3] transition-colors"
       />
+      <ParamHelp param={param} />
     </div>
   );
 }
@@ -283,25 +295,11 @@ function ParamLabel({ param }: { param: ApiParameter }) {
   );
 }
 
-function ParamList({ params }: { params: ApiParameter[] }) {
+function ParamHelp({ param }: { param: ApiParameter }) {
   return (
-    <div className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
-      {params.map((p) => (
-        <div key={p.name} className="py-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <ParamLabel param={p} />
-            {p.default !== undefined && (
-              <span className="text-[11px] text-[var(--color-muted)]/80 font-mono">
-                default: {String(p.default)}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[var(--color-muted)] leading-relaxed mt-1.5">
-            {p.description}
-          </p>
-        </div>
-      ))}
-    </div>
+    <p className="text-xs text-[var(--color-muted)] leading-relaxed">
+      {param.description}
+    </p>
   );
 }
 
