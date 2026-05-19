@@ -11,7 +11,6 @@ import type {
 } from "@/lib/api-registry";
 
 type ParamValues = Record<string, string>;
-
 type CodeLang = "curl" | "fetch" | "node";
 
 const CODE_LANGS: SegmentedTabOption[] = [
@@ -25,7 +24,7 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
 
   const [values, setValues] = useState<ParamValues>(() => initialValues(params));
   const [response, setResponse] = useState<
-    | { status: number; ok: boolean; bodyText: string; isJson: boolean }
+    | { status: number; ok: boolean; bodyText: string }
     | null
   >(null);
   const [sending, setSending] = useState(false);
@@ -46,18 +45,15 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
     try {
       const res = await fetch(fullUrl, { method: endpoint.method });
       const bodyText = await res.text();
-      let isJson = false;
       try {
         const parsed = JSON.parse(bodyText);
-        isJson = true;
         setResponse({
           status: res.status,
           ok: res.ok,
           bodyText: JSON.stringify(parsed, null, 2),
-          isJson,
         });
       } catch {
-        setResponse({ status: res.status, ok: res.ok, bodyText, isJson: false });
+        setResponse({ status: res.status, ok: res.ok, bodyText });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -68,7 +64,8 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
 
   return (
     <article className="space-y-10">
-      <header className="space-y-3">
+      {/* Full-width header */}
+      <header className="space-y-3 max-w-prose">
         <div className="flex items-center gap-2.5">
           <MethodBadge method={endpoint.method} />
           <code className="text-sm text-[var(--color-fg)] font-mono">
@@ -79,88 +76,98 @@ export default function EndpointPlayground({ endpoint }: { endpoint: ApiEndpoint
           {endpoint.summary}
         </h2>
         {endpoint.description && (
-          <p className="text-sm text-[var(--color-muted)] leading-relaxed max-w-prose">
+          <p className="text-sm text-[var(--color-muted)] leading-relaxed">
             {endpoint.description}
           </p>
         )}
       </header>
 
-      <Section title="Try it">
-        <div className="rounded-lg border border-[var(--color-fg)]/[0.08] divide-y divide-[var(--color-fg)]/[0.06]">
-          {params.length > 0 ? (
-            <div className="p-5 space-y-4">
-              {params.map((p) => (
-                <ParamInput
-                  key={p.name}
-                  param={p}
-                  value={values[p.name] ?? ""}
-                  onChange={(v) => setValues({ ...values, [p.name]: v })}
-                />
+      {/* Two-column body: docs on the left, interactive + code on the right.
+          Right column is sticky on lg+ so it stays visible while reading the
+          left-hand docs. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-x-14 gap-y-10">
+        {/* Left: reference docs */}
+        <div className="space-y-10 min-w-0">
+          {params.length > 0 && (
+            <Section title="Parameters">
+              <ParamList params={params} />
+            </Section>
+          )}
+
+          <Section title="Response">
+            <div className="space-y-6">
+              {endpoint.responses.map((r) => (
+                <div key={r.status} className="space-y-2">
+                  <div className="flex items-baseline gap-2">
+                    <StatusPill status={r.status} ok={r.status < 400} />
+                    <span className="text-xs text-[var(--color-muted)]">
+                      {r.description}
+                    </span>
+                  </div>
+                  <CodeBlock code={JSON.stringify(r.example, null, 2)} />
+                </div>
               ))}
             </div>
-          ) : (
-            <div className="p-5 text-xs text-[var(--color-muted)]">
-              This endpoint takes no parameters.
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-3 p-5">
-            <code className="text-[11px] text-[var(--color-muted)] font-mono truncate flex-1 min-w-0">
-              {fullUrl}
-            </code>
-            <Button onClick={handleSend} loading={sending}>
-              Send
-            </Button>
-          </div>
+          </Section>
         </div>
 
-        {error && (
-          <div className="mt-3 rounded-md border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/[0.06] px-3 py-2 text-xs text-[var(--color-danger)]">
-            {error}
-          </div>
-        )}
+        {/* Right: try-it + code samples (sticky) */}
+        <div className="space-y-10 min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <Section title="Try it">
+            {params.length > 0 ? (
+              <div className="space-y-5">
+                {params.map((p) => (
+                  <ParamInput
+                    key={p.name}
+                    param={p}
+                    value={values[p.name] ?? ""}
+                    onChange={(v) => setValues({ ...values, [p.name]: v })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--color-muted)]">No parameters.</p>
+            )}
 
-        {response && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <StatusPill status={response.status} ok={response.ok} />
-              <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/70">
-                Response
-              </span>
+            <div className="mt-6 pt-4 border-t border-[var(--color-fg)]/[0.06] flex items-center gap-3">
+              <code className="text-[11px] text-[var(--color-muted)] font-mono truncate flex-1 min-w-0">
+                {fullUrl}
+              </code>
+              <Button onClick={handleSend} loading={sending} size="sm">
+                Send
+              </Button>
             </div>
-            <CodeBlock code={response.bodyText} />
-          </div>
-        )}
-      </Section>
 
-      {params.length > 0 && (
-        <Section title="Parameters">
-          <ParamTable params={params} />
-        </Section>
-      )}
+            {error && (
+              <p className="mt-3 text-xs text-[var(--color-danger)]">{error}</p>
+            )}
 
-      <Section title="Response">
-        {endpoint.responses.map((r) => (
-          <div key={r.status} className="space-y-2">
-            <div className="flex items-center gap-2">
-              <StatusPill status={r.status} ok={r.status < 400} />
-              <span className="text-xs text-[var(--color-muted)]">{r.description}</span>
+            {response && (
+              <div className="mt-5 space-y-2">
+                <div className="flex items-baseline gap-2">
+                  <StatusPill status={response.status} ok={response.ok} />
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-muted)]/70">
+                    Response
+                  </span>
+                </div>
+                <CodeBlock code={response.bodyText} />
+              </div>
+            )}
+          </Section>
+
+          <Section title="Code">
+            <SegmentedTabs
+              options={CODE_LANGS}
+              value={lang}
+              onChange={(v) => setLang(v as CodeLang)}
+              size="sm"
+            />
+            <div className="mt-3">
+              <CodeBlock code={codeSample(lang, endpoint, values, origin)} />
             </div>
-            <CodeBlock code={JSON.stringify(r.example, null, 2)} />
-          </div>
-        ))}
-      </Section>
-
-      <Section title="Code">
-        <SegmentedTabs
-          options={CODE_LANGS}
-          value={lang}
-          onChange={(v) => setLang(v as CodeLang)}
-          size="sm"
-        />
-        <div className="mt-3">
-          <CodeBlock code={codeSample(lang, endpoint, values, origin)} />
+          </Section>
         </div>
-      </Section>
+      </div>
     </article>
   );
 }
@@ -179,16 +186,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function MethodBadge({ method }: { method: HttpMethod }) {
   const color =
     method === "GET"
-      ? "text-emerald-700 bg-emerald-500/10 dark:text-emerald-300"
+      ? "text-emerald-700 dark:text-emerald-300"
       : method === "POST"
-        ? "text-sky-700 bg-sky-500/10 dark:text-sky-300"
+        ? "text-sky-700 dark:text-sky-300"
         : method === "DELETE"
-          ? "text-rose-700 bg-rose-500/10 dark:text-rose-300"
-          : "text-amber-700 bg-amber-500/10 dark:text-amber-300";
+          ? "text-rose-700 dark:text-rose-300"
+          : "text-amber-700 dark:text-amber-300";
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider",
+        "text-[10px] font-semibold tracking-[0.12em]",
         color,
       )}
     >
@@ -201,10 +208,10 @@ function StatusPill({ status, ok }: { status: number; ok: boolean }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+        "text-[11px] font-semibold tabular-nums",
         ok
-          ? "text-emerald-700 bg-emerald-500/10 dark:text-emerald-300"
-          : "text-rose-700 bg-rose-500/10 dark:text-rose-300",
+          ? "text-emerald-700 dark:text-emerald-300"
+          : "text-rose-700 dark:text-rose-300",
       )}
     >
       {status}
@@ -236,9 +243,6 @@ function ParamInput({
         />
         <div className="min-w-0 flex-1">
           <ParamLabel param={param} />
-          <p className="text-xs text-[var(--color-muted)] leading-relaxed mt-1">
-            {param.description}
-          </p>
         </div>
       </label>
     );
@@ -257,11 +261,8 @@ function ParamInput({
         placeholder={
           param.default !== undefined ? String(param.default) : undefined
         }
-        className="w-full rounded border border-[var(--color-fg)]/[0.12] bg-[var(--color-bg)] px-3 py-1.5 text-sm font-mono text-[var(--color-fg)] focus:outline-none focus:border-[var(--color-fg)]/[0.3]"
+        className="w-full border-b border-[var(--color-fg)]/[0.12] bg-transparent py-1.5 text-sm font-mono text-[var(--color-fg)] focus:outline-none focus:border-[var(--color-fg)]/[0.3] transition-colors"
       />
-      <p className="text-xs text-[var(--color-muted)] leading-relaxed">
-        {param.description}
-      </p>
     </div>
   );
 }
@@ -273,25 +274,20 @@ function ParamLabel({ param }: { param: ApiParameter }) {
       <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-muted)]/70">
         {param.type}
       </span>
-      <span
-        className={clsx(
-          "text-[10px] uppercase tracking-[0.08em]",
-          param.required
-            ? "text-[var(--color-danger)]/80 font-medium"
-            : "text-[var(--color-muted)]/60",
-        )}
-      >
-        {param.required ? "required" : "optional"}
-      </span>
+      {param.required ? (
+        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-danger)]/80 font-medium">
+          required
+        </span>
+      ) : null}
     </span>
   );
 }
 
-function ParamTable({ params }: { params: ApiParameter[] }) {
+function ParamList({ params }: { params: ApiParameter[] }) {
   return (
-    <div className="rounded-lg border border-[var(--color-fg)]/[0.08] divide-y divide-[var(--color-fg)]/[0.06]">
+    <div className="divide-y divide-[var(--color-fg)]/[0.06] border-t border-b border-[var(--color-fg)]/[0.06]">
       {params.map((p) => (
-        <div key={p.name} className="p-4">
+        <div key={p.name} className="py-4">
           <div className="flex items-baseline justify-between gap-3">
             <ParamLabel param={p} />
             {p.default !== undefined && (
@@ -313,7 +309,7 @@ function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="relative group">
-      <pre className="rounded-md bg-[var(--color-fg)]/[0.04] border border-[var(--color-fg)]/[0.06] px-4 py-3 text-[12px] font-mono text-[var(--color-fg)] overflow-x-auto leading-relaxed">
+      <pre className="rounded bg-[var(--color-fg)]/[0.04] px-4 py-3 text-[12px] font-mono text-[var(--color-fg)] overflow-x-auto leading-relaxed">
         {code}
       </pre>
       <button
@@ -356,7 +352,6 @@ function buildFullUrl(
   values: ParamValues,
   origin: string,
 ): string {
-  // Replace path params (e.g. /things/{id}) with the value, then append query string.
   let path = endpoint.path;
   for (const p of endpoint.parameters ?? []) {
     if (p.in === "path") {
@@ -387,5 +382,5 @@ function codeSample(
     return `const res = await fetch("${url}");\nconst data = await res.json();\nconsole.log(data);`;
   }
   // node
-  return `import { request } from "node:https";\n\nconst res = await fetch("${url}");\nconsole.log(await res.json());`;
+  return `const res = await fetch("${url}");\nconst data = await res.json();\nconsole.log(data);`;
 }
