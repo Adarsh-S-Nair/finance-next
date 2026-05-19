@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import PublicRoute from "../../components/PublicRoute";
 import RouteTransition from "../../components/RouteTransition";
 import { BRAND } from "../../config/brand";
@@ -9,9 +10,16 @@ import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
 import { GoogleSignInButton } from "@zervo/ui";
 
-export default function AuthPage() {
+function AuthPageInner() {
   const [isLoading, setIsLoading] = useState(false);
   const { setToast } = useToast();
+  const searchParams = useSearchParams();
+  // `next` survives the Google OAuth round-trip so /auth/sso-out (or
+  // any other same-origin landing path) actually gets respected when
+  // the user comes back from Google. Without this, sign-ins that
+  // originated on a Zervo subdomain land on /dashboard instead of
+  // returning to that subdomain.
+  const nextParam = searchParams.get("next");
 
   // Match the landing page: light-first. Dashboard/app can still
   // set `.dark` via its own theme state without us fighting.
@@ -19,14 +27,18 @@ export default function AuthPage() {
     document.documentElement.classList.remove("dark");
   }, []);
 
+  const exchangeHref = nextParam
+    ? `/auth/callback/exchange?next=${encodeURIComponent(nextParam)}`
+    : "/auth/callback/exchange";
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         // Exchange page decides /dashboard vs /setup based on whether the
-        // user has accounts — no need to hardcode a `next` here.
-        redirectTo: `${window.location.origin}/auth/callback/exchange`,
+        // user has accounts when `next` is absent.
+        redirectTo: `${window.location.origin}${exchangeHref}`,
       },
     });
     if (error) {
@@ -62,7 +74,7 @@ export default function AuthPage() {
       setIsLoading(false);
       return;
     }
-    window.location.href = "/auth/callback/exchange";
+    window.location.href = exchangeHref;
   };
 
   return (
@@ -163,5 +175,15 @@ export default function AuthPage() {
         </div>
       </RouteTransition>
     </PublicRoute>
+  );
+}
+
+export default function AuthPage() {
+  // Wrap in Suspense so useSearchParams (which reads `next`) doesn't
+  // force the whole route off the static rails.
+  return (
+    <Suspense>
+      <AuthPageInner />
+    </Suspense>
   );
 }

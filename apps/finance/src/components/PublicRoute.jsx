@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase/client";
 
 /**
- * PublicRoute component that redirects authenticated users away from public pages.
- * Uses only onAuthStateChange to avoid deadlocking with Supabase's internal auth lock.
+ * Wraps public pages (`/auth`, the landing page). If the user is
+ * already signed in we redirect them away — to `?next=...` if one was
+ * supplied (so cross-app handoffs and bookmarked deep links work), or
+ * to `/dashboard` otherwise.
+ *
+ * Uses only `onAuthStateChange` to avoid deadlocking with Supabase's
+ * internal auth lock — `getUser`/`getSession` called inside the
+ * listener can hang while the lock is held.
  */
 export default function PublicRoute({ children }) {
   const router = useRouter();
@@ -16,8 +22,17 @@ export default function PublicRoute({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Rely solely on onAuthStateChange — never call getUser()/getSession()
-    // directly, as they can deadlock with the auth lock held by the listener.
+    const resolveTarget = () => {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("next");
+      if (!raw) return "/dashboard";
+      // Only allow same-origin paths to prevent open-redirector abuse.
+      // Cross-app handoffs go through `/auth/sso-out`, which is itself
+      // same-origin and validates its own target.
+      if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+      return "/dashboard";
+    };
+
     const { data: subscription } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return;
@@ -26,16 +41,13 @@ export default function PublicRoute({ children }) {
         if (session?.user) {
           setIsAuthenticated(true);
           setIsChecking(false);
-          // Redirect authenticated users to dashboard immediately
-          router.replace("/dashboard");
+          router.replace(resolveTarget());
         } else if (event === "INITIAL_SESSION" && !session?.user) {
-          // No session — show the public page
           setIsChecking(false);
         }
       }
     );
 
-    // Safety timeout — if onAuthStateChange never fires, show public page
     const timeout = setTimeout(() => {
       if (isMounted) {
         console.log("[PublicRoute] Safety timeout — showing public page");
@@ -50,7 +62,6 @@ export default function PublicRoute({ children }) {
     };
   }, [router]);
 
-  // Show loading state while checking auth
   if (isChecking) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
@@ -59,7 +70,6 @@ export default function PublicRoute({ children }) {
     );
   }
 
-  // If authenticated, show spinner while redirecting
   if (isAuthenticated) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
