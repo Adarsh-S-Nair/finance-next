@@ -2,15 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
-import { LuEllipsis, LuSparkles, LuHeadphones } from "react-icons/lu";
+import {
+  LuEllipsis,
+  LuSparkles,
+  LuHeadphones,
+  LuTerminal,
+  LuShieldCheck,
+} from "react-icons/lu";
 import { TbLogout } from "react-icons/tb";
 import { FaLock } from "react-icons/fa";
 import { ConfirmOverlay, Tooltip, TOOLTIP_SURFACE_CLASSES } from "@zervo/ui";
 import { useUser } from "../providers/UserProvider";
 import { supabase } from "../../lib/supabase/client";
+import {
+  ZERVO_ADMIN_URL,
+  ZERVO_DEVELOPER_URL,
+  ssoOutHref,
+} from "../../lib/cross-app";
 import UpgradeOverlay from "../UpgradeOverlay";
 
 const POPOVER_GAP = 8;
@@ -32,10 +44,30 @@ export default function SidebarMoreMenu() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const tier = profile?.subscription_tier ?? "free";
+
+  // Decide whether to show the Admin shortcut. The actual gate is on
+  // admin.zervo.app's proxy; this is purely cosmetic so the link only
+  // appears for users who would be allowed through.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/users/me/admin")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setIsAdmin(Boolean(data?.isAdmin));
+      })
+      .catch(() => {
+        /* ignore — default to not showing the link */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -166,6 +198,30 @@ export default function SidebarMoreMenu() {
                       <LuSparkles className="h-[18px] w-[18px] flex-shrink-0" />
                       <span>Upgrade to Pro</span>
                     </button>
+                  )}
+                  <Link
+                    href={ssoOutHref(ZERVO_DEVELOPER_URL)}
+                    onClick={() => setOpen(false)}
+                    className={clsx(
+                      itemBase,
+                      "text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+                    )}
+                  >
+                    <LuTerminal className="h-[18px] w-[18px] flex-shrink-0" />
+                    <span>Developer</span>
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      href={ssoOutHref(ZERVO_ADMIN_URL)}
+                      onClick={() => setOpen(false)}
+                      className={clsx(
+                        itemBase,
+                        "text-[var(--color-floating-muted)] hover:text-[var(--color-floating-fg)] hover:bg-[var(--color-fg)]/[0.05]",
+                      )}
+                    >
+                      <LuShieldCheck className="h-[18px] w-[18px] flex-shrink-0" />
+                      <span>Admin</span>
+                    </Link>
                   )}
                   <div
                     className={clsx(

@@ -106,6 +106,18 @@ resource "vercel_project_environment_variable" "finance_impersonation_host" {
   target     = ["production", "preview", "development"]
 }
 
+# Mirrors the value on the admin project so finance can decide whether to
+# render the "Admin" link in the sidebar more-menu. The actual gate that
+# protects admin.zervo.app still lives in the admin app's proxy (which
+# reads this same env on its own project) — having it on finance just
+# lets the UI hide the link from non-admins.
+resource "vercel_project_environment_variable" "finance_admin_emails" {
+  project_id = vercel_project.finance.id
+  key        = "ADMIN_EMAILS"
+  value      = var.admin_emails
+  target     = ["production", "preview", "development"]
+}
+
 # -----------------------------------------------------------------------------
 # Admin env vars (finance env vars are managed in its own Vercel dashboard for
 # now — adding them here would risk clobbering prod secrets during import).
