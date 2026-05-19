@@ -1,0 +1,55 @@
+/*
+ * Zervo universal base styles — shared by every app in the workspace.
+ * Each app imports this from its globals.css AFTER its own colors.css,
+ * so the CSS variables referenced here (--color-fg, --color-bg,
+ * --color-ring, --color-border) are already defined.
+ *
+ * Anything app-specific (accent color, body font, layout widths,
+ * focus-bar animations, etc.) stays in the per-app stylesheets — this
+ * file is only for styling that should never differ across surfaces.
+ * Keeping it shared means a fix lands in finance, admin, developer,
+ * and the public docs the moment one app pulls.
+ */
+
+/* Text selection — auto-inverts per theme via --color-fg/--color-bg.
+   Light mode: near-black bg + white text. Dark mode: near-white bg +
+   near-black text. The browser default (blue) disappears against our
+   dark surfaces, which is why this is worth overriding. */
+::selection {
+  background-color: var(--color-fg);
+  color: var(--color-bg);
+}
+::-moz-selection {
+  background-color: var(--color-fg);
+  color: var(--color-bg);
+}
+
+/* Focus outline for interactive elements (buttons, links). */
+:where(button, [role="button"], a):focus-visible {
+  outline: 1px solid var(--color-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Thin, fades-in-on-hover scrollbars across the whole tree. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: var(--color-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+}

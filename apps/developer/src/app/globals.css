@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "../../../../packages/ui/src";
 @import "../styles/colors.css";
+@import "../../../../packages/ui/styles/base.css";
 
 html.dark {
   color-scheme: dark;

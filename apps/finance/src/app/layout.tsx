@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: oauthRedirectScript }} />
       </head>
-      <body className="font-normal selection:bg-zinc-900 selection:text-white">
+      <body className="font-normal">
         <DynamicFavicon />
         <QueryProvider>
           <ToastProvider>
