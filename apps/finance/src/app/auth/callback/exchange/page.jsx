@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLoadingScreen from "../../../../components/auth/AuthLoadingScreen";
+import { resolveNextTarget } from "../../../../lib/cross-app";
 
 function ExchangeHandler() {
   const router = useRouter();
@@ -24,14 +25,18 @@ function ExchangeHandler() {
       return;
     }
 
-    // Safety timeout — if exchange takes too long, fall through
+    // Safety timeout — if exchange takes too long, fall through.
+    // resolveNextTarget routes known cross-app `next` URLs (admin /
+    // developer subdomains) through /auth/sso-out so the SSO handoff
+    // installs cookies on the target subdomain rather than landing the
+    // user there with no session.
     const timeout = setTimeout(() => {
       console.warn("[exchange] Exchange timed out after 8s, redirecting");
-      router.replace(nextOverride || "/dashboard");
+      router.replace(resolveNextTarget(nextOverride));
     }, 8000);
 
     const t0 = Date.now();
-    let target = nextOverride || "/dashboard";
+    let target = resolveNextTarget(nextOverride);
 
     // Dynamic import to avoid any module-level errors blocking the page
     import("../../../../lib/supabase/client")

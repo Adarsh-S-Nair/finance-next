@@ -46,3 +46,23 @@ export function isCrossAppTarget(target: string): boolean {
 export function ssoOutHref(targetUrl: string): string {
   return `/auth/sso-out?next=${encodeURIComponent(targetUrl)}`;
 }
+
+/**
+ * Decide where to send a signed-in user after they land on `/auth` (or
+ * complete a Google OAuth exchange) with a `next` param attached.
+ *
+ *   - Same-origin path (`/dashboard`, `/transactions`, ...) → that path.
+ *   - Known cross-app URL (admin.zervo.app / developer.zervo.app) →
+ *     `/auth/sso-out?next=<url>` so the SSO handoff installs cookies
+ *     on the target subdomain. Navigating to the raw URL would land
+ *     the user on a subdomain with no session, which would just
+ *     redirect them back here and loop.
+ *   - Anything else (external host, malformed) → `/dashboard`. Acts as
+ *     a closed allowlist against open-redirector abuse.
+ */
+export function resolveNextTarget(rawNext: string | null | undefined): string {
+  if (!rawNext) return "/dashboard";
+  if (rawNext.startsWith("/") && !rawNext.startsWith("//")) return rawNext;
+  if (isCrossAppTarget(rawNext)) return ssoOutHref(rawNext);
+  return "/dashboard";
+}
