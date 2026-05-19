@@ -3,8 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
-// Paths that do NOT require auth
-const PUBLIC_PATHS = ["/auth", "/auth/callback"];
+const ZERVO_APP_URL =
+  process.env.NEXT_PUBLIC_ZERVO_APP_URL ?? "https://www.zervo.app";
+
+// Paths that do NOT require auth. /auth/sso receives a session from the
+// main zervo app.
+const PUBLIC_PATHS = ["/auth/sso"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -13,12 +17,12 @@ function isPublic(pathname: string): boolean {
 /**
  * Next 16 "proxy" (middleware in older versions). Refreshes the Supabase
  * session cookie on every request and gates non-public paths behind
- * authentication. No allowlist — anyone with a Google account can sign
- * in to the developer portal; gating by email belongs in policy if we
- * ever need to limit early access.
+ * authentication. Authentication itself happens on www.zervo.app — we
+ * don't host a Google OAuth flow here; unauthed requests bounce there
+ * and come back via /auth/sso once a session exists.
  */
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -47,17 +51,13 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (isPublic(pathname)) {
-    if (pathname === "/auth" && user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
     return response;
   }
 
   if (!user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth";
+    const currentUrl = `${request.nextUrl.origin}${pathname}${search}`;
+    const url = new URL(`${ZERVO_APP_URL}/auth`);
+    url.searchParams.set("next", currentUrl);
     return NextResponse.redirect(url);
   }
 

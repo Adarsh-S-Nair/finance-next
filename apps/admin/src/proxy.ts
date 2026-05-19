@@ -4,18 +4,22 @@ import { isAllowedAdmin } from "./lib/auth/admin";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
-// Paths that do NOT require auth
-const PUBLIC_PATHS = ["/auth", "/auth/callback", "/not-authorized"];
+const ZERVO_APP_URL =
+  process.env.NEXT_PUBLIC_ZERVO_APP_URL ?? "https://www.zervo.app";
+
+// Paths that do NOT require auth. /auth/sso receives a session from the
+// main zervo app; /not-authorized is the landing page for users who
+// signed in but aren't on the ADMIN_EMAILS allowlist.
+const PUBLIC_PATHS = ["/auth/sso", "/not-authorized"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
   let response = NextResponse.next({ request });
 
-  // Create Supabase client that refreshes the session cookie in-flight
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -42,23 +46,20 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (isPublic(pathname)) {
-    // If already signed in as an allowed admin, bounce off /auth to home
-    if (pathname === "/auth" && user && isAllowedAdmin(user.email)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
     return response;
   }
 
-  // Protected route — must be signed in
+  // Not signed in — bounce to the main zervo app to authenticate, then
+  // back here via the SSO handoff. We don't show Google OAuth on the
+  // admin subdomain at all; auth is centralized on zervo.app.
   if (!user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth";
+    const currentUrl = `${request.nextUrl.origin}${pathname}${search}`;
+    const url = new URL(`${ZERVO_APP_URL}/auth`);
+    url.searchParams.set("next", currentUrl);
     return NextResponse.redirect(url);
   }
 
-  // And must be on the allowlist
+  // Signed in but not on the allowlist — show the not-authorized page.
   if (!isAllowedAdmin(user.email)) {
     const url = request.nextUrl.clone();
     url.pathname = "/not-authorized";
@@ -70,7 +71,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on everything except static assets and Next internals
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
