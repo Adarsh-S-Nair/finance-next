@@ -72,6 +72,82 @@ export const ENDPOINTS: readonly ApiEndpoint[] = [
       },
     ],
   },
+  {
+    id: "trades",
+    method: "GET",
+    path: "/api/v1/trades",
+    summary: "List trades",
+    description:
+      "Recent US Congress trade disclosures, most recently filed first. All filters are optional; combine them to narrow the feed. Currently returns a hand-coded sample dataset while ingestion is being built — the schema is final.",
+    parameters: [
+      {
+        name: "limit",
+        in: "query",
+        type: "number",
+        required: false,
+        description: "How many trades to return. Capped at 100.",
+        example: 5,
+        default: 25,
+      },
+      {
+        name: "ticker",
+        in: "query",
+        type: "string",
+        required: false,
+        description: "Filter to trades involving this stock symbol. Case-insensitive.",
+        example: "NVDA",
+      },
+      {
+        name: "politician",
+        in: "query",
+        type: "string",
+        required: false,
+        description: 'Filter to one politician by id (e.g. "pelosi-nancy").',
+      },
+      {
+        name: "chamber",
+        in: "query",
+        type: "string",
+        required: false,
+        description: 'Filter by chamber. One of "house" or "senate".',
+      },
+      {
+        name: "since",
+        in: "query",
+        type: "string",
+        required: false,
+        description:
+          "ISO date (YYYY-MM-DD). Only return trades disclosed on or after this date.",
+      },
+    ],
+    responses: [
+      {
+        status: 200,
+        description: "Recent trade disclosures.",
+        example: {
+          data: [
+            {
+              id: "trd_01hxr3y6mqe9j7v4ng7t2k3p1a",
+              disclosed_at: "2026-05-14",
+              transacted_at: "2026-05-02",
+              politician: {
+                id: "pelosi-nancy",
+                name: "Nancy Pelosi",
+                chamber: "house",
+                party: "D",
+                state: "CA",
+              },
+              asset: { ticker: "NVDA", name: "NVIDIA Corp", type: "stock" },
+              transaction_type: "buy",
+              amount_range: { min: 1000000, max: 5000000 },
+              source_url: "https://disclosures-clerk.house.gov/",
+            },
+          ],
+          has_more: false,
+        },
+      },
+    ],
+  },
 ];
 
 export function getEndpoint(id: string): ApiEndpoint | undefined {
