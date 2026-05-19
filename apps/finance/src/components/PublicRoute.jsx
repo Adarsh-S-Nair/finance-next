@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase/client";
+import { resolveNextTarget } from "../lib/cross-app";
 
 /**
  * Wraps public pages (`/auth`, the landing page). If the user is
@@ -24,13 +25,7 @@ export default function PublicRoute({ children }) {
 
     const resolveTarget = () => {
       const params = new URLSearchParams(window.location.search);
-      const raw = params.get("next");
-      if (!raw) return "/dashboard";
-      // Only allow same-origin paths to prevent open-redirector abuse.
-      // Cross-app handoffs go through `/auth/sso-out`, which is itself
-      // same-origin and validates its own target.
-      if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
-      return "/dashboard";
+      return resolveNextTarget(params.get("next"));
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
