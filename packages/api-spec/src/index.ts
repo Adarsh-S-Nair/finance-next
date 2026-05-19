@@ -69,34 +69,12 @@ export const ENDPOINTS: readonly ApiEndpoint[] = [
         default: 25,
       },
       {
-        name: "ticker",
-        in: "query",
-        type: "string",
-        required: false,
-        description: "Filter to trades involving this stock symbol. Case-insensitive.",
-        example: "NVDA",
-      },
-      {
         name: "politician",
         in: "query",
         type: "string",
         required: false,
-        description: 'Filter to one politician by id (e.g. "pelosi-nancy").',
-      },
-      {
-        name: "chamber",
-        in: "query",
-        type: "string",
-        required: false,
-        description: 'Filter by chamber. One of "house" or "senate".',
-      },
-      {
-        name: "since",
-        in: "query",
-        type: "string",
-        required: false,
         description:
-          "ISO date (YYYY-MM-DD). Only return trades disclosed on or after this date.",
+          'Filter to one politician by id (e.g. "pelosi-nancy"). Omit to see every politician.',
       },
     ],
     responses: [

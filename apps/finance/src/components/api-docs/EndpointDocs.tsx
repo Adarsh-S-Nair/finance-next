@@ -20,17 +20,20 @@ const CODE_LANGS: { value: CodeLang; label: string }[] = [
 ];
 
 /**
- * Public-facing reference doc for one API endpoint. Light-only theme,
- * matches the legal docs layout already in apps/finance/src/app/docs.
- * Reads parameters + responses from the shared @zervo/api-spec
- * registry so the docs stay in lockstep with the playground.
+ * Public-facing reference doc for one API endpoint.
+ *
+ * Two-column layout: prose on the left (description + parameters),
+ * machine-readable on the right (code samples + response example).
+ * Matches the visual rhythm of major API docs (Stripe / Resend) — the
+ * left tells you what it does, the right tells you what to send and
+ * what comes back.
  */
 export default function EndpointDocs({
   endpoint,
   developerOrigin,
 }: {
   endpoint: ApiEndpoint;
-  /** Origin to use in URL previews / code samples. Defaults to prod. */
+  /** Origin used in URL previews / code samples. Defaults to prod. */
   developerOrigin?: string;
 }) {
   const params = useMemo(() => endpoint.parameters ?? [], [endpoint.parameters]);
@@ -44,8 +47,8 @@ export default function EndpointDocs({
   );
 
   return (
-    <article className="space-y-12">
-      <header className="space-y-3 max-w-prose">
+    <article className="space-y-10">
+      <header className="space-y-3">
         <div className="flex items-center gap-2.5">
           <MethodBadge method={endpoint.method} />
           <code className="text-sm text-zinc-900 font-mono">{endpoint.path}</code>
@@ -53,71 +56,78 @@ export default function EndpointDocs({
         <h1 className="text-2xl font-medium tracking-tight text-zinc-900">
           {endpoint.summary}
         </h1>
-        {endpoint.description && (
-          <p className="text-sm text-zinc-600 leading-relaxed">
-            {endpoint.description}
-          </p>
-        )}
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-14 gap-y-10">
-        <Section title="Parameters">
-          {params.length > 0 ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-x-14 gap-y-10">
+        {/* LEFT — description + parameters */}
+        <div className="space-y-10 min-w-0">
+          {endpoint.description && (
+            <p className="text-sm text-zinc-600 leading-relaxed max-w-prose">
+              {endpoint.description}
+            </p>
+          )}
+
+          <Section title="Parameters">
+            {params.length > 0 ? (
+              <div className="space-y-6">
+                {params.map((p) => (
+                  <ParamDocRow key={p.name} param={p} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500">No parameters.</p>
+            )}
+          </Section>
+        </div>
+
+        {/* RIGHT — request code samples + response example (sticky on lg+) */}
+        <div className="space-y-8 min-w-0 lg:sticky lg:top-28 lg:self-start">
+          <Section title="Request">
+            <div
+              role="radiogroup"
+              aria-label="Language"
+              className="inline-flex items-center gap-1 rounded-full bg-zinc-100 p-1 mb-3"
+            >
+              {CODE_LANGS.map((l) => {
+                const active = l.value === lang;
+                return (
+                  <button
+                    key={l.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setLang(l.value)}
+                    className={
+                      active
+                        ? "px-3 py-1 rounded-full text-xs font-medium bg-white text-zinc-900 shadow-sm"
+                        : "px-3 py-1 rounded-full text-xs text-zinc-500 hover:text-zinc-900"
+                    }
+                  >
+                    {l.label}
+                  </button>
+                );
+              })}
+            </div>
+            <CodeBlock code={exampleCode} />
+          </Section>
+
+          <Section title="Response">
             <div className="space-y-6">
-              {params.map((p) => (
-                <ParamDocRow key={p.name} param={p} />
+              {endpoint.responses.map((r) => (
+                <div key={r.status} className="space-y-2">
+                  {r.description && (
+                    <p className="text-xs text-zinc-500">{r.description}</p>
+                  )}
+                  <CodeBlock
+                    code={JSON.stringify(r.example, null, 2)}
+                    cornerBadge={<StatusBadge status={r.status} />}
+                  />
+                </div>
               ))}
             </div>
-          ) : (
-            <p className="text-xs text-zinc-500">No parameters.</p>
-          )}
-        </Section>
-
-        <Section title="Response">
-          <div className="space-y-6">
-            {endpoint.responses.map((r) => (
-              <div key={r.status} className="space-y-2">
-                {r.description && (
-                  <p className="text-xs text-zinc-500">{r.description}</p>
-                )}
-                <CodeBlock
-                  code={JSON.stringify(r.example, null, 2)}
-                  cornerBadge={<StatusBadge status={r.status} />}
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
-      </div>
-
-      <Section title="Code">
-        <div
-          role="radiogroup"
-          aria-label="Language"
-          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 p-1 mb-3"
-        >
-          {CODE_LANGS.map((l) => {
-            const active = l.value === lang;
-            return (
-              <button
-                key={l.value}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => setLang(l.value)}
-                className={
-                  active
-                    ? "px-3 py-1 rounded-full text-xs font-medium bg-white text-zinc-900 shadow-sm"
-                    : "px-3 py-1 rounded-full text-xs text-zinc-500 hover:text-zinc-900"
-                }
-              >
-                {l.label}
-              </button>
-            );
-          })}
+          </Section>
         </div>
-        <CodeBlock code={exampleCode} />
-      </Section>
+      </div>
     </article>
   );
 }

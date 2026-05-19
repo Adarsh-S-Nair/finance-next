@@ -115,18 +115,10 @@ function parseLimit(raw: string | null): number {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = parseLimit(url.searchParams.get("limit"));
-  const ticker = url.searchParams.get("ticker")?.toUpperCase();
   const politician = url.searchParams.get("politician");
-  const chamber = url.searchParams.get("chamber")?.toLowerCase();
-  const since = url.searchParams.get("since");
 
   let filtered = MOCK_TRADES;
-  if (ticker) filtered = filtered.filter((t) => t.asset.ticker === ticker);
   if (politician) filtered = filtered.filter((t) => t.politician.id === politician);
-  if (chamber === "house" || chamber === "senate") {
-    filtered = filtered.filter((t) => t.politician.chamber === chamber);
-  }
-  if (since) filtered = filtered.filter((t) => t.disclosed_at >= since);
 
   const page = filtered.slice(0, limit);
 
