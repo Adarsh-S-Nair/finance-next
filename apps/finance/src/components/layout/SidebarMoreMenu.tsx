@@ -201,6 +201,8 @@ export default function SidebarMoreMenu() {
                   )}
                   <Link
                     href={ssoOutHref(ZERVO_DEVELOPER_URL)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     onClick={() => setOpen(false)}
                     className={clsx(
                       itemBase,
@@ -213,6 +215,8 @@ export default function SidebarMoreMenu() {
                   {isAdmin && (
                     <Link
                       href={ssoOutHref(ZERVO_ADMIN_URL)}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       onClick={() => setOpen(false)}
                       className={clsx(
                         itemBase,
