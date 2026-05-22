@@ -197,6 +197,7 @@ export type Database = {
           icon_name: string | null
           icon_url: string | null
           id: string
+          is_fixed: boolean
           name: string
           plaid_category_key: string | null
         }
@@ -206,6 +207,7 @@ export type Database = {
           icon_name?: string | null
           icon_url?: string | null
           id?: string
+          is_fixed?: boolean
           name: string
           plaid_category_key?: string | null
         }
@@ -215,6 +217,7 @@ export type Database = {
           icon_name?: string | null
           icon_url?: string | null
           id?: string
+          is_fixed?: boolean
           name?: string
           plaid_category_key?: string | null
         }

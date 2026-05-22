@@ -28,6 +28,7 @@ interface SummaryTx {
       hex_color: string;
       icon_lib: string | null;
       icon_name: string | null;
+      is_fixed: boolean | null;
     } | null;
   } | null;
   transaction_splits: { amount: number; is_settled: boolean | null }[];
@@ -50,6 +51,7 @@ interface CategoryDatum {
   hex_color: string;
   icon_name: string | null;
   icon_lib: string | null;
+  is_fixed: boolean;
   total_spent: number;
   transaction_count: number;
 }
@@ -101,7 +103,8 @@ export const GET = withAuth('dashboard:summary', async (request, userId) => {
           name,
           hex_color,
           icon_lib,
-          icon_name
+          icon_name,
+          is_fixed
         )
       ),
       transaction_splits(amount, is_settled),
@@ -311,6 +314,7 @@ function buildSpendingByCategory(
         hex_color: category.hex_color || category.category_groups?.hex_color || '#6B7280',
         icon_name: category.category_groups?.icon_name ?? null,
         icon_lib: category.category_groups?.icon_lib ?? null,
+        is_fixed: !!category.category_groups?.is_fixed,
         total_spent: 0,
         transaction_count: 0,
       };
@@ -324,6 +328,14 @@ function buildSpendingByCategory(
     (a, b) => b.total_spent - a.total_spent
   );
   const totalSpending = categoriesArray.reduce((sum, c) => sum + c.total_spent, 0);
+  // Fixed/flexible split so the client can show the breakdown without
+  // re-summing, and so the spending-section toggle has the aggregate
+  // numbers ready.
+  const fixedSpending = categoriesArray.reduce(
+    (sum, c) => (c.is_fixed ? sum + c.total_spent : sum),
+    0
+  );
+  const flexibleSpending = totalSpending - fixedSpending;
   const categories = categoriesArray.map((c) => ({
     ...c,
     percentage: totalSpending > 0 ? (c.total_spent / totalSpending) * 100 : 0,
@@ -332,6 +344,8 @@ function buildSpendingByCategory(
   return {
     categories,
     totalSpending,
+    fixedSpending,
+    flexibleSpending,
     totalCategories: categoriesArray.length,
     filteredCount: categories.length,
   };

@@ -18,6 +18,7 @@ type CategoryData = {
   label: string;
   total_spent: number;
   hex_color?: string | null;
+  is_fixed?: boolean | null;
 };
 
 // Segment shape matches `DonutSegment` from the shared component.
@@ -99,9 +100,18 @@ type Props = {
   // standalone usage (and any caller that hasn't migrated yet) still
   // works.
   month?: string | null;
+  // 'total' (default) shows every category; 'flexible' drops fixed
+  // obligations (rent, mortgage, loans) so the donut isn't crowded by
+  // a single dominant fixed payment. Filtered client-side from the
+  // is_fixed flag the API now returns per category.
+  spendingType?: "total" | "flexible";
 };
 
-export default function TopCategoriesCard({ data: externalData, month }: Props = {}) {
+export default function TopCategoriesCard({
+  data: externalData,
+  month,
+  spendingType = "total",
+}: Props = {}) {
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const [categories, setCategories] = useState<CategoryData[]>([]);
@@ -166,15 +176,36 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
     hasLoaded,
   ]);
 
+  // Apply the flexible/total lens before anything else. In flexible
+  // mode the fixed obligations drop out entirely, and the total is
+  // recomputed from what's left so the donut percentages reflect the
+  // visible slices (not the full-spend denominator). `totalSpending`
+  // from state is the all-categories sum and stays the fallback when
+  // the data source didn't tag is_fixed.
+  const visibleCategories = useMemo(
+    () =>
+      spendingType === "flexible"
+        ? categories.filter((c) => !c.is_fixed)
+        : categories,
+    [categories, spendingType],
+  );
+  const visibleTotal = useMemo(
+    () =>
+      spendingType === "flexible"
+        ? visibleCategories.reduce((s, c) => s + (c.total_spent || 0), 0)
+        : totalSpending,
+    [spendingType, visibleCategories, totalSpending],
+  );
+
   const segments = useMemo<Segment[]>(() => {
-    if (!categories.length || !totalSpending) return [];
+    if (!visibleCategories.length || !visibleTotal) return [];
 
     // Keep categories that are both in the top N AND at least MIN_SEGMENT_PCT
     // of total spending; everything else rolls into "Other". That avoids
     // lollipop-stub slices and ensures the donut always reads cleanly.
-    const top = categories.slice(0, MAX_ROWS);
+    const top = visibleCategories.slice(0, MAX_ROWS);
     const named: Segment[] = top
-      .filter((cat) => (cat.total_spent / totalSpending) * 100 >= MIN_SEGMENT_PCT)
+      .filter((cat) => (cat.total_spent / visibleTotal) * 100 >= MIN_SEGMENT_PCT)
       .map((cat) => ({
         id: cat.id,
         label: cat.label,
@@ -183,12 +214,12 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
       }));
 
     const namedIds = new Set(named.map((n) => n.id));
-    const otherIds = categories
+    const otherIds = visibleCategories
       .map((c) => c.id)
       .filter((id) => !namedIds.has(id));
     const namedSum = named.reduce((s, n) => s + (n.value || 0), 0);
-    const otherTotal = Math.max(0, totalSpending - namedSum);
-    if (otherTotal > 0 && (otherTotal / totalSpending) * 100 >= 0.1) {
+    const otherTotal = Math.max(0, visibleTotal - namedSum);
+    if (otherTotal > 0 && (otherTotal / visibleTotal) * 100 >= 0.1) {
       named.push({
         id: "__other__",
         label: "Other",
@@ -199,7 +230,7 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
       });
     }
     return named;
-  }, [categories, totalSpending]);
+  }, [visibleCategories, visibleTotal]);
 
   // Land on /transactions with the exact same window selected so
   // clicking a slice keeps the user in context. The transactions page
@@ -219,7 +250,7 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
     router.push(`/transactions?categoryIds=${seg.id}&${qs}`);
   };
 
-  const isEmpty = segments.length === 0 || totalSpending === 0;
+  const isEmpty = segments.length === 0 || visibleTotal === 0;
   const showSkeleton = loading && !hasLoaded;
 
   return (
@@ -251,7 +282,7 @@ export default function TopCategoriesCard({ data: externalData, month }: Props =
         >
           <InteractiveDonut
             segments={segments}
-            total={totalSpending}
+            total={visibleTotal}
             centerLabel={range?.label ?? ""}
             hoveredId={hoveredId}
             onHover={setHoveredId}

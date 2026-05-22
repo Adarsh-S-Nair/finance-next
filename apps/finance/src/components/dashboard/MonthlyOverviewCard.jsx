@@ -41,6 +41,10 @@ export default function MonthlyOverviewCard({
   month: controlledMonth,
   availableMonths: controlledAvailableMonths,
   onMonthChange: controlledOnMonthChange,
+  // 'total' (default) or 'flexible'. Flexible asks the server to drop
+  // fixed-obligation categories from the daily burn so the chart shows
+  // only discretionary spending.
+  spendingType = "total",
 }) {
   const isControlled = controlledMonth !== undefined;
   const [activeIndex, setActiveIndex] = useState(null);
@@ -109,9 +113,9 @@ export default function MonthlyOverviewCard({
   }, [selectedMonth]);
 
   const { data: monthlyData, isFetching: isMonthlyFetching } = useAuthedQuery(
-    ['monthly-overview:month', user?.id, selectedMonth],
+    ['monthly-overview:month', user?.id, selectedMonth, spendingType],
     useQueries && selectedMonth
-      ? `/api/transactions/monthly-overview?month=${selectedMonthIdx}&year=${selectedYear}`
+      ? `/api/transactions/monthly-overview?month=${selectedMonthIdx}&year=${selectedYear}&spendingType=${spendingType}`
       : null,
   );
   const rawChartData = mockData?.chartData ?? monthlyData?.data ?? [];

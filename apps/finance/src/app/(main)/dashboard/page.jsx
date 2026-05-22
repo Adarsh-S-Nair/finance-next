@@ -21,7 +21,7 @@ import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
-import { Dropdown } from "@zervo/ui";
+import { Dropdown, SegmentedTabs } from "@zervo/ui";
 
 // Map string keys to actual components
 const componentMap = {
@@ -81,6 +81,15 @@ export default function DashboardPage() {
       setSelectedMonth(availableMonths[0].value);
     }
   }, [availableMonths, selectedMonth]);
+
+  // Flexible vs total lens for the spending section. Defaults to
+  // flexible — a dominant fixed payment (mortgage) otherwise crowds
+  // the breakdown donut into a single unreadable slice, and flexible
+  // spending is the part the user actually has agency over. The
+  // toggle drives both the line chart (server filters fixed
+  // categories out of the daily burn) and the donut (filters fixed
+  // slices client-side).
+  const [spendingType, setSpendingType] = useState("flexible");
 
   // Budgets — fed into BudgetsCard + used to decide whether the card
   // even renders. Same caching rationale as the summary above.
@@ -190,10 +199,12 @@ export default function DashboardPage() {
       month: selectedMonth,
       availableMonths,
       onMonthChange: setSelectedMonth,
+      spendingType,
     },
     'TopCategoriesCard': {
       month: selectedMonth,
       availableMonths,
+      spendingType,
     },
   };
 
@@ -211,21 +222,32 @@ export default function DashboardPage() {
   // typographic rhythm stays consistent.
   const monthlyRowHeader =
     availableMonths.length > 0 ? (
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="card-header">Spending</h2>
-        <Dropdown
-          label={
-            availableMonths.find((m) => m.value === selectedMonth)?.label ||
-            'Select Month'
-          }
-          items={availableMonths.map((month) => ({
-            label: month.label,
-            onClick: () => setSelectedMonth(month.value),
-            selected: month.value === selectedMonth,
-          }))}
-          size="sm"
-          align="right"
-        />
+        <div className="flex items-center gap-3">
+          <SegmentedTabs
+            size="sm"
+            value={spendingType}
+            onChange={setSpendingType}
+            options={[
+              { label: 'Flexible', value: 'flexible' },
+              { label: 'Total', value: 'total' },
+            ]}
+          />
+          <Dropdown
+            label={
+              availableMonths.find((m) => m.value === selectedMonth)?.label ||
+              'Select Month'
+            }
+            items={availableMonths.map((month) => ({
+              label: month.label,
+              onClick: () => setSelectedMonth(month.value),
+              selected: month.value === selectedMonth,
+            }))}
+            size="sm"
+            align="right"
+          />
+        </div>
       </div>
     ) : null;
 

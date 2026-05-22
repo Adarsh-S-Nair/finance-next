@@ -199,6 +199,21 @@ export const GET = withAuth('monthly-overview', async (request, userId) => {
     .in('label', alwaysExcludedCategories);
   const excludedCategoryIds = excludedCategoryRows?.map((c) => c.id) || [];
 
+  // spendingType=flexible drops fixed-obligation categories (rent,
+  // mortgage, loan payments) from the daily burn so the line chart
+  // reflects only discretionary spending — keeps the dashboard's
+  // flexible/total toggle coherent between the chart and the donut.
+  const spendingType = searchParams.get('spendingType') === 'flexible' ? 'flexible' : 'total';
+  if (spendingType === 'flexible') {
+    const { data: fixedCategoryRows } = await supabaseAdmin
+      .from('system_categories')
+      .select('id, category_groups!inner(is_fixed)')
+      .eq('category_groups.is_fixed', true);
+    for (const row of fixedCategoryRows ?? []) {
+      excludedCategoryIds.push(row.id);
+    }
+  }
+
   const [currentMonthResult, prevMonthResult] = await Promise.all([
     getMonthData(userId, year, month, excludedCategoryIds),
     getMonthData(userId, prevYear, prevMonth, excludedCategoryIds),

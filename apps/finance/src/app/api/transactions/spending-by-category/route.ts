@@ -18,6 +18,7 @@ interface SpendingTx {
       hex_color: string;
       icon_lib: string | null;
       icon_name: string | null;
+      is_fixed: boolean | null;
     } | null;
   } | null;
   transaction_splits: { amount: number; is_settled: boolean | null }[];
@@ -37,6 +38,7 @@ interface CategoryDatum {
   // Null when groupBy=group, since each row IS the group.
   group_id: string | null;
   group_name: string | null;
+  is_fixed: boolean;
   total_spent: number;
   transaction_count: number;
   months_seen: Set<string>;
@@ -172,7 +174,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
           name,
           hex_color,
           icon_lib,
-          icon_name
+          icon_name,
+          is_fixed
         )
       ),
       transaction_splits (
@@ -231,6 +234,7 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
     let icon_lib: string | null;
     let group_id: string | null = null;
     let group_name: string | null = null;
+    const is_fixed = !!category.category_groups?.is_fixed;
 
     if (groupBy === 'group') {
       key = category.category_groups?.id || 'other';
@@ -278,6 +282,7 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
         icon_lib,
         group_id,
         group_name,
+        is_fixed,
         total_spent: 0,
         transaction_count: 0,
         months_seen: new Set(),
@@ -319,6 +324,7 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
         icon_lib: c.icon_lib,
         group_id: c.group_id,
         group_name: c.group_name,
+        is_fixed: c.is_fixed,
         total_spent: c.total_spent,
         transaction_count: c.transaction_count,
         months_with_spending: monthsWith,
