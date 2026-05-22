@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -18,6 +18,7 @@ import GoalsCard from "../../../components/dashboard/GoalsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
+import MonthStrip from "../../../components/dashboard/MonthStrip";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
@@ -90,6 +91,57 @@ export default function DashboardPage() {
   // categories out of the daily burn) and the donut (filters fixed
   // slices client-side).
   const [spendingType, setSpendingType] = useState("flexible");
+
+  // Year + month-strip selection model. The canonical selection is
+  // still `selectedMonth` ("YYYY-MM"); year and the 12-month strip are
+  // derived from it. The header dropdown picks the year; the strip
+  // below the charts picks the month within that year, with future
+  // months disabled.
+  const MONTH_ABBR = [
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+  ];
+  const nowDate = new Date();
+  const currentYearNum = nowDate.getFullYear();
+  const currentMonthIdx = nowDate.getMonth();
+
+  const availableYears = useMemo(() => {
+    const set = new Set(availableMonths.map((m) => m.value.slice(0, 4)));
+    set.add(String(currentYearNum)); // always allow the current year
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [availableMonths, currentYearNum]);
+
+  const selectedYear = selectedMonth
+    ? selectedMonth.slice(0, 4)
+    : String(currentYearNum);
+
+  const monthStripItems = useMemo(() => {
+    const y = Number(selectedYear);
+    return MONTH_ABBR.map((label, idx) => {
+      const mm = String(idx + 1).padStart(2, "0");
+      const isFuture =
+        y > currentYearNum || (y === currentYearNum && idx > currentMonthIdx);
+      return { value: `${selectedYear}-${mm}`, label, disabled: isFuture };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, currentYearNum, currentMonthIdx]);
+
+  // Switching year jumps to a sensible month: the current month for the
+  // current year, otherwise the latest month with data that year (or
+  // December as a fallback).
+  const handleYearChange = (year) => {
+    if (Number(year) === currentYearNum) {
+      setSelectedMonth(`${year}-${String(currentMonthIdx + 1).padStart(2, "0")}`);
+      return;
+    }
+    const monthsInYear = availableMonths
+      .filter((m) => m.value.startsWith(year))
+      .map((m) => m.value)
+      .sort();
+    setSelectedMonth(
+      monthsInYear.length ? monthsInYear[monthsInYear.length - 1] : `${year}-12`,
+    );
+  };
 
   // Budgets — fed into BudgetsCard + used to decide whether the card
   // even renders. Same caching rationale as the summary above.
@@ -235,14 +287,11 @@ export default function DashboardPage() {
             ]}
           />
           <Dropdown
-            label={
-              availableMonths.find((m) => m.value === selectedMonth)?.label ||
-              'Select Month'
-            }
-            items={availableMonths.map((month) => ({
-              label: month.label,
-              onClick: () => setSelectedMonth(month.value),
-              selected: month.value === selectedMonth,
+            label={selectedYear}
+            items={availableYears.map((year) => ({
+              label: year,
+              onClick: () => handleYearChange(year),
+              selected: year === selectedYear,
             }))}
             size="sm"
             align="right"
@@ -284,6 +333,18 @@ export default function DashboardPage() {
           <div key={item.id}>
             {monthlyRowHeader}
             {rowEl}
+            {/* Month selector spanning the full width under both the
+                line chart and donut. Year is chosen in the header
+                dropdown; future months are disabled. */}
+            {availableMonths.length > 0 && (
+              <div className="mt-6">
+                <MonthStrip
+                  months={monthStripItems}
+                  activeValue={selectedMonth}
+                  onSelect={setSelectedMonth}
+                />
+              </div>
+            )}
           </div>
         );
       }
