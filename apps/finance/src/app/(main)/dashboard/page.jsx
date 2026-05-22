@@ -266,17 +266,33 @@ export default function DashboardPage() {
     return false;
   };
 
-  // Shared header for the monthly-row — section title on the left,
-  // period dropdown on the right. The dropdown's selected month
-  // implies the time scope so we don't repeat it in the title.
-  // Title uses the same `.card-header` overline style as the rest of
-  // the dashboard's section captions (Budgets, Goals, etc.) so the
-  // typographic rhythm stays consistent.
+  // Shared header for the monthly-row — section title on the left;
+  // year selector then the flexible/total toggle on the right. When
+  // there's only one year of data the year is shown as plain text
+  // (a dropdown with a single option is just noise). Title uses the
+  // `.card-header` overline style to match the rest of the
+  // dashboard's section captions.
   const monthlyRowHeader =
     availableMonths.length > 0 ? (
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="card-header">Spending</h2>
         <div className="flex items-center gap-3">
+          {availableYears.length > 1 ? (
+            <Dropdown
+              label={selectedYear}
+              items={availableYears.map((year) => ({
+                label: year,
+                onClick: () => handleYearChange(year),
+                selected: year === selectedYear,
+              }))}
+              size="sm"
+              align="right"
+            />
+          ) : (
+            <span className="text-xs font-semibold tabular-nums text-[var(--color-muted)]">
+              {selectedYear}
+            </span>
+          )}
           <SegmentedTabs
             size="sm"
             value={spendingType}
@@ -285,16 +301,6 @@ export default function DashboardPage() {
               { label: 'Flexible', value: 'flexible' },
               { label: 'Total', value: 'total' },
             ]}
-          />
-          <Dropdown
-            label={selectedYear}
-            items={availableYears.map((year) => ({
-              label: year,
-              onClick: () => handleYearChange(year),
-              selected: year === selectedYear,
-            }))}
-            size="sm"
-            align="right"
           />
         </div>
       </div>
