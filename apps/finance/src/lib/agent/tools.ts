@@ -968,23 +968,35 @@ interface SpendingByCategoryInput {
   exclude_transfers?: boolean;
 }
 
-// Category labels we treat as "transfers" / non-spending. Both directions
-// of credit card payments and account transfers count. We match by
-// case-insensitive substring against the leaf category label so common
-// variants ("Credit Card Payment", "credit card payments", "Transfer Out")
-// all hit. Group-level matches (e.g. parent group "Loan Payments")
-// are NOT excluded — only the specific transfer-flavored leaves.
-const TRANSFER_CATEGORY_NEEDLES = [
+// Group names that are entirely money-movement, not spending. The WHOLE
+// group is non-spending: every leaf under "Transfer Out" (including ones
+// whose own label has no "transfer" in it — "Withdrawal", "Savings Out",
+// "Investment and Retirement Funds Out") just moves the user's own money.
+// Matching on the group name is what catches those leaves; a leaf-only
+// needle list silently leaked them into the spending breakdown, where
+// they'd then render bucketed under the group label "Transfer Out".
+const TRANSFER_GROUP_NEEDLES = ['transfer in', 'transfer out'];
+
+// Leaf labels that are non-spending but live UNDER a real spending group.
+// Credit Card Payment sits under "Loan Payments", which also holds real
+// mortgage/auto/student rows we must keep — so we can't drop the whole
+// group, only this leaf. The account-transfer leaf needles stay as a
+// safety net for rows whose group somehow isn't resolved.
+const TRANSFER_LEAF_NEEDLES = [
   'credit card payment',
   'account transfer',
   'transfer in',
   'transfer out',
 ];
 
-function isTransferCategory(label: string | null | undefined): boolean {
-  if (!label) return false;
-  const lower = label.toLowerCase();
-  return TRANSFER_CATEGORY_NEEDLES.some((n) => lower.includes(n));
+function isTransferCategory(
+  label: string | null | undefined,
+  groupName?: string | null | undefined,
+): boolean {
+  const group = (groupName ?? '').toLowerCase();
+  if (group && TRANSFER_GROUP_NEEDLES.some((n) => group.includes(n))) return true;
+  const leaf = (label ?? '').toLowerCase();
+  return leaf.length > 0 && TRANSFER_LEAF_NEEDLES.some((n) => leaf.includes(n));
 }
 interface ProposeRecategorizationInput {
   transaction_ids?: string[];
@@ -1517,11 +1529,11 @@ async function getRecentTransactions(userId: string, input: RecentTransactionsIn
         const inst = t.institution?.toLowerCase() ?? '';
         if (!name.includes(accNeedle) && !inst.includes(accNeedle)) return false;
       }
-      // Drop transfer-type categories when the model opts in. This is
-      // a leaf-label match (e.g. "Credit Card Payment", "Account
-      // Transfer Out") so the parent group ("Loan Payments") still
-      // contains real loan rows.
-      if (input.exclude_transfers && isTransferCategory(t.category)) {
+      // Drop transfer-type categories when the model opts in. Group-aware:
+      // the whole Transfer In/Out groups are money movement, while Credit
+      // Card Payment is dropped at the leaf level so its parent group
+      // ("Loan Payments") still contains real loan rows.
+      if (input.exclude_transfers && isTransferCategory(t.category, t.category_group)) {
         return false;
       }
       return true;
@@ -1616,16 +1628,17 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
           category_groups?: { name?: string; hex_color?: string } | null;
         }
       | null;
-    // Drop transfer-flavored leaf categories (credit card payments,
-    // account transfers). They double-count spending the user already
-    // incurred elsewhere (CC payments) or move money between owned
-    // buckets (transfers), so a "spending breakdown" that includes
-    // them inflates totals and clutters the top-categories list.
-    if (excludeTransfers && isTransferCategory(cat?.label)) continue;
     // Prefer the category group label so spending bucket matches the
     // user's mental model of how the app organises categories ("Food and
     // Drink" rather than the leaf "Coffee Shops" / "Fast Food").
     const group = cat?.category_groups ?? null;
+    // Drop transfers (credit card payments, account transfers). They
+    // double-count spending the user already incurred elsewhere (CC
+    // payments) or move money between owned buckets (transfers), so a
+    // "spending breakdown" that includes them inflates totals and
+    // clutters the top-categories list. Group-aware so non-obvious
+    // Transfer Out leaves (Withdrawal, Savings Out) are caught too.
+    if (excludeTransfers && isTransferCategory(cat?.label, group?.name)) continue;
     const label = group?.name ?? cat?.label ?? 'Uncategorized';
     const color = group?.hex_color ?? cat?.hex_color ?? '#71717a';
     const existing = buckets.get(label) ?? { label, total: 0, color };
