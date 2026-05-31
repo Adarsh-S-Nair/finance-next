@@ -9,6 +9,7 @@ import { BRAND } from "../../config/brand";
 import { supabase } from "../../lib/supabase/client";
 import { useToast } from "../../components/providers/ToastProvider";
 import { GoogleSignInButton } from "@zervo/ui";
+import { applyThemeToDocument, DEFAULT_THEME_ID } from "../../config/themes";
 
 function AuthPageInner() {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,10 +22,10 @@ function AuthPageInner() {
   // returning to that subdomain.
   const nextParam = searchParams.get("next");
 
-  // Match the landing page: light-first. Dashboard/app can still
-  // set `.dark` via its own theme state without us fighting.
+  // Match the landing page: light-first. Dashboard/app can still apply the
+  // user's stored theme (via data-theme) on navigation without us fighting.
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
+    applyThemeToDocument(DEFAULT_THEME_ID);
   }, []);
 
   const exchangeHref = nextParam

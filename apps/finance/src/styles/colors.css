@@ -93,7 +93,13 @@
   /* Zinc 300 */
 }
 
-.dark {
+/* Dark theme — overrides the light defaults from :root.
+   Selector is keyed off [data-theme] so new themes can be added as
+   sibling blocks (e.g. [data-theme="dim"]) without touching any JS.
+   See src/config/themes.js for the registry. The provider also toggles
+   a legacy `.dark` class on <html> for the handful of Tailwind `dark:`
+   utilities and the `.shimmer` rule that still depend on it. */
+[data-theme="dark"] {
   /* Matte Dark Mode - Flat & Minimal */
   --color-bg: #0d0d0d;
   /* Card background */

@@ -15,6 +15,7 @@ import { BrandMark, ConfirmOverlay } from "@zervo/ui";
 import { AgentOverlayProvider } from "../agent/AgentOverlayProvider";
 import AgentOverlay from "../agent/AgentOverlay";
 import BottomAgentInput from "../agent/BottomAgentInput";
+import { applyThemeToDocument, DEFAULT_THEME_ID } from "../../config/themes";
 
 function SetupShell({ children }: { children: React.ReactNode }) {
   const { logout } = useUser();
@@ -28,7 +29,7 @@ function SetupShell({ children }: { children: React.ReactNode }) {
   // and text vanishes into the background. UserProvider's pathname effect
   // re-applies the stored theme on navigation away.
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
+    applyThemeToDocument(DEFAULT_THEME_ID);
   }, []);
 
   useEffect(() => {
@@ -102,7 +103,7 @@ function FtuxShell({ children }: { children: React.ReactNode }) {
   // See SetupShell for the reasoning — FTUX is always light so the inner
   // AccountSetupFlow's CSS-variable text reads correctly against the light bg.
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
+    applyThemeToDocument(DEFAULT_THEME_ID);
   }, []);
 
   useEffect(() => {

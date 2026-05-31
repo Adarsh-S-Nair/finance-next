@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo } from "react";
+import { applyThemeToDocument } from "../../config/themes";
 
 const ThemeContext = createContext(null);
 
@@ -9,8 +10,8 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }) {
-  const applyTheme = useCallback((theme) => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+  const applyTheme = useCallback((themeId) => {
+    applyThemeToDocument(themeId);
   }, []);
 
   const applyAccent = useCallback((hex) => {
