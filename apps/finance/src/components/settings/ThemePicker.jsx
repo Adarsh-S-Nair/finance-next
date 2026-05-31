@@ -6,9 +6,56 @@ import { useUser } from "../providers/UserProvider";
 import { THEMES, DEFAULT_THEME_ID, resolveThemeId } from "../../config/themes";
 
 /**
+ * Miniature of the app chrome (floating sidebar + content card) painted in a
+ * theme's real colors, so each option previews how the app actually looks
+ * rather than just naming the theme. Pure inline styles from the swatch — it
+ * deliberately doesn't use the live `--color-*` vars so every preview shows
+ * its own theme regardless of which one is currently active.
+ */
+function ThemePreview({ swatch }) {
+  return (
+    <div
+      className="flex h-20 w-full gap-1.5 overflow-hidden rounded-lg p-1.5"
+      style={{ backgroundColor: swatch.shell }}
+      aria-hidden="true"
+    >
+      {/* Floating sidebar pill */}
+      <div
+        className="flex w-4 flex-col items-center gap-1 rounded-md py-1.5"
+        style={{ backgroundColor: swatch.sidebar, border: `1px solid ${swatch.border}` }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: swatch.accent }} />
+        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: swatch.muted }} />
+        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: swatch.muted }} />
+      </div>
+
+      {/* Content card */}
+      <div
+        className="flex flex-1 flex-col gap-1.5 rounded-md p-1.5"
+        style={{ backgroundColor: swatch.surface, border: `1px solid ${swatch.border}` }}
+      >
+        {/* Title + accent action */}
+        <div className="flex items-center justify-between">
+          <span className="h-1.5 w-7 rounded-full" style={{ backgroundColor: swatch.fg }} />
+          <span className="h-2 w-4 rounded-sm" style={{ backgroundColor: swatch.accent }} />
+        </div>
+        {/* Body lines */}
+        <span className="h-1 w-full rounded-full" style={{ backgroundColor: swatch.muted, opacity: 0.6 }} />
+        <span className="h-1 w-3/4 rounded-full" style={{ backgroundColor: swatch.muted, opacity: 0.6 }} />
+        {/* Mini stat tiles */}
+        <div className="mt-auto flex gap-1">
+          <span className="h-3 flex-1 rounded-sm" style={{ backgroundColor: swatch.shell, border: `1px solid ${swatch.border}` }} />
+          <span className="h-3 flex-1 rounded-sm" style={{ backgroundColor: swatch.shell, border: `1px solid ${swatch.border}` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Theme selector driven entirely by the registry in `src/config/themes.js`.
- * Every theme defined there renders as a selectable card here — adding a new
- * theme requires no changes to this component.
+ * Every theme defined there renders as a selectable preview card here —
+ * adding a new theme requires no changes to this component.
  */
 export default function ThemePicker() {
   const { profile, setTheme } = useUser();
@@ -36,28 +83,15 @@ export default function ThemePicker() {
             aria-checked={isActive}
             onClick={() => setTheme(theme.id)}
             className={[
-              "group relative flex flex-col gap-2 rounded-xl border p-3 text-left transition-colors",
+              "group relative flex flex-col gap-2 rounded-xl border p-2 text-left transition-colors",
               isActive
                 ? "border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]"
                 : "border-[var(--color-border)] hover:border-[var(--color-ring)]",
             ].join(" ")}
           >
-            {/* Preview swatch — a miniature of the theme's bg / fg / accent. */}
-            <div
-              className="flex h-14 w-full items-center justify-between overflow-hidden rounded-lg border border-[var(--color-border)] px-2"
-              style={{ backgroundColor: theme.swatch.bg }}
-            >
-              <span
-                className="h-6 w-6 rounded-full"
-                style={{ backgroundColor: theme.swatch.accent }}
-              />
-              <span
-                className="h-2 w-10 rounded-full"
-                style={{ backgroundColor: theme.swatch.fg, opacity: 0.85 }}
-              />
-            </div>
+            <ThemePreview swatch={theme.swatch} />
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between px-1">
               <span className="text-sm font-medium text-[var(--color-fg)]">
                 {theme.label}
               </span>

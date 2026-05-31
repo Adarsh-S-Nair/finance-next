@@ -25,8 +25,21 @@
  *                                `[data-theme="<id>"]` selector in colors.css.
  * @property {string} label       Human-friendly name shown in the UI.
  * @property {"light"|"dark"} appearance  Light/dark family for this theme.
- * @property {{ bg: string, fg: string, accent: string }} swatch
- *                                Representative colors for preview chips.
+ * @property {ThemeSwatch} swatch Representative colors for the mini app
+ *                                preview rendered in the theme picker. These
+ *                                mirror the real `--color-*` values for the
+ *                                theme so the preview looks like the app.
+ */
+
+/**
+ * @typedef {Object} ThemeSwatch
+ * @property {string} shell    Outer chrome bg (--color-shell-bg).
+ * @property {string} surface  Card / content bg (--color-surface).
+ * @property {string} sidebar  Sidebar bg (--color-sidebar-bg).
+ * @property {string} fg       Primary text (--color-fg).
+ * @property {string} muted    Secondary text / lines (--color-muted).
+ * @property {string} border   Hairline borders (--color-border).
+ * @property {string} accent   Accent color (--color-accent).
  */
 
 /** @type {ThemeDefinition[]} */
@@ -35,13 +48,29 @@ export const THEMES = [
     id: "light",
     label: "Light",
     appearance: "light",
-    swatch: { bg: "#ffffff", fg: "#18181b", accent: "#18181b" },
+    swatch: {
+      shell: "#f4f4f5",
+      surface: "#ffffff",
+      sidebar: "#f4f4f5",
+      fg: "#18181b",
+      muted: "#52525b",
+      border: "#e4e4e7",
+      accent: "#18181b",
+    },
   },
   {
     id: "dark",
     label: "Dark",
     appearance: "dark",
-    swatch: { bg: "#0d0d0d", fg: "#e4e4e7", accent: "#fafafa" },
+    swatch: {
+      shell: "#000000",
+      surface: "#0d0d0d",
+      sidebar: "#000000",
+      fg: "#e4e4e7",
+      muted: "#a1a1aa",
+      border: "#3f3f46",
+      accent: "#fafafa",
+    },
   },
 ];
 
