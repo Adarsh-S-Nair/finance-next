@@ -24,22 +24,16 @@
  * @property {string} id          Stored in `user_profiles.theme`; matches the
  *                                `[data-theme="<id>"]` selector in colors.css.
  * @property {string} label       Human-friendly name shown in the UI.
+ * @property {string} [description] Optional one-liner shown under the label.
  * @property {"light"|"dark"} appearance  Light/dark family for this theme.
- * @property {ThemeSwatch} swatch Representative colors for the mini app
- *                                preview rendered in the theme picker. These
- *                                mirror the real `--color-*` values for the
- *                                theme so the preview looks like the app.
  */
 
-/**
- * @typedef {Object} ThemeSwatch
- * @property {string} shell    Outer chrome bg (--color-shell-bg).
- * @property {string} surface  Card / content bg (--color-surface).
- * @property {string} sidebar  Sidebar bg (--color-sidebar-bg).
- * @property {string} fg       Primary text (--color-fg).
- * @property {string} muted    Secondary text / lines (--color-muted).
- * @property {string} border   Hairline borders (--color-border).
- * @property {string} accent   Accent color (--color-accent).
+/*
+ * NOTE: there are deliberately NO color values here. The actual colors live
+ * once, in `src/styles/colors.css`, as `--color-*` variables under each
+ * theme's `[data-theme="<id>"]` block. The Appearance preview renders inside
+ * a `[data-theme]` subtree and reads those same variables, so nothing is
+ * duplicated and the preview always reflects the real theme.
  */
 
 /** @type {ThemeDefinition[]} */
@@ -47,30 +41,14 @@ export const THEMES = [
   {
     id: "light",
     label: "Light",
+    description: "Clean and bright",
     appearance: "light",
-    swatch: {
-      shell: "#f4f4f5",
-      surface: "#ffffff",
-      sidebar: "#f4f4f5",
-      fg: "#18181b",
-      muted: "#52525b",
-      border: "#e4e4e7",
-      accent: "#18181b",
-    },
   },
   {
     id: "dark",
     label: "Dark",
+    description: "Easy on the eyes",
     appearance: "dark",
-    swatch: {
-      shell: "#000000",
-      surface: "#0d0d0d",
-      sidebar: "#000000",
-      fg: "#e4e4e7",
-      muted: "#a1a1aa",
-      border: "#3f3f46",
-      accent: "#fafafa",
-    },
   },
 ];
 

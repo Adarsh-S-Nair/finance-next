@@ -1,5 +1,10 @@
-:root {
-  /* Clean Light Mode - High Tech / Minimalist */
+:root,
+[data-theme="light"] {
+  /* Clean Light Mode - High Tech / Minimalist
+     Also matchable via [data-theme="light"] so a light-themed subtree
+     (e.g. the light preview card in Settings → Appearance) resolves these
+     values locally even while the rest of the page is in another theme.
+     See src/config/themes.js for the theme registry. */
   --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-fg: #18181b;
