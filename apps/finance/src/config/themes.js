@@ -24,32 +24,22 @@
  * @property {string} id          Stored in `user_profiles.theme`; matches the
  *                                `[data-theme="<id>"]` selector in colors.css.
  * @property {string} label       Human-friendly name shown in the UI.
- * @property {string} [description] Optional one-liner shown under the label.
  * @property {"light"|"dark"} appearance  Light/dark family for this theme.
  */
 
 /*
  * NOTE: there are deliberately NO color values here. The actual colors live
  * once, in `src/styles/colors.css`, as `--color-*` variables under each
- * theme's `[data-theme="<id>"]` block. The Appearance preview renders inside
- * a `[data-theme]` subtree and reads those same variables, so nothing is
- * duplicated and the preview always reflects the real theme.
+ * theme's `[data-theme="<id>"]` block (light is the default/fallback in
+ * :root; other themes only override what differs). The Appearance preview
+ * renders inside a `[data-theme]` subtree and reads those same variables, so
+ * nothing is duplicated and the preview always reflects the real theme.
  */
 
 /** @type {ThemeDefinition[]} */
 export const THEMES = [
-  {
-    id: "light",
-    label: "Light",
-    description: "Clean and bright",
-    appearance: "light",
-  },
-  {
-    id: "dark",
-    label: "Dark",
-    description: "Easy on the eyes",
-    appearance: "dark",
-  },
+  { id: "light", label: "Light", appearance: "light" },
+  { id: "dark", label: "Dark", appearance: "dark" },
 ];
 
 /** The theme used before a profile loads and on sign-out. */

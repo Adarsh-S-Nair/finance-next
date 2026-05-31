@@ -105,7 +105,12 @@
    a legacy `.dark` class on <html> for the handful of Tailwind `dark:`
    utilities and the `.shimmer` rule that still depend on it. */
 [data-theme="dark"] {
-  /* Matte Dark Mode - Flat & Minimal */
+  /* Matte Dark Mode — Flat & Minimal.
+     i18n-style overrides: this block only sets what DIFFERS from the light
+     defaults in :root. Any variable it omits (the --color-neon-* accents,
+     --color-warn, --color-shadow, etc.) falls back to the :root value, so
+     light acts as the default/fallback theme. New themes follow the same
+     rule — copy this block and change only the values you want different. */
   --color-bg: #0d0d0d;
   /* Card background */
   --color-surface: #0d0d0d;
@@ -118,16 +123,6 @@
   /* Zinc 700 - subtle borders */
   --color-ring: #71717a;
   /* Zinc 500 */
-
-  /* Matte Accents - Dark Mode (Slightly brighter for lighter bg) */
-  --color-neon-blue: #60a5fa;
-  /* Blue 400 */
-  --color-neon-purple: #a78bfa;
-  /* Purple 400 */
-  --color-neon-green: #34d399;
-  /* Emerald 400 - less neon */
-  --color-neon-pink: #f472b6;
-  /* Pink 400 */
 
   --color-primary: #fafafa;
   --color-primary-hover: #e4e4e7;
@@ -143,12 +138,9 @@
   --color-on-success: #09090b;
 
   --color-danger: #f87171;
-  /* Red 400 - softer against dark bg, less harsh */
-  --color-on-danger: #ffffff;
-
-  --color-warn: #fbbf24;
-  /* Amber 400 */
+  /* Red 400 - softer against dark bg */
   --color-on-warn: #09090b;
+  /* Warn stays amber (inherited); just flip its text to dark */
 
   --color-input-bg: #181818;
   /* Slightly lifted from surface */
@@ -184,13 +176,11 @@
   --glass-border: #27272a;
   --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 
-  --color-shadow: transparent;
   --color-card-border: color-mix(in oklab, #ffffff, transparent 92%);
 
-  /* Chart Colors */
+  /* Chart Colors (--color-chart-income inherits the same formula from :root) */
   --color-chart-primary: #60a5fa;
   /* Blue 400 - lighter for dark bg */
-  --color-chart-income: color-mix(in srgb, var(--color-accent), var(--color-muted) 25%);
   --color-chart-expense: color-mix(in srgb, var(--color-chart-income), black 30%);
   --color-chart-pattern: rgba(0, 0, 0, 0.2);
 
