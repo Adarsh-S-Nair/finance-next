@@ -1601,7 +1601,7 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
         amount,
         category_id,
         accounts!inner(user_id),
-        system_categories(label, hex_color, category_groups(name, hex_color))
+        system_categories(label, hex_color, category_groups(name, hex_color, icon_lib, icon_name))
       `,
     )
     .eq('accounts.user_id', userId)
@@ -1615,7 +1615,10 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
   // by passing exclude_transfers: false.
   const excludeTransfers = input.exclude_transfers !== false;
 
-  const buckets = new Map<string, { label: string; total: number; color: string }>();
+  const buckets = new Map<
+    string,
+    { label: string; total: number; color: string; icon_lib: string | null; icon_name: string | null }
+  >();
   let totalSpending = 0;
   for (const tx of data ?? []) {
     const amount = Number(tx.amount ?? 0);
@@ -1625,7 +1628,12 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
       | {
           label?: string;
           hex_color?: string;
-          category_groups?: { name?: string; hex_color?: string } | null;
+          category_groups?: {
+            name?: string;
+            hex_color?: string;
+            icon_lib?: string | null;
+            icon_name?: string | null;
+          } | null;
         }
       | null;
     // Prefer the category group label so spending bucket matches the
@@ -1641,7 +1649,16 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
     if (excludeTransfers && isTransferCategory(cat?.label, group?.name)) continue;
     const label = group?.name ?? cat?.label ?? 'Uncategorized';
     const color = group?.hex_color ?? cat?.hex_color ?? '#71717a';
-    const existing = buckets.get(label) ?? { label, total: 0, color };
+    // Icons live only on category_groups (leaves inherit them). The
+    // breakdown widget renders these as the legend glyphs; null falls
+    // back to a generic tag icon client-side.
+    const existing = buckets.get(label) ?? {
+      label,
+      total: 0,
+      color,
+      icon_lib: group?.icon_lib ?? null,
+      icon_name: group?.icon_name ?? null,
+    };
     existing.total += spend;
     buckets.set(label, existing);
     totalSpending += spend;
@@ -1653,6 +1670,8 @@ async function getSpendingByCategory(userId: string, input: SpendingByCategoryIn
       label: c.label,
       total: Math.round(c.total * 100) / 100,
       color: c.color,
+      icon_lib: c.icon_lib,
+      icon_name: c.icon_name,
       percent: totalSpending > 0 ? Math.round((c.total / totalSpending) * 100) : 0,
     }));
 
