@@ -98,19 +98,27 @@
   /* Zinc 300 */
 }
 
-/* Dark theme — overrides the light defaults from :root.
-   Selector is keyed off [data-theme] so new themes can be added as
-   sibling blocks (e.g. [data-theme="dim"]) without touching any JS.
-   See src/config/themes.js for the registry. The provider also toggles
-   a legacy `.dark` class on <html> for the handful of Tailwind `dark:`
-   utilities and the `.shimmer` rule that still depend on it. */
-[data-theme="dark"] {
-  /* Matte Dark Mode — Flat & Minimal.
+/* Dark family base — shared by every dark theme (currently "dark" =
+   Ultra Dark, pure black, and "dim" = the softer gray dark). This block
+   sets the text/accent/semantic values common to all dark themes; each
+   specific dark theme then overrides only its background ramp below.
+   Selector is keyed off [data-theme] so new themes are just sibling blocks
+   without touching any JS — see src/config/themes.js for the registry. The
+   provider also toggles a legacy `.dark` class on <html> for the handful of
+   Tailwind `dark:` utilities and the `.shimmer` rule that still depend on it. */
+[data-theme="dark"],
+[data-theme="dim"] {
+  /* Matte Dark — Flat & Minimal.
      i18n-style overrides: this block only sets what DIFFERS from the light
      defaults in :root. Any variable it omits (the --color-neon-* accents,
      --color-warn, --color-shadow, etc.) falls back to the :root value, so
      light acts as the default/fallback theme. New themes follow the same
-     rule — copy this block and change only the values you want different. */
+     rule — copy this block and change only the values you want different.
+
+     Background-ramp values here (bg, surface, shell, content, surface-alt,
+     input-bg, sidebar-active, glass-bg, floating-bg) are the pure-black
+     "Ultra Dark" ramp. The softer gray "dim" theme inherits everything in
+     this block and overrides ONLY that ramp below. */
   --color-bg: #0d0d0d;
   /* Card background */
   --color-surface: #0d0d0d;
@@ -193,6 +201,29 @@
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;
   /* Zinc 600 */
+}
+
+/* Dark (regular) — the softer gray dark. Inherits the whole dark base
+   above (text, accents, borders, charts) and overrides ONLY the
+   background ramp from pure black to neutral grays, so it reads as a
+   lifted, less stark dark without restating the shared values. */
+[data-theme="dim"] {
+  --color-bg: #1c1c1f;
+  /* Zinc ~900/950 — card background */
+  --color-surface: #1c1c1f;
+  /* Cards match bg for the same flat look */
+  --color-surface-alt: #27272a;
+  /* Zinc 800 — one step lifted (inputs, tiles, dropdowns) */
+  --color-input-bg: #27272a;
+
+  --color-content-bg: #1c1c1f;
+  --color-shell-bg: #131316;
+  /* Shell sits just below the content card */
+  --color-sidebar-active: #2e2e33;
+
+  --glass-bg: #232327;
+  --color-floating-bg: #2e2e33;
+  /* Lift overlays a touch above the gray surfaces */
 }
 
 /* Base application colors */

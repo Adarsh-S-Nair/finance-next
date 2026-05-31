@@ -15,8 +15,13 @@
  * `appearance` ("light" | "dark") tells the rest of the app which family a
  * theme belongs to. The provider uses it to toggle the legacy `.dark` class
  * (a handful of Tailwind `dark:` utilities + the `.shimmer` rule still key
- * off it) and to set the native `color-scheme`. A future gray "dim" theme,
- * for example, would be `appearance: "dark"`.
+ * off it) and to set the native `color-scheme`.
+ *
+ * IMPORTANT: an entry's `id` is persisted in `user_profiles.theme`. Never
+ * change an existing id (it would silently reset everyone on that theme to
+ * the fallback) — change the `label` instead. e.g. the original pure-black
+ * theme keeps id "dark" but is now labelled "Ultra Dark"; the softer gray
+ * dark is a new id ("dim").
  */
 
 /**
@@ -39,7 +44,12 @@
 /** @type {ThemeDefinition[]} */
 export const THEMES = [
   { id: "light", label: "Light", appearance: "light" },
-  { id: "dark", label: "Dark", appearance: "dark" },
+  // Softer gray dark — the "regular" dark. Listed first among dark themes so
+  // the topbar moon toggle targets it as the default dark.
+  { id: "dim", label: "Dark", appearance: "dark" },
+  // Original flat pure-black dark. Keeps id "dark" so existing users aren't
+  // migrated; only the label changed.
+  { id: "dark", label: "Ultra Dark", appearance: "dark" },
 ];
 
 /** The theme used before a profile loads and on sign-out. */
