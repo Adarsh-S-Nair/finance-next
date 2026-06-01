@@ -44,16 +44,17 @@
 /** @type {ThemeDefinition[]} */
 export const THEMES = [
   { id: "light", label: "Light", appearance: "light" },
-  // Warm, bookish parchment + espresso palette. Light family (dark text on
-  // a cream background), so it inherits the :root light defaults and only
-  // warms the neutrals/accent toward browns.
-  { id: "cottage", label: "Cottage", appearance: "light" },
   // Softer gray dark — the "regular" dark. Listed first among dark themes so
   // the topbar moon toggle targets it as the default dark.
   { id: "dim", label: "Dark", appearance: "dark" },
   // Original flat pure-black dark. Keeps id "dark" so existing users aren't
   // migrated; only the label changed.
   { id: "dark", label: "Ultra Dark", appearance: "dark" },
+  // Warm, bookish dark-brown palette — espresso backgrounds, cream text,
+  // terracotta accent. Dark family, so it inherits the shared dark base and
+  // overrides the ramp/neutrals toward warm browns. Listed last so the
+  // topbar moon toggle keeps targeting "dim" as the default dark.
+  { id: "cottage", label: "Cottage", appearance: "dark" },
 ];
 
 /** The theme used before a profile loads and on sign-out. */

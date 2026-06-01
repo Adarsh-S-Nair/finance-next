@@ -109,83 +109,6 @@
   /* Zinc 300 */
 }
 
-/* Cottage — a warm, bookish/cozy light theme. Parchment + cream
-   backgrounds, espresso-brown text, a terracotta accent. Light family,
-   so it inherits everything from :root and overrides only the values that
-   carry the warmth (backgrounds, text, borders, accent, semantics tuned
-   to sit on cream). Anything omitted (e.g. --color-neon-* flourishes)
-   falls back to the light defaults. */
-[data-theme="cottage"] {
-  --color-bg: #fbf4e6;
-  /* Warm parchment — card background */
-  --color-surface: #fdf8ee;
-  /* Slightly lighter cream so cards lift off the shell */
-  --color-fg: #3a2a1a;
-  /* Espresso brown — primary text */
-  --color-muted: #8a6f56;
-  /* Milky-coffee brown — secondary text */
-  --color-border: #e4d3b8;
-  /* Soft tan hairline */
-  --color-ring: #c9a87c;
-  /* Caramel focus ring */
-
-  --color-primary: #6f4e2e;
-  /* Walnut */
-  --color-primary-hover: #5c3f24;
-  --color-on-primary: #fdf8ee;
-
-  /* Accent: terracotta — the cozy pop of color */
-  --color-accent: #b5683c;
-  --color-accent-hover: #9c5530;
-  --color-on-accent: #fdf8ee;
-
-  --color-success: #5e7a4f;
-  /* Sage/olive green — reads natural against cream */
-  --color-success-hover: #4d6641;
-  --color-on-success: #fdf8ee;
-
-  --color-danger: #a23b2c;
-  /* Brick red */
-  --color-on-danger: #fdf8ee;
-
-  --color-warn: #cf9446;
-  /* Amber/honey */
-  --color-on-warn: #3a2a1a;
-
-  --color-input-bg: #f3e8d3;
-  --color-input-fg: #3a2a1a;
-  --color-input-placeholder: #b39e83;
-
-  --color-surface-alt: #f3e8d3;
-  /* Toasted cream — inputs, tiles, dropdowns */
-  --color-dropdown-bg: var(--color-surface-alt);
-
-  --color-floating-bg: #fdf8ee;
-  --color-floating-fg: #3a2a1a;
-  --color-floating-muted: #8a6f56;
-  --color-floating-border: color-mix(in oklab, #3a2a1a, transparent 90%);
-
-  --color-content-bg: #fdf8ee;
-  --color-shell-bg: #f1e3c9;
-  /* Deeper parchment shell so the cream card sits on warm chrome */
-  --color-sidebar-bg: var(--color-shell-bg);
-  --color-sidebar-active: #e8d6b6;
-
-  --glass-bg: #fdf8ee;
-  --glass-border: #e4d3b8;
-  --glass-shadow: 0 1px 3px rgba(90, 63, 36, 0.10), 0 1px 2px rgba(90, 63, 36, 0.06);
-
-  --color-card-border: color-mix(in oklab, #6f4e2e, transparent 90%);
-
-  /* Charts tuned to the warm palette */
-  --color-chart-primary: #b5683c;
-  --color-chart-pattern: rgba(255, 248, 238, 0.18);
-  --color-cashflow-income: #5e7a4f;
-  --color-cashflow-spending: #b5683c;
-  --color-chart-spending-bar: #d9c3a0;
-  /* Tan bars */
-}
-
 /* Dark family base — shared by every dark theme (currently "dark" =
    Ultra Dark, pure black, and "dim" = the softer gray dark). This block
    sets the text/accent/semantic values common to all dark themes; each
@@ -195,7 +118,8 @@
    provider also toggles a legacy `.dark` class on <html> for the handful of
    Tailwind `dark:` utilities and the `.shimmer` rule that still depend on it. */
 [data-theme="dark"],
-[data-theme="dim"] {
+[data-theme="dim"],
+[data-theme="cottage"] {
   /* Matte Dark — Flat & Minimal.
      i18n-style overrides: this block only sets what DIFFERS from the light
      defaults in :root. Any variable it omits (the --color-neon-* accents,
@@ -312,6 +236,74 @@
   --glass-bg: #232327;
   --color-floating-bg: #2e2e33;
   /* Lift overlays a touch above the gray surfaces */
+}
+
+/* Cottage — a warm, bookish/cozy DARK theme: candlelit-library browns
+   rather than parchment. Part of the dark family (included in the shared
+   dark base above for semantics/charts/on-* colors), this block overrides
+   the ramp to warm espresso/coffee tones, the text to cream, and the
+   accent to terracotta. Inherits anything it omits from the dark base. */
+[data-theme="cottage"] {
+  --color-bg: #241c14;
+  /* Dark espresso — card background */
+  --color-surface: #241c14;
+  /* Cards match bg for the flat look */
+  --color-fg: #efe3d0;
+  /* Warm cream — primary text */
+  --color-muted: #b39e83;
+  /* Milky-coffee — secondary text */
+  --color-border: #4a3a2a;
+  /* Aged-leather hairline */
+  --color-ring: #8a6f56;
+  /* Coffee focus ring */
+
+  --color-primary: #efe3d0;
+  /* Cream — primary surfaces/buttons read light on dark */
+  --color-primary-hover: #e0d0b8;
+  --color-on-primary: #241c14;
+
+  /* Accent: terracotta — the cozy pop, brightened a touch for dark bg */
+  --color-accent: #c8754a;
+  --color-accent-hover: #d98a5f;
+  --color-on-accent: #1c150e;
+
+  /* Semantics tuned to sit on warm dark: sage green + clay red */
+  --color-success: #8aa873;
+  --color-success-hover: #9bb985;
+  --color-on-success: #1c150e;
+  --color-danger: #d4795f;
+  --color-on-danger: #1c150e;
+  --color-warn: #d9a648;
+  --color-on-warn: #1c150e;
+
+  --color-input-bg: #2e241a;
+  --color-input-fg: #efe3d0;
+  --color-input-placeholder: #8a7660;
+
+  --color-surface-alt: #2e241a;
+  /* Roasted-coffee — inputs, tiles, dropdowns (one step lifted) */
+  --color-dropdown-bg: var(--color-surface-alt);
+
+  --color-floating-bg: #38291c;
+  --color-floating-fg: #efe3d0;
+  --color-floating-muted: #b39e83;
+  --color-floating-border: color-mix(in oklab, #ffffff, transparent 90%);
+
+  --color-content-bg: #241c14;
+  --color-shell-bg: #1a130c;
+  /* Darkest brown — outer chrome the card sits on */
+  --color-sidebar-active: #38291c;
+
+  --glass-bg: #2a2016;
+  --glass-border: #4a3a2a;
+  --color-card-border: color-mix(in oklab, #ffffff, transparent 92%);
+
+  /* Charts tuned to the warm palette */
+  --color-chart-primary: #c8754a;
+  --color-cashflow-income: #8aa873;
+  --color-cashflow-spending: #c8754a;
+  --color-chart-spending-bar: #5c4632;
+  /* Coffee-bean bars */
 }
 
 /* Base application colors */
