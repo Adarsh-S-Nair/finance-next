@@ -238,72 +238,72 @@
   /* Lift overlays a touch above the gray surfaces */
 }
 
-/* Cottage — a warm, bookish/cozy DARK theme: candlelit-library browns
-   rather than parchment. Part of the dark family (included in the shared
-   dark base above for semantics/charts/on-* colors), this block overrides
-   the ramp to warm espresso/coffee tones, the text to cream, and the
-   accent to terracotta. Inherits anything it omits from the dark base. */
+/* Cottage — a cozy DARK chocolate/mocha theme. Part of the dark family
+   (included in the shared dark base above for semantics/charts/on-* colors),
+   this block overrides the ramp to deep cocoa-brown, the text to soft beige,
+   and the accent to a MUTED CARAMEL — deliberately desaturated so the theme
+   reads warm-brown, not orange. Inherits anything it omits from the base. */
 [data-theme="cottage"] {
-  --color-bg: #241c14;
-  /* Dark espresso — card background */
-  --color-surface: #241c14;
+  --color-bg: #211a15;
+  /* Dark cocoa — card background */
+  --color-surface: #211a15;
   /* Cards match bg for the flat look */
-  --color-fg: #efe3d0;
-  /* Warm cream — primary text */
-  --color-muted: #b39e83;
-  /* Milky-coffee — secondary text */
-  --color-border: #4a3a2a;
-  /* Aged-leather hairline */
-  --color-ring: #8a6f56;
+  --color-fg: #e8ddcd;
+  /* Soft beige — primary text */
+  --color-muted: #a89684;
+  /* Cocoa-milk — secondary text */
+  --color-border: #463a2e;
+  /* Roasted-cocoa hairline */
+  --color-ring: #7d6a56;
   /* Coffee focus ring */
 
-  --color-primary: #efe3d0;
-  /* Cream — primary surfaces/buttons read light on dark */
-  --color-primary-hover: #e0d0b8;
-  --color-on-primary: #241c14;
+  --color-primary: #e8ddcd;
+  /* Beige — primary surfaces/buttons read light on dark */
+  --color-primary-hover: #d8cab4;
+  --color-on-primary: #211a15;
 
-  /* Accent: terracotta — the cozy pop, brightened a touch for dark bg */
-  --color-accent: #c8754a;
-  --color-accent-hover: #d98a5f;
-  --color-on-accent: #1c150e;
+  /* Accent: muted caramel — warm, low-saturation so it doesn't read orange */
+  --color-accent: #b08968;
+  --color-accent-hover: #c29a78;
+  --color-on-accent: #1a130e;
 
-  /* Semantics tuned to sit on warm dark: sage green + clay red */
+  /* Semantics tuned to sit on the warm dark: sage green + clay red */
   --color-success: #8aa873;
   --color-success-hover: #9bb985;
-  --color-on-success: #1c150e;
-  --color-danger: #d4795f;
-  --color-on-danger: #1c150e;
-  --color-warn: #d9a648;
-  --color-on-warn: #1c150e;
+  --color-on-success: #161009;
+  --color-danger: #cf7155;
+  --color-on-danger: #161009;
+  --color-warn: #cca453;
+  --color-on-warn: #161009;
 
-  --color-input-bg: #2e241a;
-  --color-input-fg: #efe3d0;
-  --color-input-placeholder: #8a7660;
+  --color-input-bg: #2c241d;
+  --color-input-fg: #e8ddcd;
+  --color-input-placeholder: #897a68;
 
-  --color-surface-alt: #2e241a;
-  /* Roasted-coffee — inputs, tiles, dropdowns (one step lifted) */
+  --color-surface-alt: #2c241d;
+  /* Roasted-cocoa — inputs, tiles, dropdowns (one step lifted) */
   --color-dropdown-bg: var(--color-surface-alt);
 
-  --color-floating-bg: #38291c;
-  --color-floating-fg: #efe3d0;
-  --color-floating-muted: #b39e83;
+  --color-floating-bg: #342a21;
+  --color-floating-fg: #e8ddcd;
+  --color-floating-muted: #a89684;
   --color-floating-border: color-mix(in oklab, #ffffff, transparent 90%);
 
-  --color-content-bg: #241c14;
-  --color-shell-bg: #1a130c;
-  /* Darkest brown — outer chrome the card sits on */
-  --color-sidebar-active: #38291c;
+  --color-content-bg: #211a15;
+  --color-shell-bg: #181210;
+  /* Near-black cocoa — outer chrome the card sits on */
+  --color-sidebar-active: #342a21;
 
-  --glass-bg: #2a2016;
-  --glass-border: #4a3a2a;
+  --glass-bg: #271f18;
+  --glass-border: #463a2e;
   --color-card-border: color-mix(in oklab, #ffffff, transparent 92%);
 
-  /* Charts tuned to the warm palette */
-  --color-chart-primary: #c8754a;
+  /* Charts tuned to the mocha palette */
+  --color-chart-primary: #b08968;
   --color-cashflow-income: #8aa873;
-  --color-cashflow-spending: #c8754a;
-  --color-chart-spending-bar: #5c4632;
-  /* Coffee-bean bars */
+  --color-cashflow-spending: #b08968;
+  --color-chart-spending-bar: #574736;
+  /* Cocoa-bean bars */
 }
 
 /* Base application colors */
