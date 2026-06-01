@@ -429,25 +429,46 @@ export default function DashboardPage() {
         {/* Main Content Area — flexes to fill available width */}
         <div className="flex-1 min-w-0 space-y-6 lg:space-y-10">
           {dashboardLayout.main.map((item) => (
-            <div key={item.id}>
-              {renderItem(item)}
-            </div>
+            <Fragment key={item.id}>
+              <div>{renderItem(item)}</div>
+              {/* On mobile the sidebar stacks below everything, which
+                  buries the user-specific insights. Surface them right
+                  under net worth and above spending instead. Hidden on
+                  desktop, where the sidebar copy renders. */}
+              {item.id === 'net-worth-banner' && (
+                <div className="lg:hidden">
+                  {renderItem(dashboardLayout.sidebar.find((s) => s.id === 'insights'))}
+                  {!isPro && <UpgradeBanner />}
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
 
         {/* Sidebar — fixed width, anchored to the right.
             Insights render first so the user-specific signal is the
-            top thing they see; the Pro upgrade pitch sits below it. */}
+            top thing they see; the Pro upgrade pitch sits below it.
+            On mobile insights/upgrade move into the main column above
+            (under net worth), so the sidebar copy is desktop-only. */}
         <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
           {dashboardLayout.sidebar.map((item) => {
             // Hide pro-only cards (budgets, calendar) for free users
             if (!isPro && item.id === 'sidebar-group') return null;
+            if (item.id === 'insights') {
+              return (
+                <Fragment key={item.id}>
+                  <div className="hidden lg:block">{renderItem(item)}</div>
+                  {!isPro && (
+                    <div className="hidden lg:block">
+                      <UpgradeBanner />
+                    </div>
+                  )}
+                </Fragment>
+              );
+            }
             return (
               <Fragment key={item.id}>
                 <div>{renderItem(item)}</div>
-                {/* Slot the upgrade banner as a sibling immediately
-                    after insights so the parent's space-y-* applies. */}
-                {!isPro && item.id === 'insights' && <UpgradeBanner />}
               </Fragment>
             );
           })}
