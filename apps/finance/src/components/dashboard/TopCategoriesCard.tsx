@@ -135,7 +135,14 @@ export default function TopCategoriesCard({
   useEffect(() => {
     if (!range) return;
 
-    if (externalData && isCurrentMonth) {
+    // Fast-path the prefetched summary ONLY in standalone mode (no parent
+    // `month`, e.g. the landing-page mock). When the dashboard drives an
+    // explicit month we must always fetch the exact range: the prefetched
+    // summary computes "this month" from the SERVER clock, which diverges
+    // from the user's selected month at the month boundary / across
+    // timezones — that mismatch was rendering "$0, no spending" for the
+    // current month while the line chart (month-driven) showed spending.
+    if (externalData && showCardHeader && isCurrentMonth) {
       setCategories((externalData.categories || []).slice(0, 20));
       setTotalSpending(externalData.totalSpending || 0);
       setLoading(false);
@@ -172,6 +179,7 @@ export default function TopCategoriesCard({
     user?.id,
     externalData,
     isCurrentMonth,
+    showCardHeader,
     range,
     hasLoaded,
   ]);
