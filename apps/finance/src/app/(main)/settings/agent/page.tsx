@@ -240,7 +240,7 @@ export default function AgentSettingsPage() {
                     onClick={() => forgetMemory(m.id)}
                     disabled={forgettingId === m.id}
                     aria-label="Forget this memory"
-                    className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md text-[var(--color-muted)] hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 disabled:opacity-50 transition-all"
+                    className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 disabled:opacity-50 transition-all"
                   >
                     <FiX className="h-3.5 w-3.5" strokeWidth={2.5} />
                   </button>

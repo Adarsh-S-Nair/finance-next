@@ -155,7 +155,7 @@ export default function UpgradeOverlay({ isOpen, onClose }: UpgradeOverlayProps)
                 <ul className="space-y-3 flex-1">
                   {PRO_FEATURES.map((feature) => (
                     <li key={feature} className="flex items-center gap-2.5">
-                      <FiCheck className="h-4 w-4 flex-shrink-0 text-emerald-500" strokeWidth={2.5} />
+                      <FiCheck className="h-4 w-4 flex-shrink-0 text-[var(--color-success)]" strokeWidth={2.5} />
                       <span className="text-sm text-[var(--color-muted)]">{feature}</span>
                     </li>
                   ))}

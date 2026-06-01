@@ -360,7 +360,7 @@ function AnsweredState({
           transition={{ delay: silent ? 0 : 0.2, duration: 0.25 }}
           className="flex items-center gap-2 text-[13px] text-[var(--color-fg)]"
         >
-          <FiCheck className="h-3.5 w-3.5 text-emerald-500" strokeWidth={3} />
+          <FiCheck className="h-3.5 w-3.5 text-[var(--color-success)]" strokeWidth={3} />
           <span>{answer}</span>
         </motion.div>
       </div>

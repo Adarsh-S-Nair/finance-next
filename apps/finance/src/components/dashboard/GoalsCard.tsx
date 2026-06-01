@@ -9,7 +9,7 @@ import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { formatCurrency } from "../../lib/formatCurrency";
 import { allocateCash, rowToGoal, type Goal } from "../goals/types";
 
-const GREEN_FILL = "#16a34a"; // emerald-600
+const GREEN_FILL = "var(--color-success)";
 const MAX_ROWS = 3;
 
 const DEPOSITORY_SUBTYPES = new Set([

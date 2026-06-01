@@ -326,8 +326,8 @@ export default function MonthlyOverviewCard({
                 {momComparison && (
                   <span className={`text-[11px] font-semibold ${
                     momComparison.direction === 'down'
-                      ? 'text-emerald-500'
-                      : 'text-rose-500'
+                      ? 'text-[var(--color-success)]'
+                      : 'text-[var(--color-danger)]'
                   }`}>
                     {momComparison.direction === 'down' ? '▼' : '▲'} {momComparison.percentage}%
                   </span>

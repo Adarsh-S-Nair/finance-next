@@ -85,7 +85,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
       </div>
       <div
         className={`text-sm tabular-nums flex-shrink-0 ${
-          isIncome ? "text-emerald-500" : "text-[var(--color-fg)]"
+          isIncome ? "text-[var(--color-success)]" : "text-[var(--color-fg)]"
         }`}
       >
         {isIncome ? "+" : ""}

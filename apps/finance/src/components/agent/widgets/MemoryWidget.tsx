@@ -94,7 +94,7 @@ export default function MemoryWidget({
               onClick={handleForget}
               disabled={forgetting}
               aria-label="Forget this memory"
-              className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-[var(--color-muted)] hover:text-rose-500 disabled:opacity-50 transition-colors"
+              className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-danger)] disabled:opacity-50 transition-colors"
             >
               <FiX className="h-3 w-3" strokeWidth={2.5} />
               forget

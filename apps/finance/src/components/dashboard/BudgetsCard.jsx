@@ -19,9 +19,9 @@ const MAX_ROWS = 3;
 // the category's own brand color.
 const barColorFor = (spent, total, hex) => {
   const isOver = Math.round(spent) > Math.round(total);
-  if (isOver) return "#f43f5e"; // rose-500
+  if (isOver) return "var(--color-danger)";
   const pct = total > 0 ? (spent / total) * 100 : 0;
-  if (pct >= 85) return "#f59e0b"; // amber-500
+  if (pct >= 85) return "var(--color-warn)";
   return hex || "var(--color-accent)";
 };
 

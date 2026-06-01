@@ -448,8 +448,8 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
               <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight drop-shadow-[0_0_15px_rgba(var(--color-accent-rgb),0.1)]">
                 <AnimatedCounter value={displayData?.value || 0} duration={120} />
               </div>
-              <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-emerald-500' :
-                dynamicPercentChange < 0 ? 'text-rose-500' :
+              <div className={`text-xs font-medium mt-0.5 ${dynamicPercentChange > 0 ? 'text-[var(--color-success)]' :
+                dynamicPercentChange < 0 ? 'text-[var(--color-danger)]' :
                   'text-[var(--color-muted)]'
                 }`}>
                 {dynamicPercentChange > 0 ? '+' : ''}

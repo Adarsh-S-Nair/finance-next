@@ -42,6 +42,17 @@
   /* Red 700 - deeper, less alarming */
   --color-on-danger: #ffffff;
 
+  /* Net-worth / account breakdown segments. Derived from the semantic
+     success/danger colors via color-mix so they're theme-aware AND stay
+     distinguishable when two asset (or two liability) segments sit side by
+     side. "primary" = the pure semantic color (Cash / Credit); "alt" = a
+     lighter sibling (Investments / Loans). Defined once here; every theme
+     inherits these automatically since var() resolves at use-site. */
+  --color-asset-primary: var(--color-success);
+  --color-asset-alt: color-mix(in oklab, var(--color-success), white 35%);
+  --color-liability-primary: var(--color-danger);
+  --color-liability-alt: color-mix(in oklab, var(--color-danger), white 28%);
+
   --color-warn: #fbbf24;
   /* Amber 400 - softer */
   --color-on-warn: #18181b;

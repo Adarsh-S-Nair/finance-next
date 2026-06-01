@@ -230,7 +230,7 @@ function ProposalState({
           </div>
           <div className="flex items-center justify-end gap-2 flex-shrink-0">
             {error && (
-              <span className="text-[11px] text-rose-500 mr-2">{error}</span>
+              <span className="text-[11px] text-[var(--color-danger)] mr-2">{error}</span>
             )}
             <Button
               variant="secondary"
@@ -298,7 +298,7 @@ function ResolvedState({
             transition={{ delay: silent ? 0 : 0.3, duration: 0.25 }}
             className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
               tone === "accepted"
-                ? "text-emerald-500"
+                ? "text-[var(--color-success)]"
                 : "text-[var(--color-muted)]"
             }`}
           >

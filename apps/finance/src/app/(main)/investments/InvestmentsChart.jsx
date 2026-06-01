@@ -228,9 +228,9 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
             <div
               className={`mt-1 text-xs font-medium tabular-nums ${
                 deltaFromStart > 0
-                  ? "text-emerald-500"
+                  ? "text-[var(--color-success)]"
                   : deltaFromStart < 0
-                    ? "text-rose-500"
+                    ? "text-[var(--color-danger)]"
                     : "text-[var(--color-muted)]"
               }`}
             >
@@ -241,7 +241,7 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
           )}
           {displayChartData.length < 2 && costBasis > 0 && (
             <div
-              className={`mt-1 text-xs font-medium tabular-nums ${totalGain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+              className={`mt-1 text-xs font-medium tabular-nums ${totalGain >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}
             >
               {totalGain >= 0 ? "+" : ""}
               {formatCurrency(totalGain)} ({totalGain >= 0 ? "+" : ""}

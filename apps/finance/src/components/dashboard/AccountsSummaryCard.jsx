@@ -7,6 +7,21 @@ import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
+// Theme-aware color for a net-worth breakdown segment. Maps the two asset
+// labels to the asset color pair and the two liability labels to the
+// liability pair — both derived from --color-success / --color-danger in
+// colors.css, so they follow the active theme instead of hardcoded greens
+// and reds. Unknown labels fall back to the muted neutral.
+function segmentColor(label) {
+  switch (label) {
+    case 'Cash': return 'var(--color-asset-primary)';
+    case 'Investments': return 'var(--color-asset-alt)';
+    case 'Credit': return 'var(--color-liability-primary)';
+    case 'Loans': return 'var(--color-liability-alt)';
+    default: return 'var(--color-muted)';
+  }
+}
+
 // Animated counter component for smooth number transitions
 function AnimatedCounter({ value, duration = 120 }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -100,11 +115,7 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
         <div className="w-full h-3 rounded-full overflow-hidden bg-[var(--color-surface-alt)] mb-6" />
         <div className="space-y-3.5">
           {segments.map((segment) => {
-            let color;
-            if (segment.label === 'Investments') color = 'var(--color-neon-green)';
-            else if (segment.label === 'Cash') color = '#059669';
-            else if (segment.label === 'Loans') color = '#b91c1c';
-            else if (segment.label === 'Credit') color = '#ef4444';
+            const color = segmentColor(segment.label);
             return (
               <div key={segment.label} className="flex items-center justify-between text-xs opacity-60">
                 <div className="flex items-center gap-2">
@@ -144,14 +155,7 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
       >
         {segments.map((segment) => {
           const percentage = (segment.amount / total) * 100;
-          let color;
-
-          // Updated Colors
-          if (segment.label === 'Investments') color = 'var(--color-neon-green)';
-          else if (segment.label === 'Cash') color = '#059669'; // Emerald-600
-          else if (segment.label === 'Credit') color = '#ef4444'; // Red-500
-          else if (segment.label === 'Loans') color = '#b91c1c'; // Red-700
-          else color = 'var(--color-muted)';
+          const color = segmentColor(segment.label);
 
           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;
 
@@ -173,11 +177,7 @@ function SegmentedBar({ segments, total, label, className = "", isAnimated = fal
       {/* Vertical Legend */}
       <div className="space-y-3.5">
         {segments.map((segment, index) => {
-          let color;
-          if (segment.label === 'Investments') color = 'var(--color-neon-green)';
-          else if (segment.label === 'Cash') color = '#059669';
-          else if (segment.label === 'Loans') color = '#b91c1c';
-          else if (segment.label === 'Credit') color = '#ef4444';
+          const color = segmentColor(segment.label);
 
           const isHovered = hoveredSegment && hoveredSegment.label === segment.label;
           const isDimmed = hoveredSegment && hoveredSegment.label !== segment.label;

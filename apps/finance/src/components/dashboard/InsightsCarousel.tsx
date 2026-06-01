@@ -11,10 +11,10 @@ const ROTATE_INTERVAL = 8000;
 
 const toneConfig = {
   positive: {
-    accent: "bg-emerald-500",
+    accent: "bg-[var(--color-success)]",
   },
   negative: {
-    accent: "bg-rose-500",
+    accent: "bg-[var(--color-danger)]",
   },
   neutral: {
     accent: "bg-[var(--color-muted)]",

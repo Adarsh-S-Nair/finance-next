@@ -42,10 +42,10 @@ function CreditUtilization({ balance, limit, available, currency }) {
 
   const barColor =
     utilization < 0.3
-      ? "bg-emerald-500"
+      ? "bg-[var(--color-success)]"
       : utilization < 0.7
-      ? "bg-amber-500"
-      : "bg-rose-500";
+      ? "bg-[var(--color-warn)]"
+      : "bg-[var(--color-danger)]";
 
   return (
     <div className="py-2">

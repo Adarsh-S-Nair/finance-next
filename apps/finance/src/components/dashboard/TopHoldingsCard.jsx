@@ -47,7 +47,7 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
     })
     .join(" ");
   const isUp = data[data.length - 1] >= data[0];
-  const stroke = isUp ? "#10b981" : "#f43f5e";
+  const stroke = isUp ? "var(--color-success)" : "var(--color-danger)";
 
   if (fill) {
     const gid = `spark-grad-${gradientId || "x"}`;
@@ -363,7 +363,7 @@ export default function TopHoldingsCard({ mockData } = {}) {
                 </div>
                 {price != null && (
                   <div
-                    className={`mt-0.5 text-[11px] font-medium tabular-nums ${gainPct >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                    className={`mt-0.5 text-[11px] font-medium tabular-nums ${gainPct >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}
                   >
                     {gainPct >= 0 ? "+" : ""}
                     {gainPct.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%

@@ -142,7 +142,7 @@ const TransactionRow = memo(function TransactionRow({
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        <div className={`font-medium text-sm tabular-nums ${transaction.amount > 0 ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+        <div className={`font-medium text-sm tabular-nums ${transaction.amount > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]'}`}>
           {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
         </div>
         {showDate && transaction.date && (

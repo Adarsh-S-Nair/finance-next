@@ -181,9 +181,9 @@ function Header({
   const positive = delta > 0;
   const negative = delta < 0;
   const deltaColor = positive
-    ? "text-emerald-500"
+    ? "text-[var(--color-success)]"
     : negative
-      ? "text-rose-500"
+      ? "text-[var(--color-danger)]"
       : "text-[var(--color-muted)]";
   const sign = positive ? "+" : "";
 

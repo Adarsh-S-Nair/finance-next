@@ -38,7 +38,7 @@ function OAuthOverlay({ status, errorMsg }: { status: Status; errorMsg: string |
         )}
         {status === "success" && (
           <>
-            <FiCheckCircle className="mx-auto mb-4 h-10 w-10 text-emerald-500" />
+            <FiCheckCircle className="mx-auto mb-4 h-10 w-10 text-[var(--color-success)]" />
             <p className="text-base font-medium text-zinc-900">Account connected!</p>
             <p className="mt-1 text-sm text-zinc-500">Your data is syncing now.</p>
           </>

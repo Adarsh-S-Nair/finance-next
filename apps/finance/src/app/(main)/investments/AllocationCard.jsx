@@ -25,7 +25,7 @@ const CATEGORY_ORDER = ["Stocks", "Crypto", "Cash"];
 const CATEGORY_COLORS = {
   Stocks: "var(--color-neon-green)",
   Crypto: "var(--color-neon-purple)",
-  Cash: "#059669",
+  Cash: "var(--color-asset-primary)",
 };
 
 function categorizeAssetType(assetType) {

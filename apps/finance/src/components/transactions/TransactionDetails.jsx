@@ -140,7 +140,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
           <div
             className={clsx(
               'mt-4 text-2xl font-medium tracking-tight tabular-nums',
-              isIncome ? 'text-emerald-500' : 'text-[var(--color-fg)]',
+              isIncome ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]',
             )}
           >
             {isIncome ? '+' : ''}{formatCurrency(transaction.amount)}
@@ -265,7 +265,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                         <span className="text-sm font-medium text-[var(--color-fg)] leading-none truncate">{split.contacts?.name || 'Unknown'}</span>
                         <span className={clsx(
                           "text-[10px] uppercase font-medium mt-1.5 leading-none tracking-wider",
-                          split.is_settled ? "text-emerald-500" : "text-amber-500"
+                          split.is_settled ? "text-[var(--color-success)]" : "text-amber-500"
                         )}>
                           {split.is_settled ? 'Settled' : 'Pending'}
                         </span>

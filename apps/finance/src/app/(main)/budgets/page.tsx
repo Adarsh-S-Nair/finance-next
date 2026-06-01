@@ -678,7 +678,7 @@ function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
                     ? 'text-[var(--color-danger)]'
                     : isOverPace
                       ? 'text-amber-500'
-                      : 'text-emerald-500'
+                      : 'text-[var(--color-success)]'
                 }`}
               >
                 {isOverBudget
@@ -784,7 +784,7 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }: MonthProgr
     ? 'text-[var(--color-danger)]'
     : isOverPace
       ? 'text-amber-500'
-      : 'text-emerald-500';
+      : 'text-[var(--color-success)]';
 
   const deltaLabel = isOverBudget
     ? `${formatCurrency(currentSpent - totalAllocated)} over budget`

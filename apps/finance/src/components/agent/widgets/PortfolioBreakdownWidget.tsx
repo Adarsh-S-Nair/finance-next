@@ -27,7 +27,7 @@ export type PortfolioBreakdownData = {
 const ASSET_CLASS_COLORS: Record<string, string> = {
   Stocks: "var(--color-neon-green)",
   Crypto: "var(--color-neon-purple)",
-  Cash: "#059669",
+  Cash: "var(--color-asset-primary)",
   Investments: "var(--color-neon-green)",
 };
 

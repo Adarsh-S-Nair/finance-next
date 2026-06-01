@@ -161,7 +161,7 @@ export default function InvestmentAccountPage() {
           {formatCurrency(totalValue)}
         </div>
         {totalCost > 0 && (
-          <div className={`mt-1 text-sm tabular-nums ${totalGain >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+          <div className={`mt-1 text-sm tabular-nums ${totalGain >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
             {totalGain >= 0 ? "+" : ""}
             {formatCurrency(totalGain)} ({totalGain >= 0 ? "+" : ""}
             {totalGainPct.toFixed(2)}%)
@@ -225,7 +225,7 @@ export default function InvestmentAccountPage() {
                     </div>
                     {h.price != null && (
                       <div
-                        className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                        className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}
                       >
                         {h.gain >= 0 ? "+" : ""}
                         {h.gainPct.toFixed(2)}%

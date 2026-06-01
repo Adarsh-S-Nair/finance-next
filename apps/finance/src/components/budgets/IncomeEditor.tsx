@@ -141,7 +141,7 @@ export default function IncomeEditor({
                 type="button"
                 onClick={commit}
                 disabled={saving}
-                className="p-1 rounded hover:bg-[var(--color-surface-alt)] text-emerald-500 disabled:opacity-50"
+                className="p-1 rounded hover:bg-[var(--color-surface-alt)] text-[var(--color-success)] disabled:opacity-50"
                 aria-label="Save"
               >
                 <LuCheck className="h-3.5 w-3.5" strokeWidth={3} />

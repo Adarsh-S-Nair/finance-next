@@ -108,12 +108,12 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
       totalAssets: totals.cash + totals.investments,
       totalLiabilities: totals.credit + totals.loans,
       assetSegments: [
-        { label: "Cash", amount: totals.cash, color: "#059669" },
-        { label: "Investments", amount: totals.investments, color: "var(--color-neon-green)" },
+        { label: "Cash", amount: totals.cash, color: "var(--color-asset-primary)" },
+        { label: "Investments", amount: totals.investments, color: "var(--color-asset-alt)" },
       ],
       liabilitySegments: [
-        { label: "Credit", amount: totals.credit, color: "#ef4444" },
-        { label: "Loans", amount: totals.loans, color: "#b91c1c" },
+        { label: "Credit", amount: totals.credit, color: "var(--color-liability-primary)" },
+        { label: "Loans", amount: totals.loans, color: "var(--color-liability-alt)" },
       ],
     };
   }, [allAccounts, accountsLoading]);
@@ -178,7 +178,7 @@ export default function NetWorthBanner({ mockData }: NetWorthBannerProps = {}) {
         </div>
         {percentChange !== null && (
           <span className={`text-xs font-semibold ${
-            percentChange >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            percentChange >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'
           }`}>
             {percentChange >= 0 ? '▲' : '▼'} {Math.abs(percentChange).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
           </span>

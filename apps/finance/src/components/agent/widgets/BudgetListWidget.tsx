@@ -118,7 +118,7 @@ function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
           </span>
           <span
             className={`text-xs tabular-nums flex-shrink-0 ${
-              over ? "text-rose-500" : "text-[var(--color-muted)]"
+              over ? "text-[var(--color-danger)]" : "text-[var(--color-muted)]"
             }`}
           >
             {formatCurrency(budget.spent)} / {formatCurrency(budget.budget_amount)}
@@ -128,7 +128,7 @@ function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
           {animate ? (
             <motion.div
               className="h-full"
-              style={{ backgroundColor: over ? "#f87171" : budget.hex_color }}
+              style={{ backgroundColor: over ? "var(--color-danger)" : budget.hex_color }}
               initial={{ width: 0 }}
               animate={{ width: `${pct}%` }}
               transition={{
@@ -142,7 +142,7 @@ function BudgetRow({ budget, delay }: { budget: Budget; delay: number }) {
               className="h-full"
               style={{
                 width: `${pct}%`,
-                backgroundColor: over ? "#f87171" : budget.hex_color,
+                backgroundColor: over ? "var(--color-danger)" : budget.hex_color,
               }}
             />
           )}

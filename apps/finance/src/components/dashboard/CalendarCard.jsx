@@ -300,7 +300,7 @@ export default function CalendarCard({ className = '', mockData }) {
                 </div>
               </div>
 
-              <div className={`text-sm font-semibold tabular-nums ${stream.stream_type === 'inflow' ? 'text-emerald-500' : 'text-[var(--color-fg)]'}`}>
+              <div className={`text-sm font-semibold tabular-nums ${stream.stream_type === 'inflow' ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]'}`}>
                 {stream.stream_type === 'inflow' ? '+' : ''}{formatCurrency(stream.last_amount)}
               </div>
             </div>

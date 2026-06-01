@@ -46,7 +46,7 @@ function Sparkline({ data, width = 88, height = 28 }) {
     .join(" ");
 
   const isUp = data[data.length - 1] >= data[0];
-  const color = isUp ? "#10b981" : "#f43f5e"; // emerald-500 / rose-500
+  const color = isUp ? "var(--color-success)" : "var(--color-danger)"; // emerald-500 / rose-500
 
   return (
     <svg width={width} height={height} className="flex-shrink-0 overflow-visible">
@@ -394,7 +394,7 @@ export default function InvestmentsPage() {
                       </div>
                       {h.price != null && (
                         <div
-                          className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-emerald-500" : "text-rose-500"}`}
+                          className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}
                         >
                           {h.gain >= 0 ? "+" : ""}
                           {h.gainPct.toFixed(2)}%

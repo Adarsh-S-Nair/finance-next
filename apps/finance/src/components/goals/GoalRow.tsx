@@ -35,7 +35,7 @@ type Props = {
   onDelete: (id: string) => void;
 };
 
-const GREEN_FILL = "#16a34a"; // tailwind emerald-600
+const GREEN_FILL = "var(--color-success)";
 
 /**
  * Goal row — no card chrome, no icons. Just a heading, an amount, a
