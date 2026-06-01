@@ -44,6 +44,10 @@
 /** @type {ThemeDefinition[]} */
 export const THEMES = [
   { id: "light", label: "Light", appearance: "light" },
+  // Warm, bookish parchment + espresso palette. Light family (dark text on
+  // a cream background), so it inherits the :root light defaults and only
+  // warms the neutrals/accent toward browns.
+  { id: "cottage", label: "Cottage", appearance: "light" },
   // Softer gray dark — the "regular" dark. Listed first among dark themes so
   // the topbar moon toggle targets it as the default dark.
   { id: "dim", label: "Dark", appearance: "dark" },
