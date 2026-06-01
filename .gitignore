@@ -44,8 +44,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code
-.claude/
+# claude code — ignore local Claude state, but track the shared team
+# config (the SessionStart hook that disables commit signing in cloud
+# sessions). Glob the contents (`.claude/*`) so the negations below can
+# re-include just settings.json.
+.claude/*
+!.claude/settings.json
 .env.prod
 
 # Internal pricing docs

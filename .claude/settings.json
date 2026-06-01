@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if git config --get gpg.ssh.program 2>/dev/null | grep -qE 'code-sign|environment-manager'; then git config --local commit.gpgsign false; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
