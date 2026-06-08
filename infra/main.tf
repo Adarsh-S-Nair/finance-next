@@ -8,9 +8,19 @@ terraform {
     }
   }
 
-  # Local state. If state grows to matter, migrate to Terraform Cloud with:
-  #   backend "remote" { ... }
-  # and run `terraform init -migrate-state`.
+  # State + runs live in Terraform Cloud (HCP Terraform). The repo is connected
+  # to this workspace over VCS with auto-apply, so a merge to `main` that
+  # touches infra/ automatically plans and applies. The block below also binds
+  # the local CLI to the same workspace (used for the one-time state migration
+  # and for `terraform plan` previews). First-time bootstrap + the exact
+  # org/workspace setup live in infra/README.md -> "State & CI".
+  cloud {
+    organization = "zervo"
+
+    workspaces {
+      name = "infra"
+    }
+  }
 }
 
 provider "vercel" {
