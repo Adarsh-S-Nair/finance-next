@@ -122,3 +122,14 @@ resource "vercel_dns_record" "spf_txt" {
   value  = "v=spf1 include:spf.efwd.registrar-servers.com ~all"
   ttl    = 1800
 }
+
+# Google Search Console domain verification for zervo.app. Required to brand-
+# verify the Google OAuth consent screen (so it reads "Zervo" instead of the
+# raw Supabase project URL). Apex TXT — coexists with the SPF record above.
+resource "vercel_dns_record" "google_site_verification" {
+  domain = local.domain
+  name   = ""
+  type   = "TXT"
+  value  = "google-site-verification=55peJMu49lShnoA8iu-OFDEBhbKxhqGFoxIYvg_dh7Y"
+  ttl    = 1800
+}
