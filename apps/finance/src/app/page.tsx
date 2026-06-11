@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useAnimationControls, useScroll, useTransform } from "framer-motion";
 import type { MotionValue } from "framer-motion";
 import PublicRoute from "../components/PublicRoute";
 import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
@@ -311,6 +311,93 @@ function FadeIn({ children, delay = 0, className }: { children: ReactNode; delay
   );
 }
 
+// The last word of the hero headline cycles through a few options. The
+// span never unmounts (text swaps while invisible), so the headline's
+// layout stays put — no orphaned punctuation or collapsing lines.
+const ROTATING_WORDS = ["goes", "hides", "adds up", "sneaks off"];
+
+function RotatingWord() {
+  const [index, setIndex] = useState(0);
+  const controls = useAnimationControls();
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = setInterval(async () => {
+      await controls.start({ y: "-0.5em", opacity: 0, transition: { duration: 0.22, ease: "easeIn" } });
+      if (cancelled) return;
+      setIndex((v) => (v + 1) % ROTATING_WORDS.length);
+      controls.set({ y: "0.5em" });
+      await controls.start({ y: 0, opacity: 1, transition: { duration: 0.22, ease: "easeOut" } });
+    }, 2600);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [controls]);
+
+  return (
+    <motion.span animate={controls} className="inline-block whitespace-nowrap">
+      {ROTATING_WORDS[index]}.
+    </motion.span>
+  );
+}
+
+/* ============================================================
+   Ticker tape — an endless stream of everyday transactions
+   ============================================================ */
+
+const TICKER_ITEMS: { emoji: string; label: string; amount: string; inflow?: boolean }[] = [
+  { emoji: "☕", label: "Blue Bottle", amount: "−$6.50" },
+  { emoji: "🛒", label: "Trader Joe's", amount: "−$84.12" },
+  { emoji: "💸", label: "Paycheck", amount: "+$2,410.00", inflow: true },
+  { emoji: "🎬", label: "Netflix", amount: "−$15.49" },
+  { emoji: "🎧", label: "Spotify", amount: "−$11.99" },
+  { emoji: "🏠", label: "Rent", amount: "−$1,200.00" },
+  { emoji: "⛽", label: "Shell", amount: "−$42.30" },
+  { emoji: "🍜", label: "Late-night ramen", amount: "−$23.80" },
+  { emoji: "🚕", label: "Uber", amount: "−$18.42" },
+  { emoji: "📈", label: "VOO buy", amount: "−$487.13" },
+  { emoji: "🧾", label: "Utilities", amount: "−$87.20" },
+  { emoji: "🐶", label: "Dog treats", amount: "−$12.40" },
+];
+
+function TickerRow() {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-10 pr-10">
+      {TICKER_ITEMS.map((t) => (
+        <span key={t.label} className="flex items-center gap-2 whitespace-nowrap text-sm">
+          <span aria-hidden>{t.emoji}</span>
+          <span className="text-[var(--color-muted)]">{t.label}</span>
+          <span className={`tabular-nums ${t.inflow ? "font-medium text-emerald-500" : "text-[var(--color-fg)]"}`}>
+            {t.amount}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TickerTape() {
+  return (
+    <div
+      className="relative overflow-hidden border-t border-[var(--color-border)] py-5"
+      style={{
+        maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+        WebkitMaskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+      }}
+    >
+      <motion.div
+        className="flex w-max"
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ repeat: Infinity, ease: "linear", duration: 40 }}
+      >
+        <TickerRow />
+        <TickerRow />
+      </motion.div>
+    </div>
+  );
+}
+
 function BrandMark({ size = "lg" }: { size?: "sm" | "lg" }) {
   const box = size === "lg" ? "h-10 w-10" : "h-6 w-6";
   const text = size === "lg" ? "text-sm tracking-[0.2em]" : "text-[11px] tracking-[0.24em]";
@@ -395,7 +482,7 @@ export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
             </Link>
             <Link
               href="/auth?mode=signup"
-              className="hidden h-9 items-center justify-center rounded-full bg-[var(--color-fg)] px-4 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 sm:inline-flex"
+              className="hidden h-9 items-center justify-center rounded-full bg-[var(--color-fg)] px-4 text-sm font-medium text-[var(--color-bg)] transition duration-200 hover:scale-[1.03] hover:opacity-90 active:scale-[0.97] sm:inline-flex"
             >
               Get started
             </Link>
@@ -416,6 +503,23 @@ function Panel({ children, className = "" }: { children: ReactNode; className?: 
     <div className={`min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 ${className}`}>
       {children}
     </div>
+  );
+}
+
+// Showcase panels sit slightly askew, like cards tossed on a table, and
+// snap straight when you hover them. Content is non-interactive — these
+// are exhibits, not the app.
+function TiltPanel({ tilt = 0, children }: { tilt?: number; children: ReactNode }) {
+  return (
+    <motion.div
+      style={{ rotate: tilt }}
+      whileHover={{ rotate: 0, scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 260, damping: 18 }}
+    >
+      <Panel>
+        <div className="pointer-events-none select-none">{children}</div>
+      </Panel>
+    </motion.div>
   );
 }
 
@@ -454,45 +558,45 @@ function HeroShowcase() {
       {/* Desktop: three columns at different parallax speeds */}
       <div className="hidden max-h-[640px] grid-cols-3 items-start gap-6 overflow-hidden pt-4 lg:grid" style={SHOWCASE_MASK}>
         <ShowcaseColumn y={yLeft} delay={0.3}>
-          <Panel>
+          <TiltPanel tilt={-1.2}>
             <div className="h-[340px] min-w-0">
               <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
             </div>
-          </Panel>
-          <Panel><InsightsCarousel mockData={INSIGHTS_MOCK} /></Panel>
-          <Panel><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></Panel>
+          </TiltPanel>
+          <TiltPanel tilt={1}><InsightsCarousel mockData={INSIGHTS_MOCK} /></TiltPanel>
+          <TiltPanel tilt={-0.8}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
         </ShowcaseColumn>
 
         <ShowcaseColumn y={yCenter} delay={0.4}>
-          <Panel><NetWorthBanner mockData={NET_WORTH_MOCK} /></Panel>
-          <Panel>
+          <TiltPanel tilt={0.9}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
+          <TiltPanel tilt={-1.1}>
             <div className="h-[280px] min-w-0">
               <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
             </div>
-          </Panel>
-          <Panel><CalendarCard mockData={CALENDAR_MOCK} /></Panel>
+          </TiltPanel>
+          <TiltPanel tilt={0.7}><CalendarCard mockData={CALENDAR_MOCK} /></TiltPanel>
         </ShowcaseColumn>
 
         <ShowcaseColumn y={yRight} delay={0.5}>
-          <Panel>
+          <TiltPanel tilt={-1}>
             <div className="h-[300px] min-w-0">
               <SpendingVsEarningCard data={CASHFLOW_DATA} />
             </div>
-          </Panel>
-          <Panel><TopHoldingsCard mockData={HOLDINGS_MOCK} /></Panel>
+          </TiltPanel>
+          <TiltPanel tilt={0.8}><TopHoldingsCard mockData={HOLDINGS_MOCK} /></TiltPanel>
         </ShowcaseColumn>
       </div>
 
       {/* Mobile: a single drifting column */}
       <div className="max-h-[560px] overflow-hidden pt-2 lg:hidden" style={SHOWCASE_MASK}>
         <ShowcaseColumn y={yMobile} delay={0.3}>
-          <Panel><NetWorthBanner mockData={NET_WORTH_MOCK} /></Panel>
-          <Panel>
+          <TiltPanel tilt={-0.8}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
+          <TiltPanel tilt={0.7}>
             <div className="h-[260px] min-w-0">
               <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
             </div>
-          </Panel>
-          <Panel><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></Panel>
+          </TiltPanel>
+          <TiltPanel tilt={-0.6}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
         </ShowcaseColumn>
       </div>
     </div>
@@ -506,7 +610,9 @@ function ParallaxPanel({ children }: { children: ReactNode }) {
   const y = useTransform(scrollYProgress, [0, 1], [32, -32]);
   return (
     <motion.div ref={ref} style={{ y }}>
-      <Panel className="sm:p-7">{children}</Panel>
+      <Panel className="sm:p-7">
+        <div className="pointer-events-none select-none">{children}</div>
+      </Panel>
     </motion.div>
   );
 }
@@ -602,7 +708,7 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
 
       <Link
         href="/auth?mode=signup"
-        className={`mt-8 inline-flex h-10 w-full items-center justify-center rounded-full px-5 text-sm font-medium transition-opacity ${
+        className={`mt-8 inline-flex h-10 w-full items-center justify-center rounded-full px-5 text-sm font-medium transition duration-200 hover:scale-[1.02] active:scale-[0.98] ${
           highlighted
             ? "bg-[var(--color-fg)] text-[var(--color-bg)] hover:opacity-90"
             : "ring-1 ring-inset ring-[var(--color-border)] text-[var(--color-fg)] hover:ring-[var(--color-fg)]"
@@ -638,6 +744,10 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "What happens to my data if I leave?",
     a: "It's deleted. Removing your account wipes your transactions, balances, and bank connections from our systems.",
+  },
+  {
+    q: "Will Zervo judge my coffee spending?",
+    a: "Never. Zervo just shows you the number. Whatever you and the number decide to do about it is between you two.",
   },
 ];
 
@@ -773,7 +883,7 @@ export default function Home() {
                 className="text-4xl font-medium tracking-tight text-[var(--color-fg)] sm:text-5xl lg:text-6xl lg:leading-[1.05]"
                 style={{ fontFamily: "var(--font-instrument)", letterSpacing: "-0.02em" }}
               >
-                Know where every dollar goes.
+                Know where every dollar <RotatingWord />
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -793,13 +903,13 @@ export default function Home() {
               >
                 <Link
                   href="/auth?mode=signup"
-                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition duration-200 hover:scale-[1.03] hover:opacity-90 active:scale-[0.97]"
                 >
                   Get started — it&apos;s free
                 </Link>
                 <a
                   href="#features"
-                  className="inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-medium text-[var(--color-fg)] ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:ring-[var(--color-fg)]"
+                  className="inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-medium text-[var(--color-fg)] ring-1 ring-inset ring-[var(--color-border)] transition duration-200 hover:scale-[1.03] hover:ring-[var(--color-fg)] active:scale-[0.97]"
                 >
                   See what&apos;s inside
                 </a>
@@ -818,6 +928,8 @@ export default function Home() {
             <HeroShowcase />
           </div>
         </section>
+
+        <TickerTape />
 
         {/* ============ Features ============ */}
         <section id="features" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
@@ -1055,11 +1167,14 @@ export default function Home() {
               <div className="mt-8 flex justify-center">
                 <Link
                   href="/auth?mode=signup"
-                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition duration-200 hover:scale-[1.03] hover:opacity-90 active:scale-[0.97]"
                 >
                   Get started — it&apos;s free
                 </Link>
               </div>
+              <p className="mt-5 text-xs text-[var(--color-muted)]">
+                Your spreadsheet had a good run.
+              </p>
             </FadeIn>
           </div>
         </section>
@@ -1078,7 +1193,7 @@ export default function Home() {
               </nav>
             </div>
             <p className="text-center text-xs text-[var(--color-muted)] sm:text-left">
-              © {new Date().getFullYear()} {BRAND.legalName}
+              © {new Date().getFullYear()} {BRAND.legalName} · No spreadsheets were harmed.
             </p>
           </div>
         </footer>
