@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { FiPlus, FiBell } from "react-icons/fi";
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuChevronsUpDown } from "react-icons/lu";
-import type { IconType } from "react-icons";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import type { MotionValue } from "framer-motion";
 import PublicRoute from "../components/PublicRoute";
 import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
 import { BRAND } from "../config/brand";
@@ -409,241 +407,107 @@ export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
 }
 
 /* ============================================================
-   Mac window chrome
+   Component showcase — real UI cards in floating panels with
+   scroll-linked parallax, instead of a faked dashboard screenshot
    ============================================================ */
 
-function MacWindow({ children, url = "zervo.app/dashboard" }: { children: ReactNode; url?: string }) {
+function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.18),0_12px_32px_-16px_rgba(0,0,0,0.12)]">
-      <div className="relative flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface-alt)] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="absolute left-1/2 -translate-x-1/2 text-[11px] text-[var(--color-muted)] tabular-nums">
-          {url}
-        </div>
-      </div>
-      <div className="bg-[var(--color-content-bg)]">{children}</div>
+    <div className={`min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 ${className}`}>
+      {children}
     </div>
   );
 }
 
-/* ============================================================
-   Mock sidebar / topbar
-   ============================================================ */
+const SHOWCASE_MASK = {
+  maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+  WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+} as const;
 
-interface MockSidebarItem {
-  label: string;
-  icon: IconType;
-  active?: boolean;
+function ShowcaseColumn({ y, delay, children }: { y: MotionValue<number>; delay: number; children: ReactNode }) {
+  return (
+    <motion.div style={{ y }} className="min-w-0">
+      <motion.div
+        initial={{ opacity: 0, y: 48 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.9, ease: EASE, delay }}
+        className="space-y-6"
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
 }
 
-interface MockSidebarSection {
-  title: string;
-  items: MockSidebarItem[];
-}
-
-function MockSidebar() {
-  const sections: MockSidebarSection[] = [
-    {
-      title: "OVERVIEW",
-      items: [{ label: "Dashboard", icon: LuLayoutDashboard, active: true }],
-    },
-    {
-      title: "FINANCE",
-      items: [
-        { label: "Accounts", icon: LuWallet },
-        { label: "Transactions", icon: LuArrowRightLeft },
-        { label: "Budgets", icon: LuPiggyBank },
-      ],
-    },
-    {
-      title: "INVESTING",
-      items: [{ label: "Portfolio", icon: LuChartLine }],
-    },
-  ];
+function HeroShowcase() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  // Each column drifts at its own speed as the page scrolls, so the
+  // composition feels alive without any of it being interactive.
+  const yLeft = useTransform(scrollYProgress, [0, 1], [48, -48]);
+  const yCenter = useTransform(scrollYProgress, [0, 1], [110, -110]);
+  const yRight = useTransform(scrollYProgress, [0, 1], [72, -72]);
+  const yMobile = useTransform(scrollYProgress, [0, 1], [32, -32]);
 
   return (
-    <aside className="hidden w-[200px] flex-shrink-0 flex-col self-stretch border-r border-[var(--color-border)] bg-[var(--color-sidebar-bg)] lg:flex">
-      <div className="flex h-14 flex-shrink-0 items-center px-5">
-        <BrandMark size="sm" />
-      </div>
-      <div className="mx-4 border-t border-[var(--color-fg)]/[0.06]" />
-      <nav className="flex-1 px-3 pt-5">
-        {sections.map((s) => (
-          <div key={s.title} className="mb-5">
-            <div className="mb-2 px-3 text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
-              {s.title}
+    <div ref={ref} className="relative mx-auto mt-16 sm:mt-20" style={{ maxWidth: "min(92vw, 1200px)" }}>
+      {/* Desktop: three columns at different parallax speeds */}
+      <div className="hidden max-h-[640px] grid-cols-3 items-start gap-6 overflow-hidden pt-4 lg:grid" style={SHOWCASE_MASK}>
+        <ShowcaseColumn y={yLeft} delay={0.3}>
+          <Panel>
+            <div className="h-[340px] min-w-0">
+              <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
             </div>
-            {s.items.map((it) => {
-              const Icon = it.icon;
-              return (
-                <div
-                  key={it.label}
-                  className={`mb-0.5 flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] ${
-                    it.active
-                      ? "bg-[var(--color-sidebar-active)] font-medium text-[var(--color-fg)]"
-                      : "text-[var(--color-muted)]"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span>{it.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-      <div className="mt-auto flex-shrink-0 border-t border-[var(--color-fg)]/[0.06] p-3">
-        <div className="flex items-center gap-2.5 rounded-md px-3 py-2">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-[11px] font-semibold text-[var(--color-on-accent)]">
-            A
-          </div>
-          <span className="flex-1 truncate text-[12px] font-medium text-[var(--color-fg)]">Alex Chen</span>
-          <LuChevronsUpDown className="h-3 w-3 text-[var(--color-muted)]/50" />
-        </div>
-      </div>
-    </aside>
-  );
-}
+          </Panel>
+          <Panel><InsightsCarousel mockData={INSIGHTS_MOCK} /></Panel>
+          <Panel><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></Panel>
+        </ShowcaseColumn>
 
-function MockTopbar() {
-  return (
-    <div className="mb-8 flex items-center justify-between">
-      <h2 className="text-xl font-medium tracking-tight text-[var(--color-fg)] sm:text-2xl">
-        Good afternoon, Alex
-      </h2>
-      <div className="flex items-center gap-1 text-[var(--color-muted)]">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--color-surface-alt)]">
-          <FiPlus size={16} />
-        </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--color-surface-alt)]">
-          <FiBell size={16} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   Hero dashboard scene — desktop version
-   ============================================================ */
-
-function HeroDashboard() {
-  return (
-    <div className="flex items-stretch">
-      <MockSidebar />
-      <div className="min-w-0 flex-1 p-5 sm:p-8">
-        <MockTopbar />
-
-        <div className="grid min-w-0 gap-8 lg:grid-cols-10 lg:gap-10">
-          {/* Main column (lg:col-span-7) */}
-          <div className="min-w-0 space-y-10 lg:col-span-7">
-            <NetWorthBanner mockData={NET_WORTH_MOCK} />
-            <div className="h-[420px]">
+        <ShowcaseColumn y={yCenter} delay={0.4}>
+          <Panel><NetWorthBanner mockData={NET_WORTH_MOCK} /></Panel>
+          <Panel>
+            <div className="h-[280px] min-w-0">
               <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
             </div>
-            <div className="flex min-w-0 flex-col gap-8 lg:h-[440px] lg:flex-row">
-              <div className="min-w-0 lg:flex-1">
-                <SpendingVsEarningCard data={CASHFLOW_DATA} />
-              </div>
-              <div className="min-w-0 lg:w-[280px] lg:flex-shrink-0">
-                <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
-              </div>
+          </Panel>
+          <Panel><CalendarCard mockData={CALENDAR_MOCK} /></Panel>
+        </ShowcaseColumn>
+
+        <ShowcaseColumn y={yRight} delay={0.5}>
+          <Panel>
+            <div className="h-[300px] min-w-0">
+              <SpendingVsEarningCard data={CASHFLOW_DATA} />
             </div>
-          </div>
+          </Panel>
+          <Panel><TopHoldingsCard mockData={HOLDINGS_MOCK} /></Panel>
+        </ShowcaseColumn>
+      </div>
 
-          {/* Sidebar column (lg:col-span-3) */}
-          <div className="min-w-0 space-y-10 lg:col-span-3">
-            <div><InsightsCarousel mockData={INSIGHTS_MOCK} /></div>
-            <div><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></div>
-            <div><CalendarCard mockData={CALENDAR_MOCK} /></div>
-            <div><TopHoldingsCard mockData={HOLDINGS_MOCK} /></div>
-          </div>
-        </div>
+      {/* Mobile: a single drifting column */}
+      <div className="max-h-[560px] overflow-hidden pt-2 lg:hidden" style={SHOWCASE_MASK}>
+        <ShowcaseColumn y={yMobile} delay={0.3}>
+          <Panel><NetWorthBanner mockData={NET_WORTH_MOCK} /></Panel>
+          <Panel>
+            <div className="h-[260px] min-w-0">
+              <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+            </div>
+          </Panel>
+          <Panel><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></Panel>
+        </ShowcaseColumn>
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   Phone mockup — shown in the hero on small screens
-   ============================================================ */
-
-function PhoneFrame({ children }: { children: ReactNode }) {
+// Feature visuals get a gentler version of the same scroll drift.
+function ParallaxPanel({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const y = useTransform(scrollYProgress, [0, 1], [32, -32]);
   return (
-    <div className="mx-auto w-[280px]">
-      <div className="rounded-[2.25rem] border-[8px] border-zinc-900 bg-[var(--color-content-bg)] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.35),0_10px_30px_-15px_rgba(0,0,0,0.2)]">
-        <div className="relative flex h-8 items-center justify-between rounded-t-[1.75rem] bg-[var(--color-content-bg)] px-5 text-[10px] font-semibold text-[var(--color-fg)] tabular-nums">
-          <span>9:41</span>
-          <span aria-hidden className="absolute left-1/2 top-1 h-4 w-20 -translate-x-1/2 rounded-full bg-zinc-900" />
-          <div className="flex items-center gap-1">
-            <svg width="13" height="8" viewBox="0 0 15 9" fill="currentColor" aria-hidden>
-              <rect x="0" y="6" width="2" height="3" rx="0.5" />
-              <rect x="4" y="4" width="2" height="5" rx="0.5" />
-              <rect x="8" y="2" width="2" height="7" rx="0.5" />
-              <rect x="12" y="0" width="2" height="9" rx="0.5" />
-            </svg>
-            <svg width="18" height="9" viewBox="0 0 22 10" fill="none" aria-hidden>
-              <rect x="0.5" y="0.5" width="18" height="9" rx="2" stroke="currentColor" />
-              <rect x="2" y="2" width="15" height="6" rx="1" fill="currentColor" />
-              <rect x="19.5" y="3" width="2" height="4" rx="0.5" fill="currentColor" />
-            </svg>
-          </div>
-        </div>
-        <div
-          className="relative h-[480px] overflow-hidden rounded-b-[1.75rem]"
-          style={{
-            maskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
-          }}
-        >
-          <div className="px-3.5 pb-6 pt-2">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PhoneDashboard() {
-  return (
-    <div className="min-w-0 space-y-8">
-      <div className="flex items-center justify-between pt-2">
-        <BrandMark size="sm" />
-        <div className="flex items-center gap-1 text-[var(--color-muted)]">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md">
-            <FiBell size={15} />
-          </div>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-[10px] font-semibold text-[var(--color-on-accent)]">
-            A
-          </div>
-        </div>
-      </div>
-
-      <div className="min-w-0">
-        <h2 className="text-lg font-medium tracking-tight text-[var(--color-fg)]">
-          Good afternoon, Alex
-        </h2>
-      </div>
-
-      <div className="min-w-0">
-        <NetWorthBanner mockData={NET_WORTH_MOCK} />
-      </div>
-
-      <div className="h-[340px] min-w-0">
-        <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
-      </div>
-
-      <div className="min-w-0">
-        <InsightsCarousel mockData={INSIGHTS_MOCK} />
-      </div>
-
-      <div className="min-w-0">
-        <BudgetsCard budgets={BUDGETS_MOCK} loading={false} />
-      </div>
-    </div>
+    <motion.div ref={ref} style={{ y }}>
+      <Panel className="sm:p-7">{children}</Panel>
+    </motion.div>
   );
 }
 
@@ -680,9 +544,7 @@ function FeatureRow({ eyebrow, title, body, bullets, visual, flip = false }: Fea
           </ul>
         </div>
         <div className={flip ? "lg:order-1" : ""}>
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 sm:p-7">
-            {visual}
-          </div>
+          <ParallaxPanel>{visual}</ParallaxPanel>
         </div>
       </div>
     </FadeIn>
@@ -952,37 +814,8 @@ export default function Home() {
               </motion.p>
             </div>
 
-            {/* Product shot — Mac window on desktop, phone on mobile */}
-            <motion.div
-              initial={{ opacity: 0, y: 60 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
-              className="relative mx-auto mt-16 hidden lg:block"
-              style={{ maxWidth: "min(90vw, 1240px)" }}
-            >
-              <div
-                className="max-h-[640px] overflow-hidden"
-                style={{
-                  maskImage: "linear-gradient(to bottom, black 62%, transparent 99%)",
-                  WebkitMaskImage: "linear-gradient(to bottom, black 62%, transparent 99%)",
-                }}
-              >
-                <MacWindow>
-                  <HeroDashboard />
-                </MacWindow>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
-              className="mt-14 lg:hidden"
-            >
-              <PhoneFrame>
-                <PhoneDashboard />
-              </PhoneFrame>
-            </motion.div>
+            {/* Product showcase — real UI components drifting on scroll */}
+            <HeroShowcase />
           </div>
         </section>
 
@@ -995,8 +828,8 @@ export default function Home() {
                 Everything your money does, in one place.
               </h2>
               <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-[var(--color-muted)]">
-                The same views you saw above, each doing real work — built from
-                the live product, not marketing mockups.
+                Every panel on this page is the actual product UI — the same
+                components you&apos;ll use every day, not marketing mockups.
               </p>
             </FadeIn>
 
