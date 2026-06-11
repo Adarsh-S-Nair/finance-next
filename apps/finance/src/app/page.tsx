@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { FiPlus, FiBell } from "react-icons/fi";
 import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuChevronsUpDown } from "react-icons/lu";
 import type { IconType } from "react-icons";
@@ -294,6 +294,55 @@ const HOLDINGS_MOCK = {
 };
 
 /* ============================================================
+   Shared bits
+   ============================================================ */
+
+const EASE = [0.2, 0.7, 0.3, 1] as const;
+
+function FadeIn({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.6, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function BrandMark({ size = "lg" }: { size?: "sm" | "lg" }) {
+  const box = size === "lg" ? "h-10 w-10" : "h-6 w-6";
+  const text = size === "lg" ? "text-sm tracking-[0.2em]" : "text-[11px] tracking-[0.24em]";
+  return (
+    <span className="flex items-center gap-2.5">
+      <span
+        aria-hidden
+        className={`block ${box} bg-[var(--color-fg)]`}
+        style={{
+          WebkitMaskImage: "url(/logo.svg)",
+          maskImage: "url(/logo.svg)",
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+        }}
+      />
+      <span
+        className={`${text} font-semibold uppercase text-[var(--color-fg)]`}
+        style={{ fontFamily: "var(--font-poppins)" }}
+      >
+        {BRAND.name}
+      </span>
+    </span>
+  );
+}
+
+/* ============================================================
    Landing Nav
    ============================================================ */
 
@@ -314,36 +363,45 @@ export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-200 ${headerBg}`}>
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="block h-10 w-10 bg-[var(--color-fg)]"
-            style={{
-              WebkitMaskImage: "url(/logo.svg)",
-              maskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-          <span
-            className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-fg)]"
-            style={{ fontFamily: "var(--font-poppins)" }}
-          >
-            {BRAND.name}
-          </span>
+        <Link href="/" aria-label={`${BRAND.name} home`}>
+          <BrandMark />
         </Link>
 
         {showLinks && (
-          <Link
-            href="/auth?mode=signin"
-            className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-          >
-            Sign in
-          </Link>
+          <div className="flex items-center gap-6">
+            <nav className="hidden items-center gap-6 sm:flex">
+              <a
+                href="#features"
+                className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+              >
+                Features
+              </a>
+              <a
+                href="#pricing"
+                className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+              >
+                Pricing
+              </a>
+              <a
+                href="#faq"
+                className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+              >
+                FAQ
+              </a>
+            </nav>
+            <Link
+              href="/auth?mode=signin"
+              className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/auth?mode=signup"
+              className="hidden h-9 items-center justify-center rounded-full bg-[var(--color-fg)] px-4 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90 sm:inline-flex"
+            >
+              Get started
+            </Link>
+          </div>
         )}
       </div>
     </header>
@@ -410,28 +468,7 @@ function MockSidebar() {
   return (
     <aside className="hidden w-[200px] flex-shrink-0 flex-col self-stretch border-r border-[var(--color-border)] bg-[var(--color-sidebar-bg)] lg:flex">
       <div className="flex h-14 flex-shrink-0 items-center px-5">
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="block h-6 w-6 bg-[var(--color-fg)]"
-            style={{
-              WebkitMaskImage: "url(/logo.svg)",
-              maskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-          <span
-            className="text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
-            style={{ fontFamily: "var(--font-poppins)" }}
-          >
-            ZERVO
-          </span>
-        </div>
+        <BrandMark size="sm" />
       </div>
       <div className="mx-4 border-t border-[var(--color-fg)]/[0.06]" />
       <nav className="flex-1 px-3 pt-5">
@@ -532,7 +569,7 @@ function HeroDashboard() {
 }
 
 /* ============================================================
-   Phone mockup
+   Phone mockup — shown in the hero on small screens
    ============================================================ */
 
 function PhoneFrame({ children }: { children: ReactNode }) {
@@ -574,28 +611,7 @@ function PhoneDashboard() {
   return (
     <div className="min-w-0 space-y-8">
       <div className="flex items-center justify-between pt-2">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="block h-6 w-6 bg-[var(--color-fg)]"
-            style={{
-              WebkitMaskImage: "url(/logo.svg)",
-              maskImage: "url(/logo.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          />
-          <span
-            className="text-[11px] font-semibold tracking-[0.24em] text-[var(--color-fg)]"
-            style={{ fontFamily: "var(--font-poppins)" }}
-          >
-            ZERVO
-          </span>
-        </div>
+        <BrandMark size="sm" />
         <div className="flex items-center gap-1 text-[var(--color-muted)]">
           <div className="flex h-8 w-8 items-center justify-center rounded-md">
             <FiBell size={15} />
@@ -627,22 +643,51 @@ function PhoneDashboard() {
       <div className="min-w-0">
         <BudgetsCard budgets={BUDGETS_MOCK} loading={false} />
       </div>
-
-      <div className="min-w-0">
-        <CalendarCard mockData={CALENDAR_MOCK} />
-      </div>
-
-      <div className="min-w-0">
-        <TopHoldingsCard mockData={HOLDINGS_MOCK} />
-      </div>
     </div>
   );
 }
 
-// PhoneFrame and PhoneDashboard are kept for parity with the JS file but
-// not rendered in the current landing layout. Suppress unused warnings.
-void PhoneFrame;
-void PhoneDashboard;
+/* ============================================================
+   Feature rows — real product components as visuals
+   ============================================================ */
+
+interface FeatureRowProps {
+  eyebrow: string;
+  title: string;
+  body: string;
+  bullets: string[];
+  visual: ReactNode;
+  flip?: boolean;
+}
+
+function FeatureRow({ eyebrow, title, body, bullets, visual, flip = false }: FeatureRowProps) {
+  return (
+    <FadeIn>
+      <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
+        <div className={flip ? "lg:order-2" : ""}>
+          <div className="card-header">{eyebrow}</div>
+          <h3 className="mt-4 text-2xl font-medium tracking-tight text-[var(--color-fg)] sm:text-3xl">
+            {title}
+          </h3>
+          <p className="mt-4 text-base leading-7 text-[var(--color-muted)]">{body}</p>
+          <ul className="mt-6 space-y-2.5 text-sm text-[var(--color-fg)]">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-center gap-2.5">
+                <span aria-hidden className="inline-block h-1 w-1 flex-shrink-0 rounded-full bg-[var(--color-fg)]" />
+                {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className={flip ? "lg:order-1" : ""}>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 sm:p-7">
+            {visual}
+          </div>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
 
 /* ============================================================
    Pricing
@@ -708,8 +753,116 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
 }
 
 /* ============================================================
+   FAQ
+   ============================================================ */
+
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: "Is the free plan really free?",
+    a: "Yes. The free plan includes transactions, one connected account, and net worth history — no credit card required. Pro unlocks budgets, investments, recurring detection, paper trading, and unlimited accounts.",
+  },
+  {
+    q: "How does Zervo connect to my bank?",
+    a: "Through Plaid, the same service trusted by apps like Venmo and American Express. Your bank credentials go directly to Plaid — Zervo never sees or stores them, and the connection is strictly read-only.",
+  },
+  {
+    q: "Can Zervo move my money?",
+    a: "No. Zervo can read your transactions and balances to organize them for you, but it has no ability to initiate transfers, payments, or trades on any connected account.",
+  },
+  {
+    q: "Can I cancel Pro anytime?",
+    a: "Yes. Billing is handled by Stripe, and you can cancel from Settings at any time. You keep Pro access through the end of your billing period.",
+  },
+  {
+    q: "What happens to my data if I leave?",
+    a: "It's deleted. Removing your account wipes your transactions, balances, and bank connections from our systems.",
+  },
+];
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-[var(--color-border)]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 py-5 text-left"
+      >
+        <span className="text-sm font-medium text-[var(--color-fg)]">{q}</span>
+        <span
+          aria-hidden
+          className={`text-base text-[var(--color-muted)] transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+        >
+          ›
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <p className="pb-5 text-sm leading-6 text-[var(--color-muted)]">{a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ============================================================
    Page
    ============================================================ */
+
+const HOW_IT_WORKS: { step: string; title: string; body: string }[] = [
+  {
+    step: "01",
+    title: "Connect your accounts",
+    body: "Link banks, cards, and brokerages through Plaid in about a minute. Your credentials never touch our servers.",
+  },
+  {
+    step: "02",
+    title: "Let it organize itself",
+    body: "Transactions are categorized, recurring charges detected, and net worth tracked automatically from day one.",
+  },
+  {
+    step: "03",
+    title: "Decide with confidence",
+    body: "Set budgets, scan your insights, and check the calendar. Five minutes a week is enough to stay on top of it.",
+  },
+];
+
+const TRUST_ITEMS: { title: string; body: string }[] = [
+  {
+    title: "Encrypted at rest",
+    body: "Bank connection tokens are encrypted with AES-256 before they ever touch the database.",
+  },
+  {
+    title: "Read-only by design",
+    body: "Zervo can see transactions and balances. It cannot move money, ever.",
+  },
+  {
+    title: "Credentials never stored",
+    body: "Bank logins go directly to Plaid. We never see your username or password.",
+  },
+  {
+    title: "Your data is yours",
+    body: "Export or delete everything, anytime. Leaving takes one click, not a support ticket.",
+  },
+];
+
+const ALSO_INCLUDED: { title: string; body: string }[] = [
+  { title: "Net worth history", body: "Every account rolled into one number, tracked over time." },
+  { title: "Smart insights", body: "Surfaced automatically when something needs your attention." },
+  { title: "Cash flow", body: "Earning vs. spending, month over month, at a glance." },
+  { title: "Paper trading", body: "Test investment ideas without putting real money in." },
+  { title: "Multiple accounts", body: "Banks, cards, and brokerages side by side in one view." },
+  { title: "Light & dark themes", body: "A calm interface that matches how you work." },
+];
 
 export default function Home() {
   // OAuth sometimes redirects users to `/?code=...`. The inline script in
@@ -738,57 +891,43 @@ export default function Home() {
       <main className="min-h-screen bg-[var(--color-content-bg)] text-[var(--color-fg)]">
         <LandingNav />
 
-        <section className="relative overflow-hidden pt-28 pb-20 sm:pt-32 sm:pb-24 lg:fixed lg:inset-x-0 lg:top-0 lg:z-0 lg:h-screen lg:min-h-[820px] lg:pb-0">
-          <motion.img
-            src="/rock-left.png"
-            alt=""
+        {/* ============ Hero ============ */}
+        <section className="relative overflow-hidden pt-32 pb-16 sm:pt-40 sm:pb-20">
+          <div
             aria-hidden
-            initial={{ opacity: 0, x: -60 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-            className="pointer-events-none absolute -left-[55%] top-0 z-[2] h-[260px] w-auto max-w-none select-none opacity-70 sm:-left-[35%] sm:h-[520px] sm:opacity-80 lg:bottom-0 lg:-left-[3%] lg:top-auto lg:h-[var(--rock-h)] lg:opacity-95"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[480px]"
             style={{
-              ['--rock-h' as string]: "clamp(380px, 60vh, 40vw)",
-              maskImage: "linear-gradient(to bottom, black 55%, transparent 92%)",
-              WebkitMaskImage: "linear-gradient(to bottom, black 55%, transparent 92%)",
-            } as React.CSSProperties}
+              background:
+                "radial-gradient(ellipse 75% 60% at 50% -10%, color-mix(in oklab, var(--color-fg), transparent 95%), transparent)",
+            }}
           />
 
-          <motion.img
-            src="/rock-right.png"
-            alt=""
-            aria-hidden
-            initial={{ opacity: 0, x: 60 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-            className="pointer-events-none absolute bottom-0 -right-[20%] z-20 hidden h-[var(--rock-h)] w-auto max-w-none select-none opacity-95 lg:block"
-            style={{ ['--rock-h' as string]: "clamp(380px, 60vh, 40vw)" } as React.CSSProperties}
-          />
-
-          <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
+          <div className="relative mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.2, 0.7, 0.3, 1] }}
-                className="text-4xl font-medium tracking-tight text-[var(--color-fg)] sm:text-5xl lg:text-6xl lg:leading-[1.02]"
+                transition={{ duration: 0.7, ease: EASE }}
+                className="text-4xl font-medium tracking-tight text-[var(--color-fg)] sm:text-5xl lg:text-6xl lg:leading-[1.05]"
                 style={{ fontFamily: "var(--font-instrument)", letterSpacing: "-0.02em" }}
               >
-                A clearer view of your money.
+                Know where every dollar goes.
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.2, 0.7, 0.3, 1], delay: 0.1 }}
-                className="mx-auto mt-6 max-w-lg text-base leading-7 text-[var(--color-muted)] sm:text-lg"
+                transition={{ duration: 0.7, ease: EASE, delay: 0.1 }}
+                className="mx-auto mt-6 max-w-xl text-base leading-7 text-[var(--color-muted)] sm:text-lg"
               >
-                Spending, budgets, and investments — one calm workspace.
+                Zervo connects to your banks and turns spending, budgets, and
+                investments into one calm, organized picture. No spreadsheets,
+                no manual entry.
               </motion.p>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, ease: [0.2, 0.7, 0.3, 1], delay: 0.2 }}
-                className="mt-8 flex justify-center"
+                transition={{ duration: 0.7, ease: EASE, delay: 0.2 }}
+                className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
               >
                 <Link
                   href="/auth?mode=signup"
@@ -796,68 +935,224 @@ export default function Home() {
                 >
                   Get started — it&apos;s free
                 </Link>
+                <a
+                  href="#features"
+                  className="inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-medium text-[var(--color-fg)] ring-1 ring-inset ring-[var(--color-border)] transition-colors hover:ring-[var(--color-fg)]"
+                >
+                  See what&apos;s inside
+                </a>
               </motion.div>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.7, delay: 0.4 }}
+                className="mt-4 text-xs text-[var(--color-muted)]"
+              >
+                Free plan available. No credit card required.
+              </motion.p>
             </div>
-          </div>
 
-          <div
-            className="relative z-10 mx-auto mt-14 hidden px-5 sm:mt-16 sm:px-6 lg:block lg:px-8"
-            style={{ maxWidth: "min(92vw, 1400px)" }}
-          >
+            {/* Product shot — Mac window on desktop, phone on mobile */}
             <motion.div
-              initial={{ opacity: 0, y: 80, rotateX: 12 }}
-              animate={{ opacity: 1, y: 0, rotateX: 6 }}
-              transition={{ duration: 0.9, ease: [0.2, 0.7, 0.3, 1], delay: 0.2 }}
-              style={{
-                perspective: 1600,
-                transformStyle: "preserve-3d",
-                transformOrigin: "center top",
-              }}
-              className="relative"
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
+              className="relative mx-auto mt-16 hidden lg:block"
+              style={{ maxWidth: "min(90vw, 1240px)" }}
             >
-              <div className="relative overflow-hidden rounded-xl">
+              <div
+                className="max-h-[640px] overflow-hidden"
+                style={{
+                  maskImage: "linear-gradient(to bottom, black 62%, transparent 99%)",
+                  WebkitMaskImage: "linear-gradient(to bottom, black 62%, transparent 99%)",
+                }}
+              >
                 <MacWindow>
                   <HeroDashboard />
                 </MacWindow>
               </div>
             </motion.div>
-          </div>
 
-          <motion.a
-            href="#pricing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1.2 }}
-            className="group absolute bottom-8 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 text-[11px] font-medium uppercase tracking-[0.24em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] lg:flex"
-            style={{ fontFamily: "var(--font-poppins)" }}
-          >
-            <span>Pricing</span>
-            <motion.span
-              aria-hidden
-              animate={{ y: [0, 4, 0] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-              className="text-sm"
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
+              className="mt-14 lg:hidden"
             >
-              ↓
-            </motion.span>
-          </motion.a>
+              <PhoneFrame>
+                <PhoneDashboard />
+              </PhoneFrame>
+            </motion.div>
+          </div>
         </section>
 
-        <div className="hidden lg:block lg:h-screen lg:min-h-[820px]" aria-hidden />
+        {/* ============ Features ============ */}
+        <section id="features" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <FadeIn className="mx-auto max-w-2xl text-center">
+              <div className="card-header">Features</div>
+              <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
+                Everything your money does, in one place.
+              </h2>
+              <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-[var(--color-muted)]">
+                The same views you saw above, each doing real work — built from
+                the live product, not marketing mockups.
+              </p>
+            </FadeIn>
 
+            <div className="mt-20 space-y-24 sm:mt-24 sm:space-y-32">
+              <FeatureRow
+                eyebrow="Spending"
+                title="Every transaction, already sorted."
+                body="Connect your accounts once and Zervo pulls in every transaction automatically — categorized and charted against last month, so you spot a trend the day it starts, not when the statement arrives."
+                bullets={[
+                  "Automatic import from every connected account",
+                  "Smart categorization you can override anytime",
+                  "This month vs. last, side by side",
+                ]}
+                visual={
+                  <div className="h-[360px] min-w-0">
+                    <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+                  </div>
+                }
+              />
+
+              <FeatureRow
+                eyebrow="Budgets"
+                title="Budgets that fill themselves in."
+                body="Pick a category, set a number, and you're done. Progress updates on its own as you spend — no receipts to log, no spreadsheet to maintain, no guilt-trip notifications."
+                bullets={[
+                  "Per-category limits with live progress",
+                  "Color shifts as you approach the line",
+                  "Insights warn you before you go over",
+                ]}
+                flip
+                visual={
+                  <div className="min-w-0 space-y-8">
+                    <InsightsCarousel mockData={INSIGHTS_MOCK} />
+                    <BudgetsCard budgets={BUDGETS_MOCK} loading={false} />
+                  </div>
+                }
+              />
+
+              <FeatureRow
+                eyebrow="Recurring"
+                title="Know what's coming before it hits."
+                body="Zervo detects subscriptions, bills, and paychecks from your transaction history, then lays them out on a calendar — so the end of the month never surprises you again."
+                bullets={[
+                  "Subscriptions and bills detected automatically",
+                  "Predicted dates and amounts for each one",
+                  "Paychecks tracked alongside the outflows",
+                ]}
+                visual={
+                  <div className="min-w-0">
+                    <CalendarCard mockData={CALENDAR_MOCK} />
+                  </div>
+                }
+              />
+
+              <FeatureRow
+                eyebrow="Investing"
+                title="Your portfolio lives here too."
+                body="Holdings, live prices, and performance sit right beside your day-to-day money — so your net worth always reflects the whole picture, not just what's in checking."
+                bullets={[
+                  "Brokerage accounts synced like any other",
+                  "Live quotes and sparklines per holding",
+                  "Net worth that includes everything you own",
+                ]}
+                flip
+                visual={
+                  <div className="min-w-0 space-y-8">
+                    <NetWorthBanner mockData={NET_WORTH_MOCK} />
+                    <TopHoldingsCard mockData={HOLDINGS_MOCK} />
+                  </div>
+                }
+              />
+            </div>
+
+            {/* Also included */}
+            <FadeIn className="mt-24 sm:mt-32">
+              <div className="card-header">Also included</div>
+              <div className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+                {ALSO_INCLUDED.map((f) => (
+                  <div key={f.title}>
+                    <div className="text-sm font-medium text-[var(--color-fg)]">{f.title}</div>
+                    <p className="mt-1.5 text-sm leading-6 text-[var(--color-muted)]">{f.body}</p>
+                  </div>
+                ))}
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* ============ How it works ============ */}
+        <section className="border-t border-[var(--color-border)] py-20 sm:py-28">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <FadeIn className="mx-auto max-w-2xl text-center">
+              <div className="card-header">How it works</div>
+              <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
+                Set up once. It runs itself.
+              </h2>
+            </FadeIn>
+
+            <div className="mt-16 grid gap-12 sm:grid-cols-3 sm:gap-10">
+              {HOW_IT_WORKS.map((s, i) => (
+                <FadeIn key={s.step} delay={i * 0.1}>
+                  <div className="text-2xl font-medium tracking-tight text-[var(--color-muted)] tabular-nums">
+                    {s.step}
+                  </div>
+                  <div className="mt-4 text-base font-medium text-[var(--color-fg)]">{s.title}</div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">{s.body}</p>
+                </FadeIn>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ============ Security ============ */}
+        <section className="border-t border-[var(--color-border)] py-20 sm:py-28">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <div className="grid gap-12 lg:grid-cols-5 lg:gap-20">
+              <FadeIn className="lg:col-span-2">
+                <div className="card-header">Security</div>
+                <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
+                  Built like it&apos;s handling your money. Because it is.
+                </h2>
+                <p className="mt-4 text-base leading-7 text-[var(--color-muted)]">
+                  Bank connections run through Plaid, the same infrastructure
+                  trusted by thousands of financial apps. Everything sensitive
+                  is encrypted, and nothing about the connection can move money.
+                </p>
+              </FadeIn>
+              <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:col-span-3">
+                {TRUST_ITEMS.map((t, i) => (
+                  <FadeIn key={t.title} delay={i * 0.08}>
+                    <div className="text-sm font-medium text-[var(--color-fg)]">{t.title}</div>
+                    <p className="mt-1.5 text-sm leading-6 text-[var(--color-muted)]">{t.body}</p>
+                  </FadeIn>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============ Pricing ============ */}
         <section
           id="pricing"
-          className="relative z-10 scroll-mt-20 border-t border-[var(--color-border)] bg-[var(--color-content-bg)] py-20 sm:py-24"
+          className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28"
         >
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
+            <FadeIn className="mx-auto max-w-2xl text-center">
               <div className="card-header">Pricing</div>
               <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                 Simple, honest pricing.
               </h2>
-            </div>
+              <p className="mx-auto mt-4 max-w-md text-base leading-7 text-[var(--color-muted)]">
+                Start free, upgrade when you want the whole picture. Cancel anytime.
+              </p>
+            </FadeIn>
 
-            <div className="mt-14 grid gap-10 lg:grid-cols-2 lg:gap-0">
+            <FadeIn className="mx-auto mt-14 grid max-w-4xl gap-10 lg:grid-cols-2 lg:gap-0">
               <PricingColumn
                 price="0"
                 tier="Free"
@@ -889,18 +1184,69 @@ export default function Home() {
                 ]}
                 cta="Upgrade to Pro"
               />
-            </div>
+            </FadeIn>
           </div>
         </section>
 
-        <footer className="relative z-10 border-t border-[var(--color-border)] bg-[var(--color-content-bg)] py-8">
-          <div className="mx-auto flex max-w-6xl flex-col-reverse items-center justify-between gap-4 px-5 text-xs text-[var(--color-muted)] sm:flex-row sm:px-6 lg:px-8">
-            <p>© {new Date().getFullYear()} {BRAND.legalName}</p>
-            <nav className="flex items-center gap-6">
-              <Link href="/docs/terms" className="transition-colors hover:text-[var(--color-fg)]">Terms</Link>
-              <Link href="/docs/privacy" className="transition-colors hover:text-[var(--color-fg)]">Privacy</Link>
-              <a href={`mailto:${BRAND.supportEmail}`} className="transition-colors hover:text-[var(--color-fg)]">Contact</a>
-            </nav>
+        {/* ============ FAQ ============ */}
+        <section id="faq" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
+          <div className="mx-auto max-w-3xl px-5 sm:px-6 lg:px-8">
+            <FadeIn className="text-center">
+              <div className="card-header">FAQ</div>
+              <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
+                Questions, answered.
+              </h2>
+            </FadeIn>
+            <FadeIn className="mt-12 border-t border-[var(--color-border)]">
+              {FAQ_ITEMS.map((item) => (
+                <FaqItem key={item.q} q={item.q} a={item.a} />
+              ))}
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* ============ Final CTA ============ */}
+        <section className="border-t border-[var(--color-border)] py-24 sm:py-32">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
+            <FadeIn className="mx-auto max-w-2xl text-center">
+              <h2
+                className="text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-5xl"
+                style={{ fontFamily: "var(--font-instrument)", letterSpacing: "-0.02em" }}
+              >
+                Start seeing your money clearly.
+              </h2>
+              <p className="mx-auto mt-4 max-w-md text-base leading-7 text-[var(--color-muted)]">
+                Connect an account and your dashboard fills itself in.
+                It takes about a minute.
+              </p>
+              <div className="mt-8 flex justify-center">
+                <Link
+                  href="/auth?mode=signup"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--color-fg)] px-6 text-sm font-medium text-[var(--color-bg)] transition-opacity hover:opacity-90"
+                >
+                  Get started — it&apos;s free
+                </Link>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* ============ Footer ============ */}
+        <footer className="border-t border-[var(--color-border)] py-10">
+          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+              <BrandMark size="sm" />
+              <nav className="flex items-center gap-6 text-xs text-[var(--color-muted)]">
+                <a href="#features" className="transition-colors hover:text-[var(--color-fg)]">Features</a>
+                <a href="#pricing" className="transition-colors hover:text-[var(--color-fg)]">Pricing</a>
+                <Link href="/docs/terms" className="transition-colors hover:text-[var(--color-fg)]">Terms</Link>
+                <Link href="/docs/privacy" className="transition-colors hover:text-[var(--color-fg)]">Privacy</Link>
+                <a href={`mailto:${BRAND.supportEmail}`} className="transition-colors hover:text-[var(--color-fg)]">Contact</a>
+              </nav>
+            </div>
+            <p className="text-center text-xs text-[var(--color-muted)] sm:text-left">
+              © {new Date().getFullYear()} {BRAND.legalName}
+            </p>
           </div>
         </footer>
       </main>
