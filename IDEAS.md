@@ -89,4 +89,19 @@ Newest first. Entry format:
 - Verdict reason: <owner's words, verbatim>
 ```
 
-(none yet)
+### 2026-06-12 — Subscription manager (/recurring page)
+- Status: pending
+- Branch: claude/wizardly-knuth-wsx6tg (cloud session — idea branches unavailable)
+- Pitch: A "Recurring" page surfacing the Plaid-detected `recurring_streams`
+  data that until now only one agent tool could see (dormant asset, ~5% UI
+  coverage; also competitor-parity item #1). Shows estimated monthly outflow
+  as the hero number, subscriptions & bills sorted by predicted next charge
+  ("Today" / "In 3 days" / "Due"), and recurring income below. Reuses the
+  existing Pro-gated `/api/recurring/get` route unchanged — the entire build
+  is UI plus pure display helpers with 14 unit tests. Nav item added under
+  Finance with `tierFeature: "recurring"`.
+- Gate caveat: typecheck/lint/test all pass; the screenshot step was
+  impossible in this cloud session (no `SUPABASE_SERVICE_ROLE_KEY`, so API
+  routes can't run). Verify visually with `pnpm seed:power && pnpm dev` →
+  /recurring locally before accepting.
+- Verdict reason: (awaiting owner)

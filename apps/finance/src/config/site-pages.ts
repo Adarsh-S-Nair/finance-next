@@ -26,6 +26,10 @@ export const SITE_PAGES: Record<string, PageConfig> = {
     title: 'Goals',
     header: 'Goals',
   },
+  '/recurring': {
+    title: 'Recurring',
+    header: 'Recurring',
+  },
   '/settings': {
     title: 'Settings',
     header: 'Settings',
