@@ -10,7 +10,10 @@ future run. Never re-propose a rejected idea or violate a taste constraint.
 
 Distilled from verdicts. Hard rules for future pitches.
 
-- (none yet — populate as rejection patterns emerge)
+- Owner workflow: no PR review, no local verification. After a verdict of
+  accept, ship to main and verify against the production deploy (this is a
+  zero-customer project; prod is the test environment). Pitches still
+  require a verdict before merging to main.
 
 ## Candidate backlog
 
@@ -66,7 +69,7 @@ From codebase sweep 2026-06-12. Re-verify before building; update when things sh
 Features common in Monarch / Copilot / YNAB / Rocket Money that Zervo lacks.
 Check off when shipped; strike through when rejected.
 
-- [ ] Subscription/recurring payment manager (see backlog #1)
+- [x] Subscription/recurring payment manager (shipped 2026-06-12, /recurring)
 - [ ] Cash flow forecast (projected balance over next 30–90 days)
 - [ ] Bill calendar / upcoming payments view
 - [ ] Rule-based auto-categorization UI (agent can propose rules; no standalone manager)
@@ -86,11 +89,11 @@ Newest first. Entry format:
 - Status: pending | accepted | accepted-with-changes | rejected | abandoned
 - Branch: <branch>
 - Pitch: <one paragraph, with evidence anchor>
+- Gate caveat: <optional — anything the hard gate couldn't verify and why>
 - Verdict reason: <owner's words, verbatim>
 ```
 
 ### 2026-06-12 — Subscription manager (/recurring page)
-- Status: pending
 - Branch: claude/wizardly-knuth-wsx6tg (cloud session — idea branches unavailable)
 - Pitch: A "Recurring" page surfacing the Plaid-detected `recurring_streams`
   data that until now only one agent tool could see (dormant asset, ~5% UI
@@ -102,6 +105,11 @@ Newest first. Entry format:
   Finance with `tierFeature: "recurring"`.
 - Gate caveat: typecheck/lint/test all pass; the screenshot step was
   impossible in this cloud session (no `SUPABASE_SERVICE_ROLE_KEY`, so API
-  routes can't run). Verify visually with `pnpm seed:power && pnpm dev` →
-  /recurring locally before accepting.
-- Verdict reason: (awaiting owner)
+  routes can't run). Verified post-deploy in production instead: /recurring
+  serves 200 with the page mounted, /api/recurring/get returns 401 unauthed.
+  Test user (test-power@zervo.test) was upgraded to pro and seeded with 7
+  recurring_streams fixtures for hands-on testing.
+- Status: accepted
+- Verdict reason: "i don't want to look at it locally. for this project it
+  is safe to just push it out to main and test it once the CI deploy
+  finishes." (2026-06-12)

@@ -28,16 +28,25 @@ first and treat them as binding constraints on what you propose.
 3. **Pick ONE idea.** Selection criteria, in order: strongest evidence anchor, smallest
    build (must fit one session), most aligned with past accepted verdicts.
 
-4. **Build it on a branch** named `idea/<slug>`. Never on main. Keep the diff as small
-   as a real demo allows — this is a pitch, not a production rollout. Follow the repo's
-   conventions (CLAUDE.md, UI style guide).
+4. **Build it on a branch** named `idea/<slug>`. Never on main before a verdict.
+   (Cloud sessions: push to the session's designated branch instead — idea branches
+   aren't pushable there.) Keep the diff as small as a real demo allows — this is a
+   pitch, not a production rollout. Follow the repo's conventions (CLAUDE.md, UI style
+   guide). Testing convention: this repo has no component/RTL tests — keep display
+   logic in pure helper modules and unit-test those.
 
 5. **Hard gate before pitching** — all of these must pass, no exceptions:
    - `pnpm typecheck`, `pnpm lint`, `pnpm test`
    - A screenshot of the feature actually working in the running app (use the verify/run
      skill with the dev sign-in + seed flow in `apps/finance/AGENTS.md`).
-   If you cannot get the demo working, do not pitch it. Record the attempt in IDEAS.md
-   under verdicts with `Status: abandoned` and one line on what blocked it, then stop.
+   If the app cannot run in the current environment (cloud sessions lack the server
+   secrets), the screenshot requirement converts to: unit tests for all new logic plus
+   a `Gate caveat` line in the pitch entry stating exactly what wasn't verified and how
+   to verify it. After the owner accepts, ship to main and verify against the
+   production deploy (route responds, API status codes correct, no new runtime errors).
+   If the demo itself doesn't work — not an environment problem — do not pitch it.
+   Record the attempt in IDEAS.md under verdicts with `Status: abandoned` and one line
+   on what blocked it, then stop.
 
 6. **Record the pitch** in IDEAS.md (newest first) using the entry format defined there,
    with `Status: pending`. Commit the IDEAS.md update and the demo branch; push both.
