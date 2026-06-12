@@ -50,6 +50,7 @@ next-env.d.ts
 # re-include just settings.json.
 .claude/*
 !.claude/settings.json
+!.claude/commands/
 .env.prod
 
 # Internal pricing docs
