@@ -414,30 +414,51 @@ function TickerTape() {
 }
 
 /* ============================================================
-   Hero sparkline — a chart line that draws itself behind the
-   headline on load
+   Hero backdrop — graph-paper dot grid plus transaction amounts
+   that drift up the side margins like rising bubbles
    ============================================================ */
 
-function HeroSparkline() {
+function DotGrid() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-24 hidden h-[440px] sm:block"
+      className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"
       style={{
-        maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
-        WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+        backgroundImage:
+          "radial-gradient(color-mix(in oklab, var(--color-fg), transparent 88%) 1px, transparent 1px)",
+        backgroundSize: "24px 24px",
+        maskImage: "radial-gradient(ellipse 70% 65% at 50% 0%, black, transparent 75%)",
+        WebkitMaskImage: "radial-gradient(ellipse 70% 65% at 50% 0%, black, transparent 75%)",
       }}
-    >
-      <svg className="h-full w-full" viewBox="0 0 1440 440" fill="none" preserveAspectRatio="none">
-        <motion.path
-          d="M0 412 L70 404 L140 416 L210 380 L280 392 L350 350 L420 364 L490 320 L560 338 L630 288 L700 302 L770 258 L840 272 L910 220 L980 242 L1050 188 L1120 204 L1190 150 L1260 168 L1330 112 L1440 80"
-          stroke="var(--color-border)"
-          strokeWidth="2"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 2.6, ease: "easeInOut", delay: 0.5 }}
-        />
-      </svg>
+    />
+  );
+}
+
+const FLOATERS: { text: string; left: string; delay: number; duration: number }[] = [
+  { text: "☕ −$6.50", left: "7%", delay: 1.2, duration: 11 },
+  { text: "🛒 −$84.12", left: "14%", delay: 5.4, duration: 13 },
+  { text: "💸 +$2,410", left: "84%", delay: 3.0, duration: 12 },
+  { text: "🎧 −$11.99", left: "91%", delay: 7.8, duration: 10 },
+];
+
+function FloatingAmounts() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 hidden h-[560px] overflow-hidden lg:block">
+      {FLOATERS.map((f) => (
+        <motion.span
+          key={f.text}
+          className="absolute top-[420px] text-xs font-medium text-[var(--color-muted)] tabular-nums"
+          style={{ left: f.left }}
+          initial={{ y: 0, opacity: 0 }}
+          animate={{ y: [40, -360], opacity: [0, 0.7, 0.7, 0] }}
+          transition={{
+            y: { duration: f.duration, repeat: Infinity, ease: "linear", delay: f.delay },
+            opacity: { duration: f.duration, repeat: Infinity, times: [0, 0.15, 0.7, 1], delay: f.delay },
+          }}
+        >
+          {f.text}
+        </motion.span>
+      ))}
     </div>
   );
 }
@@ -544,7 +565,7 @@ export function LandingNav({ showLinks = true }: { showLinks?: boolean }) {
 
 function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 ${className}`}>
+    <div className={`min-w-0 rounded-2xl bg-[var(--color-surface-alt)]/50 p-5 ${className}`}>
       {children}
     </div>
   );
@@ -557,7 +578,7 @@ function TiltPanel({ tilt = 0, children }: { tilt?: number; children: ReactNode 
   return (
     <motion.div
       style={{ rotate: tilt }}
-      whileHover={{ rotate: 0, scale: 1.02 }}
+      whileHover={{ rotate: 0, scale: 1.02, y: -4 }}
       transition={{ type: "spring", stiffness: 260, damping: 18 }}
     >
       <Panel>
@@ -1031,7 +1052,8 @@ export default function Home() {
                 "radial-gradient(ellipse 75% 60% at 50% -10%, color-mix(in oklab, var(--color-fg), transparent 95%), transparent)",
             }}
           />
-          <HeroSparkline />
+          <DotGrid />
+          <FloatingAmounts />
 
           <div className="relative mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
