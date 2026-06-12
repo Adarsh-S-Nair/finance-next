@@ -75,7 +75,7 @@ export default function DashboardPage() {
     ["dashboard:available-months", user?.id],
     user?.id ? "/api/transactions/available-months" : null,
   );
-  const availableMonths = monthsData?.months ?? [];
+  const availableMonths = useMemo(() => monthsData?.months ?? [], [monthsData]);
   useEffect(() => {
     if (selectedMonth) return;
     if (availableMonths.length > 0) {
