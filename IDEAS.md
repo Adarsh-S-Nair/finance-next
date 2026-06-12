@@ -14,6 +14,11 @@ Distilled from verdicts. Hard rules for future pitches.
   accept, ship to main and verify against the production deploy (this is a
   zero-customer project; prod is the test environment). Pitches still
   require a verdict before merging to main.
+- Recurring = bills/subscriptions: outflows only. Never mix income streams
+  (salary, interest) into a bills-style view.
+- Merchant logos: anywhere transactions/merchants render, use the
+  TransactionRow icon pattern (plain img + DynamicIcon category fallback).
+  Do not use next/image for merchant icon_url (remote hosts unconfigured).
 
 ## Candidate backlog
 
@@ -109,7 +114,15 @@ Newest first. Entry format:
   serves 200 with the page mounted, /api/recurring/get returns 401 unauthed.
   Test user (test-power@zervo.test) was upgraded to pro and seeded with 7
   recurring_streams fixtures for hands-on testing.
-- Status: accepted
+- Status: accepted-with-changes
 - Verdict reason: "i don't want to look at it locally. for this project it
   is safe to just push it out to main and test it once the CI deploy
-  finishes." (2026-06-12)
+  finishes." Then after seeing it live: "we aren't seeing logos in the
+  recurring transactions. also i think recurring transactions should be
+  rebranded as bills/subscriptions so we shouldn't see positive
+  transactions (income, like salary or interest earned)." (2026-06-12)
+- Changes applied: merchant logos now use the transactions-row pattern
+  (plain img + DynamicIcon category fallback instead of next/image, which
+  silently broke on unconfigured remote hosts); page rebranded to
+  Bills & Subscriptions, outflows only (streamType=outflow), income
+  section removed.

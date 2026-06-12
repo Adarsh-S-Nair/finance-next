@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import Image from "next/image";
+import { useMemo, useState } from "react";
+import { FiTag } from "react-icons/fi";
 import PageContainer from "../layout/PageContainer";
+import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { formatCurrency } from "../../lib/formatCurrency";
@@ -10,33 +11,49 @@ import {
   type RecurringStream,
   estimatedMonthlyTotal,
   frequencyLabel,
-  monthlyAmount,
   nextDateLabel,
   splitStreams,
   streamName,
 } from "./lib";
 
+const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === "1";
+
 type RecurringResponse = { recurring: RecurringStream[] };
 
 function StreamRow({ stream, now }: { stream: RecurringStream; now: Date }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const name = streamName(stream);
+  const showLogo = !DISABLE_LOGOS && !!stream.icon_url && !logoFailed;
+
   return (
-    <div className="flex items-center gap-3 py-3">
-      {stream.icon_url ? (
-        <Image
-          src={stream.icon_url}
-          alt=""
-          width={28}
-          height={28}
-          className="rounded-full shrink-0"
-          unoptimized
-        />
-      ) : (
-        <div
-          className="w-7 h-7 rounded-full shrink-0"
-          style={{ backgroundColor: stream.category_hex_color || "var(--color-surface-alt)" }}
-        />
-      )}
+    <div className="flex items-center gap-4 py-3">
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden shrink-0"
+        style={{
+          backgroundColor: showLogo
+            ? "transparent"
+            : stream.category_hex_color || "var(--color-accent)",
+        }}
+      >
+        {showLogo ? (
+          <img
+            src={stream.icon_url as string}
+            alt={name}
+            className="w-full h-full object-cover rounded-full"
+            loading="lazy"
+            decoding="async"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <DynamicIcon
+            iconLib={stream.category_icon_lib}
+            iconName={stream.category_icon_name}
+            className="h-5 w-5 text-white"
+            fallback={FiTag}
+            style={{ strokeWidth: 2.5 }}
+          />
+        )}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-[var(--color-fg)] truncate">{name}</div>
         <div className="text-[11px] text-[var(--color-muted)]">
@@ -55,32 +72,17 @@ function StreamRow({ stream, now }: { stream: RecurringStream; now: Date }) {
   );
 }
 
-function Section({ title, streams, now }: { title: string; streams: RecurringStream[]; now: Date }) {
-  if (streams.length === 0) return null;
-  return (
-    <section>
-      <h2 className="card-header">{title}</h2>
-      <div className="divide-y divide-[var(--color-border)]">
-        {streams.map((s) => (
-          <StreamRow key={s.stream_id} stream={s} now={now} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export default function RecurringView() {
   const { user } = useUser();
+  // Bills & subscriptions only — income streams (salary, interest) are
+  // excluded server-side via streamType=outflow per owner verdict.
   const { data, isLoading, error } = useAuthedQuery<RecurringResponse>(
-    ["recurring:list", user?.id],
-    user?.id ? "/api/recurring/get" : null,
+    ["recurring:list:outflow", user?.id],
+    user?.id ? "/api/recurring/get?streamType=outflow" : null,
   );
 
   const now = useMemo(() => new Date(), []);
-  const { outflows, inflows } = useMemo(
-    () => splitStreams(data?.recurring ?? []),
-    [data],
-  );
+  const { outflows } = useMemo(() => splitStreams(data?.recurring ?? []), [data]);
   const monthlyTotal = useMemo(() => estimatedMonthlyTotal(outflows), [outflows]);
   const dueThisWeek = useMemo(
     () =>
@@ -104,29 +106,29 @@ export default function RecurringView() {
         </div>
       ) : locked ? (
         <div className="py-16 text-center">
-          <p className="text-sm font-medium text-[var(--color-fg)]">Recurring is a Pro feature</p>
+          <p className="text-sm font-medium text-[var(--color-fg)]">Bills &amp; subscriptions is a Pro feature</p>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Upgrade to see detected subscriptions, bills, and recurring income.
+            Upgrade to see your detected bills and subscriptions in one place.
           </p>
         </div>
       ) : error ? (
         <div className="py-16 text-center">
           <p className="text-sm text-[var(--color-muted)]">
-            Couldn&apos;t load recurring activity. Try again in a moment.
+            Couldn&apos;t load your bills. Try again in a moment.
           </p>
         </div>
-      ) : outflows.length === 0 && inflows.length === 0 ? (
+      ) : outflows.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-sm font-medium text-[var(--color-fg)]">No recurring activity yet</p>
+          <p className="text-sm font-medium text-[var(--color-fg)]">No bills detected yet</p>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Detected subscriptions, bills, and income will appear here after a
-            few transaction cycles.
+            Detected bills and subscriptions will appear here after a few
+            transaction cycles.
           </p>
         </div>
       ) : (
         <div className="space-y-10">
           <div>
-            <div className="card-header">Est. monthly outflow</div>
+            <div className="card-header">Est. monthly cost</div>
             <div className="mt-2 text-3xl sm:text-4xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
               {formatCurrency(monthlyTotal)}
             </div>
@@ -135,8 +137,14 @@ export default function RecurringView() {
               {dueThisWeek.length > 0 && ` · ${dueThisWeek.length} due within a week`}
             </div>
           </div>
-          <Section title="Subscriptions & bills" streams={outflows} now={now} />
-          <Section title="Recurring income" streams={inflows} now={now} />
+          <section>
+            <h2 className="card-header">Subscriptions &amp; bills</h2>
+            <div className="divide-y divide-[var(--color-border)]">
+              {outflows.map((s) => (
+                <StreamRow key={s.stream_id} stream={s} now={now} />
+              ))}
+            </div>
+          </section>
         </div>
       )}
     </PageContainer>

@@ -15,6 +15,8 @@ export interface RecurringStream {
   last_amount: number;
   is_active: boolean | null;
   icon_url?: string | null;
+  category_icon_lib?: string | null;
+  category_icon_name?: string | null;
   category_hex_color?: string | null;
 }
 

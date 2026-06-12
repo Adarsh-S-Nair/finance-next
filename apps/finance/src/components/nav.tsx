@@ -26,7 +26,7 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
       { href: "/accounts", label: "Accounts", icon: LuWallet },
       { href: "/transactions", label: "Transactions", icon: LuArrowRightLeft },
       { href: "/budgets", label: "Budgets", icon: LuPiggyBank, tierFeature: "budgets" },
-      { href: "/recurring", label: "Recurring", icon: LuRepeat, tierFeature: "recurring" },
+      { href: "/recurring", label: "Bills", icon: LuRepeat, tierFeature: "recurring" },
       { href: "/goals", label: "Goals", icon: LuTarget },
     ],
   },
