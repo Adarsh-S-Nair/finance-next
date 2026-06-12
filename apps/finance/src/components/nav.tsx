@@ -1,4 +1,4 @@
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuTarget, LuRepeat, LuSparkles } from "react-icons/lu";
+import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuTarget, LuSparkles } from "react-icons/lu";
 import { IconType } from "react-icons";
 
 export type NavItem = {
@@ -27,7 +27,6 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
       { href: "/accounts", label: "Accounts", icon: LuWallet },
       { href: "/transactions", label: "Transactions", icon: LuArrowRightLeft },
       { href: "/budgets", label: "Budgets", icon: LuPiggyBank, tierFeature: "budgets" },
-      { href: "/recurring", label: "Bills", icon: LuRepeat, tierFeature: "recurring" },
       { href: "/goals", label: "Goals", icon: LuTarget },
     ],
   },

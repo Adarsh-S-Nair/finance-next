@@ -196,7 +196,7 @@ export default function CalendarCard({ className = '', mockData }) {
     <div className={`flex flex-col ${className}`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-header">Upcoming bills</h3>
-        <ViewAllLink href="/recurring" ariaLabel="View all bills" />
+        <ViewAllLink href="/transactions?view=bills" ariaLabel="View all bills" />
       </div>
 
       {!isPro ? (

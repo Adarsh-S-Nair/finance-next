@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { FiTag } from "react-icons/fi";
-import PageContainer from "../layout/PageContainer";
 import DynamicIcon from "../DynamicIcon";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
@@ -97,7 +96,7 @@ export default function RecurringView() {
   const locked = error?.message.startsWith("403");
 
   return (
-    <PageContainer>
+    <div>
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -147,6 +146,6 @@ export default function RecurringView() {
           </section>
         </div>
       )}
-    </PageContainer>
+    </div>
   );
 }

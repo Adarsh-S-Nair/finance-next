@@ -21,8 +21,9 @@ import { authFetch } from "../../../lib/api/fetch";
 import { PiBankFill } from "react-icons/pi";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
-import { Button, Drawer } from "@zervo/ui";
+import { Button, Drawer, SegmentedTabs } from "@zervo/ui";
 
+import RecurringView from "../../../components/recurring/RecurringView";
 import SearchInput from "../../../components/ui/SearchInput";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
@@ -34,6 +35,29 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
+
+// Activity | Bills switch. Bills is the recurring-streams view — it lives
+// inside the transactions surface (owner verdict: not worth its own page),
+// deep-linkable as /transactions?view=bills so the dashboard widget can
+// land directly on it.
+function ViewTabs({ value }) {
+  const router = useRouter();
+  return (
+    <div className="mb-4">
+      <SegmentedTabs
+        size="sm"
+        value={value}
+        onChange={(v) =>
+          router.replace(v === 'bills' ? '/transactions?view=bills' : '/transactions', { scroll: false })
+        }
+        options={[
+          { label: 'Activity', value: 'activity' },
+          { label: 'Bills', value: 'bills' },
+        ]}
+      />
+    </div>
+  );
+}
 
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {
@@ -2127,6 +2151,7 @@ function TransactionsContent() {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
+        <ViewTabs value="activity" />
         <TransactionSkeleton />
 
         {/* Filters Drawer */}
@@ -2156,6 +2181,7 @@ function TransactionsContent() {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
+        <ViewTabs value="activity" />
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] rounded-full flex items-center justify-center mb-4">
             <LuReceipt className="h-8 w-8 text-[var(--color-danger)]" />
@@ -2230,6 +2256,7 @@ function TransactionsContent() {
         onOpenFilters={() => setIsFiltersOpen(true)}
         activeFilterCount={getActiveFilterCount()}
       />
+      <ViewTabs value="activity" />
       <div className="space-y-0 relative" ref={containerRef}>
         {/* Top sentinel — just a marker for the IntersectionObserver that
             triggers loadPrev. Zero height / absolutely positioned so it
@@ -2438,10 +2465,25 @@ function TransactionsContent() {
   );
 }
 
+// Routes between the two views on the transactions surface. Bills renders
+// the recurring-streams view; everything else is the classic activity list.
+function TransactionsRouter() {
+  const searchParams = useSearchParams();
+  if (searchParams.get('view') === 'bills') {
+    return (
+      <PageContainer padding="pt-2 pb-10" showHeader={false}>
+        <ViewTabs value="bills" />
+        <RecurringView />
+      </PageContainer>
+    );
+  }
+  return <TransactionsContent />;
+}
+
 export default function TransactionsPage() {
   return (
     <Suspense fallback={<TransactionSkeleton />}>
-      <TransactionsContent />
+      <TransactionsRouter />
     </Suspense>
   );
 }
