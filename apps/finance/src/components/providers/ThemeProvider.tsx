@@ -1,20 +1,25 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { applyThemeToDocument } from "../../config/themes";
 
-const ThemeContext = createContext(null);
+type ThemeContextValue = {
+  applyTheme: (themeId: string) => void;
+  applyAccent: (hex: string | null) => void;
+};
 
-export function useTheme() {
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export function useTheme(): ThemeContextValue | null {
   return useContext(ThemeContext);
 }
 
-export function ThemeProvider({ children }) {
-  const applyTheme = useCallback((themeId) => {
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const applyTheme = useCallback((themeId: string) => {
     applyThemeToDocument(themeId);
   }, []);
 
-  const applyAccent = useCallback((hex) => {
+  const applyAccent = useCallback((hex: string | null) => {
     const root = document.documentElement;
     if (!hex) {
       root.style.removeProperty("--color-accent");

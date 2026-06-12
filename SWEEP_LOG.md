@@ -12,6 +12,9 @@ needs an owner decision. `defer` = skip this item in future runs.
 
 ## Runs
 
+- 2026-06-12 23:20 | D | action | TS migration: ThemeProvider.jsx → .tsx (typed context value, ReactNode children); JS files remaining: 110 | see commit
+- 2026-06-12 23:20 | A | no-op | Vercel prod (90m): clean — yesterday's lone POST/404 did not recur; advisors unchanged (findings already logged, awaiting owner) | —
+
 - 2026-06-12 22:10 | D | action | coverage: goals money-math (`components/goals/types.ts` — allocateCash waterfall, rowToGoal, evaluatePace) was at 0% → added 14 unit tests, 437 total green | see commit
 - 2026-06-12 22:10 | B | finding | Supabase performance advisors (guardrailed — DB changes): 102 RLS policies re-evaluate `auth.uid()` per row (auth_rls_initplan — fix is `(select auth.uid())` rewrite), 25 tables with multiple permissive policies, 30 unused indexes, 10 unindexed FKs, 1 duplicate index on `transactions` (`transactions_plaid_transaction_id_key` = `ux_transactions_plaid_id`) | —
 - 2026-06-12 22:10 | A | no-op | Vercel prod (2h): one `POST / 404` warning (stale-client/bot shaped, single occurrence — watch, don't chase); Supabase clean | —
