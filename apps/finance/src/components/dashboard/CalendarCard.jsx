@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useAuthedQuery } from '../../lib/api/useAuthedQuery';
 import { useUser } from '../providers/UserProvider';
 import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
-import { Drawer } from "@zervo/ui";
 import { ViewAllLink } from "@zervo/ui";
 import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 
@@ -107,7 +106,6 @@ function BillRow({ stream, disableLogos }) {
 export default function CalendarCard({ className = '', mockData }) {
   const { user, isPro: liveIsPro, loading: authLoading } = useUser();
   const isPro = mockData ? true : liveIsPro;
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
   // Cached across navigations via react-query. Recurring streams only
@@ -198,7 +196,7 @@ export default function CalendarCard({ className = '', mockData }) {
     <div className={`flex flex-col ${className}`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="card-header">Upcoming bills</h3>
-        <ViewAllLink onClick={() => setIsDrawerOpen(true)} />
+        <ViewAllLink href="/recurring" ariaLabel="View all bills" />
       </div>
 
       {!isPro ? (
@@ -254,69 +252,6 @@ export default function CalendarCard({ className = '', mockData }) {
           )}
         </div>
       )}
-
-      <Drawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        title="Recurring transactions"
-        width="md"
-      >
-        <div className="space-y-1">
-          {recurring.sort((a, b) => {
-            const dateA = a.predicted_next_date || a.last_date;
-            const dateB = b.predicted_next_date || b.last_date;
-            return new Date(dateA) - new Date(dateB);
-          }).map((stream, idx) => (
-            <div key={stream.id || idx} className="flex items-center gap-3 p-3 hover:bg-[var(--color-surface-alt)] rounded-xl transition-colors">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                style={{
-                  backgroundColor: (!DISABLE_LOGOS && stream.icon_url && stream.merchant_name)
-                    ? 'transparent'
-                    : (stream.category_hex_color || 'var(--color-accent)'),
-                }}
-              >
-                {(!DISABLE_LOGOS && stream.icon_url && stream.merchant_name) ? (
-                  <img src={stream.icon_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <DynamicIcon
-                    iconLib={stream.category_icon_lib}
-                    iconName={stream.category_icon_name}
-                    className="w-5 h-5 text-white"
-                    fallback={FiTag}
-                    style={{ strokeWidth: 2.5 }}
-                  />
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-[var(--color-fg)] truncate">
-                  {stream.merchant_name || stream.description}
-                </div>
-                <div className="text-xs text-[var(--color-muted)] flex items-center gap-1">
-                  <span className="capitalize">{stream.frequency?.toLowerCase() || 'Recurring'}</span>
-                  <span>•</span>
-                  <span>{stream.predicted_next_date ? new Date(stream.predicted_next_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}</span>
-                </div>
-              </div>
-
-              <div className={`text-sm font-semibold tabular-nums ${stream.stream_type === 'inflow' ? 'text-[var(--color-success)]' : 'text-[var(--color-fg)]'}`}>
-                {stream.stream_type === 'inflow' ? '+' : ''}{formatCurrency(stream.last_amount)}
-              </div>
-            </div>
-          ))}
-
-          {recurring.length === 0 && (
-            <div className="text-center py-10 text-[var(--color-muted)]">
-              {isPro ? 'No recurring transactions found' : (
-                <span className="text-xs text-[var(--color-muted)]">
-                  Upgrade to Pro to see recurring transactions
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </Drawer>
     </div>
   );
 }
