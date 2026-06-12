@@ -6,6 +6,10 @@ interface PageConfig {
 }
 
 export const SITE_PAGES: Record<string, PageConfig> = {
+  '/today': {
+    title: 'Today',
+    header: null, // Today renders its own greeting header
+  },
   '/dashboard': {
     title: 'Dashboard', // Used for document title (tab)
     header: null, // Dashboard has dynamic header, handled by page component
