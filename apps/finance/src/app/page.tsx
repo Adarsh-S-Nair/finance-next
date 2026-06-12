@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, useAnimationControls, useAnimationFrame, useMotionValue, useScroll, useSpring, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useAnimationControls, useMotionValue, useScroll, useSpring, useTransform } from "framer-motion";
 import type { MotionValue } from "framer-motion";
 import PublicRoute from "../components/PublicRoute";
 import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
@@ -20,7 +20,6 @@ import { BRAND } from "../config/brand";
 // require (initialMonth, onBack, etc.).
 import NetWorthBannerImport from "../components/dashboard/NetWorthBanner";
 import MonthlyOverviewCardImport from "../components/dashboard/MonthlyOverviewCard";
-import SpendingVsEarningCardImport from "../components/dashboard/SpendingVsEarningCard";
 import TopCategoriesCardImport from "../components/dashboard/TopCategoriesCard";
 import BudgetsCardImport from "../components/dashboard/BudgetsCard";
 import CalendarCardImport from "../components/dashboard/CalendarCard";
@@ -30,7 +29,6 @@ import InsightsCarouselImport from "../components/dashboard/InsightsCarousel";
 type LooseProps = Record<string, unknown>;
 const NetWorthBanner = NetWorthBannerImport as unknown as React.ComponentType<LooseProps>;
 const MonthlyOverviewCard = MonthlyOverviewCardImport as unknown as React.ComponentType<LooseProps>;
-const SpendingVsEarningCard = SpendingVsEarningCardImport as unknown as React.ComponentType<LooseProps>;
 const TopCategoriesCard = TopCategoriesCardImport as unknown as React.ComponentType<LooseProps>;
 const BudgetsCard = BudgetsCardImport as unknown as React.ComponentType<LooseProps>;
 const CalendarCard = CalendarCardImport as unknown as React.ComponentType<LooseProps>;
@@ -169,34 +167,6 @@ function buildMonthlyOverviewMock(): MonthlyOverviewMock {
 }
 
 const MONTHLY_OVERVIEW_MOCK = buildMonthlyOverviewMock();
-
-const CASHFLOW_DATA = {
-  data: (() => {
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const now = new Date();
-    const months: { monthName: string; monthNumber: number; year: number; earning: number; spending: number }[] = [];
-    const values = [
-      { earning: 4820, spending: 3210 },
-      { earning: 4820, spending: 5380 },
-      { earning: 4820, spending: 2960 },
-      { earning: 5200, spending: 3104 },
-      { earning: 4820, spending: 2847 },
-      { earning: 6250, spending: 2654 },
-    ];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const v = values[5 - i];
-      months.push({
-        monthName: monthNames[d.getMonth()],
-        monthNumber: d.getMonth() + 1,
-        year: d.getFullYear(),
-        earning: v.earning,
-        spending: v.spending,
-      });
-    }
-    return months;
-  })(),
-};
 
 const TOP_CATEGORIES_DATA = {
   categories: [
@@ -343,79 +313,7 @@ function RotatingWord() {
 }
 
 /* ============================================================
-   Ticker tape — an endless stream of everyday transactions
-   ============================================================ */
-
-const TICKER_ITEMS: { emoji: string; label: string; amount: string; inflow?: boolean }[] = [
-  { emoji: "☕", label: "Blue Bottle", amount: "−$6.50" },
-  { emoji: "🛒", label: "Trader Joe's", amount: "−$84.12" },
-  { emoji: "💸", label: "Paycheck", amount: "+$2,410.00", inflow: true },
-  { emoji: "🎬", label: "Netflix", amount: "−$15.49" },
-  { emoji: "🎧", label: "Spotify", amount: "−$11.99" },
-  { emoji: "🏠", label: "Rent", amount: "−$1,200.00" },
-  { emoji: "⛽", label: "Shell", amount: "−$42.30" },
-  { emoji: "🍜", label: "Late-night ramen", amount: "−$23.80" },
-  { emoji: "🚕", label: "Uber", amount: "−$18.42" },
-  { emoji: "📈", label: "VOO buy", amount: "−$487.13" },
-  { emoji: "🧾", label: "Utilities", amount: "−$87.20" },
-  { emoji: "🐶", label: "Dog treats", amount: "−$12.40" },
-];
-
-function TickerRow() {
-  return (
-    <div className="flex flex-shrink-0 items-center gap-10 pr-10">
-      {TICKER_ITEMS.map((t) => (
-        <span key={t.label} className="flex items-center gap-2 whitespace-nowrap text-sm">
-          <span aria-hidden>{t.emoji}</span>
-          <span className="text-[var(--color-muted)]">{t.label}</span>
-          <span className={`tabular-nums ${t.inflow ? "font-medium text-emerald-500" : "text-[var(--color-fg)]"}`}>
-            {t.amount}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function TickerTape() {
-  // Hand-rolled marquee so it can pause when hovered: each frame nudges
-  // the strip left and wraps once a full row has scrolled past.
-  const x = useMotionValue(0);
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const pausedRef = useRef(false);
-
-  useAnimationFrame((_, delta) => {
-    if (pausedRef.current) return;
-    const w = rowRef.current?.offsetWidth;
-    if (!w) return;
-    let next = x.get() - (delta / 1000) * 55;
-    if (next <= -w) next += w;
-    x.set(next);
-  });
-
-  return (
-    <div
-      className="relative overflow-hidden border-t border-[var(--color-border)] py-5"
-      style={{
-        maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
-        WebkitMaskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
-      }}
-      onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; }}
-    >
-      <motion.div className="flex w-max" style={{ x }}>
-        <div ref={rowRef} className="flex flex-shrink-0">
-          <TickerRow />
-        </div>
-        <TickerRow />
-      </motion.div>
-    </div>
-  );
-}
-
-/* ============================================================
-   Hero backdrop — graph-paper dot grid plus transaction amounts
-   that drift up the side margins like rising bubbles
+   Hero backdrop — graph-paper dot grid fading from the top
    ============================================================ */
 
 function DotGrid() {
@@ -434,34 +332,6 @@ function DotGrid() {
   );
 }
 
-const FLOATERS: { text: string; left: string; delay: number; duration: number }[] = [
-  { text: "☕ −$6.50", left: "7%", delay: 1.2, duration: 11 },
-  { text: "🛒 −$84.12", left: "14%", delay: 5.4, duration: 13 },
-  { text: "💸 +$2,410", left: "84%", delay: 3.0, duration: 12 },
-  { text: "🎧 −$11.99", left: "91%", delay: 7.8, duration: 10 },
-];
-
-function FloatingAmounts() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 hidden h-[560px] overflow-hidden lg:block">
-      {FLOATERS.map((f) => (
-        <motion.span
-          key={f.text}
-          className="absolute top-[420px] text-xs font-medium text-[var(--color-muted)] tabular-nums"
-          style={{ left: f.left }}
-          initial={{ y: 0, opacity: 0 }}
-          animate={{ y: [40, -360], opacity: [0, 0.7, 0.7, 0] }}
-          transition={{
-            y: { duration: f.duration, repeat: Infinity, ease: "linear", delay: f.delay },
-            opacity: { duration: f.duration, repeat: Infinity, times: [0, 0.15, 0.7, 1], delay: f.delay },
-          }}
-        >
-          {f.text}
-        </motion.span>
-      ))}
-    </div>
-  );
-}
 
 function BrandMark({ size = "lg" }: { size?: "sm" | "lg" }) {
   const box = size === "lg" ? "h-10 w-10" : "h-6 w-6";
@@ -593,104 +463,142 @@ const SHOWCASE_MASK = {
   WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
 } as const;
 
-function ShowcaseColumn({ y, px, py, delay, children }: {
-  y: MotionValue<number>;
-  px?: MotionValue<number>;
-  py?: MotionValue<number>;
+/* Floating widget — the bobbing, cursor-parallax, scroll-drift wrapper
+   used by the hero constellation. Layers, outermost first: entrance pop,
+   scroll drift, cursor lean, idle bob, then the tilt/hover tile. */
+interface FloatingWidgetProps {
+  className: string;
+  tilt: number;
+  depth: number;
   delay: number;
+  bobDuration: number;
+  smoothX: MotionValue<number>;
+  smoothY: MotionValue<number>;
+  scrollProgress: MotionValue<number>;
   children: ReactNode;
-}) {
+}
+
+function FloatingWidget({
+  className,
+  tilt,
+  depth,
+  delay,
+  bobDuration,
+  smoothX,
+  smoothY,
+  scrollProgress,
+  children,
+}: FloatingWidgetProps) {
+  const px = useTransform(smoothX, (v) => v * depth * 30);
+  const py = useTransform(smoothY, (v) => v * depth * 20);
+  const sy = useTransform(scrollProgress, [0, 1], [0, -140 * depth]);
   return (
-    <motion.div style={{ y }} className="min-w-0">
-      <motion.div style={{ x: px, y: py }}>
-        <motion.div
-          initial={{ opacity: 0, y: 48 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: EASE, delay }}
-          className="space-y-6"
-        >
-          {children}
+    <div className={`pointer-events-auto absolute ${className}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 32, scale: 0.92 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.8, ease: EASE, delay }}
+      >
+        <motion.div style={{ y: sy }}>
+          <motion.div style={{ x: px, y: py }}>
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: bobDuration, repeat: Infinity, ease: "easeInOut", delay: delay + 0.6 }}
+            >
+              <TiltPanel tilt={tilt}>{children}</TiltPanel>
+            </motion.div>
+          </motion.div>
         </motion.div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 
-function HeroShowcase() {
+/* The hero constellation: widgets float around the headline itself,
+   bobbing idly, leaning toward the cursor at different depths, and
+   rising at different speeds as the hero scrolls away. */
+function HeroConstellation() {
   const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  // Each column drifts at its own speed as the page scrolls, so the
-  // composition feels alive without any of it being interactive.
-  const yLeft = useTransform(scrollYProgress, [0, 1], [48, -48]);
-  const yCenter = useTransform(scrollYProgress, [0, 1], [110, -110]);
-  const yRight = useTransform(scrollYProgress, [0, 1], [72, -72]);
-  const yMobile = useTransform(scrollYProgress, [0, 1], [32, -32]);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
 
-  // On top of the scroll drift, columns lean gently toward/away from the
-  // cursor at different depths, which makes the cluster feel dimensional.
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const smoothX = useSpring(mouseX, { stiffness: 50, damping: 18 });
   const smoothY = useSpring(mouseY, { stiffness: 50, damping: 18 });
-  const pxLeft = useTransform(smoothX, (v) => v * -18);
-  const pyLeft = useTransform(smoothY, (v) => v * -12);
-  const pxCenter = useTransform(smoothX, (v) => v * 30);
-  const pyCenter = useTransform(smoothY, (v) => v * 20);
-  const pxRight = useTransform(smoothX, (v) => v * -24);
-  const pyRight = useTransform(smoothY, (v) => v * 16);
 
-  const onMouseMove = (e: React.MouseEvent) => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    mouseX.set((e.clientX - r.left) / r.width - 0.5);
-    mouseY.set((e.clientY - r.top) / r.height - 0.5);
-  };
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX / window.innerWidth - 0.5);
+      mouseY.set(e.clientY / window.innerHeight - 0.5);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [mouseX, mouseY]);
+
+  const shared = { smoothX, smoothY, scrollProgress: scrollYProgress };
 
   return (
-    <div ref={ref} onMouseMove={onMouseMove} className="relative mx-auto mt-16 sm:mt-20" style={{ maxWidth: "min(92vw, 1200px)" }}>
-      {/* Desktop: three columns at different parallax speeds */}
-      <div className="hidden max-h-[640px] grid-cols-3 items-start gap-6 overflow-hidden pt-4 lg:grid" style={SHOWCASE_MASK}>
-        <ShowcaseColumn y={yLeft} px={pxLeft} py={pyLeft} delay={0.3}>
-          <TiltPanel tilt={-1.2}>
-            <div className="h-[340px] min-w-0">
-              <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
-            </div>
-          </TiltPanel>
-          <TiltPanel tilt={1}><InsightsCarousel mockData={INSIGHTS_MOCK} /></TiltPanel>
-          <TiltPanel tilt={-0.8}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
-        </ShowcaseColumn>
+    <div
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-20 hidden xl:block"
+      style={{
+        maskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
+      }}
+    >
+      <FloatingWidget className="left-[-2%] top-[13%] w-[290px]" tilt={-2} depth={0.8} delay={0.5} bobDuration={5.5} {...shared}>
+        <InsightsCarousel mockData={INSIGHTS_MOCK} />
+      </FloatingWidget>
+      <FloatingWidget className="left-0 top-[41%] w-[300px]" tilt={1.5} depth={1.3} delay={0.65} bobDuration={6.5} {...shared}>
+        <NetWorthBanner mockData={NET_WORTH_MOCK} />
+      </FloatingWidget>
+      <FloatingWidget className="left-[5%] top-[72%] w-[290px]" tilt={-1.2} depth={1} delay={0.8} bobDuration={7} {...shared}>
+        <BudgetsCard budgets={BUDGETS_MOCK} loading={false} />
+      </FloatingWidget>
+      <FloatingWidget className="right-[-2%] top-[11%] w-[320px]" tilt={2} depth={1.1} delay={0.55} bobDuration={6} {...shared}>
+        <div className="h-[220px] min-w-0">
+          <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+        </div>
+      </FloatingWidget>
+      <FloatingWidget className="right-[0.5%] top-[45%] w-[300px]" tilt={-1.5} depth={0.9} delay={0.7} bobDuration={7.5} {...shared}>
+        <TopHoldingsCard mockData={HOLDINGS_MOCK} />
+      </FloatingWidget>
+      <FloatingWidget className="right-[5%] top-[74%] w-[290px]" tilt={1.2} depth={1.2} delay={0.9} bobDuration={5.8} {...shared}>
+        <div className="h-[260px] min-w-0">
+          <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
+        </div>
+      </FloatingWidget>
+    </div>
+  );
+}
 
-        <ShowcaseColumn y={yCenter} px={pxCenter} py={pyCenter} delay={0.4}>
-          <TiltPanel tilt={0.9}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
-          <TiltPanel tilt={-1.1}>
-            <div className="h-[280px] min-w-0">
-              <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
-            </div>
-          </TiltPanel>
-          <TiltPanel tilt={0.7}><CalendarCard mockData={CALENDAR_MOCK} /></TiltPanel>
-        </ShowcaseColumn>
+/* Below xl there's no room to float widgets around the headline, so a
+   single column of tiles drifts under the hero copy instead. */
+function StackShowcase() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const y = useTransform(scrollYProgress, [0, 1], [32, -32]);
 
-        <ShowcaseColumn y={yRight} px={pxRight} py={pyRight} delay={0.5}>
-          <TiltPanel tilt={-1}>
-            <div className="h-[300px] min-w-0">
-              <SpendingVsEarningCard data={CASHFLOW_DATA} />
-            </div>
-          </TiltPanel>
-          <TiltPanel tilt={0.8}><TopHoldingsCard mockData={HOLDINGS_MOCK} /></TiltPanel>
-        </ShowcaseColumn>
-      </div>
-
-      {/* Mobile: a single drifting column */}
-      <div className="max-h-[560px] overflow-hidden pt-2 lg:hidden" style={SHOWCASE_MASK}>
-        <ShowcaseColumn y={yMobile} delay={0.3}>
-          <TiltPanel tilt={-0.8}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
-          <TiltPanel tilt={0.7}>
-            <div className="h-[260px] min-w-0">
-              <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
-            </div>
-          </TiltPanel>
-          <TiltPanel tilt={-0.6}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
-        </ShowcaseColumn>
+  return (
+    <div ref={ref} className="mx-auto mt-16 max-w-md xl:hidden">
+      <div className="max-h-[560px] overflow-hidden pt-2" style={SHOWCASE_MASK}>
+        <motion.div style={{ y }}>
+          <motion.div
+            initial={{ opacity: 0, y: 48 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
+            className="space-y-6"
+          >
+            <TiltPanel tilt={-0.8}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
+            <TiltPanel tilt={0.7}>
+              <div className="h-[260px] min-w-0">
+                <MonthlyOverviewCard mockData={MONTHLY_OVERVIEW_MOCK} />
+              </div>
+            </TiltPanel>
+            <TiltPanel tilt={-0.6}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );
@@ -1043,7 +951,7 @@ export default function Home() {
         <LandingNav />
 
         {/* ============ Hero ============ */}
-        <section className="relative overflow-hidden pt-32 pb-16 sm:pt-40 sm:pb-20">
+        <section className="relative overflow-hidden pt-32 pb-16 sm:pt-40 sm:pb-20 xl:flex xl:min-h-[860px] xl:flex-col xl:justify-center xl:pt-28 xl:pb-20">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 h-[480px]"
@@ -1053,10 +961,10 @@ export default function Home() {
             }}
           />
           <DotGrid />
-          <FloatingAmounts />
+          <HeroConstellation />
 
-          <div className="relative mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-3xl text-center">
+          <div className="relative z-10 mx-auto w-full max-w-6xl px-5 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl text-center">
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1105,12 +1013,10 @@ export default function Home() {
               </motion.p>
             </div>
 
-            {/* Product showcase — real UI components drifting on scroll */}
-            <HeroShowcase />
+            {/* Below xl, the floating widgets stack under the copy instead */}
+            <StackShowcase />
           </div>
         </section>
-
-        <TickerTape />
 
         {/* ============ Features ============ */}
         <section id="features" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
