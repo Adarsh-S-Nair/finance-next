@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, useAnimationControls, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useAnimationControls, useAnimationFrame, useMotionValue, useScroll, useSpring, useTransform } from "framer-motion";
 import type { MotionValue } from "framer-motion";
 import PublicRoute from "../components/PublicRoute";
 import AuthLoadingScreen from "../components/auth/AuthLoadingScreen";
@@ -378,6 +378,21 @@ function TickerRow() {
 }
 
 function TickerTape() {
+  // Hand-rolled marquee so it can pause when hovered: each frame nudges
+  // the strip left and wraps once a full row has scrolled past.
+  const x = useMotionValue(0);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef(false);
+
+  useAnimationFrame((_, delta) => {
+    if (pausedRef.current) return;
+    const w = rowRef.current?.offsetWidth;
+    if (!w) return;
+    let next = x.get() - (delta / 1000) * 55;
+    if (next <= -w) next += w;
+    x.set(next);
+  });
+
   return (
     <div
       className="relative overflow-hidden border-t border-[var(--color-border)] py-5"
@@ -385,15 +400,44 @@ function TickerTape() {
         maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
         WebkitMaskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
       }}
+      onMouseEnter={() => { pausedRef.current = true; }}
+      onMouseLeave={() => { pausedRef.current = false; }}
     >
-      <motion.div
-        className="flex w-max"
-        animate={{ x: ["0%", "-50%"] }}
-        transition={{ repeat: Infinity, ease: "linear", duration: 40 }}
-      >
-        <TickerRow />
+      <motion.div className="flex w-max" style={{ x }}>
+        <div ref={rowRef} className="flex flex-shrink-0">
+          <TickerRow />
+        </div>
         <TickerRow />
       </motion.div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Hero sparkline — a chart line that draws itself behind the
+   headline on load
+   ============================================================ */
+
+function HeroSparkline() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-24 hidden h-[440px] sm:block"
+      style={{
+        maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+        WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+      }}
+    >
+      <svg className="h-full w-full" viewBox="0 0 1440 440" fill="none" preserveAspectRatio="none">
+        <motion.path
+          d="M0 412 L70 404 L140 416 L210 380 L280 392 L350 350 L420 364 L490 320 L560 338 L630 288 L700 302 L770 258 L840 272 L910 220 L980 242 L1050 188 L1120 204 L1190 150 L1260 168 L1330 112 L1440 80"
+          stroke="var(--color-border)"
+          strokeWidth="2"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 2.6, ease: "easeInOut", delay: 0.5 }}
+        />
+      </svg>
     </div>
   );
 }
@@ -528,16 +572,24 @@ const SHOWCASE_MASK = {
   WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
 } as const;
 
-function ShowcaseColumn({ y, delay, children }: { y: MotionValue<number>; delay: number; children: ReactNode }) {
+function ShowcaseColumn({ y, px, py, delay, children }: {
+  y: MotionValue<number>;
+  px?: MotionValue<number>;
+  py?: MotionValue<number>;
+  delay: number;
+  children: ReactNode;
+}) {
   return (
     <motion.div style={{ y }} className="min-w-0">
-      <motion.div
-        initial={{ opacity: 0, y: 48 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: EASE, delay }}
-        className="space-y-6"
-      >
-        {children}
+      <motion.div style={{ x: px, y: py }}>
+        <motion.div
+          initial={{ opacity: 0, y: 48 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, ease: EASE, delay }}
+          className="space-y-6"
+        >
+          {children}
+        </motion.div>
       </motion.div>
     </motion.div>
   );
@@ -553,11 +605,31 @@ function HeroShowcase() {
   const yRight = useTransform(scrollYProgress, [0, 1], [72, -72]);
   const yMobile = useTransform(scrollYProgress, [0, 1], [32, -32]);
 
+  // On top of the scroll drift, columns lean gently toward/away from the
+  // cursor at different depths, which makes the cluster feel dimensional.
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothX = useSpring(mouseX, { stiffness: 50, damping: 18 });
+  const smoothY = useSpring(mouseY, { stiffness: 50, damping: 18 });
+  const pxLeft = useTransform(smoothX, (v) => v * -18);
+  const pyLeft = useTransform(smoothY, (v) => v * -12);
+  const pxCenter = useTransform(smoothX, (v) => v * 30);
+  const pyCenter = useTransform(smoothY, (v) => v * 20);
+  const pxRight = useTransform(smoothX, (v) => v * -24);
+  const pyRight = useTransform(smoothY, (v) => v * 16);
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    mouseX.set((e.clientX - r.left) / r.width - 0.5);
+    mouseY.set((e.clientY - r.top) / r.height - 0.5);
+  };
+
   return (
-    <div ref={ref} className="relative mx-auto mt-16 sm:mt-20" style={{ maxWidth: "min(92vw, 1200px)" }}>
+    <div ref={ref} onMouseMove={onMouseMove} className="relative mx-auto mt-16 sm:mt-20" style={{ maxWidth: "min(92vw, 1200px)" }}>
       {/* Desktop: three columns at different parallax speeds */}
       <div className="hidden max-h-[640px] grid-cols-3 items-start gap-6 overflow-hidden pt-4 lg:grid" style={SHOWCASE_MASK}>
-        <ShowcaseColumn y={yLeft} delay={0.3}>
+        <ShowcaseColumn y={yLeft} px={pxLeft} py={pyLeft} delay={0.3}>
           <TiltPanel tilt={-1.2}>
             <div className="h-[340px] min-w-0">
               <TopCategoriesCard data={TOP_CATEGORIES_DATA} />
@@ -567,7 +639,7 @@ function HeroShowcase() {
           <TiltPanel tilt={-0.8}><BudgetsCard budgets={BUDGETS_MOCK} loading={false} /></TiltPanel>
         </ShowcaseColumn>
 
-        <ShowcaseColumn y={yCenter} delay={0.4}>
+        <ShowcaseColumn y={yCenter} px={pxCenter} py={pyCenter} delay={0.4}>
           <TiltPanel tilt={0.9}><NetWorthBanner mockData={NET_WORTH_MOCK} /></TiltPanel>
           <TiltPanel tilt={-1.1}>
             <div className="h-[280px] min-w-0">
@@ -577,7 +649,7 @@ function HeroShowcase() {
           <TiltPanel tilt={0.7}><CalendarCard mockData={CALENDAR_MOCK} /></TiltPanel>
         </ShowcaseColumn>
 
-        <ShowcaseColumn y={yRight} delay={0.5}>
+        <ShowcaseColumn y={yRight} px={pxRight} py={pyRight} delay={0.5}>
           <TiltPanel tilt={-1}>
             <div className="h-[300px] min-w-0">
               <SpendingVsEarningCard data={CASHFLOW_DATA} />
@@ -790,23 +862,109 @@ function FaqItem({ q, a }: { q: string; a: string }) {
    Page
    ============================================================ */
 
-const HOW_IT_WORKS: { step: string; title: string; body: string }[] = [
+/* ============================================================
+   Receipt — "How it works" printed as an itemized store receipt
+   ============================================================ */
+
+const RECEIPT_STEPS: { n: string; item: string; price: string; note: string }[] = [
   {
-    step: "01",
-    title: "Connect your accounts",
-    body: "Link banks, cards, and brokerages through Plaid in about a minute. Your credentials never touch our servers.",
+    n: "01",
+    item: "Connect your banks",
+    price: "60 sec",
+    note: "Plaid does the handshake. We never see your password.",
   },
   {
-    step: "02",
-    title: "Let it organize itself",
-    body: "Transactions are categorized, recurring charges detected, and net worth tracked automatically from day one.",
+    n: "02",
+    item: "Everything sorts itself",
+    price: "$0.00",
+    note: "Categories, recurring bills, net worth — zero manual entry.",
   },
   {
-    step: "03",
-    title: "Decide with confidence",
-    body: "Set budgets, scan your insights, and check the calendar. Five minutes a week is enough to stay on top of it.",
+    n: "03",
+    item: "You make the calls",
+    price: "5 min/wk",
+    note: "Budgets, insights, calendar. That's the whole job.",
   },
 ];
+
+const BARCODE_WIDTHS = [3, 1, 2, 1, 4, 1, 1, 2, 3, 1, 2, 4, 1, 1, 3, 2, 1, 2, 1, 3, 1, 4, 2, 1, 1, 3, 1, 2];
+
+// Torn-paper bottom edge: a strip clipped into alternating triangles.
+function zigzagClip(teeth: number): string {
+  const pts: string[] = ["0% 0%", "100% 0%"];
+  for (let i = teeth; i >= 0; i--) {
+    pts.push(`${((i / teeth) * 100).toFixed(2)}% ${i % 2 === 0 ? "0%" : "100%"}`);
+  }
+  return `polygon(${pts.join(", ")})`;
+}
+const RECEIPT_TEETH = zigzagClip(28);
+
+function DottedLine({ left, right, bold = false }: { left: string; right: string; bold?: boolean }) {
+  return (
+    <div className={`flex items-baseline text-[12px] uppercase tracking-wide ${bold ? "font-semibold" : ""}`}>
+      <span>{left}</span>
+      <span aria-hidden className="mx-2 flex-1 border-b border-dotted border-[var(--color-border)]" />
+      <span className="tabular-nums">{right}</span>
+    </div>
+  );
+}
+
+function Receipt() {
+  return (
+    <div className="w-full max-w-sm -rotate-1 justify-self-center">
+      {/* Reveals top-to-bottom on scroll, like paper feeding out of a printer */}
+      <motion.div
+        initial={{ clipPath: "inset(0 0 100% 0)" }}
+        whileInView={{ clipPath: "inset(0 0 -2% 0)" }}
+        viewport={{ once: true, margin: "-120px" }}
+        transition={{ duration: 1.8, ease: "linear" }}
+        style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+      >
+        <div className="border border-b-0 border-[var(--color-border)] bg-[var(--color-content-bg)] px-7 pb-6 pt-8 text-[var(--color-fg)]">
+          <div className="text-center">
+            <div className="text-sm font-semibold tracking-[0.3em]">ZERVO</div>
+            <div className="mt-1.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+              One financial life, organized
+            </div>
+            <div className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+              Order #0001 · Open 24/7
+            </div>
+          </div>
+
+          <div className="my-5 border-t border-dashed border-[var(--color-border)]" />
+
+          <div className="space-y-4">
+            {RECEIPT_STEPS.map((s) => (
+              <div key={s.n}>
+                <DottedLine left={`${s.n}  ${s.item}`} right={s.price} />
+                <div className="mt-1 text-[11px] leading-5 text-[var(--color-muted)]">{s.note}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="my-5 border-t border-dashed border-[var(--color-border)]" />
+
+          <div className="space-y-1.5">
+            <DottedLine left="Spreadsheets retired" right="1" />
+            <DottedLine left="Total" right="Peace of mind" bold />
+          </div>
+
+          <div className="my-5 border-t border-dashed border-[var(--color-border)]" />
+
+          <div aria-hidden className="flex h-10 items-stretch justify-center gap-[2px]">
+            {BARCODE_WIDTHS.map((w, i) => (
+              <span key={i} style={{ width: w }} className="bg-[var(--color-fg)]" />
+            ))}
+          </div>
+          <div className="mt-4 text-center text-[10px] uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            ★ Thank you for budgeting ★
+          </div>
+        </div>
+        <div aria-hidden className="h-3 w-full bg-[var(--color-content-bg)]" style={{ clipPath: RECEIPT_TEETH }} />
+      </motion.div>
+    </div>
+  );
+}
 
 const TRUST_ITEMS: { title: string; body: string }[] = [
   {
@@ -873,6 +1031,7 @@ export default function Home() {
                 "radial-gradient(ellipse 75% 60% at 50% -10%, color-mix(in oklab, var(--color-fg), transparent 95%), transparent)",
             }}
           />
+          <HeroSparkline />
 
           <div className="relative mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
@@ -1017,7 +1176,7 @@ export default function Home() {
 
             {/* Also included */}
             <FadeIn className="mt-24 sm:mt-32">
-              <div className="card-header">Also included</div>
+              <div className="card-header">Also in the box</div>
               <div className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
                 {ALSO_INCLUDED.map((f) => (
                   <div key={f.title}>
@@ -1030,26 +1189,22 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ============ How it works ============ */}
-        <section className="border-t border-[var(--color-border)] py-20 sm:py-28">
+        {/* ============ How it works (printed receipt) ============ */}
+        <section className="overflow-hidden border-t border-[var(--color-border)] py-20 sm:py-28">
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
-            <FadeIn className="mx-auto max-w-2xl text-center">
-              <div className="card-header">How it works</div>
-              <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
-                Set up once. It runs itself.
-              </h2>
-            </FadeIn>
-
-            <div className="mt-16 grid gap-12 sm:grid-cols-3 sm:gap-10">
-              {HOW_IT_WORKS.map((s, i) => (
-                <FadeIn key={s.step} delay={i * 0.1}>
-                  <div className="text-2xl font-medium tracking-tight text-[var(--color-muted)] tabular-nums">
-                    {s.step}
-                  </div>
-                  <div className="mt-4 text-base font-medium text-[var(--color-fg)]">{s.title}</div>
-                  <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">{s.body}</p>
-                </FadeIn>
-              ))}
+            <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-24">
+              <FadeIn>
+                <div className="card-header">How it works</div>
+                <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
+                  Set up once. It runs itself.
+                </h2>
+                <p className="mt-4 text-base leading-7 text-[var(--color-muted)]">
+                  No onboarding maze, no forty-field forms. Connect a bank,
+                  watch your dashboard assemble itself, then check back for
+                  five minutes a week. Here&apos;s the itemized damage:
+                </p>
+              </FadeIn>
+              <Receipt />
             </div>
           </div>
         </section>
@@ -1158,7 +1313,28 @@ export default function Home() {
                 className="text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-5xl"
                 style={{ fontFamily: "var(--font-instrument)", letterSpacing: "-0.02em" }}
               >
-                Start seeing your money clearly.
+                Start seeing your money{" "}
+                <span className="relative inline-block whitespace-nowrap">
+                  clearly.
+                  <svg
+                    aria-hidden
+                    className="absolute -bottom-2 left-0 h-3 w-full"
+                    viewBox="0 0 120 12"
+                    preserveAspectRatio="none"
+                    fill="none"
+                  >
+                    <motion.path
+                      d="M3 9 C 30 3, 60 11, 117 5"
+                      stroke="var(--color-fg)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0 }}
+                      whileInView={{ pathLength: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.7, ease: "easeOut", delay: 0.4 }}
+                    />
+                  </svg>
+                </span>
               </h2>
               <p className="mx-auto mt-4 max-w-md text-base leading-7 text-[var(--color-muted)]">
                 Connect an account and your dashboard fills itself in.
