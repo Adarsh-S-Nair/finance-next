@@ -6,6 +6,7 @@ import {
   getDefaultIconForGroup,
   linkRowsToCategories,
   resolveCategoryId,
+  resolveDirectionMismatches,
   stripPrimaryPrefix,
 } from '../categories';
 import type { TransactionUpsertRow } from '../types';
@@ -180,5 +181,80 @@ describe('computeBackfillPlan', () => {
     expect(plan).toEqual([
       { systemCategoryId: 'cat-coffee', plaid_category_key: 'FOOD_AND_DRINK_COFFEE' },
     ]);
+  });
+});
+
+describe('resolveDirectionMismatches', () => {
+  const cats = [
+    { id: 'cat-food', label: 'Fast Food', direction: 'expense' as const },
+    { id: 'cat-wages', label: 'Wages', direction: 'income' as const },
+    { id: 'cat-refund', label: 'Refund', direction: 'income' as const },
+    { id: 'cat-other', label: 'Other', direction: 'both' as const },
+  ];
+
+  it('re-routes a positive amount in an expense category to Refund', () => {
+    const row = makeRow('FOOD_AND_DRINK', 'FOOD_AND_DRINK_FAST_FOOD', {
+      amount: 12.5,
+      category_id: 'cat-food',
+    });
+    const rerouted = resolveDirectionMismatches([row], cats);
+    expect(rerouted).toBe(1);
+    expect(row.category_id).toBe('cat-refund');
+  });
+
+  it('re-routes a negative amount in an income category to Other', () => {
+    const row = makeRow('INCOME', 'INCOME_WAGES', {
+      amount: -500,
+      category_id: 'cat-wages',
+    });
+    const rerouted = resolveDirectionMismatches([row], cats);
+    expect(rerouted).toBe(1);
+    expect(row.category_id).toBe('cat-other');
+  });
+
+  it('leaves matching directions, both-direction, zero-amount, and uncategorized rows untouched', () => {
+    const expense = makeRow(null, null, { amount: -20, category_id: 'cat-food' });
+    const income = makeRow(null, null, { amount: 900, category_id: 'cat-wages' });
+    const both = makeRow(null, null, { amount: 33, category_id: 'cat-other' });
+    const zero = makeRow(null, null, { amount: 0, category_id: 'cat-food' });
+    const uncategorized = makeRow(null, null, { amount: 10, category_id: null });
+    const rows = [expense, income, both, zero, uncategorized];
+    const rerouted = resolveDirectionMismatches(rows, cats);
+    expect(rerouted).toBe(0);
+    expect(rows.map((r) => r.category_id)).toEqual([
+      'cat-food', 'cat-wages', 'cat-other', 'cat-food', null,
+    ]);
+  });
+
+  it('falls back to Other for refunds when no Refund category exists', () => {
+    const noRefund = cats.filter((c) => c.label !== 'Refund');
+    const row = makeRow(null, null, { amount: 12.5, category_id: 'cat-food' });
+    expect(resolveDirectionMismatches([row], noRefund)).toBe(1);
+    expect(row.category_id).toBe('cat-other');
+  });
+
+  it('clears category_id when no safe target exists, so the upsert still succeeds', () => {
+    const bare = cats.filter((c) => c.label !== 'Refund' && c.label !== 'Other');
+    const refundish = makeRow(null, null, { amount: 12.5, category_id: 'cat-food' });
+    const clawback = makeRow(null, null, { amount: -500, category_id: 'cat-wages' });
+    expect(resolveDirectionMismatches([refundish, clawback], bare)).toBe(2);
+    expect(refundish.category_id).toBeNull();
+    expect(clawback.category_id).toBeNull();
+  });
+
+  it('ignores categories with unknown direction values and a Refund with the wrong direction', () => {
+    const weird = [
+      { id: 'cat-x', label: 'Mystery', direction: null },
+      // Direction-mismatched "Refund" must not be used as the refund target
+      { id: 'cat-fake-refund', label: 'Refund', direction: 'expense' as const },
+      { id: 'cat-other', label: 'Other', direction: 'both' as const },
+    ];
+    const unknownDir = makeRow(null, null, { amount: 50, category_id: 'cat-x' });
+    const refundish = makeRow(null, null, { amount: 50, category_id: 'cat-fake-refund' });
+    // cat-x has no usable direction → untouched; cat-fake-refund is expense
+    // direction with positive amount → re-routed, but to Other, not itself.
+    expect(resolveDirectionMismatches([unknownDir, refundish], weird)).toBe(1);
+    expect(unknownDir.category_id).toBe('cat-x');
+    expect(refundish.category_id).toBe('cat-other');
   });
 });
