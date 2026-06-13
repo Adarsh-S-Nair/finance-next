@@ -669,8 +669,8 @@ function ConnectedStep({ plaidData, onClose }) {
 
   return (
     <div>
-      {/* Institution logo → dots → checkmark (left-aligned) */}
-      <div className="mb-8 flex items-center gap-2">
+      {/* Institution logo → dots → checkmark (centered for the success state) */}
+      <div className="mb-8 flex items-center justify-center gap-2">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -703,7 +703,7 @@ function ConnectedStep({ plaidData, onClose }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)] text-center"
       >
         {headline}
       </motion.h1>
@@ -759,9 +759,9 @@ function ConnectedStep({ plaidData, onClose }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: accounts.length > 0 ? 0.9 + accounts.length * 0.05 : 0.75 }}
-        className="mt-10"
+        className="mt-10 flex justify-center"
       >
-        <Button onClick={onClose} className="w-full h-11">
+        <Button onClick={onClose} className="px-10">
           Done
         </Button>
       </motion.div>
