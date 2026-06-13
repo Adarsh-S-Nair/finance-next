@@ -142,6 +142,60 @@ export type Database = {
           },
         ]
       }
+      agent_findings: {
+        Row: {
+          body: string
+          created_at: string
+          dedupe_key: string
+          evidence: Json
+          id: string
+          resolved_at: string | null
+          severity: string
+          status: string
+          subject_id: string | null
+          suggested_action: Json | null
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+          value_annual: number | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          dedupe_key: string
+          evidence?: Json
+          id?: string
+          resolved_at?: string | null
+          severity: string
+          status?: string
+          subject_id?: string | null
+          suggested_action?: Json | null
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+          value_annual?: number | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          dedupe_key?: string
+          evidence?: Json
+          id?: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          subject_id?: string | null
+          suggested_action?: Json | null
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          value_annual?: number | null
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number
