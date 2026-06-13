@@ -59,6 +59,9 @@ export interface AccountInput {
 export interface DetectorContext {
   streams: RecurringStreamInput[];
   accounts: AccountInput[];
+  /** Average monthly spending (outflows, transfers excluded) over the
+   *  last few complete months — used to size a realistic cash buffer. */
+  monthlySpending: number;
 }
 
 export type Detector = (ctx: DetectorContext) => FindingDraft[];

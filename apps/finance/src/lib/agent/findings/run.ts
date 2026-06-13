@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
+import { format, startOfMonth, subMonths } from "date-fns";
 import { DETECTORS } from "./registry";
 import type {
   AccountInput,
@@ -7,6 +8,43 @@ import type {
   FindingDraft,
   RecurringStreamInput,
 } from "./types";
+
+// Plaid categories that move the user's own money around rather than
+// representing real spending — excluded when sizing the cash buffer.
+const NON_SPENDING_PRIMARIES = new Set(["TRANSFER_IN", "TRANSFER_OUT"]);
+
+/**
+ * Average monthly spending over the last 3 complete months: outflows
+ * (amount < 0) with internal transfers excluded, divided by 3. Used to
+ * size the idle-cash buffer. Mirrors the app's spending sign convention.
+ */
+async function computeMonthlySpending(
+  userId: string,
+  admin: SupabaseClient<Database>,
+): Promise<number> {
+  const now = new Date();
+  const windowStart = format(subMonths(startOfMonth(now), 3), "yyyy-MM-dd");
+  const windowEnd = format(startOfMonth(now), "yyyy-MM-dd");
+
+  const { data: txRows, error } = await admin
+    .from("transactions")
+    .select("amount, personal_finance_category, accounts!inner(user_id)")
+    .eq("accounts.user_id", userId)
+    .lt("amount", 0)
+    .gte("date", windowStart)
+    .lt("date", windowEnd);
+
+  if (error) throw error;
+
+  let total = 0;
+  for (const t of txRows ?? []) {
+    const primary =
+      (t.personal_finance_category as { primary?: string } | null)?.primary ?? "";
+    if (NON_SPENDING_PRIMARIES.has(primary)) continue;
+    total += Math.abs(Number(t.amount));
+  }
+  return Math.round(total / 3);
+}
 
 /**
  * Run every registered detector for one user and upsert the results.
@@ -64,7 +102,9 @@ export async function runFindingsForUser(
     balance: Number(r.plaid_balance_current ?? 0),
   }));
 
-  const ctx: DetectorContext = { streams, accounts };
+  const monthlySpending = await computeMonthlySpending(userId, admin);
+
+  const ctx: DetectorContext = { streams, accounts, monthlySpending };
   const drafts: FindingDraft[] = [];
   for (const detector of DETECTORS) drafts.push(...detector(ctx));
 
