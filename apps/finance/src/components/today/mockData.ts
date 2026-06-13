@@ -25,6 +25,8 @@ export interface FeedItem {
   action?: string;
   /** Shown after the user approves the action. */
   confirmation?: string;
+  /** Rough annual dollar value of acting on this, for the dashboard signal. */
+  stakes?: number;
 }
 
 export const FEED_ITEMS: FeedItem[] = [
@@ -45,6 +47,7 @@ export const FEED_ITEMS: FeedItem[] = [
     action: "Cancel the duplicate",
     confirmation:
       "Done. I'll cancel the subscription on the Amex and confirm here once Adobe processes it — usually within a day.",
+    stakes: 636,
   },
   {
     id: "idle-cash",
@@ -62,6 +65,7 @@ export const FEED_ITEMS: FeedItem[] = [
     action: "Walk me through the move",
     confirmation:
       "I put a step-by-step in your tasks — opening the account takes about 10 minutes, and I'll watch for the transfer to land.",
+    stakes: 590,
   },
   {
     id: "insurance-renewal",
@@ -79,6 +83,7 @@ export const FEED_ITEMS: FeedItem[] = [
     action: "Draft the switch checklist",
     confirmation:
       "Drafted. Review the checklist before your renewal date — nothing changes until you say so.",
+    stakes: 330,
   },
   {
     id: "categorized",

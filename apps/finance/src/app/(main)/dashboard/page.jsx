@@ -20,7 +20,7 @@ import CalendarCard from "../../../components/dashboard/CalendarCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import MonthStrip from "../../../components/dashboard/MonthStrip";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
-import AssistantRail from "../../../components/dashboard/AssistantRail";
+import AssistantSignal from "../../../components/dashboard/AssistantSignal";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 import { Dropdown, SegmentedTabs } from "@zervo/ui";
@@ -264,8 +264,6 @@ export default function DashboardPage() {
   // Items that should be hidden based on current state
   const isItemHidden = (component) => {
     if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
-    // Upcoming bills rides on recurring detection, which is Pro-gated.
-    if (component === 'CalendarCard' && !isPro) return true;
     return false;
   };
 
@@ -431,37 +429,46 @@ export default function DashboardPage() {
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {/* Main Content Area — flexes to fill available width */}
         <div className="flex-1 min-w-0 space-y-6 lg:space-y-10">
-          {/* On mobile there is no rail, so the assistant's decisions
-              stack first — priority is the stack order there. Hidden on
-              desktop, where the rail copy renders on the right. */}
-          <div className="lg:hidden">
-            <AssistantRail />
-          </div>
           {dashboardLayout.main.map((item) => (
             <Fragment key={item.id}>
               <div>{renderItem(item)}</div>
-              {item.id === 'net-worth-banner' && !isPro && (
-                <div className="lg:hidden">
-                  <UpgradeBanner />
+              {/* On mobile the sidebar stacks below everything, which
+                  would bury the assistant's signal. Surface it right
+                  under net worth instead. Hidden on desktop, where the
+                  sidebar copy renders. */}
+              {item.id === 'net-worth-banner' && (
+                <div className="lg:hidden space-y-6">
+                  <AssistantSignal />
+                  {!isPro && <UpgradeBanner />}
                 </div>
               )}
             </Fragment>
           ))}
         </div>
 
-        {/* The assistant's column — status line, decision cards when
-            something needs the user, link into the /today activity
-            trail. Deliberately near-empty when the agent has nothing:
-            the bareness is the signal that everything's fine. Any
-            config-driven sidebar entries render below it. */}
-        <div className="hidden lg:block lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
-          <AssistantRail />
-          {!isPro && <UpgradeBanner />}
-          {dashboardLayout.sidebar.map((item) => (
-            <Fragment key={item.id}>
-              <div>{renderItem(item)}</div>
-            </Fragment>
-          ))}
+        {/* Sidebar — fixed width, anchored to the right. The assistant
+            signal renders first (it replaced the insights carousel):
+            headline-only rows that link into /today, never buttons or
+            body copy. The Pro upgrade pitch sits below it, then the
+            config-driven widget stack. */}
+        <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
+          <div className="hidden lg:block">
+            <AssistantSignal />
+          </div>
+          {!isPro && (
+            <div className="hidden lg:block">
+              <UpgradeBanner />
+            </div>
+          )}
+          {dashboardLayout.sidebar.map((item) => {
+            // Hide pro-only cards (budgets, calendar) for free users
+            if (!isPro && item.id === 'sidebar-group') return null;
+            return (
+              <Fragment key={item.id}>
+                <div>{renderItem(item)}</div>
+              </Fragment>
+            );
+          })}
         </div>
       </div>
     </PageContainer>

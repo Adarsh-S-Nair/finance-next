@@ -61,20 +61,42 @@ export const dashboardLayout: DashboardLayout = {
       ],
       height: 'lg:h-[400px]',
     },
-    // Upcoming bills — "what's about to hit". Third and last of the
-    // three ambient questions the main column answers (net worth,
-    // spending this month, upcoming charges).
+    // Cashflow stands on its own row now — different question
+    // (income vs. spending over 6 months) so it shouldn't share the
+    // monthly-row's period dropdown.
     {
-      id: 'calendar',
-      component: 'CalendarCard',
+      id: 'cashflow',
+      component: 'SpendingVsEarningCard',
+      height: 'h-[380px]',
     },
   ],
 
-  // Sidebar (right side, narrower) — reserved for the assistant rail,
-  // which the dashboard page renders directly (it isn't config-driven).
-  // The widgets that used to live here (InsightsCarousel, BudgetsCard,
-  // GoalsCard, TopHoldingsCard) and the SpendingVsEarningCard cashflow
-  // chart were demoted, not deleted: every one duplicates a page that
-  // already exists in the nav. Re-add an entry here to bring one back.
-  sidebar: [],
+  // Sidebar (right side, narrower). The assistant signal block renders
+  // above these (directly in the dashboard page, not config-driven) —
+  // it replaced the InsightsCarousel, whose job it absorbs.
+  sidebar: [
+    {
+      id: 'sidebar-group',
+      type: 'row',
+      className: 'flex flex-col md:flex-row lg:flex-col gap-10',
+      items: [
+        {
+          id: 'budgets',
+          component: 'BudgetsCard',
+        },
+        {
+          id: 'goals',
+          component: 'GoalsCard',
+        },
+        {
+          id: 'calendar',
+          component: 'CalendarCard',
+        },
+      ],
+    },
+    {
+      id: 'top-holdings',
+      component: 'TopHoldingsCard',
+    },
+  ],
 };
