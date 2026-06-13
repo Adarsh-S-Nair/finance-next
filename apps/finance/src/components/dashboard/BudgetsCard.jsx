@@ -11,17 +11,25 @@ import { ViewAllLink } from "@zervo/ui";
 
 const MAX_ROWS = 3;
 
-// Color the per-budget bar by how close it is to the cap. We use
-// rounded-dollar comparison for the "over" check so a few cents past
-// the cap doesn't paint a budget red — the user reads $4,858 / $4,858
-// as "at the cap", not as "over". Real over (rounded dollars exceeding
-// the cap) gets rose; the 85-100% warning band stays amber; otherwise
-// the neutral accent. Category brand colors stay on the icon chips —
-// a wall of differently-colored bars read as noise, and reserving
-// color for sentiment makes the warning states legible at a glance.
+// Color the per-budget bar by how close it is to the cap. Reserved
+// for sentiment only — category brand colors stay on the icon chips,
+// a wall of differently-colored bars just reads as noise.
+//
+//   over the cap            → rose (real overspend)
+//   exactly at the cap      → accent (a fully-paid fixed bill like a
+//                             mortgage lands here — it's "done", not a
+//                             warning, so it must not go amber)
+//   85% up to the cap       → amber (approaching, still has agency)
+//   below 85%               → accent
+//
+// Rounded-dollar comparison so a few cents either side of the cap
+// doesn't flip the color — the user reads $4,858 / $4,858 as "at the
+// cap", not "over".
 const barColorFor = (spent, total) => {
-  const isOver = Math.round(spent) > Math.round(total);
-  if (isOver) return "var(--color-danger)";
+  const rs = Math.round(spent);
+  const rt = Math.round(total);
+  if (rs > rt) return "var(--color-danger)";
+  if (rs >= rt) return "var(--color-accent)"; // exactly at cap — done, not a warning
   const pct = total > 0 ? (spent / total) * 100 : 0;
   if (pct >= 85) return "var(--color-warn)";
   return "var(--color-accent)";

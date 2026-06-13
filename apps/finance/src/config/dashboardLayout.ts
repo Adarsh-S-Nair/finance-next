@@ -69,39 +69,32 @@ export const dashboardLayout: DashboardLayout = {
       component: 'SpendingVsEarningCard',
       height: 'h-[380px]',
     },
-    // Secondary widgets in one three-up row: each was designed for the
-    // old ~320px sidebar, which is about what a third of the main
-    // column gives them.
+    // Portfolio overview spans the full main column — total value,
+    // return, allocation, and top holdings in one place. Replaces the
+    // narrow TopHoldings carousel that used to live in the sidebar.
     {
-      id: 'secondary-row',
-      type: 'row',
-      items: [
-        {
-          id: 'goals',
-          component: 'GoalsCard',
-        },
-        {
-          id: 'calendar',
-          component: 'CalendarCard',
-        },
-        {
-          id: 'top-holdings',
-          component: 'TopHoldingsCard',
-        },
-      ],
+      id: 'investments-overview',
+      component: 'InvestmentsOverviewCard',
     },
   ],
 
-  // Sidebar (right side, narrower) — the assistant's column. The
-  // AssistantPanel renders first (directly in the dashboard page, not
-  // config-driven); entries here render below it. Budgets earns the
-  // slot because it's the most glanceable widget and the closest to
-  // the assistant's job. Keep this list to one, maybe two items — a
-  // decision row must stay impossible to miss.
+  // Sidebar (right side, narrower). The AssistantPanel renders first
+  // (directly in the dashboard page, not config-driven); these widgets
+  // render below it. Budgets / Goals / Upcoming bills are the
+  // glanceable, decision-adjacent widgets that belong beside the
+  // assistant.
   sidebar: [
     {
       id: 'budgets',
       component: 'BudgetsCard',
+    },
+    {
+      id: 'goals',
+      component: 'GoalsCard',
+    },
+    {
+      id: 'calendar',
+      component: 'CalendarCard',
     },
   ],
 };
