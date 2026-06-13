@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { DETECTORS } from "./registry";
+import {
+  medianMonthlySpending,
+  recentCompleteMonths,
+  type SpendingTxn,
+} from "./spending";
 import type {
   AccountInput,
   DetectorContext,
@@ -9,26 +14,24 @@ import type {
   RecurringStreamInput,
 } from "./types";
 
-// Plaid categories that move the user's own money around rather than
-// representing real spending — excluded when sizing the cash buffer.
-const NON_SPENDING_PRIMARIES = new Set(["TRANSFER_IN", "TRANSFER_OUT"]);
-
 /**
- * Average monthly spending over the last 3 complete months: outflows
- * (amount < 0) with internal transfers excluded, divided by 3. Used to
- * size the idle-cash buffer. Mirrors the app's spending sign convention.
+ * Typical monthly spending (median of the last 3 complete months,
+ * outflows only, internal transfers excluded). Used to size the
+ * idle-cash buffer. Median, not mean — a single big one-off month
+ * shouldn't distort what the user "typically" spends.
  */
 async function computeMonthlySpending(
   userId: string,
   admin: SupabaseClient<Database>,
 ): Promise<number> {
   const now = new Date();
+  const monthKeys = recentCompleteMonths(now, 3);
   const windowStart = format(subMonths(startOfMonth(now), 3), "yyyy-MM-dd");
   const windowEnd = format(startOfMonth(now), "yyyy-MM-dd");
 
   const { data: txRows, error } = await admin
     .from("transactions")
-    .select("amount, personal_finance_category, accounts!inner(user_id)")
+    .select("amount, date, personal_finance_category, accounts!inner(user_id)")
     .eq("accounts.user_id", userId)
     .lt("amount", 0)
     .gte("date", windowStart)
@@ -36,14 +39,14 @@ async function computeMonthlySpending(
 
   if (error) throw error;
 
-  let total = 0;
-  for (const t of txRows ?? []) {
-    const primary =
-      (t.personal_finance_category as { primary?: string } | null)?.primary ?? "";
-    if (NON_SPENDING_PRIMARIES.has(primary)) continue;
-    total += Math.abs(Number(t.amount));
-  }
-  return Math.round(total / 3);
+  const txns: SpendingTxn[] = (txRows ?? []).map((t) => ({
+    date: (t.date as string | null) ?? "",
+    amount: Number(t.amount),
+    primary:
+      (t.personal_finance_category as { primary?: string } | null)?.primary ?? null,
+  }));
+
+  return medianMonthlySpending(txns, monthKeys);
 }
 
 /**
