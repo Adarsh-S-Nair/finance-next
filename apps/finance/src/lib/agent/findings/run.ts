@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { DETECTORS } from "./registry";
+import { decideStatus, type ExistingFinding, type FindingStatus } from "./lifecycle";
 import {
   medianMonthlySpending,
   recentCompleteMonths,
@@ -55,10 +56,9 @@ async function computeMonthlySpending(
  * This is the "agent sweep": load the user's data once, run the pure
  * detectors over it, and idempotently persist what they find. Re-running
  * updates existing findings (matched on user_id + dedupe_key) rather than
- * duplicating them, and preserves a finding's status — a dismissed
- * finding stays dismissed when the sweep runs again, because `status` is
- * intentionally omitted from the upsert payload (DB default on insert,
- * untouched on conflict).
+ * duplicating them. Each finding's status is decided by `decideStatus`:
+ * active stays active, dismissed stays dismissed unless the situation got
+ * materially worse (then it re-surfaces).
  *
  * A nightly cron loops this over all users; the API route runs it for the
  * authenticated caller on demand.
@@ -112,6 +112,25 @@ export async function runFindingsForUser(
   for (const detector of DETECTORS) drafts.push(...detector(ctx));
 
   if (drafts.length > 0) {
+    // Existing findings, to decide each one's status on this sweep:
+    // active ones stay active, dismissed ones stay dismissed unless they
+    // got materially worse (then they re-surface). See decideStatus.
+    const { data: existingRows, error: existingError } = await admin
+      .from("agent_findings")
+      .select("dedupe_key, status, value_annual")
+      .eq("user_id", userId);
+    if (existingError) throw existingError;
+
+    const existingByKey = new Map<string, ExistingFinding>(
+      (existingRows ?? []).map((r) => [
+        r.dedupe_key,
+        {
+          status: r.status as FindingStatus,
+          value_annual: r.value_annual == null ? null : Number(r.value_annual),
+        },
+      ]),
+    );
+
     const now = new Date().toISOString();
     const rows = drafts.map((d) => ({
       user_id: userId,
@@ -125,6 +144,7 @@ export async function runFindingsForUser(
       suggested_action: (d.suggestedAction ?? null) as Json,
       subject_id: d.subjectId,
       dedupe_key: d.dedupeKey,
+      status: decideStatus(existingByKey.get(d.dedupeKey), d.valueAnnual ?? null),
       updated_at: now,
     }));
 

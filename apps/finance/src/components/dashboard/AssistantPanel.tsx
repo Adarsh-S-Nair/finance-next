@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../providers/UserProvider";
+import { useToast } from "../providers/ToastProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
+import { authFetch } from "../../lib/api/fetch";
 import FindingOverlay, { type OverlayFinding } from "./FindingOverlay";
 
 /**
@@ -32,6 +34,7 @@ const RANK: Record<Severity, number> = { action: 0, review: 1, info: 2 };
 export default function AssistantPanel() {
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const { setToast } = useToast();
   const [selected, setSelected] = useState<Finding | null>(null);
 
   const { data, isLoading } = useAuthedQuery<{ findings: Finding[] }>(
@@ -46,9 +49,26 @@ export default function AssistantPanel() {
       Number(b.value_annual ?? 0) - Number(a.value_annual ?? 0),
   );
 
-  function onDismissed() {
-    setSelected(null);
+  const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["agent-findings", user?.id] });
+
+  async function setStatus(id: string, status: "new" | "dismissed") {
+    await authFetch(`/api/agent/findings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    invalidate();
+  }
+
+  async function handleDismiss(f: Finding) {
+    setSelected(null);
+    await setStatus(f.id, "dismissed");
+    setToast({
+      description: "Insight dismissed",
+      durationMs: 6000,
+      action: { label: "Undo", onClick: () => void setStatus(f.id, "new") },
+    });
   }
 
   return (
@@ -110,7 +130,7 @@ export default function AssistantPanel() {
       <FindingOverlay
         finding={selected}
         onClose={() => setSelected(null)}
-        onDismissed={onDismissed}
+        onDismiss={(f) => void handleDismiss(f as Finding)}
       />
     </div>
   );

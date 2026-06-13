@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX } from "react-icons/fi";
 import { Button } from "@zervo/ui";
-import { authFetch } from "../../lib/api/fetch";
 
 /**
  * Full-screen finding detail — the assistant's "how I got here" view,
@@ -40,17 +39,14 @@ const SEVERITY: Record<Severity, { rail: string; label: string }> = {
 export default function FindingOverlay({
   finding,
   onClose,
-  onDismissed,
+  onDismiss,
 }: {
   finding: OverlayFinding | null;
   onClose: () => void;
-  onDismissed: (id: string) => void;
+  onDismiss: (finding: OverlayFinding) => void;
 }) {
-  const [busy, setBusy] = useState(false);
-
   useEffect(() => {
     if (!finding) return;
-    setBusy(false);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -64,21 +60,6 @@ export default function FindingOverlay({
   }, [finding, onClose]);
 
   if (typeof document === "undefined") return null;
-
-  async function dismiss() {
-    if (!finding) return;
-    setBusy(true);
-    try {
-      await authFetch(`/api/agent/findings/${finding.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "dismissed" }),
-      });
-      onDismissed(finding.id);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const sev = finding ? SEVERITY[finding.severity] ?? SEVERITY.review : SEVERITY.review;
   const steps = finding?.evidence?.reasoning ?? [];
@@ -154,7 +135,7 @@ export default function FindingOverlay({
                 >
                   Close
                 </button>
-                <Button onClick={dismiss} loading={busy} variant="primary">
+                <Button onClick={() => onDismiss(finding)} variant="primary">
                   Dismiss
                 </Button>
               </div>

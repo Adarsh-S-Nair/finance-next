@@ -12,6 +12,8 @@ export type ToastOptions = {
   description?: string;
   variant?: ToastVariant;
   durationMs?: number;
+  /** Optional inline action (e.g. Undo). Firing it dismisses the toast. */
+  action?: { label: string; onClick: () => void };
 };
 
 type Toast = Required<Pick<ToastOptions, "variant">> & ToastOptions & { id: string; createdAt: number; durationMs: number };
@@ -53,6 +55,7 @@ export default function ToastProvider({ children }: PropsWithChildren) {
         title: options.title,
         description: options.description,
         variant: options.variant ?? "info",
+        action: options.action,
         createdAt: Date.now(),
         durationMs,
       };
@@ -103,6 +106,19 @@ export default function ToastProvider({ children }: PropsWithChildren) {
                   <div className="min-w-0 flex-1">
                     {t.title && <div className="text-sm font-semibold">{t.title}</div>}
                     {t.description && <div className="mt-0.5 text-sm opacity-75">{t.description}</div>}
+                    {t.action && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          t.action!.onClick();
+                          removeToast(t.id);
+                        }}
+                        className="mt-1.5 text-sm font-semibold underline underline-offset-2 hover:opacity-80"
+                        style={{ color: "#fafafa" }}
+                      >
+                        {t.action.label}
+                      </button>
+                    )}
                   </div>
                   <button
                     type="button"
