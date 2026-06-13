@@ -7,8 +7,8 @@ interface PageConfig {
 
 export const SITE_PAGES: Record<string, PageConfig> = {
   '/today': {
-    title: 'Today',
-    header: null, // Today renders its own greeting header
+    title: 'Activity',
+    header: null, // Renders its own header (assistant activity trail)
   },
   '/dashboard': {
     title: 'Dashboard', // Used for document title (tab)

@@ -20,6 +20,7 @@ import CalendarCard from "../../../components/dashboard/CalendarCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import MonthStrip from "../../../components/dashboard/MonthStrip";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
+import AssistantRail from "../../../components/dashboard/AssistantRail";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 import { Dropdown, SegmentedTabs } from "@zervo/ui";
@@ -263,6 +264,8 @@ export default function DashboardPage() {
   // Items that should be hidden based on current state
   const isItemHidden = (component) => {
     if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
+    // Upcoming bills rides on recurring detection, which is Pro-gated.
+    if (component === 'CalendarCard' && !isPro) return true;
     return false;
   };
 
@@ -428,50 +431,37 @@ export default function DashboardPage() {
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {/* Main Content Area — flexes to fill available width */}
         <div className="flex-1 min-w-0 space-y-6 lg:space-y-10">
+          {/* On mobile there is no rail, so the assistant's decisions
+              stack first — priority is the stack order there. Hidden on
+              desktop, where the rail copy renders on the right. */}
+          <div className="lg:hidden">
+            <AssistantRail />
+          </div>
           {dashboardLayout.main.map((item) => (
             <Fragment key={item.id}>
               <div>{renderItem(item)}</div>
-              {/* On mobile the sidebar stacks below everything, which
-                  buries the user-specific insights. Surface them right
-                  under net worth and above spending instead. Hidden on
-                  desktop, where the sidebar copy renders. */}
-              {item.id === 'net-worth-banner' && (
+              {item.id === 'net-worth-banner' && !isPro && (
                 <div className="lg:hidden">
-                  {renderItem(dashboardLayout.sidebar.find((s) => s.id === 'insights'))}
-                  {!isPro && <UpgradeBanner />}
+                  <UpgradeBanner />
                 </div>
               )}
             </Fragment>
           ))}
         </div>
 
-        {/* Sidebar — fixed width, anchored to the right.
-            Insights render first so the user-specific signal is the
-            top thing they see; the Pro upgrade pitch sits below it.
-            On mobile insights/upgrade move into the main column above
-            (under net worth), so the sidebar copy is desktop-only. */}
-        <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
-          {dashboardLayout.sidebar.map((item) => {
-            // Hide pro-only cards (budgets, calendar) for free users
-            if (!isPro && item.id === 'sidebar-group') return null;
-            if (item.id === 'insights') {
-              return (
-                <Fragment key={item.id}>
-                  <div className="hidden lg:block">{renderItem(item)}</div>
-                  {!isPro && (
-                    <div className="hidden lg:block">
-                      <UpgradeBanner />
-                    </div>
-                  )}
-                </Fragment>
-              );
-            }
-            return (
-              <Fragment key={item.id}>
-                <div>{renderItem(item)}</div>
-              </Fragment>
-            );
-          })}
+        {/* The assistant's column — status line, decision cards when
+            something needs the user, link into the /today activity
+            trail. Deliberately near-empty when the agent has nothing:
+            the bareness is the signal that everything's fine. Any
+            config-driven sidebar entries render below it. */}
+        <div className="hidden lg:block lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
+          <AssistantRail />
+          {!isPro && <UpgradeBanner />}
+          {dashboardLayout.sidebar.map((item) => (
+            <Fragment key={item.id}>
+              <div>{renderItem(item)}</div>
+            </Fragment>
+          ))}
         </div>
       </div>
     </PageContainer>

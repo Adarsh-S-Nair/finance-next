@@ -1,4 +1,4 @@
-import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuTarget, LuSparkles } from "react-icons/lu";
+import { LuLayoutDashboard, LuWallet, LuArrowRightLeft, LuPiggyBank, LuChartLine, LuTarget } from "react-icons/lu";
 import { IconType } from "react-icons";
 
 export type NavItem = {
@@ -17,7 +17,9 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
   {
     title: "Overview",
     items: [
-      { href: "/today", label: "Today", icon: LuSparkles },
+      // /today (the agent activity trail) is reachable from the
+      // assistant rail on the dashboard rather than the nav — the
+      // dashboard is home; the trail is its drill-in.
       { href: "/dashboard", label: "Dashboard", icon: LuLayoutDashboard },
     ],
   },

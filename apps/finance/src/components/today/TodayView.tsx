@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import PageContainer from "../layout/PageContainer";
 import {
   AUTONOMY_RULES,
@@ -24,13 +24,6 @@ const TONE_BAR: Record<string, string> = {
   decision: "bg-amber-500",
   approved: "bg-emerald-500",
 };
-
-function greeting(now: Date): string {
-  const h = now.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
 
 function FeedCard({
   item,
@@ -148,7 +141,6 @@ function AutonomyRow({ rule }: { rule: AutonomyRule }) {
 }
 
 export default function TodayView() {
-  const now = useMemo(() => new Date(), []);
   const [states, setStates] = useState<Record<string, ItemState>>({});
 
   const setItem = (id: string, state: ItemState) =>
@@ -165,10 +157,11 @@ export default function TodayView() {
       <div className="max-w-3xl">
         <div className="mb-10">
           <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-            {greeting(now)}
+            Activity
           </h1>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            {handledCount} {handledCount === 1 ? "thing" : "things"} handled ·{" "}
+            Everything the assistant handled or flagged ·{" "}
+            {handledCount} handled ·{" "}
             {decisionsLeft === 0
               ? "nothing needs you"
               : `${decisionsLeft} need${decisionsLeft === 1 ? "s" : ""} you`}
