@@ -5,51 +5,26 @@ import { authFetch } from "../../lib/api/fetch";
 import Link from "next/link";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
-import DynamicIcon from "../DynamicIcon";
-import { FiTag } from "react-icons/fi";
 import { ViewAllLink } from "@zervo/ui";
 
 const MAX_ROWS = 3;
 
-// Color the per-budget bar by how close it is to the cap. Reserved
-// for sentiment only — category brand colors stay on the icon chips,
-// a wall of differently-colored bars just reads as noise.
-//
-//   over the cap            → rose (real overspend)
-//   exactly at the cap      → accent (a fully-paid fixed bill like a
-//                             mortgage lands here — it's "done", not a
-//                             warning, so it must not go amber)
-//   85% up to the cap       → amber (approaching, still has agency)
-//   below 85%               → accent
-//
-// Rounded-dollar comparison so a few cents either side of the cap
-// doesn't flip the color — the user reads $4,858 / $4,858 as "at the
-// cap", not "over".
+// Color the bar by how FULL the budget is, not by category. The fill
+// is a continuous ramp between the theme's own sentiment tokens —
+// success (green, lots of room) → danger (red, full) — so the color
+// itself reads as a fuel gauge. Over the cap pins to full danger.
+// Using color-mix on the CSS variables keeps it theme-aware and on
+// the muted palette rather than introducing arbitrary hues.
 const barColorFor = (spent, total) => {
   const rs = Math.round(spent);
   const rt = Math.round(total);
+  if (rt <= 0) return "var(--color-success)";
   if (rs > rt) return "var(--color-danger)";
-  if (rs >= rt) return "var(--color-accent)"; // exactly at cap — done, not a warning
-  const pct = total > 0 ? (spent / total) * 100 : 0;
-  if (pct >= 85) return "var(--color-warn)";
-  return "var(--color-accent)";
+  const pct = Math.max(0, Math.min(100, (spent / total) * 100));
+  return `color-mix(in oklab, var(--color-danger) ${pct}%, var(--color-success))`;
 };
 
 function BudgetRow({ budget }) {
-  // Icon + brand color live on the category_group. Direct group
-  // budgets carry them on `budget.category_groups`; category-level
-  // budgets (e.g. "Mortgage Payment" under Loan Payments) carry them
-  // on the nested `system_categories.category_groups` join we ask
-  // for in spending.ts. Fall through both before giving up.
-  const parentGroup =
-    budget.category_groups ?? budget.system_categories?.category_groups ?? null;
-  const iconLib = parentGroup?.icon_lib;
-  const iconName = parentGroup?.icon_name;
-  const hex =
-    budget.category_groups?.hex_color ||
-    budget.system_categories?.hex_color ||
-    parentGroup?.hex_color ||
-    null;
   const label =
     budget.category_groups?.name ||
     budget.system_categories?.label ||
@@ -60,43 +35,24 @@ function BudgetRow({ budget }) {
   const percentage = Number(budget.percentage) || 0;
   const widthPct = Math.min(100, percentage);
   const barColor = barColorFor(spent, total);
-  const pctDisplay = Math.round(percentage);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: hex || "var(--color-accent)" }}
-        >
-          <DynamicIcon
-            iconLib={iconLib}
-            iconName={iconName}
-            className="h-3.5 w-3.5 text-white"
-            style={{ strokeWidth: 2.5 }}
-            fallback={FiTag}
-          />
-        </div>
-        <span className="text-sm font-medium text-[var(--color-fg)] truncate flex-1">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--color-fg)] truncate">
           {label}
         </span>
-        <span className="text-[11px] tabular-nums font-semibold flex-shrink-0 text-[var(--color-fg)]">
-          {pctDisplay}%
+        <span className="text-[11px] tabular-nums text-[var(--color-muted)] flex-shrink-0">
+          <span className="text-[var(--color-fg)] font-medium">{formatCurrency(spent)}</span>
+          {" / "}
+          {formatCurrency(total)}
         </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+      <div className="h-2.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500 ease-out"
           style={{ width: `${widthPct}%`, backgroundColor: barColor }}
         />
-      </div>
-      <div className="flex items-baseline justify-between text-[11px] tabular-nums">
-        <span className="text-[var(--color-fg)] font-medium">
-          {formatCurrency(spent)}
-        </span>
-        <span className="text-[var(--color-muted)]">
-          of {formatCurrency(total)}
-        </span>
       </div>
     </div>
   );
@@ -152,16 +108,11 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
           <div className="space-y-6">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-full bg-[var(--color-border)]" />
-                  <div className="h-3 bg-[var(--color-border)] rounded flex-1" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-8" />
+                <div className="flex items-center justify-between">
+                  <div className="h-3 bg-[var(--color-border)] rounded w-28" />
+                  <div className="h-2.5 bg-[var(--color-border)] rounded w-20" />
                 </div>
-                <div className="h-2 bg-[var(--color-border)] rounded-full" />
-                <div className="flex justify-between">
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-12" />
-                  <div className="h-2.5 bg-[var(--color-border)] rounded w-16" />
-                </div>
+                <div className="h-2.5 bg-[var(--color-border)] rounded-full" />
               </div>
             ))}
           </div>

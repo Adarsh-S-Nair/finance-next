@@ -4,13 +4,12 @@ import Link from "next/link";
 import { FEED_ITEMS } from "../today/mockData";
 
 /**
- * The assistant's presence on the dashboard — one self-contained card
- * (everything lives inside the fill: open decisions, the handled
- * pulse, and the activity link). Designed as a digest, not a stat
- * block: a thin amber rule marks each thing that needs a decision, the
- * count in the header doubles as the link into /today, and handled
- * work trails off muted below a divider. No hero number, no big CTA —
- * the whole row is the tap target.
+ * The assistant's presence on the dashboard. This iteration reads as
+ * the assistant talking, not a stat widget: a one-line summary in its
+ * own voice, the open items as minimal text rows with a chevron, and
+ * the handled work collapsed to a single trailing line. No dots, no
+ * bars, no hero number, no CTA button — everything in one card, the
+ * whole row is the tap target into /today.
  *
  * Items are the same hardcoded mock data as the Today feed.
  */
@@ -18,39 +17,32 @@ export default function AssistantPanel() {
   const decisions = FEED_ITEMS.filter((item) => item.tone === "decision");
   const handled = FEED_ITEMS.filter((item) => item.tone === "handled");
 
+  const lead =
+    decisions.length === 0
+      ? "I went through your week — all clear. I'll flag anything that needs you here."
+      : `I went through your week. ${decisions.length} ${
+          decisions.length === 1 ? "thing could use your call" : "things could use your call"
+        }:`;
+
   return (
     <div className="w-full bg-[var(--color-surface-alt)] p-5">
-      <div className="flex items-baseline justify-between">
-        <span className="card-header">Assistant</span>
-        {decisions.length > 0 && (
-          <Link
-            href="/today"
-            className="text-[11px] font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-          >
-            {decisions.length} to review ›
-          </Link>
-        )}
-      </div>
+      <span className="card-header">Assistant</span>
 
-      {decisions.length === 0 ? (
-        <p className="mt-3 text-sm leading-relaxed text-[var(--color-muted)]">
-          All clear — nothing needs you right now. Anything worth your
-          attention shows up here first.
-        </p>
-      ) : (
-        <div className="mt-4 space-y-1">
+      <p className="mt-3 text-sm leading-relaxed text-[var(--color-fg)]">{lead}</p>
+
+      {decisions.length > 0 && (
+        <div className="mt-4 space-y-px">
           {decisions.map((item) => (
             <Link
               key={item.id}
               href="/today"
-              className="group relative block -mx-1 py-2 pl-5 pr-1 rounded-md hover:bg-[var(--color-fg)]/[0.03] transition-colors"
+              className="group flex items-center gap-3 -mx-2 px-2 py-2.5 rounded-md hover:bg-[var(--color-fg)]/[0.04] transition-colors"
             >
-              <span className="absolute left-1.5 top-2.5 bottom-2.5 w-0.5 rounded-full bg-amber-500" />
-              <span className="block text-[13px] font-medium leading-snug text-[var(--color-fg)] line-clamp-2">
+              <span className="flex-1 min-w-0 text-[13px] leading-snug text-[var(--color-fg)]/90 group-hover:text-[var(--color-fg)] line-clamp-2 transition-colors">
                 {item.headline}
               </span>
-              <span className="mt-0.5 block text-[11px] text-[var(--color-muted)]">
-                {item.category} · {item.when}
+              <span className="shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
+                ›
               </span>
             </Link>
           ))}
@@ -58,27 +50,12 @@ export default function AssistantPanel() {
       )}
 
       {handled.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-[var(--color-border)]">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-muted)] mb-2.5">
-            Handled for you
-          </div>
-          <div className="space-y-2">
-            {handled.map((item) => (
-              <Link
-                key={item.id}
-                href="/today"
-                className="group flex items-baseline gap-3"
-              >
-                <span className="flex-1 min-w-0 truncate text-xs text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-                  {item.headline}
-                </span>
-                <span className="shrink-0 text-[10px] text-[var(--color-muted)]">
-                  {item.when}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
+        <Link
+          href="/today"
+          className="mt-4 block text-xs text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+        >
+          I also handled {handled.length} {handled.length === 1 ? "thing" : "things"} on my own ›
+        </Link>
       )}
     </div>
   );
