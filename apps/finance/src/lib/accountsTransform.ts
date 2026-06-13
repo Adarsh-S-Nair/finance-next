@@ -28,6 +28,7 @@ export interface DbAccountRow {
   user_id?: string | null;
   balances?: DbAccountBalances | null;
   institutions?: DbInstitution | null;
+  plaid_items?: { id?: string | null; item_id?: string | null; products?: string[] | null } | null;
 }
 
 export interface UiAccount {
@@ -43,6 +44,8 @@ export interface UiAccount {
   institutionId: string | null;
   itemId: string | null;
   accountId: string | null;
+  plaidItemId: string | null;
+  products: string[];
   createdAt: string | null;
   userId: string | null;
 }
@@ -97,6 +100,8 @@ export function transformAccountsData(
       institutionId: account.institution_id ?? null,
       itemId: account.item_id ?? null,
       accountId: account.account_id ?? null,
+      plaidItemId: account.plaid_item_id ?? null,
+      products: account.plaid_items?.products ?? [],
       createdAt: account.created_at ?? null,
       userId: account.user_id ?? null,
     });

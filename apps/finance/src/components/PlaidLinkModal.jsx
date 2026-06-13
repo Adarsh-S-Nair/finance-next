@@ -8,7 +8,19 @@ import { useAccounts } from './providers/AccountsProvider';
 import { authFetch } from '../lib/api/fetch';
 import { Button, Modal } from "@zervo/ui";
 
-export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCallback = null, onUpgradeNeeded = null, plaidItemId = null }) {
+export default function PlaidLinkModal({
+  isOpen,
+  onClose,
+  onSuccess: onSuccessCallback = null,
+  onUpgradeNeeded = null,
+  plaidItemId = null,
+  // Products to request when in update mode (plaidItemId set). Defaults to the
+  // investments upgrade flow; the accounts page passes ['liabilities'] to
+  // complete a credit-card/loan connection that predates the liabilities product.
+  additionalProducts = ['investments'],
+  title = 'Connect an account',
+  description = 'Securely connect your bank, credit card, or investment accounts.',
+}) {
   const { user } = useUser();
   const { addAccount, refreshAccounts } = useAccounts();
   const [linkToken, setLinkToken] = useState(null);
@@ -53,8 +65,9 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
 
       const body = { publicToken };
       // In update mode, pass the existing plaidItemId so the backend merges rather than creates
-      if (activePlaidItemId) {
-        body.existingPlaidItemId = activePlaidItemId;
+      const existingItemId = activePlaidItemId || plaidItemId;
+      if (existingItemId) {
+        body.existingPlaidItemId = existingItemId;
       }
 
       const response = await authFetch('/api/plaid/exchange-token', {
@@ -129,10 +142,13 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setError(null);
 
       const linkTokenBody = {};
-      // If a plaidItemId was passed as prop, request update mode (for pro upgrades adding investments)
-      if (activePlaidItemId) {
-        linkTokenBody.plaidItemId = activePlaidItemId;
-        linkTokenBody.additionalProducts = ['investments'];
+      // If a plaidItemId was passed (prop or captured from a prior response),
+      // request update mode. Prefer the prop so opening the modal with a fresh
+      // item id works even though activePlaidItemId only resets on close.
+      const updateItemId = plaidItemId || activePlaidItemId;
+      if (updateItemId) {
+        linkTokenBody.plaidItemId = updateItemId;
+        linkTokenBody.additionalProducts = additionalProducts;
       }
 
       const response = await authFetch('/api/plaid/link-token', {
@@ -165,7 +181,7 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
       setError(err.message);
       setLoading(false);
     }
-  }, [activePlaidItemId, onClose, onUpgradeNeeded]);
+  }, [activePlaidItemId, plaidItemId, additionalProducts, onClose, onUpgradeNeeded]);
 
   // Automatically fetch link token when modal opens
   useEffect(() => {
@@ -205,8 +221,8 @@ export default function PlaidLinkModal({ isOpen, onClose, onSuccess: onSuccessCa
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Connect an account"
-      description="Securely connect your bank, credit card, or investment accounts."
+      title={title}
+      description={description}
       size="md"
       footer={footer}
       className="sm:max-w-xl"

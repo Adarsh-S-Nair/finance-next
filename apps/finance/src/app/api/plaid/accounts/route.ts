@@ -30,7 +30,8 @@ export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
       ),
       plaid_items (
         id,
-        item_id
+        item_id,
+        products
       )
     `
     )

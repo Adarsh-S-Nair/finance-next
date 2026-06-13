@@ -50,7 +50,7 @@ const SyncingPill = () => (
 );
 
 // Component for rendering account rows within the unified list
-const AccountRow = ({ account, institutionMap, onClick, isSyncing = false }) => {
+const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needsLiabilities = false, onComplete }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
 
   return (
@@ -99,14 +99,29 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false }) => 
         </div>
       </div>
 
-      {/* Balance */}
-      <div className="text-right ml-4">
-        <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
-          {isSyncing ? (
-            <span className="text-[var(--color-muted)]/60">…</span>
-          ) : (
-            formatCurrency(account.balance)
-          )}
+      {/* Right side: complete-setup action (when available) + balance */}
+      <div className="flex items-center gap-3 ml-4">
+        {needsLiabilities && !isSyncing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onComplete?.(account);
+            }}
+            title="Add APR, statement balance, and due dates for this account"
+            className="hidden sm:inline-flex items-center gap-1 rounded-full border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-2.5 py-1 text-[11px] font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 cursor-pointer"
+          >
+            Complete setup
+          </button>
+        )}
+        <div className="text-right">
+          <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
+            {isSyncing ? (
+              <span className="text-[var(--color-muted)]/60">…</span>
+            ) : (
+              formatCurrency(account.balance)
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -140,6 +155,9 @@ export default function AccountsPage() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+  // plaid_item_id of a credit-card/loan connection the user is completing
+  // (adding the liabilities product to). Drives the update-mode Plaid modal.
+  const [completingItemId, setCompletingItemId] = useState(null);
   // plaid_item_ids whose backend sync is still in progress. Drives the
   // per-row "Syncing…" pill so users see "data is arriving" instead of
   // a zero balance that looks like a bug. Populated by /api/plaid/sync-status
@@ -257,6 +275,21 @@ export default function AccountsPage() {
     
     // Default to cash for depository accounts (checking, savings, etc.) and others
     return 'cash';
+  };
+
+  // A credit-card or loan account whose backing plaid_item was linked WITHOUT
+  // the liabilities product (e.g. connected before we supported it). Completing
+  // the connection runs update mode to add liabilities consent, which unlocks
+  // APR / statement / due-date metadata in the account detail drawer.
+  const accountNeedsLiabilities = (account) => {
+    const category = categorizeAccount(account);
+    if (category !== 'credit' && category !== 'loans') return false;
+    if (!account.plaidItemId) return false;
+    return !(account.products || []).includes('liabilities');
+  };
+
+  const handleCompleteConnection = (account) => {
+    if (account?.plaidItemId) setCompletingItemId(account.plaidItemId);
   };
 
   const categorizedAccounts = {
@@ -467,6 +500,8 @@ export default function AccountsPage() {
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
                           isSyncing={isAccountSyncing(account, institutionMap)}
+                          needsLiabilities={accountNeedsLiabilities(account)}
+                          onComplete={handleCompleteConnection}
                         />
                       ))}
                     </>
@@ -483,6 +518,8 @@ export default function AccountsPage() {
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
                           isSyncing={isAccountSyncing(account, institutionMap)}
+                          needsLiabilities={accountNeedsLiabilities(account)}
+                          onComplete={handleCompleteConnection}
                         />
                       ))}
                     </>
@@ -513,6 +550,18 @@ export default function AccountsPage() {
             setShowLinkModal(false);
             setIsUpgradeModalOpen(true);
           }}
+        />
+        {/* Update-mode flow: adds the liabilities product to an existing
+            credit-card/loan connection so its APR/statement/due-date metadata
+            starts syncing. PlaidLinkModal refreshes accounts on success. */}
+        <PlaidLinkModal
+          isOpen={!!completingItemId}
+          plaidItemId={completingItemId}
+          additionalProducts={['liabilities']}
+          title="Complete this connection"
+          description="Add card and loan details — APR, statement balance, and due dates."
+          onClose={() => setCompletingItemId(null)}
+          onSuccess={() => fetchSyncStatus()}
         />
         <UpgradeOverlay
           isOpen={isUpgradeModalOpen}
