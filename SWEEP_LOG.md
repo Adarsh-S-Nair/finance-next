@@ -12,6 +12,9 @@ needs an owner decision. `defer` = skip this item in future runs.
 
 ## Runs
 
+- 2026-06-13 01:50 | D | action | TS migration: NetWorthHoverContext.jsx → .tsx (typed hover payload + context value; consumers in NetWorthCard/AccountsSummaryCard unchanged); JS files remaining: 109 | see commit
+- 2026-06-13 01:50 | A | no-op | Vercel prod (90m, spanning assistant-rail + toggle-smoothing deploys): zero error/warn entries | —
+
 - 2026-06-13 00:30 | D | action | coverage: `resolveDirectionMismatches` (transactionSync/categories.ts refund/clawback re-routing) was the last untested pure function in the module → 6 tests covering Refund re-route, Other fallback, clear-when-no-target, and direction edge cases | see commit
 - 2026-06-13 00:30 | A | no-op | Vercel prod (2h, spanning Bills-tab + Today deploys): zero error/warn entries | —
 
