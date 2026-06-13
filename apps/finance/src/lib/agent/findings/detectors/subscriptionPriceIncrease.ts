@@ -80,6 +80,16 @@ export function detectSubscriptionPriceIncreases(
         last_amount: last,
         last_date: s.last_date,
         increase_pct: pct,
+        reasoning: [
+          { label: "Was", value: money(avg), note: "average of past charges" },
+          {
+            label: "Now",
+            value: money(last),
+            note: s.last_date ? `latest charge · ${s.last_date}` : "latest charge",
+          },
+          { label: "Increase", value: `+${pct}%` },
+          { label: "Over a year", value: `~${money(annual)}/yr more`, note: "at this frequency" },
+        ],
       },
       valueAnnual: annual,
       suggestedAction: { label: "Review subscription" },

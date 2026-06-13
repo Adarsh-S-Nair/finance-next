@@ -8,6 +8,14 @@
 
 export type FindingSeverity = "action" | "review" | "info";
 
+/** One step in a finding's "how we got here" breakdown — rendered as a
+ *  labelled value on the detail view so the user can audit the math. */
+export interface ReasoningStep {
+  label: string;
+  value: string;
+  note?: string;
+}
+
 /** A finding a detector wants to surface, before it's persisted. */
 export interface FindingDraft {
   /** Detector identifier, persisted as `agent_findings.type`. */

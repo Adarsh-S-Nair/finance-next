@@ -30,17 +30,6 @@ const SEVERITY_RAIL: Record<Severity, string> = {
 };
 const RANK: Record<Severity, number> = { action: 0, review: 1, info: 2 };
 
-function hrefForFinding(f: Finding): string {
-  switch (f.type) {
-    case "subscription_price_increase":
-      return "/transactions?view=bills";
-    case "idle_cash":
-      return "/accounts";
-    default:
-      return "/today";
-  }
-}
-
 export default function AssistantPanel() {
   const { user } = useUser();
   const { data, isLoading } = useAuthedQuery<{ findings: Finding[] }>(
@@ -87,12 +76,12 @@ export default function AssistantPanel() {
           {findings.map((f) => (
             <Link
               key={f.id}
-              href={hrefForFinding(f)}
+              href={`/today/${f.id}`}
               className="group relative -mx-2 flex items-center rounded-lg px-3 py-3 transition-colors hover:bg-[var(--color-fg)]/[0.035]"
             >
               <span
                 aria-hidden
-                className="absolute left-2 top-3.5 bottom-3.5 w-1 rounded-full"
+                className="absolute left-2 top-1.5 bottom-1.5 w-1"
                 style={{ background: SEVERITY_RAIL[f.severity] ?? SEVERITY_RAIL.review }}
               />
               <div className="min-w-0 flex-1 pl-3">

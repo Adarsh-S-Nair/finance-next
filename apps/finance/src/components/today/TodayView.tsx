@@ -8,42 +8,27 @@ import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { authFetch } from "../../lib/api/fetch";
 
 /**
- * The assistant's activity view — the detail surface behind the
- * dashboard card. Reads real findings from the findings engine and
- * shows each in full: severity, title, the plain-language explanation,
- * and a dismiss action. No mock data.
+ * The assistant's activity view — a compact list of real findings. Each
+ * row links to its detail page (the "how we got here" breakdown); a
+ * quick Dismiss is available without leaving the list. No mock data.
  */
 
 type Severity = "action" | "review" | "info";
 
 interface Finding {
   id: string;
-  type: string;
   severity: Severity;
   title: string;
-  body: string;
   summary: string | null;
   value_annual: number | string | null;
-  suggested_action: { label?: string } | null;
 }
 
-const SEVERITY: Record<Severity, { rule: string; label: string }> = {
-  action: { rule: "var(--color-danger)", label: "Action recommended" },
-  review: { rule: "var(--color-warn)", label: "Worth a look" },
-  info: { rule: "var(--color-success)", label: "Good to know" },
+const SEVERITY_RAIL: Record<Severity, string> = {
+  action: "var(--color-danger)",
+  review: "var(--color-warn)",
+  info: "var(--color-success)",
 };
 const RANK: Record<Severity, number> = { action: 0, review: 1, info: 2 };
-
-function hrefForFinding(f: Finding): string {
-  switch (f.type) {
-    case "subscription_price_increase":
-      return "/transactions?view=bills";
-    case "idle_cash":
-      return "/accounts";
-    default:
-      return "/dashboard";
-  }
-}
 
 export default function TodayView() {
   const { user } = useUser();
@@ -73,9 +58,7 @@ export default function TodayView() {
     <PageContainer>
       <div className="max-w-2xl">
         <div className="mb-8">
-          <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">
-            Activity
-          </h1>
+          <h1 className="text-2xl font-medium tracking-tight text-[var(--color-fg)]">Activity</h1>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
             {loading
               ? "Reviewing your accounts…"
@@ -86,9 +69,9 @@ export default function TodayView() {
         </div>
 
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[0, 1].map((i) => (
-              <div key={i} className="h-28 animate-pulse rounded-xl bg-[var(--color-surface-alt)]" />
+              <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--color-surface-alt)]" />
             ))}
           </div>
         ) : findings.length === 0 ? (
@@ -99,45 +82,43 @@ export default function TodayView() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {findings.map((f) => {
-              const sev = SEVERITY[f.severity] ?? SEVERITY.review;
-              return (
-                <div key={f.id} className="relative overflow-hidden rounded-xl bg-[var(--color-surface-alt)] p-5">
-                  <span
-                    aria-hidden
-                    className="absolute left-0 top-0 bottom-0 w-1"
-                    style={{ background: sev.rule }}
-                  />
-                  <div className="pl-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                      {sev.label}
-                    </span>
-                    <h2 className="mt-1.5 text-[15px] font-medium leading-snug text-[var(--color-fg)]">
+          <div className="space-y-3">
+            {findings.map((f) => (
+              <div
+                key={f.id}
+                className="group relative overflow-hidden rounded-xl bg-[var(--color-surface-alt)]"
+              >
+                <span
+                  aria-hidden
+                  className="absolute left-0 top-0 bottom-0 w-1"
+                  style={{ background: SEVERITY_RAIL[f.severity] ?? SEVERITY_RAIL.review }}
+                />
+                <div className="flex items-center gap-3 py-4 pl-5 pr-4">
+                  <Link href={`/today/${f.id}`} className="min-w-0 flex-1">
+                    <p className="text-sm font-medium leading-snug text-[var(--color-fg)]">
                       {f.title}
-                    </h2>
-                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-muted)]">
-                      {f.body}
                     </p>
-                    <div className="mt-4 flex items-center gap-4">
-                      <Link
-                        href={hrefForFinding(f)}
-                        className="inline-flex items-center rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-accent-hover)]"
-                      >
-                        {f.suggested_action?.label ?? "View"}
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => dismiss(f.id)}
-                        className="text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
+                    {f.summary && (
+                      <p className="mt-0.5 text-xs text-[var(--color-muted)]">{f.summary}</p>
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => dismiss(f.id)}
+                    className="shrink-0 text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+                  >
+                    Dismiss
+                  </button>
+                  <Link
+                    href={`/today/${f.id}`}
+                    aria-label="View details"
+                    className="shrink-0 text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+                  >
+                    ›
+                  </Link>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>

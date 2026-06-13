@@ -62,6 +62,29 @@ export function detectIdleCash(
         buffer,
         excess,
         assumed_apy: HYSA_RATE,
+        reasoning: [
+          { label: "Your checking balance", value: `$${whole(balance)}`, note: a.name },
+          {
+            label: "Typical monthly spending",
+            value: `$${whole(monthlySpending)}`,
+            note: "median of your last 3 months",
+          },
+          {
+            label: "Buffer to keep on hand",
+            value: `$${whole(buffer)}`,
+            note: "about one month of spending",
+          },
+          {
+            label: "Sitting idle",
+            value: `$${whole(excess)}`,
+            note: "balance minus buffer",
+          },
+          {
+            label: "Could earn at ~4% APY",
+            value: `~$${whole(annual)}/yr`,
+            note: "in a high-yield savings account",
+          },
+        ],
       },
       valueAnnual: annual,
       suggestedAction: { label: "Move to savings" },
