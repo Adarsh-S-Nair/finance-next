@@ -12,16 +12,21 @@ interface RequestBody {
   intent?: Intent | null;
 }
 
-// "bank" covers checking, savings, AND credit cards — all of which Plaid
-// surfaces through the transactions product. Requesting only transactions keeps
-// institution coverage as wide as possible (no-investments banks like Ally
-// still show up); credit-card liabilities detail (APR/due date) can be added
-// later via update-mode additional_consented_products. Loans are liabilities-
-// only (no transactions). Investments is its own product.
-const INTENT_PRODUCTS: Record<Intent, string[]> = {
-  bank: ['transactions'],
-  loan: ['liabilities'],
-  investments: ['investments'],
+// Each intent declares the products REQUIRED to link (these filter the
+// institution list) and an optional `ifSupported` set that Plaid initializes
+// only when the chosen institution/accounts support them — without filtering
+// anything out.
+//
+// "bank" covers checking, savings, AND credit cards (all surfaced via the
+// transactions product). We require only `transactions` so coverage stays wide
+// (no-investments banks like Ally still show up), but add `liabilities` as
+// if-supported so credit cards automatically pull their APR/due-date data at
+// link time — no extra manual step. Loans are liabilities-only (no
+// transactions). Investments is its own product.
+const INTENT_CONFIG: Record<Intent, { products: string[]; ifSupported?: string[] }> = {
+  bank: { products: ['transactions'], ifSupported: ['liabilities'] },
+  loan: { products: ['liabilities'] },
+  investments: { products: ['investments'] },
 };
 
 export const POST = withAuth('plaid:link-token', async (request, userId) => {
@@ -89,15 +94,19 @@ export const POST = withAuth('plaid:link-token', async (request, userId) => {
   // exists to avoid exactly that.
   const tierProducts = new Set(getPlaidProducts(subscriptionTier));
   let products: string[];
-  if (intent && INTENT_PRODUCTS[intent]) {
-    products = INTENT_PRODUCTS[intent].filter((p) => tierProducts.has(p));
+  let ifSupported: string[] = [];
+  if (intent && INTENT_CONFIG[intent]) {
+    const cfg = INTENT_CONFIG[intent];
+    products = cfg.products.filter((p) => tierProducts.has(p));
     if (products.length === 0) {
       return Response.json({ error: 'tier_required' }, { status: 403 });
     }
+    // Only initialize if-supported products the tier actually allows.
+    ifSupported = (cfg.ifSupported ?? []).filter((p) => tierProducts.has(p));
   } else {
     products = getPlaidProducts(subscriptionTier);
   }
-  const linkTokenResponse = await createLinkToken(userId, products, null);
+  const linkTokenResponse = await createLinkToken(userId, products, null, null, ifSupported);
   return Response.json({
     link_token: linkTokenResponse.link_token,
     expiration: linkTokenResponse.expiration,

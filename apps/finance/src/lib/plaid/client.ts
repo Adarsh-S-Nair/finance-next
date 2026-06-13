@@ -55,6 +55,7 @@ interface LinkTokenRequestPayload {
   redirect_uri?: string;
   access_token?: string;
   additional_consented_products?: string[];
+  required_if_supported_products?: string[];
   products?: string[];
   account_filters?: unknown;
 }
@@ -67,7 +68,8 @@ export async function createLinkToken(
   userId: string,
   products: string[] = ['transactions'],
   accountFilters: unknown = null,
-  accessToken: string | null = null
+  accessToken: string | null = null,
+  requiredIfSupportedProducts: string[] = []
 ): Promise<Record<string, unknown>> {
   try {
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
@@ -97,6 +99,15 @@ export async function createLinkToken(
       }
     } else {
       request.products = products;
+      // Products to initialize ONLY when the chosen institution/accounts support
+      // them — e.g. liabilities on a credit card. Unlike `products`, these do NOT
+      // filter out institutions that lack them (a checking-only bank still shows),
+      // and they're initialized at link time so /liabilities/get works
+      // immediately, with no update-mode round trip. This is how a credit card
+      // gets both transactions AND liabilities from a single initial link.
+      if (requiredIfSupportedProducts.length > 0) {
+        request.required_if_supported_products = requiredIfSupportedProducts;
+      }
     }
 
     if (accountFilters) {
