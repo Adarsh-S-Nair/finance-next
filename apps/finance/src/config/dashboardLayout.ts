@@ -69,16 +69,11 @@ export const dashboardLayout: DashboardLayout = {
       component: 'SpendingVsEarningCard',
       height: 'h-[380px]',
     },
-  ],
-
-  // Sidebar (right side, narrower). The assistant signal block renders
-  // above these (directly in the dashboard page, not config-driven) —
-  // it replaced the InsightsCarousel, whose job it absorbs.
-  sidebar: [
+    // Former sidebar widgets, folded into the main column as two-up
+    // rows so the right column can be the assistant's alone.
     {
-      id: 'sidebar-group',
+      id: 'budgets-goals-row',
       type: 'row',
-      className: 'flex flex-col md:flex-row lg:flex-col gap-10',
       items: [
         {
           id: 'budgets',
@@ -88,15 +83,28 @@ export const dashboardLayout: DashboardLayout = {
           id: 'goals',
           component: 'GoalsCard',
         },
+      ],
+    },
+    {
+      id: 'calendar-holdings-row',
+      type: 'row',
+      items: [
         {
           id: 'calendar',
           component: 'CalendarCard',
         },
+        {
+          id: 'top-holdings',
+          component: 'TopHoldingsCard',
+        },
       ],
     },
-    {
-      id: 'top-holdings',
-      component: 'TopHoldingsCard',
-    },
   ],
+
+  // Sidebar (right side, narrower) — the assistant's column, rendered
+  // directly by the dashboard page (AssistantPanel, not config-driven).
+  // Keep widgets out of it: the column stays sparse so a decision row
+  // is impossible to miss. Re-add entries here only if a widget truly
+  // must live beside the assistant.
+  sidebar: [],
 };

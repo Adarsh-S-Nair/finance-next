@@ -20,7 +20,7 @@ import CalendarCard from "../../../components/dashboard/CalendarCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import MonthStrip from "../../../components/dashboard/MonthStrip";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
-import AssistantSignal from "../../../components/dashboard/AssistantSignal";
+import AssistantPanel from "../../../components/dashboard/AssistantPanel";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
 import { Dropdown, SegmentedTabs } from "@zervo/ui";
@@ -264,6 +264,8 @@ export default function DashboardPage() {
   // Items that should be hidden based on current state
   const isItemHidden = (component) => {
     if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
+    // Pro-gated widgets (carried over from the old sidebar-group gate).
+    if ((component === 'BudgetsCard' || component === 'CalendarCard') && !isPro) return true;
     return false;
   };
 
@@ -438,7 +440,7 @@ export default function DashboardPage() {
                   sidebar copy renders. */}
               {item.id === 'net-worth-banner' && (
                 <div className="lg:hidden space-y-6">
-                  <AssistantSignal />
+                  <AssistantPanel />
                   {!isPro && <UpgradeBanner />}
                 </div>
               )}
@@ -446,29 +448,25 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Sidebar — fixed width, anchored to the right. The assistant
-            signal renders first (it replaced the insights carousel):
-            headline-only rows that link into /today, never buttons or
-            body copy. The Pro upgrade pitch sits below it, then the
-            config-driven widget stack. */}
+        {/* Sidebar — fixed width, anchored to the right, and the
+            assistant's alone: status, headline-only decision rows, the
+            handled pulse, all linking into /today. Never buttons or
+            body copy. The Pro upgrade pitch sits below it; any
+            config-driven entries (normally none) render last. */}
         <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
           <div className="hidden lg:block">
-            <AssistantSignal />
+            <AssistantPanel />
           </div>
           {!isPro && (
             <div className="hidden lg:block">
               <UpgradeBanner />
             </div>
           )}
-          {dashboardLayout.sidebar.map((item) => {
-            // Hide pro-only cards (budgets, calendar) for free users
-            if (!isPro && item.id === 'sidebar-group') return null;
-            return (
-              <Fragment key={item.id}>
-                <div>{renderItem(item)}</div>
-              </Fragment>
-            );
-          })}
+          {dashboardLayout.sidebar.map((item) => (
+            <Fragment key={item.id}>
+              <div>{renderItem(item)}</div>
+            </Fragment>
+          ))}
         </div>
       </div>
     </PageContainer>
