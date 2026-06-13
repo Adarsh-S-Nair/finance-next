@@ -13,7 +13,6 @@ import SpendingVsEarningCard from "../../../components/dashboard/SpendingVsEarni
 import { dashboardLayout } from "../../../config/dashboardLayout";
 import MonthlyOverviewCard from "../../../components/dashboard/MonthlyOverviewCard";
 import TopHoldingsCard from "../../../components/dashboard/TopHoldingsCard";
-import InvestmentsOverviewCard from "../../../components/dashboard/InvestmentsOverviewCard";
 import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import GoalsCard from "../../../components/dashboard/GoalsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
@@ -31,7 +30,6 @@ const componentMap = {
   'MonthlyOverviewCard': MonthlyOverviewCard,
   'SpendingVsEarningCard': SpendingVsEarningCard,
   'TopHoldingsCard': TopHoldingsCard,
-  'InvestmentsOverviewCard': InvestmentsOverviewCard,
   'BudgetsCard': BudgetsCard,
   'GoalsCard': GoalsCard,
   'TopCategoriesCard': TopCategoriesCard,

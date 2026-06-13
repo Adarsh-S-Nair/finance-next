@@ -69,20 +69,13 @@ export const dashboardLayout: DashboardLayout = {
       component: 'SpendingVsEarningCard',
       height: 'h-[380px]',
     },
-    // Portfolio overview spans the full main column — total value,
-    // return, allocation, and top holdings in one place. Replaces the
-    // narrow TopHoldings carousel that used to live in the sidebar.
-    {
-      id: 'investments-overview',
-      component: 'InvestmentsOverviewCard',
-    },
   ],
 
   // Sidebar (right side, narrower). The AssistantPanel renders first
   // (directly in the dashboard page, not config-driven); these widgets
-  // render below it. Budgets / Goals / Upcoming bills are the
-  // glanceable, decision-adjacent widgets that belong beside the
-  // assistant.
+  // render below it. All quick-overview glances — budgets, goals,
+  // upcoming bills, and the holdings carousel — live beside the
+  // assistant; the full views live on their own pages.
   sidebar: [
     {
       id: 'budgets',
@@ -95,6 +88,10 @@ export const dashboardLayout: DashboardLayout = {
     {
       id: 'calendar',
       component: 'CalendarCard',
+    },
+    {
+      id: 'top-holdings',
+      component: 'TopHoldingsCard',
     },
   ],
 };

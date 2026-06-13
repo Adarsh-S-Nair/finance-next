@@ -3,8 +3,8 @@
 import { useState } from "react";
 import PageContainer from "../layout/PageContainer";
 import {
+  ALL_FEED_ITEMS,
   AUTONOMY_RULES,
-  FEED_ITEMS,
   REVIEWED_SUMMARY,
   type AutonomyRule,
   type FeedItem,
@@ -82,7 +82,7 @@ function FeedCard({
         </div>
       )}
 
-      {item.tone === "decision" && !approved && (
+      {item.tone === "decision" && !approved && item.action && (
         <div className="mt-4 flex items-center gap-4">
           <button
             type="button"
@@ -146,7 +146,7 @@ export default function TodayView() {
   const setItem = (id: string, state: ItemState) =>
     setStates((s) => ({ ...s, [id]: state }));
 
-  const visible = FEED_ITEMS.filter((item) => states[item.id] !== "skipped");
+  const visible = ALL_FEED_ITEMS.filter((item) => states[item.id] !== "skipped");
   const decisionsLeft = visible.filter(
     (item) => item.tone === "decision" && states[item.id] !== "approved",
   ).length;
