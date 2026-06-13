@@ -154,6 +154,7 @@ export type Database = {
           status: string
           subject_id: string | null
           suggested_action: Json | null
+          summary: string | null
           title: string
           type: string
           updated_at: string
@@ -171,6 +172,7 @@ export type Database = {
           status?: string
           subject_id?: string | null
           suggested_action?: Json | null
+          summary?: string | null
           title: string
           type: string
           updated_at?: string
@@ -188,6 +190,7 @@ export type Database = {
           status?: string
           subject_id?: string | null
           suggested_action?: Json | null
+          summary?: string | null
           title?: string
           type?: string
           updated_at?: string

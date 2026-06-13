@@ -33,6 +33,7 @@ export function detectIdleCash(accounts: AccountInput[]): FindingDraft[] {
       type: "idle_cash",
       severity: "review",
       title: `$${whole(balance)} sitting in ${a.name}`,
+      summary: `Move it to high-yield savings to earn about $${whole(annual)}/yr`,
       body:
         `You're holding $${whole(balance)} in ${a.name}, a checking account. ` +
         `In a high-yield savings account at ~4% that's about $${whole(annual)}/yr ` +

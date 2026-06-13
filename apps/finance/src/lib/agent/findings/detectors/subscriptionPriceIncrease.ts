@@ -68,6 +68,7 @@ export function detectSubscriptionPriceIncreases(
       type: "subscription_price_increase",
       severity: "review",
       title: `${name} went up to ${money(last)}`,
+      summary: `Up about ${money(annual)}/yr from the old price`,
       body:
         `Your ${name} charge rose from about ${money(avg)} to ${money(last)} — up ${pct}%. ` +
         `That's roughly ${money(annual)}/yr more if it sticks.`,

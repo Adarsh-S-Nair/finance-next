@@ -15,6 +15,10 @@ export interface FindingDraft {
   severity: FindingSeverity;
   title: string;
   body: string;
+  /** One plain-language line explaining the finding + its value, e.g.
+   *  "Move it to high-yield savings to earn about $623/yr". This is what
+   *  the dashboard shows, so a bare dollar figure is never ambiguous. */
+  summary: string;
   /** Grounding data so the UI can show "why" without recomputing. */
   evidence: Record<string, unknown>;
   /** Annualized dollar impact of acting, when quantifiable. */

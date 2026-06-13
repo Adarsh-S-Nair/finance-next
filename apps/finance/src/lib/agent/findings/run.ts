@@ -76,6 +76,7 @@ export async function runFindingsForUser(
       severity: d.severity,
       title: d.title,
       body: d.body,
+      summary: d.summary,
       evidence: d.evidence as Json,
       value_annual: d.valueAnnual ?? null,
       suggested_action: (d.suggestedAction ?? null) as Json,
