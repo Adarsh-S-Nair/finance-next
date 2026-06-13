@@ -7,10 +7,16 @@ import { getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
 interface RequestBody {
   plaidItemId?: string | null;
   additionalProducts?: string[] | null;
+  intent?: 'banking' | 'investments' | null;
 }
 
+const INTENT_PRODUCTS: Record<'banking' | 'investments', string[]> = {
+  banking: ['transactions', 'liabilities'],
+  investments: ['investments'],
+};
+
 export const POST = withAuth('plaid:link-token', async (request, userId) => {
-  const { plaidItemId, additionalProducts } = (await request.json()) as RequestBody;
+  const { plaidItemId, additionalProducts, intent } = (await request.json()) as RequestBody;
 
   // Verify user exists
   const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
@@ -67,8 +73,21 @@ export const POST = withAuth('plaid:link-token', async (request, userId) => {
     }
   }
 
-  // Determine Plaid products based on tier
-  const products = getPlaidProducts(subscriptionTier);
+  // Determine Plaid products: scope by user intent (banking vs investments) when
+  // provided, then intersect with what the user's tier allows. Falling back to
+  // the full tier bundle means institutions like Fidelity (investments-only)
+  // and Ally (no investments) get filtered out by Plaid — the intent picker
+  // exists to avoid exactly that.
+  const tierProducts = new Set(getPlaidProducts(subscriptionTier));
+  let products: string[];
+  if (intent && INTENT_PRODUCTS[intent]) {
+    products = INTENT_PRODUCTS[intent].filter((p) => tierProducts.has(p));
+    if (products.length === 0) {
+      return Response.json({ error: 'tier_required' }, { status: 403 });
+    }
+  } else {
+    products = getPlaidProducts(subscriptionTier);
+  }
   const linkTokenResponse = await createLinkToken(userId, products, null);
   return Response.json({
     link_token: linkTokenResponse.link_token,

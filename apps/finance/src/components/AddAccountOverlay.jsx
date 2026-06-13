@@ -11,6 +11,9 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiAlertCircle,
+  FiCreditCard,
+  FiTrendingUp,
+  FiLock,
 } from "react-icons/fi";
 import { Button } from "@zervo/ui";
 import UpgradeOverlay from "./UpgradeOverlay";
@@ -44,9 +47,11 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
   const { accounts, allAccounts, refreshAccounts } = useAccounts();
   const { isPro } = useUser();
 
-  const [step, setStep] = useState("choose"); // choose | connecting | connected
+  const [step, setStep] = useState("choose"); // choose | intent | connecting | connected
+  const [direction, setDirection] = useState(1); // 1 = forward (slide left), -1 = back
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedInstitution, setSelectedInstitution] = useState(null);
+  const [selectedIntent, setSelectedIntent] = useState(null);
   const [plaidData, setPlaidData] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
@@ -59,8 +64,10 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     if (isOpen) return;
     const t = setTimeout(() => {
       setStep("choose");
+      setDirection(1);
       setSelectedItemId(null);
       setSelectedInstitution(null);
+      setSelectedIntent(null);
       setPlaidData(null);
       existingAccountIdsRef.current = new Set();
     }, 250);
@@ -97,6 +104,8 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     snapshotExistingAccounts();
     setSelectedItemId(institution.plaidItemId);
     setSelectedInstitution(institution);
+    setSelectedIntent(null);
+    setDirection(1);
     setStep("connecting");
   };
 
@@ -106,15 +115,37 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
       setShowUpgrade(true);
       return;
     }
-    snapshotExistingAccounts();
     setSelectedItemId(null);
     setSelectedInstitution(null);
+    setDirection(1);
+    setStep("intent");
+  };
+
+  const handleSelectIntent = (intent) => {
+    if (intent === "investments" && !isPro) {
+      onClose();
+      setShowUpgrade(true);
+      return;
+    }
+    snapshotExistingAccounts();
+    setSelectedIntent(intent);
+    setDirection(1);
     setStep("connecting");
   };
 
   const handleBack = () => {
-    setSelectedItemId(null);
-    setSelectedInstitution(null);
+    setDirection(-1);
+    if (step === "connecting") {
+      setSelectedItemId(null);
+      setSelectedInstitution(null);
+      setSelectedIntent(null);
+      setStep(selectedItemId ? "choose" : "intent");
+      return;
+    }
+    if (step === "intent") {
+      setStep("choose");
+      return;
+    }
     setStep("choose");
   };
 
@@ -170,14 +201,16 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
             {/* Content wrapper */}
             <div className="min-h-screen flex items-center justify-center px-6 py-20">
               <div className="w-full max-w-md">
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait" custom={direction}>
                   {step === "choose" && (
                     <motion.div
                       key="choose"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      custom={direction}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
                     >
                       <ChooseStep
                         institutions={accounts}
@@ -187,16 +220,37 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                     </motion.div>
                   )}
 
+                  {step === "intent" && (
+                    <motion.div
+                      key="intent"
+                      custom={direction}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
+                    >
+                      <IntentStep
+                        isPro={isPro}
+                        onSelect={handleSelectIntent}
+                        onBack={handleBack}
+                      />
+                    </motion.div>
+                  )}
+
                   {step === "connecting" && (
                     <motion.div
                       key="connecting"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      custom={direction}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
                     >
                       <ConnectingStep
                         plaidItemId={selectedItemId}
+                        intent={selectedIntent}
                         onSuccess={handleConnectingSuccess}
                         onBack={handleBack}
                         onCancel={onClose}
@@ -208,10 +262,12 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                   {step === "connected" && (
                     <motion.div
                       key="connected"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
+                      custom={direction}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
                     >
                       <ConnectedStep plaidData={plaidData} onClose={onClose} />
                     </motion.div>
@@ -227,6 +283,16 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     document.body
   );
 }
+
+/* ── Slide animation ──────────────────────────────────────── */
+
+const slideVariants = {
+  enter: (dir) => ({ opacity: 0, x: dir > 0 ? 40 : -40 }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir) => ({ opacity: 0, x: dir > 0 ? -40 : 40 }),
+};
+
+const slideTransition = { duration: 0.25, ease: [0.32, 0.72, 0, 1] };
 
 /* ── Shared primitives ────────────────────────────────────── */
 
@@ -311,7 +377,7 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
               index={institutions.length}
               onClick={onSelectNew}
               avatar={
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] border border-[var(--color-border)] flex-shrink-0">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] flex-shrink-0">
                   <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
                 </div>
               }
@@ -346,9 +412,99 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
   );
 }
 
+/* ── Step: Intent (Bank vs Investment) ────────────────────── */
+
+function IntentStep({ isPro, onSelect, onBack }) {
+  const options = [
+    {
+      key: "banking",
+      icon: FiCreditCard,
+      title: "Bank account",
+      subtitle: "Checking, savings, credit card",
+      locked: false,
+    },
+    {
+      key: "investments",
+      icon: FiTrendingUp,
+      title: "Investment account",
+      subtitle: "Brokerage, 401(k), IRA",
+      locked: !isPro,
+    },
+  ];
+
+  return (
+    <div>
+      <motion.button
+        type="button"
+        onClick={onBack}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.05 }}
+        className="mb-6 inline-flex items-center gap-1 text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] cursor-pointer"
+      >
+        <FiChevronLeft className="h-4 w-4" />
+        Back
+      </motion.button>
+
+      <motion.h1
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
+      >
+        What are you connecting?
+      </motion.h1>
+      <motion.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="mt-2 text-sm text-[var(--color-muted)]"
+      >
+        We&apos;ll only show institutions that support this account type.
+      </motion.p>
+
+      <div className="mt-10 divide-y divide-[var(--color-border)]">
+        {options.map((opt, i) => {
+          const Icon = opt.icon;
+          return (
+            <motion.button
+              key={opt.key}
+              type="button"
+              onClick={() => onSelect(opt.key)}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 + i * 0.06 }}
+              whileHover={{ x: 2 }}
+              className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] flex-shrink-0">
+                <Icon className="h-4 w-4 text-[var(--color-muted)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
+                    {opt.title}
+                  </div>
+                  {opt.locked && (
+                    <FiLock className="h-3 w-3 text-[var(--color-muted)] flex-shrink-0" />
+                  )}
+                </div>
+                <div className="text-xs text-[var(--color-muted)] mt-0.5">
+                  {opt.locked ? "Requires Pro" : opt.subtitle}
+                </div>
+              </div>
+              <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ── Step: Connecting (Plaid Link) ────────────────────────── */
 
-function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNeeded }) {
+function ConnectingStep({ plaidItemId, intent, onSuccess, onBack, onCancel, onUpgradeNeeded }) {
   const [linkToken, setLinkToken] = useState(null);
   const [activePlaidItemId, setActivePlaidItemId] = useState(plaidItemId);
   const [error, setError] = useState(null);
@@ -410,6 +566,8 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
         if (plaidItemId) {
           body.plaidItemId = plaidItemId;
           body.additionalProducts = ["investments"];
+        } else if (intent) {
+          body.intent = intent;
         }
         const response = await authFetch("/api/plaid/link-token", {
           method: "POST",
@@ -418,7 +576,10 @@ function ConnectingStep({ plaidItemId, onSuccess, onBack, onCancel, onUpgradeNee
         });
         if (!response.ok) {
           const errBody = await response.json().catch(() => ({}));
-          if (response.status === 403 && errBody.error === "connection_limit") {
+          if (
+            response.status === 403 &&
+            (errBody.error === "connection_limit" || errBody.error === "tier_required")
+          ) {
             onUpgradeNeeded?.();
             return;
           }
