@@ -6,13 +6,24 @@ import { FEED_ITEMS } from "../today/mockData";
 /**
  * The dashboard's assistant column — the compact "signal" design in a
  * filled card (same surface treatment as UpgradeBanner): a status
- * line, headline rows with each item's per-year value, then a muted
- * pulse of recently handled work. No buttons, no body copy, no dots —
+ * line, headline rows each led by a category-colored accent bar, then
+ * a muted pulse of recently handled work. No buttons, no body copy —
  * the row taps through to /today, where the evidence and approve/skip
  * live.
  *
  * Items are the same hardcoded mock data as the Today feed.
  */
+
+// Accent per category, so the color on the left of each row signals
+// what kind of thing it is at a glance. Falls back to the muted token.
+const CATEGORY_ACCENT: Record<string, string> = {
+  Subscriptions: "var(--color-neon-purple)",
+  Cash: "var(--color-neon-green)",
+  Insurance: "var(--color-neon-blue)",
+  Returns: "var(--color-neon-pink)",
+  Transactions: "var(--color-muted)",
+};
+
 export default function AssistantPanel() {
   const decisions = FEED_ITEMS.filter((item) => item.tone === "decision");
   const handled = FEED_ITEMS.filter((item) => item.tone === "handled");
@@ -47,13 +58,22 @@ export default function AssistantPanel() {
               <Link
                 key={item.id}
                 href="/today"
-                className="group flex items-start gap-3 -mx-2 rounded-lg px-2 py-2.5 transition-colors hover:bg-[var(--color-fg)]/[0.04]"
+                className="group flex items-stretch gap-3 -mx-2 rounded-lg px-2 py-2.5 transition-colors hover:bg-[var(--color-fg)]/[0.04]"
               >
-                <span className="min-w-0 flex-1 text-sm leading-snug text-[var(--color-fg)]">
-                  {item.headline}
+                <span
+                  className="w-1 shrink-0 rounded-full"
+                  style={{ background: CATEGORY_ACCENT[item.category] ?? "var(--color-muted)" }}
+                />
+                <span className="min-w-0 flex-1 self-center">
+                  <span className="block text-sm leading-snug text-[var(--color-fg)] line-clamp-2">
+                    {item.headline}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-[var(--color-muted)]">
+                    {item.category}
+                  </span>
                 </span>
                 {item.stakes && (
-                  <span className="mt-0.5 shrink-0 text-[11px] tabular-nums text-[var(--color-muted)]">
+                  <span className="shrink-0 self-center text-[11px] tabular-nums text-[var(--color-muted)]">
                     ${item.stakes.toLocaleString()}/yr
                   </span>
                 )}
