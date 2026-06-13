@@ -4,12 +4,12 @@ import Link from "next/link";
 import { FEED_ITEMS } from "../today/mockData";
 
 /**
- * The dashboard's assistant column — the original compact "signal"
- * design: a status line, headline rows marked with a small amber dot
- * and their per-item value, then a muted pulse of recently handled
- * work. No buttons, no body copy, no card fill — the column tells you
- * what exists and the row taps through to /today, where the evidence
- * and approve/skip live.
+ * The dashboard's assistant column — the compact "signal" design in a
+ * filled card (same surface treatment as UpgradeBanner): a status
+ * line, headline rows with each item's per-year value, then a muted
+ * pulse of recently handled work. No buttons, no body copy, no dots —
+ * the row taps through to /today, where the evidence and approve/skip
+ * live.
  *
  * Items are the same hardcoded mock data as the Today feed.
  */
@@ -18,7 +18,7 @@ export default function AssistantPanel() {
   const handled = FEED_ITEMS.filter((item) => item.tone === "handled");
 
   return (
-    <div>
+    <div className="w-full bg-[var(--color-surface-alt)] p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <span className="card-header">Assistant</span>
         {decisions.length > 0 && (
@@ -42,14 +42,13 @@ export default function AssistantPanel() {
             {decisions.length} {decisions.length === 1 ? "thing needs" : "things need"} you
           </p>
 
-          <div className="mt-4 space-y-1">
+          <div className="mt-4 space-y-0.5">
             {decisions.map((item) => (
               <Link
                 key={item.id}
                 href="/today"
-                className="group flex items-start gap-3 -mx-2 rounded-lg px-2 py-2.5 transition-colors hover:bg-[var(--color-surface-alt)]/50"
+                className="group flex items-start gap-3 -mx-2 rounded-lg px-2 py-2.5 transition-colors hover:bg-[var(--color-fg)]/[0.04]"
               >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                 <span className="min-w-0 flex-1 text-sm leading-snug text-[var(--color-fg)]">
                   {item.headline}
                 </span>
@@ -65,7 +64,7 @@ export default function AssistantPanel() {
       )}
 
       {handled.length > 0 && (
-        <div className="mt-8 border-t border-[var(--color-border)] pt-6">
+        <div className="mt-6 border-t border-[var(--color-border)] pt-5">
           <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted)]">
             Handled for you
           </div>
