@@ -448,11 +448,11 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Sidebar — fixed width, anchored to the right, and the
-            assistant's alone: status, headline-only decision rows, the
+        {/* Sidebar — fixed width, anchored to the right. The assistant
+            panel leads: hero stat, headline-only decision rows, the
             handled pulse, all linking into /today. Never buttons or
-            body copy. The Pro upgrade pitch sits below it; any
-            config-driven entries (normally none) render last. */}
+            body copy. The Pro upgrade pitch sits below it, then the
+            config-driven entries (currently just Budgets). */}
         <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
           <div className="hidden lg:block">
             <AssistantPanel />

@@ -69,26 +69,17 @@ export const dashboardLayout: DashboardLayout = {
       component: 'SpendingVsEarningCard',
       height: 'h-[380px]',
     },
-    // Former sidebar widgets, folded into the main column as two-up
-    // rows so the right column can be the assistant's alone.
+    // Secondary widgets in one three-up row: each was designed for the
+    // old ~320px sidebar, which is about what a third of the main
+    // column gives them.
     {
-      id: 'budgets-goals-row',
+      id: 'secondary-row',
       type: 'row',
       items: [
-        {
-          id: 'budgets',
-          component: 'BudgetsCard',
-        },
         {
           id: 'goals',
           component: 'GoalsCard',
         },
-      ],
-    },
-    {
-      id: 'calendar-holdings-row',
-      type: 'row',
-      items: [
         {
           id: 'calendar',
           component: 'CalendarCard',
@@ -101,10 +92,16 @@ export const dashboardLayout: DashboardLayout = {
     },
   ],
 
-  // Sidebar (right side, narrower) — the assistant's column, rendered
-  // directly by the dashboard page (AssistantPanel, not config-driven).
-  // Keep widgets out of it: the column stays sparse so a decision row
-  // is impossible to miss. Re-add entries here only if a widget truly
-  // must live beside the assistant.
-  sidebar: [],
+  // Sidebar (right side, narrower) — the assistant's column. The
+  // AssistantPanel renders first (directly in the dashboard page, not
+  // config-driven); entries here render below it. Budgets earns the
+  // slot because it's the most glanceable widget and the closest to
+  // the assistant's job. Keep this list to one, maybe two items — a
+  // decision row must stay impossible to miss.
+  sidebar: [
+    {
+      id: 'budgets',
+      component: 'BudgetsCard',
+    },
+  ],
 };
