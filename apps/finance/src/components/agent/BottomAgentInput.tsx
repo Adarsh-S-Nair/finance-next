@@ -401,7 +401,7 @@ export default function BottomAgentInput() {
                       : "0 14px 32px -18px rgba(0,0,0,0.35), 0 2px 6px -3px rgba(0,0,0,0.18)",
                   }}
                   transition={{ type: "spring", stiffness: 280, damping: 26 }}
-                  className="relative flex items-center rounded-full bg-[var(--color-surface-alt)]"
+                  className="relative flex items-center rounded-lg bg-[var(--color-surface-alt)]"
                 >
                   {/* Logo with a neon aura on focus. Two layers, both
                       masked to the same logo silhouette:
@@ -481,7 +481,7 @@ export default function BottomAgentInput() {
                         transition={{ type: "spring", stiffness: 500, damping: 28 }}
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.92 }}
-                        className="absolute right-2 top-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm cursor-pointer"
+                        className="absolute right-2 top-1/2 inline-flex items-center justify-center h-8 w-8 rounded-md bg-[var(--color-fg)] text-[var(--color-bg)] shadow-sm cursor-pointer"
                       >
                         <FiArrowUp className="h-4 w-4" strokeWidth={2.5} />
                       </motion.button>

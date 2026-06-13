@@ -4,12 +4,13 @@ import Link from "next/link";
 import { FEED_ITEMS } from "../today/mockData";
 
 /**
- * The top of the dashboard's right column — the assistant's slot.
- * Number-forward like every other dashboard card: a hero stat for the
- * total annual value of the open decisions, then headline rows with
- * right-aligned per-item values, then a muted pulse of recently
- * handled work. Everything links into /today, where the evidence and
- * approve/skip live. No buttons, no body copy on the dashboard.
+ * The top of the dashboard's right column — the assistant's slot,
+ * styled as a filled card (same surface treatment as UpgradeBanner):
+ * hero stat for the total annual value of the open decisions,
+ * divider-separated headline rows with right-aligned values, and one
+ * full-width CTA into /today, where the evidence and approve/skip
+ * live. The quieter "handled" pulse sits below the card, outside the
+ * fill, so the card stays punchy and the history stays ambient.
  *
  * Items are the same hardcoded mock data as the Today feed.
  */
@@ -21,47 +22,55 @@ export default function AssistantPanel() {
 
   return (
     <div>
-      <div className="card-header mb-6">Assistant</div>
+      <div className="w-full bg-[var(--color-surface-alt)] p-5">
+        <span className="card-header">Assistant</span>
 
-      {decisions.length === 0 ? (
-        <p className="text-sm text-[var(--color-muted)]">
-          <span className="text-emerald-600 dark:text-emerald-500">✓</span>{" "}
-          All clear — nothing needs you right now.
-        </p>
-      ) : (
-        <>
-          <div className="text-3xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
-            ~${stakesRounded.toLocaleString()}
-          </div>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">
-            left on the table this year ·{" "}
-            {decisions.length} decision{decisions.length === 1 ? "" : "s"} waiting
+        {decisions.length === 0 ? (
+          <p className="mt-3 text-sm leading-relaxed text-[var(--color-muted)]">
+            All clear — nothing needs you right now. Anything worth your
+            attention will show up here.
           </p>
+        ) : (
+          <>
+            <div className="mt-3 text-3xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
+              ~${stakesRounded.toLocaleString()}
+            </div>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              left on the table this year
+            </p>
 
-          <div className="mt-6 space-y-1">
-            {decisions.map((item) => (
-              <Link
-                key={item.id}
-                href="/today"
-                className="group flex items-start gap-3 -mx-2 px-2 py-3 rounded-lg hover:bg-[var(--color-surface-alt)]/40 transition-colors"
-              >
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                <span className="flex-1 min-w-0 text-sm text-[var(--color-fg)] leading-snug line-clamp-2">
-                  {item.headline}
-                </span>
-                {item.stakes && (
-                  <span className="shrink-0 text-xs tabular-nums text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
-                    ${item.stakes.toLocaleString()}/yr
+            <div className="mt-4 divide-y divide-[var(--color-border)]">
+              {decisions.map((item) => (
+                <Link
+                  key={item.id}
+                  href="/today"
+                  className="group flex items-baseline gap-3 py-2.5"
+                >
+                  <span className="flex-1 min-w-0 text-[13px] leading-snug text-[var(--color-fg)]/85 group-hover:text-[var(--color-fg)] line-clamp-2 transition-colors">
+                    {item.headline}
                   </span>
-                )}
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
+                  {item.stakes && (
+                    <span className="shrink-0 text-[11px] tabular-nums text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors">
+                      ${item.stakes.toLocaleString()}/yr
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+
+            <Link
+              href="/today"
+              className="mt-4 inline-flex w-full h-9 items-center justify-center rounded-md text-xs font-medium bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] transition-colors"
+            >
+              Review {decisions.length}{" "}
+              {decisions.length === 1 ? "decision" : "decisions"}
+            </Link>
+          </>
+        )}
+      </div>
 
       {handled.length > 0 && (
-        <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
+        <div className="mt-8">
           <div className="text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
             Handled for you
           </div>
@@ -70,9 +79,8 @@ export default function AssistantPanel() {
               <Link
                 key={item.id}
                 href="/today"
-                className="group flex items-start gap-3"
+                className="group flex items-baseline gap-3"
               >
-                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <span className="flex-1 min-w-0 text-sm text-[var(--color-muted)] group-hover:text-[var(--color-fg)] leading-snug transition-colors">
                   {item.headline}
                 </span>
@@ -85,7 +93,7 @@ export default function AssistantPanel() {
         </div>
       )}
 
-      <div className="mt-8">
+      <div className="mt-6">
         <Link
           href="/today"
           className="text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"

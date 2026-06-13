@@ -16,13 +16,15 @@ const MAX_ROWS = 3;
 // the cap doesn't paint a budget red — the user reads $4,858 / $4,858
 // as "at the cap", not as "over". Real over (rounded dollars exceeding
 // the cap) gets rose; the 85-100% warning band stays amber; otherwise
-// the category's own brand color.
-const barColorFor = (spent, total, hex) => {
+// the neutral accent. Category brand colors stay on the icon chips —
+// a wall of differently-colored bars read as noise, and reserving
+// color for sentiment makes the warning states legible at a glance.
+const barColorFor = (spent, total) => {
   const isOver = Math.round(spent) > Math.round(total);
   if (isOver) return "var(--color-danger)";
   const pct = total > 0 ? (spent / total) * 100 : 0;
   if (pct >= 85) return "var(--color-warn)";
-  return hex || "var(--color-accent)";
+  return "var(--color-accent)";
 };
 
 function BudgetRow({ budget }) {
@@ -49,7 +51,7 @@ function BudgetRow({ budget }) {
   const spent = Number(budget.spent) || 0;
   const percentage = Number(budget.percentage) || 0;
   const widthPct = Math.min(100, percentage);
-  const barColor = barColorFor(spent, total, hex);
+  const barColor = barColorFor(spent, total);
   const pctDisplay = Math.round(percentage);
 
   return (
@@ -124,7 +126,7 @@ export default function BudgetsCard({ budgets: budgetsProp, loading: loadingProp
   const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0);
   const remaining = totalBudget - totalSpent;
   const overallPct = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-  const overallBarColor = barColorFor(totalSpent, totalBudget, null);
+  const overallBarColor = barColorFor(totalSpent, totalBudget);
 
   if (loading) {
     return (
