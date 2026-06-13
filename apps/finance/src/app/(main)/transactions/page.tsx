@@ -21,9 +21,8 @@ import { authFetch } from "../../../lib/api/fetch";
 import { PiBankFill } from "react-icons/pi";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
-import { Button, Drawer, SegmentedTabs } from "@zervo/ui";
+import { Button, Drawer } from "@zervo/ui";
 
-import RecurringView from "../../../components/recurring/RecurringView";
 import SearchInput from "../../../components/ui/SearchInput";
 import TransactionDetails from "../../../components/transactions/TransactionDetails";
 import SimilarTransactionsFound from "../../../components/transactions/SimilarTransactionsFound";
@@ -35,26 +34,6 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
-
-// Activity | Bills switch. Bills is the recurring-streams view — it lives
-// inside the transactions surface (owner verdict: not worth its own page),
-// deep-linkable as /transactions?view=bills so the dashboard widget can
-// land directly on it.
-function ViewTabs({ value, onChange }) {
-  return (
-    <div className="mb-4">
-      <SegmentedTabs
-        size="sm"
-        value={value}
-        onChange={onChange}
-        options={[
-          { label: 'Activity', value: 'activity' },
-          { label: 'Bills', value: 'bills' },
-        ]}
-      />
-    </div>
-  );
-}
 
 // TransactionSkeleton component for loading state
 function TransactionSkeleton() {
@@ -198,6 +177,7 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
         placeholder="Search transactions"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
+        onClear={() => setSearchQuery("")}
       />
       <div className="ml-auto flex items-center gap-1">
         {refreshButton}
@@ -1001,7 +981,7 @@ const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
   );
 };
 
-function TransactionsContent({ onViewChange }) {
+function TransactionsContent() {
   const { user, profile } = useUser();
   const { allAccounts, accounts: institutions } = useAccounts();
   const router = useRouter();
@@ -2148,7 +2128,6 @@ function TransactionsContent({ onViewChange }) {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
-        <ViewTabs value="activity" onChange={onViewChange} />
         <TransactionSkeleton />
 
         {/* Filters Drawer */}
@@ -2178,7 +2157,6 @@ function TransactionsContent({ onViewChange }) {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
-        <ViewTabs value="activity" onChange={onViewChange} />
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] rounded-full flex items-center justify-center mb-4">
             <LuReceipt className="h-8 w-8 text-[var(--color-danger)]" />
@@ -2253,7 +2231,6 @@ function TransactionsContent({ onViewChange }) {
         onOpenFilters={() => setIsFiltersOpen(true)}
         activeFilterCount={getActiveFilterCount()}
       />
-      <ViewTabs value="activity" onChange={onViewChange} />
       <div className="space-y-0 relative" ref={containerRef}>
         {/* Top sentinel — just a marker for the IntersectionObserver that
             triggers loadPrev. Zero height / absolutely positioned so it
@@ -2269,39 +2246,54 @@ function TransactionsContent({ onViewChange }) {
           </div>
         )}
 
-        {/* Show empty state if no transactions */}
+        {/* Empty state — minimal, matching the app's quiet empty-state
+            idiom (small icon, one bold line, one muted line, text-link
+            actions). Three flavors: no results for a search, no matches
+            for active filters, or genuinely no data yet. */}
         {filteredTransactions.length === 0 && !isSearchLoading ? (
-          <div className="text-center py-12">
-            <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-fg),transparent_90%)] rounded-full flex items-center justify-center mb-4">
-              {debouncedSearchQuery || getActiveFilterCount() > 0 ? (
-                <FiSearch className="h-8 w-8 text-[var(--color-muted)]" />
-              ) : (
-                <LuReceipt className="h-8 w-8 text-[var(--color-muted)]" />
-              )}
-            </div>
-            <h3 className="text-lg font-medium text-[var(--color-fg)] mb-2">
-              {debouncedSearchQuery || getActiveFilterCount() > 0 ? 'No transactions found' : 'No transactions found'}
-            </h3>
-            <p className="text-[var(--color-muted)] mb-4">
-              {debouncedSearchQuery
-                ? `No transactions match "${debouncedSearchQuery}". Try a different search term.`
-                : getActiveFilterCount() > 0
-                  ? 'No transactions match your current filters. Try adjusting or clearing them.'
-                  : 'Connect your bank accounts to see your financial activity'}
-            </p>
-            {(debouncedSearchQuery || getActiveFilterCount() > 0) && (
-              <div className="flex gap-2 justify-center">
-                {debouncedSearchQuery && (
-                  <Button onClick={() => { setSearchQuery(""); setDebouncedSearchQuery(""); }} variant="outline">
-                    Clear Search
-                  </Button>
-                )}
-                {getActiveFilterCount() > 0 && (
-                  <Button onClick={handleClearAllFilters} variant="outline">
-                    Clear Filters
-                  </Button>
-                )}
-              </div>
+          <div className="py-20 text-center">
+            {debouncedSearchQuery || getActiveFilterCount() > 0 ? (
+              <>
+                <FiSearch className="mx-auto h-5 w-5 text-[var(--color-muted)]" />
+                <p className="mt-3 text-sm font-medium text-[var(--color-fg)]">
+                  {debouncedSearchQuery
+                    ? <>No results for &ldquo;{debouncedSearchQuery}&rdquo;</>
+                    : 'No matching transactions'}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {debouncedSearchQuery && getActiveFilterCount() > 0
+                    ? 'Try a different search, or loosen the active filters.'
+                    : debouncedSearchQuery
+                      ? 'Check the spelling or try fewer words.'
+                      : 'Try adjusting or clearing your filters.'}
+                </p>
+                <div className="mt-4 flex items-center justify-center gap-5">
+                  {debouncedSearchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(""); setDebouncedSearchQuery(""); }}
+                      className="text-sm font-medium text-[var(--color-accent)] hover:opacity-80 transition-opacity"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                  {getActiveFilterCount() > 0 && (
+                    <button
+                      onClick={handleClearAllFilters}
+                      className="text-sm font-medium text-[var(--color-accent)] hover:opacity-80 transition-opacity"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <LuReceipt className="mx-auto h-5 w-5 text-[var(--color-muted)]" />
+                <p className="mt-3 text-sm font-medium text-[var(--color-fg)]">No transactions yet</p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  Connect your bank accounts to see your financial activity.
+                </p>
+              </>
             )}
           </div>
         ) : (
@@ -2462,57 +2454,10 @@ function TransactionsContent({ onViewChange }) {
   );
 }
 
-// Routes between the two views on the transactions surface. Bills renders
-// the recurring-streams view; everything else is the classic activity list.
-//
-// The switch is plain client state with the URL synced via
-// history.replaceState — a router navigation here would remount the whole
-// page through the Suspense boundary on every toggle (skeleton flash, lost
-// list state). Deep links and back/forward still work: external URL changes
-// flow back into state through the effect below.
-function TransactionsRouter() {
-  const searchParams = useSearchParams();
-  const urlView = searchParams.get('view') === 'bills' ? 'bills' : 'activity';
-  const [view, setView] = useState(urlView);
-
-  useEffect(() => {
-    setView(urlView);
-  }, [urlView]);
-
-  const changeView = (v) => {
-    setView(v);
-    window.history.replaceState(null, '', v === 'bills' ? '/transactions?view=bills' : '/transactions');
-  };
-
-  const fade = {
-    initial: { opacity: 0, y: 6 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -6 },
-    transition: { duration: 0.15, ease: 'easeOut' },
-  };
-
-  return (
-    <AnimatePresence mode="wait" initial={false}>
-      {view === 'bills' ? (
-        <motion.div key="bills" {...fade}>
-          <PageContainer padding="pt-2 pb-10" showHeader={false}>
-            <ViewTabs value="bills" onChange={changeView} />
-            <RecurringView />
-          </PageContainer>
-        </motion.div>
-      ) : (
-        <motion.div key="activity" {...fade}>
-          <TransactionsContent onViewChange={changeView} />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 export default function TransactionsPage() {
   return (
     <Suspense fallback={<TransactionSkeleton />}>
-      <TransactionsRouter />
+      <TransactionsContent />
     </Suspense>
   );
 }

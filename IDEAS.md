@@ -19,10 +19,11 @@ Distilled from verdicts. Hard rules for future pitches.
 - Merchant logos: anywhere transactions/merchants render, use the
   TransactionRow icon pattern (plain img + DynamicIcon category fallback).
   Do not use next/image for merchant icon_url (remote hosts unconfigured).
-- Don't add top-level nav pages for thin views. Bills lives as a tab on
-  the transactions surface (/transactions?view=bills); owner: "feels like
-  a waste to dedicate an entire page just to subscriptions/bills." Prefer
-  folding new views into existing surfaces; widgets deep-link, not drawer.
+- Bills is its own page at /recurring (verdict reversed 2026-06-13: the
+  Activity|Bills tab inside Transactions was tried and the owner called
+  it "really bad" — reverted same night). Lesson: don't merge two
+  unrelated mental models into one surface to save a nav slot; a tab
+  switch that swaps the entire page content is worse than a thin page.
 
 ## Candidate backlog
 
