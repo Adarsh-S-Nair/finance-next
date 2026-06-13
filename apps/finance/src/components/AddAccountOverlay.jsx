@@ -14,6 +14,9 @@ import {
   FiCreditCard,
   FiTrendingUp,
   FiLock,
+  FiDollarSign,
+  FiArchive,
+  FiHome,
 } from "react-icons/fi";
 import { Button } from "@zervo/ui";
 import UpgradeOverlay from "./UpgradeOverlay";
@@ -122,6 +125,9 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
   };
 
   const handleSelectIntent = (intent) => {
+    // Investments isn't in the free tier's Plaid product bundle, so the
+    // link-token API would reject this with tier_required anyway — short-circuit
+    // here so the user sees the upgrade overlay instead of a flash of spinner.
     if (intent === "investments" && !isPro) {
       onClose();
       setShowUpgrade(true);
@@ -417,10 +423,31 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
 function IntentStep({ isPro, onSelect, onBack }) {
   const options = [
     {
-      key: "banking",
+      key: "checking",
+      icon: FiDollarSign,
+      title: "Checking",
+      subtitle: "Everyday spending",
+      locked: false,
+    },
+    {
+      key: "savings",
+      icon: FiArchive,
+      title: "Savings",
+      subtitle: "Money market, CDs, high-yield",
+      locked: false,
+    },
+    {
+      key: "credit",
       icon: FiCreditCard,
-      title: "Bank account",
-      subtitle: "Checking, savings, credit card",
+      title: "Credit card",
+      subtitle: "Track APR and due dates",
+      locked: false,
+    },
+    {
+      key: "loan",
+      icon: FiHome,
+      title: "Loan",
+      subtitle: "Mortgage, student, auto",
       locked: false,
     },
     {

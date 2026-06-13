@@ -4,14 +4,19 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
 
+type Intent = 'checking' | 'savings' | 'credit' | 'loan' | 'investments';
+
 interface RequestBody {
   plaidItemId?: string | null;
   additionalProducts?: string[] | null;
-  intent?: 'banking' | 'investments' | null;
+  intent?: Intent | null;
 }
 
-const INTENT_PRODUCTS: Record<'banking' | 'investments', string[]> = {
-  banking: ['transactions', 'liabilities'],
+const INTENT_PRODUCTS: Record<Intent, string[]> = {
+  checking: ['transactions'],
+  savings: ['transactions'],
+  credit: ['transactions', 'liabilities'],
+  loan: ['liabilities'],
   investments: ['investments'],
 };
 
