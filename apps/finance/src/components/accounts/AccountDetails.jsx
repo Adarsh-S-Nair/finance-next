@@ -329,6 +329,7 @@ export default function AccountDetails({ account, institution, onViewTransaction
             <AccountLiabilitySection
               accountId={account.id}
               currency={currency}
+              institutionName={institution?.name || account.bank}
             />
           )}
 

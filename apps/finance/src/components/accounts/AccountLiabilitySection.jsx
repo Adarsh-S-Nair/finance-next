@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase/client";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
 
+// Returns null (not "—") for missing values so Row/Section can hide cleanly.
 const formatCurrency = (amount, currency = "USD") =>
   amount == null
-    ? "—"
+    ? null
     : formatCurrencyBase(Number(amount), true, currency || "USD");
 
 const formatDate = (value) => {
@@ -47,10 +48,15 @@ function Row({ label, value, sublabel }) {
 }
 
 function Section({ title, children }) {
-  // Only render the section if at least one child slot is non-null.
-  const hasContent = Array.isArray(children)
-    ? children.some(Boolean)
-    : Boolean(children);
+  // Children are <Row> ELEMENTS (always truthy), so checking the elements
+  // themselves would always pass. Inspect each Row's `value` prop instead —
+  // a Row renders nothing when its value is missing, so a section whose rows
+  // are all empty should not render its header either.
+  const childArray = Array.isArray(children) ? children : [children];
+  const hasContent = childArray.some((child) => {
+    const v = child?.props?.value;
+    return v != null && v !== "" && v !== false;
+  });
   if (!hasContent) return null;
   return (
     <div>
@@ -228,13 +234,45 @@ function StudentDetails({ liability, currency }) {
   );
 }
 
+// Whether a liability row carries any displayable detail. Some institutions
+// (e.g. Robinhood's card) are returned by Plaid's liabilities product but with
+// every field null — there's simply nothing to show, so we render a clear note
+// instead of a grid of blanks.
+function liabilityHasDetail(l) {
+  const scalarFields = [
+    l.last_payment_amount,
+    l.last_payment_date,
+    l.last_statement_balance,
+    l.last_statement_issue_date,
+    l.minimum_payment_amount,
+    l.next_payment_due_date,
+    l.interest_rate,
+    l.origination_date,
+    l.origination_principal_amount,
+    l.expected_payoff_date,
+    l.ytd_interest_paid,
+    l.ytd_principal_paid,
+  ];
+  if (scalarFields.some((v) => v != null)) return true;
+
+  const d = l.details || {};
+  if (Array.isArray(d.aprs) && d.aprs.length > 0) return true;
+  if (d.escrow_balance != null || d.has_pmi != null || d.loan_term || d.loan_type_description)
+    return true;
+  if (d.loan_name || d.repayment_plan?.type || d.outstanding_interest_amount != null)
+    return true;
+  if (d.pslf_status?.payments_made != null || d.pslf_status?.payments_remaining != null)
+    return true;
+  return false;
+}
+
 /**
  * Renders the type-specific liability detail section inside AccountDetails.
  * Fetches the liability row directly via the user-RLS'd supabase client; if
  * the row is missing (account isn't a liability, or sync hasn't run yet)
  * the component renders nothing.
  */
-export default function AccountLiabilitySection({ accountId, currency = "USD" }) {
+export default function AccountLiabilitySection({ accountId, currency = "USD", institutionName }) {
   const [liability, setLiability] = useState(undefined);
 
   useEffect(() => {
@@ -264,6 +302,20 @@ export default function AccountLiabilitySection({ accountId, currency = "USD" })
   }, [accountId]);
 
   if (!liability) return null;
+
+  // Row exists but the institution reported no usable detail — explain rather
+  // than show a grid of blanks.
+  if (!liabilityHasDetail(liability)) {
+    return (
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-alt)]/40 p-4">
+        <div className="text-sm font-medium text-[var(--color-fg)]">No card details available</div>
+        <p className="mt-1 text-xs text-[var(--color-muted)]">
+          {institutionName || "This institution"} doesn&apos;t report statement, APR,
+          or payment details through Plaid for this account.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
