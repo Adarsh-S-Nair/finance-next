@@ -42,10 +42,19 @@ export interface RecurringStreamInput {
   last_date: string | null;
 }
 
+/** Minimal shape of a depository account a detector reads. */
+export interface AccountInput {
+  id: string;
+  name: string;
+  subtype: string | null;
+  balance: number;
+}
+
 /** Everything the registered detectors are given for one user. Grows as
- *  detectors need more data (accounts, budgets, transactions…). */
+ *  detectors need more data (budgets, transactions…). */
 export interface DetectorContext {
   streams: RecurringStreamInput[];
+  accounts: AccountInput[];
 }
 
 export type Detector = (ctx: DetectorContext) => FindingDraft[];

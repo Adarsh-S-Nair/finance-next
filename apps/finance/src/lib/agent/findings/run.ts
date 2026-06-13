@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
 import { DETECTORS } from "./registry";
-import type { DetectorContext, FindingDraft, RecurringStreamInput } from "./types";
+import type {
+  AccountInput,
+  DetectorContext,
+  FindingDraft,
+  RecurringStreamInput,
+} from "./types";
 
 /**
  * Run every registered detector for one user and upsert the results.
@@ -44,7 +49,22 @@ export async function runFindingsForUser(
     last_date: r.last_date,
   }));
 
-  const ctx: DetectorContext = { streams };
+  const { data: accountRows, error: accountsError } = await admin
+    .from("accounts")
+    .select("id, name, subtype, plaid_balance_current")
+    .eq("user_id", userId)
+    .eq("type", "depository");
+
+  if (accountsError) throw accountsError;
+
+  const accounts: AccountInput[] = (accountRows ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    subtype: r.subtype,
+    balance: Number(r.plaid_balance_current ?? 0),
+  }));
+
+  const ctx: DetectorContext = { streams, accounts };
   const drafts: FindingDraft[] = [];
   for (const detector of DETECTORS) drafts.push(...detector(ctx));
 

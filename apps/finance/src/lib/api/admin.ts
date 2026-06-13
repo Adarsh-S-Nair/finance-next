@@ -37,3 +37,26 @@ export async function isCallerAdmin(callerUserId: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Resolve the ADMIN_EMAILS allowlist to user ids. Used by admin-gated
+ * background jobs (e.g. the findings sweep) that need to run per-user
+ * for admins only. Admins are few, so a single listUsers page suffices.
+ */
+export async function getAdminUserIds(): Promise<string[]> {
+  const allow = getAdminAllowlist();
+  if (allow.size === 0) return [];
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (error || !data?.users) return [];
+    return data.users
+      .filter((u) => u.email && allow.has(u.email.toLowerCase()))
+      .map((u) => u.id);
+  } catch (e) {
+    console.error("[getAdminUserIds] failed to list users:", e);
+    return [];
+  }
+}

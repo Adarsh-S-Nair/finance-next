@@ -11,12 +11,12 @@
       "schedule": "30 14 * * *"
     },
     {
-      "path": "/api/cron/prune-crypto-candles",
-      "schedule": "0 2 * * *"
-    },
-    {
       "path": "/api/cron/downgrade-lapsed-pro",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/agent-findings",
+      "schedule": "0 8 * * *"
     }
   ]
 }
