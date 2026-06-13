@@ -40,16 +40,13 @@ const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 // inside the transactions surface (owner verdict: not worth its own page),
 // deep-linkable as /transactions?view=bills so the dashboard widget can
 // land directly on it.
-function ViewTabs({ value }) {
-  const router = useRouter();
+function ViewTabs({ value, onChange }) {
   return (
     <div className="mb-4">
       <SegmentedTabs
         size="sm"
         value={value}
-        onChange={(v) =>
-          router.replace(v === 'bills' ? '/transactions?view=bills' : '/transactions', { scroll: false })
-        }
+        onChange={onChange}
         options={[
           { label: 'Activity', value: 'activity' },
           { label: 'Bills', value: 'bills' },
@@ -1004,7 +1001,7 @@ const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
   );
 };
 
-function TransactionsContent() {
+function TransactionsContent({ onViewChange }) {
   const { user, profile } = useUser();
   const { allAccounts, accounts: institutions } = useAccounts();
   const router = useRouter();
@@ -2151,7 +2148,7 @@ function TransactionsContent() {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
-        <ViewTabs value="activity" />
+        <ViewTabs value="activity" onChange={onViewChange} />
         <TransactionSkeleton />
 
         {/* Filters Drawer */}
@@ -2181,7 +2178,7 @@ function TransactionsContent() {
           onOpenFilters={() => setIsFiltersOpen(true)}
           activeFilterCount={getActiveFilterCount()}
         />
-        <ViewTabs value="activity" />
+        <ViewTabs value="activity" onChange={onViewChange} />
         <div className="text-center py-12">
           <div className="mx-auto w-16 h-16 bg-[color-mix(in_oklab,var(--color-danger),transparent_90%)] rounded-full flex items-center justify-center mb-4">
             <LuReceipt className="h-8 w-8 text-[var(--color-danger)]" />
@@ -2256,7 +2253,7 @@ function TransactionsContent() {
         onOpenFilters={() => setIsFiltersOpen(true)}
         activeFilterCount={getActiveFilterCount()}
       />
-      <ViewTabs value="activity" />
+      <ViewTabs value="activity" onChange={onViewChange} />
       <div className="space-y-0 relative" ref={containerRef}>
         {/* Top sentinel — just a marker for the IntersectionObserver that
             triggers loadPrev. Zero height / absolutely positioned so it
@@ -2467,17 +2464,49 @@ function TransactionsContent() {
 
 // Routes between the two views on the transactions surface. Bills renders
 // the recurring-streams view; everything else is the classic activity list.
+//
+// The switch is plain client state with the URL synced via
+// history.replaceState — a router navigation here would remount the whole
+// page through the Suspense boundary on every toggle (skeleton flash, lost
+// list state). Deep links and back/forward still work: external URL changes
+// flow back into state through the effect below.
 function TransactionsRouter() {
   const searchParams = useSearchParams();
-  if (searchParams.get('view') === 'bills') {
-    return (
-      <PageContainer padding="pt-2 pb-10" showHeader={false}>
-        <ViewTabs value="bills" />
-        <RecurringView />
-      </PageContainer>
-    );
-  }
-  return <TransactionsContent />;
+  const urlView = searchParams.get('view') === 'bills' ? 'bills' : 'activity';
+  const [view, setView] = useState(urlView);
+
+  useEffect(() => {
+    setView(urlView);
+  }, [urlView]);
+
+  const changeView = (v) => {
+    setView(v);
+    window.history.replaceState(null, '', v === 'bills' ? '/transactions?view=bills' : '/transactions');
+  };
+
+  const fade = {
+    initial: { opacity: 0, y: 6 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -6 },
+    transition: { duration: 0.15, ease: 'easeOut' },
+  };
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {view === 'bills' ? (
+        <motion.div key="bills" {...fade}>
+          <PageContainer padding="pt-2 pb-10" showHeader={false}>
+            <ViewTabs value="bills" onChange={changeView} />
+            <RecurringView />
+          </PageContainer>
+        </motion.div>
+      ) : (
+        <motion.div key="activity" {...fade}>
+          <TransactionsContent onViewChange={changeView} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 export default function TransactionsPage() {
