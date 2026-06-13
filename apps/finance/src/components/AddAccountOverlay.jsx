@@ -14,8 +14,6 @@ import {
   FiCreditCard,
   FiTrendingUp,
   FiLock,
-  FiDollarSign,
-  FiArchive,
   FiHome,
 } from "react-icons/fi";
 import { Button } from "@zervo/ui";
@@ -361,7 +359,7 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
         {institutions.length > 0 && (
           <div>
             <SectionLabel className="mb-2">Your connections</SectionLabel>
-            <div className="divide-y divide-[var(--color-border)]">
+            <div>
               {institutions.map((inst, i) => (
                 <InstitutionRow
                   key={inst.id}
@@ -383,8 +381,8 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
               index={institutions.length}
               onClick={onSelectNew}
               avatar={
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] flex-shrink-0">
-                  <FiPlus className="h-4 w-4 text-[var(--color-muted)]" />
+                <div className="flex h-9 w-9 items-center justify-center flex-shrink-0">
+                  <FiPlus className="h-5 w-5 text-[var(--color-muted)]" />
                 </div>
               }
               title="Link an institution"
@@ -405,15 +403,14 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 + index * 0.04 }}
-      whileHover={{ x: 2 }}
-      className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer"
+      className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 rounded-xl text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
     >
       {avatar}
       <div className="flex-1 min-w-0">
         <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">{title}</div>
         <div className="text-xs text-[var(--color-muted)] mt-0.5">{subtitle}</div>
       </div>
-      <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
+      <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
     </motion.button>
   );
 }
@@ -423,31 +420,17 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
 function IntentStep({ isPro, onSelect, onBack }) {
   const options = [
     {
-      key: "checking",
-      icon: FiDollarSign,
-      title: "Checking",
-      subtitle: "Everyday spending",
-      locked: false,
-    },
-    {
-      key: "savings",
-      icon: FiArchive,
-      title: "Savings",
-      subtitle: "Money market, CDs, high-yield",
-      locked: false,
-    },
-    {
-      key: "credit",
+      key: "bank",
       icon: FiCreditCard,
-      title: "Credit card",
-      subtitle: "Track APR and due dates",
+      title: "Bank account",
+      subtitle: "Checking, savings, or credit card",
       locked: false,
     },
     {
       key: "loan",
       icon: FiHome,
       title: "Loan",
-      subtitle: "Mortgage, student, auto",
+      subtitle: "Mortgage, student, or auto",
       locked: false,
     },
     {
@@ -490,7 +473,7 @@ function IntentStep({ isPro, onSelect, onBack }) {
         We&apos;ll only show institutions that support this account type.
       </motion.p>
 
-      <div className="mt-10 divide-y divide-[var(--color-border)]">
+      <div className="mt-8">
         {options.map((opt, i) => {
           const Icon = opt.icon;
           return (
@@ -500,13 +483,10 @@ function IntentStep({ isPro, onSelect, onBack }) {
               onClick={() => onSelect(opt.key)}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 + i * 0.06 }}
-              whileHover={{ x: 2 }}
-              className="group flex w-full items-center gap-4 py-4 text-left cursor-pointer"
+              transition={{ delay: 0.12 + i * 0.05 }}
+              className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 rounded-xl text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-surface-alt)] flex-shrink-0">
-                <Icon className="h-4 w-4 text-[var(--color-muted)]" />
-              </div>
+              <Icon className="h-5 w-5 text-[var(--color-muted)] flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="text-[15px] font-medium text-[var(--color-fg)] truncate">
@@ -520,7 +500,7 @@ function IntentStep({ isPro, onSelect, onBack }) {
                   {opt.locked ? "Requires Pro" : opt.subtitle}
                 </div>
               </div>
-              <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] group-hover:text-[var(--color-fg)] transition-colors flex-shrink-0" />
+              <FiChevronRight className="h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
             </motion.button>
           );
         })}

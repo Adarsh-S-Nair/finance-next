@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { getLimit, getPlaidProducts } from '../../../../lib/tierConfig';
 
-type Intent = 'checking' | 'savings' | 'credit' | 'loan' | 'investments';
+type Intent = 'bank' | 'loan' | 'investments';
 
 interface RequestBody {
   plaidItemId?: string | null;
@@ -12,10 +12,14 @@ interface RequestBody {
   intent?: Intent | null;
 }
 
+// "bank" covers checking, savings, AND credit cards — all of which Plaid
+// surfaces through the transactions product. Requesting only transactions keeps
+// institution coverage as wide as possible (no-investments banks like Ally
+// still show up); credit-card liabilities detail (APR/due date) can be added
+// later via update-mode additional_consented_products. Loans are liabilities-
+// only (no transactions). Investments is its own product.
 const INTENT_PRODUCTS: Record<Intent, string[]> = {
-  checking: ['transactions'],
-  savings: ['transactions'],
-  credit: ['transactions', 'liabilities'],
+  bank: ['transactions'],
   loan: ['liabilities'],
   investments: ['investments'],
 };
