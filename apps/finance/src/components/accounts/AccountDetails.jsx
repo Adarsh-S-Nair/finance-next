@@ -1,10 +1,16 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { PiBankFill } from "react-icons/pi";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePlaidLink } from "react-plaid-link";
 import clsx from "clsx";
 import { Button } from "@zervo/ui";
 import { formatAccountSubtype } from "../../lib/accountSubtype";
 import { isLiabilityAccount } from "../../lib/accountUtils";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import { useAccounts } from "../providers/AccountsProvider";
+import { authFetch } from "../../lib/api/fetch";
 import AccountLiabilitySection from "./AccountLiabilitySection";
 
 const formatCurrency = (amount, currency = "USD") =>
@@ -77,6 +83,106 @@ function CreditUtilization({ balance, limit, available, currency }) {
   );
 }
 
+/**
+ * Inline "complete this connection" action for a liability account whose
+ * Plaid item was linked without the liabilities product. Launches Plaid Link
+ * in update mode DIRECTLY (no intermediate modal) to add liabilities consent,
+ * then exchanges + refreshes. The existing sync chain pulls APR / statement /
+ * due-date data, which renders in AccountLiabilitySection once it lands.
+ */
+function CompleteConnectionPrompt({ plaidItemId, noun }) {
+  const { refreshAccounts } = useAccounts();
+  const [linkToken, setLinkToken] = useState(null);
+  // idle | preparing | exchanging | done | error
+  const [phase, setPhase] = useState("idle");
+  const [error, setError] = useState(null);
+  const openedRef = useRef(false);
+
+  const exchange = async (publicToken) => {
+    try {
+      setPhase("exchanging");
+      const res = await authFetch("/api/plaid/exchange-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicToken, existingPlaidItemId: plaidItemId }),
+      });
+      if (!res.ok) throw new Error("Couldn't finalize the connection");
+      await refreshAccounts();
+      setPhase("done");
+    } catch (e) {
+      setError(e.message || "Something went wrong");
+      setPhase("error");
+    }
+  };
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: (publicToken) => exchange(publicToken),
+    onExit: (err) => {
+      openedRef.current = false;
+      setLinkToken(null);
+      if (err) {
+        setError(err.display_message || err.error_message || "Connection cancelled");
+        setPhase("error");
+      } else {
+        setPhase("idle");
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (linkToken && ready && phase === "preparing" && !openedRef.current) {
+      openedRef.current = true;
+      open();
+    }
+  }, [linkToken, ready, phase, open]);
+
+  const start = async () => {
+    setError(null);
+    setPhase("preparing");
+    openedRef.current = false;
+    try {
+      const res = await authFetch("/api/plaid/link-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plaidItemId, additionalProducts: ["liabilities"] }),
+      });
+      if (!res.ok) throw new Error("Couldn't start the connection");
+      const data = await res.json();
+      setLinkToken(data.link_token);
+    } catch (e) {
+      setError(e.message || "Couldn't start the connection");
+      setPhase("error");
+    }
+  };
+
+  if (phase === "done") {
+    return (
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-alt)]/40 p-4">
+        <div className="text-sm font-medium text-[var(--color-fg)]">Details are syncing</div>
+        <p className="mt-1 text-xs text-[var(--color-muted)]">
+          APR, statement balance, and due dates will appear here shortly.
+        </p>
+      </div>
+    );
+  }
+
+  const busy = phase === "preparing" || phase === "exchanging";
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-alt)]/40 p-4">
+      <div className="text-sm font-medium text-[var(--color-fg)]">Complete this connection</div>
+      <p className="mt-1 text-xs text-[var(--color-muted)]">
+        Add {noun} details — APR, statement balance, and due dates.
+      </p>
+      {error && <p className="mt-2 text-xs text-[var(--color-danger)]">{error}</p>}
+      <Button size="sm" className="mt-3" loading={busy} onClick={start}>
+        {phase === "error" ? "Try again" : "Complete setup"}
+      </Button>
+    </div>
+  );
+}
+
 export default function AccountDetails({ account, institution, onViewTransactions }) {
   if (!account) return null;
 
@@ -85,6 +191,13 @@ export default function AccountDetails({ account, institution, onViewTransaction
   const isCredit = isCreditAccount(account.type);
   const currency = account.isoCurrencyCode || "USD";
   const addedOn = formatDate(account.createdAt);
+
+  // Liability account whose Plaid item lacks the liabilities product — offer
+  // to complete the connection so its card/loan metadata starts syncing.
+  const needsLiabilities =
+    isLiability &&
+    !!account.plaidItemId &&
+    !(account.products || []).includes("liabilities");
 
   const hasCreditVisual = isCredit && account.limit != null && account.limit > 0;
   const showAvailableRow =
@@ -200,6 +313,15 @@ export default function AccountDetails({ account, institution, onViewTransaction
             </div>
           )}
 
+          {/* Complete-connection prompt for liability accounts missing the
+              liabilities product (e.g. linked before we supported it). */}
+          {needsLiabilities && (
+            <CompleteConnectionPrompt
+              plaidItemId={account.plaidItemId}
+              noun={isCredit ? "card" : "loan"}
+            />
+          )}
+
           {/* Liabilities-product detail — APR, statement, payment due, etc.
               Only renders for liability accounts and only if a row exists
               in the liabilities table (sync may not have run yet). */}
@@ -210,12 +332,10 @@ export default function AccountDetails({ account, institution, onViewTransaction
             />
           )}
 
-          {/* Actions — primary CTA in the same pill shape as the
-              transaction-details Split/Request button so the two
-              drawers feel like the same family. */}
+          {/* Actions */}
           {onViewTransactions && (
             <div className="pt-2">
-              <Button variant="primary" size="md" fullWidth onClick={onViewTransactions}>
+              <Button variant="primary" size="sm" onClick={onViewTransactions}>
                 View all transactions
               </Button>
             </div>
