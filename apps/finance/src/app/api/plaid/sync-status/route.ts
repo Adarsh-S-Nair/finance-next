@@ -23,7 +23,7 @@ import { withAuth } from '../../../../lib/api/withAuth';
 export const GET = withAuth('sync-status', async (_request, userId) => {
   const { data: items, error } = await supabaseAdmin
     .from('plaid_items')
-    .select('id, sync_status, last_transaction_sync, last_balance_sync, last_error')
+    .select('id, sync_status, last_transaction_sync, last_balance_sync, last_error, products')
     .eq('user_id', userId);
 
   if (error) {
@@ -34,10 +34,19 @@ export const GET = withAuth('sync-status', async (_request, userId) => {
   const rows = items ?? [];
 
   const enriched = rows.map((it) => {
+    const products = Array.isArray(it.products) ? it.products : [];
+    // Only transaction-bearing items run the transaction/balance syncs that set
+    // these timestamps. Investments-only or liabilities-only items (e.g. a
+    // brokerage or a standalone loan) never set them, so requiring them would
+    // leave such items "not ready" forever — a perpetual Syncing pill that hides
+    // the balance, and a FTUX splash that never advances. Their balances are
+    // populated at link time, so treat them as ready once they're not syncing.
+    const needsTransactionSync = products.includes('transactions');
     const hasCompletedOnce =
       it.last_transaction_sync !== null ||
       it.last_balance_sync !== null ||
-      it.sync_status === 'error';
+      it.sync_status === 'error' ||
+      !needsTransactionSync;
     const isSyncing = it.sync_status === 'syncing';
     const ready = hasCompletedOnce && !isSyncing;
     return { ...it, ready };

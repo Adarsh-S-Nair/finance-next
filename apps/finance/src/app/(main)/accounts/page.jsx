@@ -31,24 +31,6 @@ const capitalizeWords = (str) => {
     .join(' ');
 };
 
-// Small inline pill shown on accounts whose backing plaid_item is
-// still syncing (typical window: 30–60s after initial FTUX connection,
-// or a few seconds on subsequent webhook-triggered syncs). Using a
-// breathing dot instead of a spinner keeps it from competing with the
-// page's primary visual rhythm.
-const SyncingPill = () => (
-  <span
-    className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-alt)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-muted)]"
-    title="Still fetching data from your bank — usually done within a minute."
-  >
-    <span className="relative flex h-1.5 w-1.5">
-      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-fg)] opacity-40" />
-      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-fg)] opacity-70" />
-    </span>
-    Syncing
-  </span>
-);
-
 // Component for rendering account rows within the unified list
 const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needsLiabilities = false }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
@@ -89,10 +71,7 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
 
         {/* Account Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{account.name}</div>
-            {isSyncing && <SyncingPill />}
-          </div>
+          <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{account.name}</div>
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
             {account.type && (
               <span className="truncate max-w-[180px]">{formatAccountSubtype(account.type)}</span>
@@ -105,15 +84,18 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
         </div>
       </div>
 
-      {/* Balance */}
-      <div className="text-right ml-4">
-        <div className="font-medium text-[var(--color-muted)] tabular-nums text-sm">
-          {isSyncing ? (
-            <span className="text-[var(--color-muted)]/60">…</span>
-          ) : (
-            formatCurrency(account.balance)
-          )}
-        </div>
+      {/* Balance — or a small spinner while the item's first sync runs */}
+      <div className="ml-4 flex items-center justify-end">
+        {isSyncing ? (
+          <div
+            className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-fg)]"
+            title="Still syncing data from your bank — usually done within a minute."
+          />
+        ) : (
+          <div className="text-right font-medium text-[var(--color-muted)] tabular-nums text-sm">
+            {formatCurrency(account.balance)}
+          </div>
+        )}
       </div>
     </div>
   );
