@@ -6,10 +6,6 @@ interface PageConfig {
 }
 
 export const SITE_PAGES: Record<string, PageConfig> = {
-  '/today': {
-    title: 'Activity',
-    header: null, // Renders its own header (assistant activity trail)
-  },
   '/dashboard': {
     title: 'Dashboard', // Used for document title (tab)
     header: null, // Dashboard has dynamic header, handled by page component

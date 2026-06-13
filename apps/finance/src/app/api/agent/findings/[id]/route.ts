@@ -5,27 +5,6 @@ const ALLOWED_STATUSES = ["new", "seen", "acted", "dismissed"] as const;
 type Status = (typeof ALLOWED_STATUSES)[number];
 
 /**
- * GET /api/agent/findings/:id — one finding (with evidence/reasoning),
- * scoped to the caller. Backs the finding detail / "how we got here" view.
- */
-export const GET = withAuth<{ id: string }>(
-  "agent:findings:get",
-  async (_request, userId, { params }) => {
-    const { id } = await params;
-    const { data, error } = await supabaseAdmin
-      .from("agent_findings")
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return Response.json({ error: "not found" }, { status: 404 });
-    return Response.json({ finding: data });
-  },
-);
-
-/**
  * PATCH /api/agent/findings/:id
  *
  * Update a finding's status (seen / acted / dismissed). Scoped to the

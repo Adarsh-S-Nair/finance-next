@@ -87,7 +87,6 @@ export function detectIdleCash(
         ],
       },
       valueAnnual: annual,
-      suggestedAction: { label: "Move to savings" },
       subjectId: a.id,
       dedupeKey: `idle_cash:${a.id}`,
     });

@@ -92,7 +92,6 @@ export function detectSubscriptionPriceIncreases(
         ],
       },
       valueAnnual: annual,
-      suggestedAction: { label: "Review subscription" },
       subjectId: s.stream_id,
       dedupeKey: `subscription_price_increase:${s.stream_id}`,
     });

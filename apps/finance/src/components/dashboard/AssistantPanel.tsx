@@ -1,24 +1,23 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../providers/UserProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
+import FindingOverlay, { type OverlayFinding } from "./FindingOverlay";
 
 /**
- * The dashboard's assistant card. Each finding is a clean two-line row:
- * the headline (which leads with the dollar amount that matters) and a
- * plain-language next step, marked by a soft severity-colored rail.
- * Color lives only on the rail, so all text stays high-contrast. Rows
- * lift on hover; no hard dividers. Sorted most-important first.
+ * The dashboard's assistant card. Each finding is a two-line row — the
+ * dollar-led headline and a plain-language next step — marked by a
+ * square severity rail (the only color, so text stays high-contrast).
+ * Clicking a row opens the full-screen detail modal with the agent's
+ * reasoning. Surfaces are square; sorted most-important first.
  */
 
 type Severity = "action" | "review" | "info";
 
-interface Finding {
-  id: string;
+interface Finding extends OverlayFinding {
   type: string;
-  severity: Severity;
-  title: string;
   summary: string | null;
   value_annual: number | string | null;
 }
@@ -32,6 +31,9 @@ const RANK: Record<Severity, number> = { action: 0, review: 1, info: 2 };
 
 export default function AssistantPanel() {
   const { user } = useUser();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Finding | null>(null);
+
   const { data, isLoading } = useAuthedQuery<{ findings: Finding[] }>(
     ["agent-findings", user?.id],
     user?.id ? "/api/agent/findings" : null,
@@ -44,17 +46,19 @@ export default function AssistantPanel() {
       Number(b.value_annual ?? 0) - Number(a.value_annual ?? 0),
   );
 
+  function onDismissed() {
+    setSelected(null);
+    queryClient.invalidateQueries({ queryKey: ["agent-findings", user?.id] });
+  }
+
   return (
     <div className="w-full bg-[var(--color-surface-alt)] p-5">
       <div className="flex items-baseline justify-between">
         <span className="card-header">Assistant</span>
         {findings.length > 0 && (
-          <Link
-            href="/today"
-            className="text-[11px] font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-          >
+          <span className="text-[11px] font-medium text-[var(--color-muted)]">
             {findings.length} to review
-          </Link>
+          </span>
         )}
       </div>
 
@@ -74,10 +78,11 @@ export default function AssistantPanel() {
       ) : (
         <div className="mt-3 space-y-1">
           {findings.map((f) => (
-            <Link
+            <button
               key={f.id}
-              href={`/today/${f.id}`}
-              className="group relative -mx-2 flex items-center rounded-lg px-3 py-3 transition-colors hover:bg-[var(--color-fg)]/[0.035]"
+              type="button"
+              onClick={() => setSelected(f)}
+              className="group relative -mx-2 flex w-full items-center px-3 py-3 text-left transition-colors hover:bg-[var(--color-fg)]/[0.035]"
             >
               <span
                 aria-hidden
@@ -97,10 +102,16 @@ export default function AssistantPanel() {
               <span className="ml-2 shrink-0 text-[var(--color-muted)] opacity-0 transition-opacity group-hover:opacity-100">
                 ›
               </span>
-            </Link>
+            </button>
           ))}
         </div>
       )}
+
+      <FindingOverlay
+        finding={selected}
+        onClose={() => setSelected(null)}
+        onDismissed={onDismissed}
+      />
     </div>
   );
 }
