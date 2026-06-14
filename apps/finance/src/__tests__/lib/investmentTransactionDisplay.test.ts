@@ -7,7 +7,7 @@ describe('formatInvestmentTransaction', () => {
     ).toBeNull();
   });
 
-  it('formats a sell with quantity and per-share price', () => {
+  it('formats a sell with the ticker symbol and per-share price', () => {
     const result = formatInvestmentTransaction({
       transaction_source: 'investments',
       description: 'sell - sell 0.267 shares of ConocoPhillips for $92.76 each',
@@ -20,20 +20,27 @@ describe('formatInvestmentTransaction', () => {
       },
     });
     expect(result).toMatchObject({
-      title: 'Sold 0.267 ConocoPhillips',
+      title: 'Sold 0.267 COP',
       subtitle: '$92.76/share',
       iconName: 'FiTrendingDown',
     });
   });
 
-  it('formats a buy, preferring the security name over the ticker', () => {
+  it('leads the title with the ticker over the security name', () => {
     const result = formatInvestmentTransaction({
       transaction_source: 'investments',
-      description: 'buy - buy 1.309 shares of Tempus AI for $68.92 each',
-      investment_details: { type: 'buy', quantity: 1.309, price: 68.92, security_name: 'Tempus AI' },
+      investment_details: { type: 'buy', quantity: 1.309, price: 68.92, ticker: 'TEM', security_name: 'Tempus AI Inc.' },
+    });
+    expect(result?.title).toBe('Bought 1.309 TEM');
+    expect(result?.iconName).toBe('FiTrendingUp');
+  });
+
+  it('falls back to the security name when there is no ticker', () => {
+    const result = formatInvestmentTransaction({
+      transaction_source: 'investments',
+      investment_details: { type: 'buy', quantity: 1.309, security_name: 'Tempus AI' },
     });
     expect(result?.title).toBe('Bought 1.309 Tempus AI');
-    expect(result?.iconName).toBe('FiTrendingUp');
   });
 
   it('formats a cash dividend with the ticker', () => {

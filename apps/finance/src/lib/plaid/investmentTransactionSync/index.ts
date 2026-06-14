@@ -23,6 +23,7 @@ import { createLogger } from '../../logger';
 import { decryptPlaidToken } from '../../crypto/plaidTokens';
 
 import { buildInvestmentTransactionRows, buildSecuritiesMap } from './buildRows';
+import { ensureInvestmentTickers } from './ensureTickers';
 import type {
   AccountMap,
   InvestmentSyncResult,
@@ -133,6 +134,11 @@ export async function syncInvestmentTransactionsForItem(
 
       logger.info('Investment transactions upserted successfully', { count: rows.length });
     }
+
+    // Backfill company logos for the equities these transactions reference,
+    // including positions the user has since sold (holdings sync only covers
+    // current holdings). Best-effort — never fails the sync.
+    await ensureInvestmentTickers(securitiesMap);
 
     logger.info('Investment transactions sync completed', {
       transactions_synced: rows.length,

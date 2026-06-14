@@ -55,9 +55,13 @@ function formatPrice(price: number): string {
   });
 }
 
-/** Best human label for the security: prefer the full name, fall back to ticker. */
+/**
+ * Label for the security in the row title. We lead with the ticker symbol
+ * ("Sold 0.267 COP") — it's the compact, recognisable identifier — and fall
+ * back to the full security name only when there's no ticker.
+ */
 function securityLabel(d: InvestmentDetails): string | null {
-  return d.security_name?.trim() || d.ticker?.trim() || null;
+  return d.ticker?.trim() || d.security_name?.trim() || null;
 }
 
 /**
