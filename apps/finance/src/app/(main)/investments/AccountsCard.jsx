@@ -10,7 +10,6 @@
  * a larger gap. No dividers, no chevrons. Entire row is clickable.
  */
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { PiBankFill } from "react-icons/pi";
 import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
@@ -97,10 +96,9 @@ export default function AccountsCard({ accounts, holdings = [], quotes = {} }) {
           {byInstitution.map((inst) => (
             <div key={inst.id} className="space-y-3">
               {inst.accounts.map((account) => (
-                <Link
+                <div
                   key={account.id}
-                  href={`/investments/${account.id}`}
-                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-[var(--color-card-highlight)]"
+                  className="-mx-2 flex items-center gap-3 px-2 py-3"
                 >
                   <InstitutionAvatar logo={inst.logo} name={inst.name} size={32} />
                   <div className="min-w-0 flex-1">
@@ -120,7 +118,7 @@ export default function AccountsCard({ accounts, holdings = [], quotes = {} }) {
                   <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
                     {formatCurrency(accountValue(account))}
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ))}

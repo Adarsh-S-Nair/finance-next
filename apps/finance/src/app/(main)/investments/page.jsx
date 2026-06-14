@@ -369,7 +369,7 @@ export default function InvestmentsPage() {
                 return (
                   <div
                     key={h.ticker}
-                    className="group flex items-center justify-between gap-4 rounded-xl px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
+                    className="group flex items-center justify-between gap-4 px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <HoldingLogo
@@ -432,7 +432,7 @@ export default function InvestmentsPage() {
                 return (
                   <div
                     key={h.ticker}
-                    className="flex items-center justify-between gap-4 rounded-xl px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
+                    className="flex items-center justify-between gap-4 px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <CashCurrencyIcon currency={currency} size={40} />

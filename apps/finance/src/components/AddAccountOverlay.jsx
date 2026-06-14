@@ -403,7 +403,7 @@ function InstitutionRow({ index, onClick, avatar, title, subtitle }) {
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 + index * 0.04 }}
-      className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 rounded-xl text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
+      className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
     >
       {avatar}
       <div className="flex-1 min-w-0">
@@ -484,7 +484,7 @@ function IntentStep({ isPro, onSelect, onBack }) {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12 + i * 0.05 }}
-              className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 rounded-xl text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
+              className="flex w-full items-center gap-4 -mx-3 px-3 py-3.5 text-left cursor-pointer transition-colors hover:bg-[var(--color-surface-alt)]"
             >
               <Icon className="h-5 w-5 text-[var(--color-muted)] flex-shrink-0" />
               <div className="flex-1 min-w-0">
