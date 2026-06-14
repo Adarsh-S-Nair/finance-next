@@ -133,8 +133,14 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
     .select(finalSelectFragment)
     .eq('accounts.user_id', userId);
 
+  // accountId may be a single id or a comma-separated list (multi-select).
   if (accountId) {
-    query = query.eq('account_id', accountId);
+    const accountIds = accountId.split(',').filter(Boolean);
+    if (accountIds.length === 1) {
+      query = query.eq('account_id', accountIds[0]);
+    } else if (accountIds.length > 1) {
+      query = query.in('account_id', accountIds);
+    }
   }
 
   if (search && search.trim().length > 0) {

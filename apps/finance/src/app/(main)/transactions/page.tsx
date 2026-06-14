@@ -891,9 +891,11 @@ const CategoryFilterListView = ({
   );
 };
 
-// ─── Account picker ─────────────────────────────────────────────────
-const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
+// ─── Account picker (multi-select) ──────────────────────────────────
+// `value` is an array of selected account ids; [] means "all accounts".
+const AccountPickerView = ({ accounts, institutionMap, value, onToggle, onClear }) => {
   const [search, setSearch] = useState("");
+  const selectedIds = value || [];
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -913,7 +915,7 @@ const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
   return (
     <div>
       {accounts.length > 6 && (
-        <div className="pb-1">
+        <div className="px-5 pb-1">
           <SearchInput
             placeholder="Search accounts"
             value={search}
@@ -922,21 +924,21 @@ const AccountPickerView = ({ accounts, institutionMap, value, onChange }) => {
         </div>
       )}
 
-      <div className={accounts.length > 6 ? "-mx-5" : ""}>
+      <div>
         <OptionRow
           label="All accounts"
-          selected={value === 'all'}
-          onClick={() => onChange('all')}
+          selected={selectedIds.length === 0}
+          onClick={onClear}
         />
         {filtered.map((account) => {
           const institution = institutionMap[account.institutionId];
-          const selected = value === account.id;
+          const selected = selectedIds.includes(account.id);
           const subtype = formatAccountSubtype(account.type);
           return (
             <button
               key={account.id}
               type="button"
-              onClick={() => onChange(account.id)}
+              onClick={() => onToggle(account.id)}
               className="flex items-center justify-between w-full px-5 py-3 text-left hover:bg-[var(--color-surface-alt)]/60 transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1046,8 +1048,11 @@ function TransactionsContent() {
   const [transactionStatus, setTransactionStatus] = useState(() =>
     searchParams.get('status') || 'all'
   );
-  const [selectedAccountId, setSelectedAccountId] = useState(() =>
-    searchParams.get('accountId') || 'all'
+  // Multi-select account filter. Empty array = all accounts. Initialised from
+  // a comma-separated `accountId` param (also accepts a single id from
+  // deep-links like the accounts page's "View all transactions").
+  const [selectedAccountIds, setSelectedAccountIds] = useState(() =>
+    (searchParams.get('accountId') || '').split(',').filter(Boolean)
   );
 
   const institutionMapForFilter = useMemo(() => {
@@ -1098,7 +1103,7 @@ function TransactionsContent() {
     if (amountRange.max) params.set('maxAmount', amountRange.max);
     if (selectedGroupIds.length > 0) params.set('groupIds', selectedGroupIds.join(','));
     if (selectedCategoryIds.length > 0) params.set('categoryIds', selectedCategoryIds.join(','));
-    if (selectedAccountId !== 'all') params.set('accountId', selectedAccountId);
+    if (selectedAccountIds.length > 0) params.set('accountId', selectedAccountIds.join(','));
 
     if (dateRange !== 'all') {
       params.set('dateRange', dateRange);
@@ -1124,7 +1129,7 @@ function TransactionsContent() {
     customDateRange,
     selectedGroupIds,
     selectedCategoryIds,
-    selectedAccountId,
+    selectedAccountIds,
     pathname,
     router,
     searchParams
@@ -1153,7 +1158,7 @@ function TransactionsContent() {
       customDateRange.end,
       selectedGroupIds.join(','),
       selectedCategoryIds.join(','),
-      selectedAccountId,
+      selectedAccountIds.join(','),
     ],
     [
       user?.id,
@@ -1167,7 +1172,7 @@ function TransactionsContent() {
       customDateRange.end,
       selectedGroupIds,
       selectedCategoryIds,
-      selectedAccountId,
+      selectedAccountIds,
     ],
   );
 
@@ -1229,8 +1234,8 @@ function TransactionsContent() {
       params.append('categoryIds', selectedCategoryIds.join(','));
     }
 
-    if (selectedAccountId && selectedAccountId !== 'all') {
-      params.append('accountId', selectedAccountId);
+    if (selectedAccountIds.length > 0) {
+      params.append('accountId', selectedAccountIds.join(','));
     }
 
     // Date filtering
@@ -1302,7 +1307,7 @@ function TransactionsContent() {
     customDateRange.end,
     selectedGroupIds,
     selectedCategoryIds,
-    selectedAccountId,
+    selectedAccountIds,
   ]);
 
   // Initial fetch — also stashes the result in the react-query
@@ -1566,7 +1571,7 @@ function TransactionsContent() {
     if (dateRange !== 'all') count++;
     if (transactionType !== 'all') count++;
     if (transactionStatus !== 'all') count++;
-    if (selectedAccountId !== 'all') count++;
+    if (selectedAccountIds.length > 0) count++;
     return count;
   };
 
@@ -1598,9 +1603,11 @@ function TransactionsContent() {
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
     let accountLabel = 'All';
-    if (selectedAccountId !== 'all') {
-      const match = (allAccounts || []).find(a => a.id === selectedAccountId);
+    if (selectedAccountIds.length === 1) {
+      const match = (allAccounts || []).find(a => a.id === selectedAccountIds[0]);
       accountLabel = match?.name || '1 selected';
+    } else if (selectedAccountIds.length > 1) {
+      accountLabel = `${selectedAccountIds.length} selected`;
     }
 
     return {
@@ -1609,9 +1616,9 @@ function TransactionsContent() {
       amount: { label: amountLabel, active: amountLabel !== 'Any' },
       date: { label: dateLabel, active: dateRange !== 'all' },
       categories: { label: categoryLabel, active: totalCategorySelections > 0 },
-      account: { label: accountLabel, active: selectedAccountId !== 'all' },
+      account: { label: accountLabel, active: selectedAccountIds.length > 0 },
     };
-  }, [transactionType, transactionStatus, amountRange, dateRange, selectedGroupIds, selectedCategoryIds, categoryGroups, selectedAccountId, allAccounts]);
+  }, [transactionType, transactionStatus, amountRange, dateRange, selectedGroupIds, selectedCategoryIds, categoryGroups, selectedAccountIds, allAccounts]);
 
   // Reset to list view when the filters drawer closes
   const closeFiltersDrawer = useCallback(() => {
@@ -1753,8 +1760,9 @@ function TransactionsContent() {
         <AccountPickerView
           accounts={allAccounts || []}
           institutionMap={institutionMapForFilter}
-          value={selectedAccountId}
-          onChange={setSelectedAccountId}
+          value={selectedAccountIds}
+          onToggle={toggleAccount}
+          onClear={() => setSelectedAccountIds([])}
         />
       ),
     },
@@ -1769,7 +1777,16 @@ function TransactionsContent() {
     setCustomDateRange({ start: '', end: '' });
     setTransactionType('all');
     setTransactionStatus('all');
-    setSelectedAccountId('all');
+    setSelectedAccountIds([]);
+  };
+
+  // Toggle a single account in the multi-select account filter.
+  const toggleAccount = (accountId) => {
+    setSelectedAccountIds(prev =>
+      prev.includes(accountId)
+        ? prev.filter(id => id !== accountId)
+        : [...prev, accountId]
+    );
   };
 
   // Toggle group selection

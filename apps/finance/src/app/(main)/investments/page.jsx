@@ -325,27 +325,16 @@ export default function InvestmentsPage() {
   }
 
   return (
-    <div className="space-y-10">
-      {/* Summary Section: chart (2/3) + (allocation + accounts stacked) (1/3) */}
-      <div className="w-full">
-        <div className="flex flex-col gap-8 lg:flex-row">
-          <div className="lg:w-2/3">
-            <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
-          </div>
-          <div className="flex flex-col gap-14 lg:w-1/3">
-            <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
-            <AccountsCard accounts={accounts} />
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-8 lg:flex-row">
+      {/* Left column (2/3): chart, then Holdings directly beneath it. Keeping
+          both in the same column means Holdings flows right under the chart
+          regardless of how tall the right-hand sidebar grows — no dead space
+          when the accounts list gets long. */}
+      <div className="flex flex-col gap-10 lg:w-2/3">
+        <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
 
-      {/* Combined holdings across all accounts — constrained to the 2/3
-          column under the chart. Single-column list with transactions-page
-          row styling: generous padding, subtle hover, no dividers, sparkline
-          between the shares and value columns. */}
-      {combinedHoldings.length > 0 && (
-        <div className="flex flex-col gap-8 pt-4 lg:flex-row">
-          <div className="lg:w-2/3">
+        {combinedHoldings.length > 0 && (
+          <div>
             <div className="mb-6 px-1">
               <h2 className="text-lg font-medium text-[var(--color-fg)]">Holdings</h2>
             </div>
@@ -406,68 +395,37 @@ export default function InvestmentsPage() {
               })}
             </div>
           </div>
-          <div className="hidden lg:block lg:w-1/3" />
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Right column (1/3): allocation + accounts, independent of the left
+          column's height. */}
+      <div className="flex flex-col gap-14 lg:w-1/3">
+        <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
+        <AccountsCard accounts={accounts} />
+      </div>
     </div>
   );
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────
-// Mirrors the real layout: chart (2/3) + stacked allocation/accounts (1/3),
-// then a 5-row holdings list constrained to the 2/3 column.
+// Mirrors the real layout: a single row with the chart + holdings in the
+// left 2/3 column and the allocation/accounts stack in the right 1/3.
 
 function InvestmentsSkeleton() {
   const bar = "bg-[var(--color-border)] rounded";
   return (
-    <div className="space-y-10 animate-pulse">
-      {/* Summary row */}
-      <div className="flex flex-col gap-8 lg:flex-row">
-        {/* Chart */}
-        <div className="lg:w-2/3">
+    <div className="flex flex-col gap-8 lg:flex-row animate-pulse">
+      {/* Left column: chart + holdings */}
+      <div className="flex flex-col gap-10 lg:w-2/3">
+        <div>
           <div className={`h-3 w-32 ${bar} mb-3`} />
           <div className={`h-10 w-52 ${bar} mb-2`} />
           <div className={`h-4 w-40 ${bar} mb-6`} />
           <div className={`h-[260px] w-full ${bar}`} />
         </div>
-        {/* Side stack */}
-        <div className="flex flex-col gap-10 lg:w-1/3">
-          <div>
-            <div className={`h-3 w-24 ${bar} mb-5`} />
-            <div className={`h-3 w-full ${bar} mb-5`} />
-            <div className="space-y-3">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${bar}`} />
-                    <div className={`h-3 w-24 ${bar}`} />
-                  </div>
-                  <div className={`h-3 w-16 ${bar}`} />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className={`h-3 w-20 ${bar} mb-5`} />
-            <div className="space-y-3">
-              {[0, 1].map((i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className={`h-8 w-8 rounded-lg ${bar}`} />
-                  <div className="flex-1">
-                    <div className={`h-3 w-28 ${bar} mb-1.5`} />
-                    <div className={`h-3 w-16 ${bar}`} />
-                  </div>
-                  <div className={`h-3 w-16 ${bar}`} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Holdings */}
-      <div className="flex flex-col gap-8 pt-4 lg:flex-row">
-        <div className="lg:w-2/3">
+        <div>
           <div className={`h-5 w-24 ${bar} mb-6 ml-1`} />
           <div className="space-y-2">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -486,7 +444,40 @@ function InvestmentsSkeleton() {
             ))}
           </div>
         </div>
-        <div className="hidden lg:block lg:w-1/3" />
+      </div>
+
+      {/* Right column: allocation + accounts */}
+      <div className="flex flex-col gap-10 lg:w-1/3">
+        <div>
+          <div className={`h-3 w-24 ${bar} mb-5`} />
+          <div className={`h-3 w-full ${bar} mb-5`} />
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${bar}`} />
+                  <div className={`h-3 w-24 ${bar}`} />
+                </div>
+                <div className={`h-3 w-16 ${bar}`} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className={`h-3 w-20 ${bar} mb-5`} />
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className={`h-8 w-8 rounded-lg ${bar}`} />
+                <div className="flex-1">
+                  <div className={`h-3 w-28 ${bar} mb-1.5`} />
+                  <div className={`h-3 w-16 ${bar}`} />
+                </div>
+                <div className={`h-3 w-16 ${bar}`} />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
