@@ -157,9 +157,24 @@ export default function BudgetsPage() {
   const spendPct = totalAllocated > 0 ? (totalSpent / totalAllocated) * 100 : 0;
   const overAllocated = Math.max(0, totalAllocated - income);
 
-  // Linear month-end projection from current pace.
-  const projectedSpent =
-    pace.fraction > 0 ? Math.round(totalSpent / pace.fraction) : totalSpent;
+  // Month-end projection, computed per category rather than off the
+  // aggregate. A flat `totalSpent / fraction` extrapolation treats a
+  // once-a-month lump sum (mortgage, rent) as if it keeps recurring at
+  // that daily rate, so an already-paid fixed bill balloons into a fake
+  // overspend. Instead, extrapolate each category by pace but cap it at
+  // its own budget — a paid-off category lands at its limit, not above —
+  // and only count real overage from categories that are *already* over.
+  const projectedSpent = useMemo(() => {
+    if (pace.fraction <= 0) return totalSpent;
+    const sum = budgets.reduce((acc, b) => {
+      const amount = Number(b.amount || 0);
+      const spent = Number(b.spent || 0);
+      const ceiling = Math.max(amount, spent); // budget, or current spend if already past it
+      const extrapolated = spent / pace.fraction;
+      return acc + Math.min(ceiling, Math.max(spent, extrapolated));
+    }, 0);
+    return Math.round(sum);
+  }, [budgets, totalSpent, pace.fraction]);
   const projectedRemaining = totalAllocated - projectedSpent;
 
   const monthLabel = useMemo(
