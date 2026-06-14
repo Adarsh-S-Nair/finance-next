@@ -102,7 +102,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
               style={{
                 backgroundColor: (!DISABLE_LOGOS && transaction.icon_url)
                   ? 'transparent'
-                  : (transaction.category_hex_color || 'var(--color-accent)'),
+                  : (investment?.iconBg || transaction.category_hex_color || 'var(--color-accent)'),
               }}
             >
               {(!DISABLE_LOGOS && transaction.icon_url) ? (

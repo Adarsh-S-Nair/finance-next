@@ -113,7 +113,7 @@ const TransactionRow = memo(function TransactionRow({
             style={{
               backgroundColor: showLogo
                 ? 'transparent'
-                : (transaction.category_hex_color || 'var(--color-accent)')
+                : (investment?.iconBg || transaction.category_hex_color || 'var(--color-accent)')
             }}
           >
             {showLogo ? (

@@ -31,6 +31,13 @@ export interface InvestmentDisplay {
   /** react-icons library + name, fed through <DynamicIcon>. */
   iconLib: string;
   iconName: string;
+  /**
+   * Background for the (white) glyph when there's no company logo. These
+   * rows carry no category colour, so without an explicit fill they fall
+   * back to var(--color-accent) — which is near-white in dark mode, making
+   * the white icon invisible. A neutral slate stays visible in every theme.
+   */
+  iconBg: string;
 }
 
 /** Format a share quantity: up to 4 dp, trailing zeros trimmed (0.2670 → 0.267). */
@@ -83,13 +90,17 @@ export function formatInvestmentTransaction(tx: {
   const price = typeof d.price === 'number' && d.price > 0 ? d.price : null;
   const perShare = price ? `${formatPrice(price)}/share` : null;
 
-  const fallback = (iconLib: string, iconName: string): InvestmentDisplay => ({
+  // Neutral fill for the white glyph when no company logo is available.
+  const iconBg = '#64748b';
+
+  const fallback = (iconLib: string, iconName: string): Core => ({
     title: cleanRawDescription(tx.description),
     subtitle: label,
     iconLib,
     iconName,
   });
 
+  const core: Core = ((): Core => {
   switch (type) {
     case 'buy': {
       if (!label) return fallback('Fi', 'FiTrendingUp');
@@ -146,4 +157,10 @@ export function formatInvestmentTransaction(tx: {
     default:
       return fallback('Fi', 'FiBarChart2');
   }
+  })();
+
+  return { ...core, iconBg };
 }
+
+/** The display fields the per-type switch produces, minus the shared iconBg. */
+type Core = Omit<InvestmentDisplay, 'iconBg'>;

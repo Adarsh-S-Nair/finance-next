@@ -266,6 +266,9 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
     } | null;
     transaction_repayments?: { id: string }[];
     is_unmatched_transfer?: boolean | null;
+    transaction_source?: string | null;
+    icon_url?: string | null;
+    investment_details?: { ticker?: string | null } | null;
     [key: string]: unknown;
   }
 
@@ -288,6 +291,42 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
       transaction.transaction_repayments && transaction.transaction_repayments.length > 0,
     is_unmatched_payment: transaction.is_unmatched_transfer ?? null,
   }));
+
+  // Enrich investment transactions with company logos. They don't carry a
+  // merchant icon_url like ordinary transactions, but their ticker maps to
+  // a logo we already store in the `tickers` table (populated by holdings
+  // sync). One lookup per page, keyed by symbol.
+  const tickerSymbols = Array.from(
+    new Set(
+      transformedTransactions
+        .filter((t) => t.transaction_source === 'investments' && !t.icon_url)
+        .map((t) => t.investment_details?.ticker)
+        .filter((s): s is string => Boolean(s)),
+    ),
+  );
+
+  if (tickerSymbols.length > 0) {
+    const { data: tickerRows, error: tickerErr } = await supabaseAdmin
+      .from('tickers')
+      .select('symbol, logo')
+      .in('symbol', tickerSymbols);
+
+    if (tickerErr) {
+      console.error('Error fetching ticker logos:', tickerErr);
+    } else {
+      const logoBySymbol = new Map(
+        (tickerRows ?? [])
+          .filter((r) => r.logo && r.logo.trim() !== '')
+          .map((r) => [r.symbol, r.logo]),
+      );
+      for (const t of transformedTransactions) {
+        if (t.transaction_source !== 'investments' || t.icon_url) continue;
+        const ticker = t.investment_details?.ticker;
+        const logo = ticker ? logoBySymbol.get(ticker) : null;
+        if (logo) t.icon_url = logo;
+      }
+    }
+  }
 
   console.log(`Found ${transformedTransactions.length} transactions for user ${userId}`);
 
