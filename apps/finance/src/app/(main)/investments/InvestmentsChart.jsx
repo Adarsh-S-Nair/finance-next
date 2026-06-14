@@ -71,18 +71,32 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
       };
     });
 
-    // If we have a live current value but no historical snapshots yet,
-    // synthesize a single point so the chart still renders something.
-    if (points.length === 0 && currentValue != null) {
+    // Anchor the right edge of the chart to the *live* portfolio value
+    // (holdings × current prices), the same number shown in Total Holdings
+    // and My Accounts. Daily snapshots are computed from the balances Plaid
+    // last reported, so the most recent snapshot drifts from the live value
+    // between syncs — without this, the headline number disagrees with the
+    // rest of the page. Hovering older points still shows their historical
+    // snapshot values. Guard on > 0 so the transient 0 before holdings/quotes
+    // load doesn't momentarily flatten the line.
+    if (currentValue != null && currentValue > 0) {
       const now = new Date();
-      points.push({
-        dateString: now.toISOString().split("T")[0],
-        date: now,
-        month: now.toLocaleString("en-US", { month: "short" }),
-        monthFull: now.toLocaleString("en-US", { month: "long" }),
-        year: now.getFullYear(),
-        value: currentValue,
-      });
+      const todayStr = now.toISOString().split("T")[0];
+      const last = points[points.length - 1];
+      if (last && last.dateString === todayStr) {
+        // Today's snapshot exists but is stale — replace it with live value.
+        points[points.length - 1] = { ...last, value: currentValue };
+      } else {
+        // No snapshot for today yet — append a live "now" point.
+        points.push({
+          dateString: todayStr,
+          date: now,
+          month: now.toLocaleString("en-US", { month: "short" }),
+          monthFull: now.toLocaleString("en-US", { month: "long" }),
+          year: now.getFullYear(),
+          value: currentValue,
+        });
+      }
     }
     return points;
   }, [series, currentValue]);
