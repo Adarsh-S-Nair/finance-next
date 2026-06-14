@@ -8,6 +8,7 @@ import PageContainer from '../../../components/layout/PageContainer';
 import CreateBudgetOverlay from '../../../components/budgets/CreateBudgetOverlay';
 import IncomeEditor from '../../../components/budgets/IncomeEditor';
 import DynamicIcon from '../../../components/DynamicIcon';
+import InteractiveDonut from '../../../components/InteractiveDonut';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { FiTag } from 'react-icons/fi';
 import {
@@ -21,7 +22,7 @@ import {
 } from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
 import { isBudgetOver } from '../../../lib/budget';
-import { Button, EmptyState, SegmentedTabs, CustomDonut } from "@zervo/ui";
+import { Button, EmptyState, SegmentedTabs } from "@zervo/ui";
 import { ConfirmOverlay } from "@zervo/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -39,9 +40,15 @@ interface BudgetRecord {
   } | null;
   system_categories?: {
     label?: string;
-    icon_name?: string | null;
-    icon_lib?: string | null;
     hex_color?: string | null;
+    // system_categories carry no icon of their own — it lives on the
+    // parent group, joined in here by the budgets query.
+    category_groups?: {
+      name?: string;
+      icon_name?: string | null;
+      icon_lib?: string | null;
+      hex_color?: string | null;
+    } | null;
   } | null;
   category_id?: string | null;
   category_group_id?: string | null;
@@ -267,7 +274,6 @@ export default function BudgetsPage() {
                 budgets={sortedBudgets}
                 income={income}
                 hasIncome={hasIncome}
-                pace={pace}
                 onDelete={requestDelete}
                 onAdd={() => setIsModalOpen(true)}
               />
@@ -287,7 +293,6 @@ export default function BudgetsPage() {
                   budgets={sortedBudgets}
                   income={income}
                   hasIncome={hasIncome}
-                  pace={pace}
                   onDelete={requestDelete}
                   onAdd={() => setIsModalOpen(true)}
                 />
@@ -357,9 +362,24 @@ export default function BudgetsPage() {
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 function getColor(b: BudgetRecord): string {
-  const isGroup = !!b.category_groups;
-  if (isGroup) return b.category_groups?.hex_color || '#71717a';
-  return b.system_categories?.hex_color || '#71717a';
+  if (b.category_groups) return b.category_groups.hex_color || '#71717a';
+  return (
+    b.system_categories?.hex_color ||
+    b.system_categories?.category_groups?.hex_color ||
+    '#71717a'
+  );
+}
+
+// Color a progress bar by how full the budget is — a continuous
+// success→danger ramp, pinned to full danger once over. Mirrors the
+// dashboard BudgetsCard fuel-gauge so bars read identically across the app.
+function barColorFor(spent: number, total: number): string {
+  const rs = Math.round(spent);
+  const rt = Math.round(total);
+  if (rt <= 0) return 'var(--color-success)';
+  if (rs > rt) return 'var(--color-danger)';
+  const pct = Math.max(0, Math.min(100, (spent / total) * 100));
+  return `color-mix(in oklab, var(--color-danger) ${pct}%, var(--color-success))`;
 }
 
 function getLabel(b: BudgetRecord): string {
@@ -370,8 +390,10 @@ function getLabel(b: BudgetRecord): string {
 }
 
 function getIconMeta(b: BudgetRecord): { iconName: string | null; iconLib: string | null } {
-  const isGroup = !!b.category_groups;
-  const src = isGroup ? b.category_groups : b.system_categories;
+  // Group budgets carry the icon directly; single-category budgets
+  // (e.g. "Mortgage Payment") inherit it from their parent group, since
+  // system_categories have no icon column of their own.
+  const src = b.category_groups ?? b.system_categories?.category_groups;
   return { iconName: src?.icon_name || null, iconLib: src?.icon_lib || null };
 }
 
@@ -412,12 +434,7 @@ interface SpendingProgressProps {
 
 function SpendingProgress({ totalSpent, totalAllocated, spendPct, pace }: SpendingProgressProps) {
   const over = isBudgetOver(totalSpent, totalAllocated);
-  const aheadOfPace = !over && spendPct > pace.fraction * 100 + 2;
-  const fillColor = over
-    ? 'var(--color-danger)'
-    : aheadOfPace
-      ? '#f59e0b'
-      : 'var(--color-success)';
+  const fillColor = barColorFor(totalSpent, totalAllocated);
 
   const daysLeft = Math.max(0, pace.daysInMonth - pace.day);
   const now = new Date();
@@ -473,12 +490,11 @@ interface CategoryTableProps {
   budgets: BudgetRecord[];
   income: number;
   hasIncome: boolean;
-  pace: PaceInfo;
   onDelete: (id: string) => void;
   onAdd: () => void;
 }
 
-function CategoryTable({ budgets, income, hasIncome, pace, onDelete, onAdd }: CategoryTableProps) {
+function CategoryTable({ budgets, income, hasIncome, onDelete, onAdd }: CategoryTableProps) {
   return (
     <div>
       <h2 className="text-lg font-medium text-[var(--color-fg)] mb-4">Budget categories</h2>
@@ -498,7 +514,6 @@ function CategoryTable({ budgets, income, hasIncome, pace, onDelete, onAdd }: Ca
             budget={b}
             income={income}
             hasIncome={hasIncome}
-            pace={pace}
             onDelete={() => onDelete(b.id)}
             isLast={i === budgets.length - 1}
           />
@@ -521,12 +536,11 @@ interface CategoryTableRowProps {
   budget: BudgetRecord;
   income: number;
   hasIncome: boolean;
-  pace: PaceInfo;
   onDelete: () => void;
   isLast: boolean;
 }
 
-function CategoryTableRow({ budget, income, hasIncome, pace, onDelete, isLast }: CategoryTableRowProps) {
+function CategoryTableRow({ budget, income, hasIncome, onDelete, isLast }: CategoryTableRowProps) {
   const { iconName, iconLib } = getIconMeta(budget);
   const color = getColor(budget);
   const label = getLabel(budget);
@@ -538,12 +552,7 @@ function CategoryTableRow({ budget, income, hasIncome, pace, onDelete, isLast }:
   const allocPct = hasIncome && amount > 0 ? (amount / income) * 100 : 0;
 
   const overBudget = isBudgetOver(spent, amount);
-  const aheadOfPace = !overBudget && rawPct > pace.fraction * 100 + 2 && rawPct < 100;
-  const barColor = overBudget
-    ? 'var(--color-danger)'
-    : aheadOfPace
-      ? '#f59e0b'
-      : color;
+  const barColor = barColorFor(spent, amount);
 
   return (
     <div
@@ -787,37 +796,52 @@ function BreakdownDonut({
   budgets: BudgetRecord[];
   totalAllocated: number;
 }) {
-  const data = useMemo(
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const segments = useMemo(
     () =>
       budgets
-        .map((b) => ({ label: getLabel(b), value: Number(b.amount || 0), color: getColor(b) }))
-        .filter((d) => d.value > 0),
+        .map((b) => ({
+          id: b.id,
+          label: getLabel(b),
+          value: Number(b.amount || 0),
+          color: getColor(b),
+        }))
+        .filter((s) => s.value > 0),
     [budgets],
   );
 
-  if (data.length === 0) return null;
+  if (segments.length === 0) return null;
 
   return (
     <div>
       <div className="overline mb-4">Budget breakdown</div>
 
       <div className="flex justify-center mb-6">
-        <div className="relative" style={{ width: 180, height: 180 }}>
-          <CustomDonut data={data} size={180} strokeWidth={22} showTotal={false} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-xl font-semibold text-[var(--color-fg)] tabular-nums">
-              {formatCurrency(totalAllocated)}
-            </div>
-            <div className="text-xs text-[var(--color-muted)]">Total</div>
-          </div>
-        </div>
+        <InteractiveDonut
+          segments={segments}
+          total={totalAllocated}
+          centerLabel="Total"
+          hoveredId={hoveredId}
+          onHover={setHoveredId}
+          size={200}
+          strokeWidth={16}
+          pctSuffix="of budget"
+        />
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {data.map((d) => {
+        {segments.map((d) => {
           const pct = totalAllocated > 0 ? (d.value / totalAllocated) * 100 : 0;
+          const dimmed = hoveredId !== null && hoveredId !== d.id;
           return (
-            <div key={d.label} className="flex items-center gap-2.5 text-sm">
+            <div
+              key={d.id}
+              onMouseEnter={() => setHoveredId(d.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              className="flex items-center gap-2.5 text-sm cursor-default transition-opacity"
+              style={{ opacity: dimmed ? 0.45 : 1 }}
+            >
               <span
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                 style={{ backgroundColor: d.color }}
