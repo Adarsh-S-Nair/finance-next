@@ -45,6 +45,31 @@ export function cashCurrencyCode(h: HoldingLike): string {
   return "USD";
 }
 
+const CURRENCY_NAMES: Record<string, string> = {
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "British Pound",
+  JPY: "Japanese Yen",
+  CAD: "Canadian Dollar",
+  AUD: "Australian Dollar",
+  CHF: "Swiss Franc",
+  CNY: "Chinese Yuan",
+  INR: "Indian Rupee",
+  HKD: "Hong Kong Dollar",
+  SGD: "Singapore Dollar",
+  MXN: "Mexican Peso",
+  BRL: "Brazilian Real",
+};
+
+/**
+ * Friendly display name for a cash holding (`CUR:USD` → `US Dollar`).
+ * Falls back to the raw currency code for anything not in the map.
+ */
+export function cashCurrencyName(h: HoldingLike): string {
+  const code = cashCurrencyCode(h);
+  return CURRENCY_NAMES[code] || code;
+}
+
 /** Latest market value of a single holding (live price, else cost basis). */
 export function holdingMarketValue(
   h: HoldingLike,

@@ -6,7 +6,7 @@ import { supabase } from "../../../../lib/supabase/client";
 import { useUser } from "../../../../components/providers/UserProvider";
 import { formatShares } from "../../../../lib/formatShares";
 import CashCurrencyIcon from "../../../../components/CashCurrencyIcon";
-import { isCashHolding, cashCurrencyCode } from "../../../../lib/holdingsValue";
+import { isCashHolding, cashCurrencyCode, cashCurrencyName } from "../../../../lib/holdingsValue";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -193,8 +193,8 @@ export default function InvestmentAccountPage() {
               const meta = tickerMeta[h.ticker];
               const isCash = isCashHolding(h);
               const currency = cashCurrencyCode(h);
-              const displayName = meta?.name || (isCash ? `${currency} Cash` : h.ticker);
-              const tag = isCash ? currency : h.ticker;
+              const displayName = isCash ? cashCurrencyName(h) : meta?.name || h.ticker;
+              const tag = isCash ? null : h.ticker;
               return (
                 <div key={h.id} className="flex items-center gap-4 py-4">
                   {isCash ? (
@@ -227,7 +227,7 @@ export default function InvestmentAccountPage() {
                       <span className="truncate text-sm font-medium text-[var(--color-fg)]">
                         {displayName}
                       </span>
-                      {displayName !== tag && (
+                      {tag && displayName !== tag && (
                         <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
                           {tag}
                         </span>

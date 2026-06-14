@@ -15,6 +15,7 @@ import CashCurrencyIcon from "../../../components/CashCurrencyIcon";
 import {
   isCashHolding,
   cashCurrencyCode,
+  cashCurrencyName,
   sumHoldingsMarketValue,
 } from "../../../lib/holdingsValue";
 
@@ -426,9 +427,8 @@ export default function InvestmentsPage() {
 
             <div>
               {cashHoldings.map((h) => {
-                const meta = tickerMeta[h.ticker];
                 const currency = cashCurrencyCode(h);
-                const displayName = meta?.name || `${currency} Cash`;
+                const displayName = cashCurrencyName(h);
                 return (
                   <div
                     key={h.ticker}
@@ -437,14 +437,9 @@ export default function InvestmentsPage() {
                     <div className="flex min-w-0 flex-1 items-center gap-4">
                       <CashCurrencyIcon currency={currency} size={40} />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium text-[var(--color-fg)]">
-                            {displayName}
-                          </span>
-                          <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
-                            {currency}
-                          </span>
-                        </div>
+                        <span className="truncate text-sm font-medium text-[var(--color-fg)]">
+                          {displayName}
+                        </span>
                         <div className="mt-0.5 text-xs text-[var(--color-muted)]">Cash balance</div>
                       </div>
                     </div>
