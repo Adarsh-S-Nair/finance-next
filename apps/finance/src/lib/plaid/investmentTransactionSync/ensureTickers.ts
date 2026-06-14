@@ -1,12 +1,17 @@
 /**
- * Ensure the `tickers` table has logo/name rows for the stock securities
- * referenced by an item's investment transactions.
+ * Ensure the `tickers` table has logo rows for the securities referenced by an
+ * item's investment transactions.
  *
  * Holdings sync only populates `tickers` for positions the user *currently*
- * holds. A security you traded and later sold out of therefore has no ticker
- * row — so its transactions in the feed fall back to the generic glyph
- * instead of the company logo. This module backfills those, reusing the same
- * Finnhub → logo.dev enrichment holdings sync uses.
+ * holds, so a security you traded and later sold out of has no ticker row —
+ * its transactions in the feed then fall back to the generic glyph instead of
+ * the company/fund logo. This module backfills those.
+ *
+ * Logos come from logo.dev's ticker endpoint
+ * (https://img.logo.dev/ticker/SYMBOL), which resolves by symbol and — unlike
+ * the domain-based path holdings sync uses — also covers ETFs and money-market
+ * funds. We validate each symbol with `fallback=404` so we only store URLs
+ * that actually resolve (cash-sweep pseudo-tickers 404 and are skipped).
  *
  * Best-effort by design: logo enrichment must never fail the transaction sync,
  * so the orchestrator swallows and logs errors.
@@ -14,65 +19,116 @@
 
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
-import { fetchBulkTickerDetails } from '../../marketData';
-import { buildStockTickerInserts, type FinnhubTickerDetail } from '../holdingsSync/aggregate';
 import type { ExistingTickerRow } from '../holdingsSync/types';
 import type { SecuritiesMap } from './types';
 
 const logger = createLogger('investment-transactions-sync:tickers');
 
-// Plaid security types that map to a logo-able equity. ETFs/mutual funds/cash
-// rarely resolve a logo on logo.dev, and cash sweeps carry junk "tickers"
-// (e.g. "CUR:USD"), so we only enrich individual equities.
-const STOCK_SECURITY_TYPES = new Set(['equity']);
-
 // A plausible exchange ticker: 1–6 uppercase letters, optionally dotted
-// (BRK.B). Filters out cash-sweep pseudo-tickers and Plaid's name fallbacks.
+// (BRK.B). Filters out cash-sweep pseudo-tickers ("CUR:USD") and the name
+// fallbacks Plaid uses when a security has no symbol.
 const TICKER_RE = /^[A-Z]{1,6}(\.[A-Z]{1,2})?$/;
 
+const LOGO_DEV_TICKER_BASE = 'https://img.logo.dev/ticker';
+const LOGO_RESOLVE_TIMEOUT_MS = 4000;
+
+export interface InvestmentTickerCandidate {
+  symbol: string;
+  name: string | null;
+  assetType: 'stock' | 'cash';
+}
+
 /**
- * Pure: pick the equity tickers worth enriching from the securities map.
- * Exported for unit testing.
+ * Pure: pick the ticker candidates worth enriching from the securities map.
+ * Any symbol that looks like a real ticker is a candidate — logo.dev decides
+ * (via validation) whether a logo actually exists. Exported for unit testing.
  */
-export function selectStockTickers(securitiesMap: SecuritiesMap): string[] {
-  const out = new Set<string>();
+export function selectInvestmentTickerCandidates(
+  securitiesMap: SecuritiesMap,
+): InvestmentTickerCandidate[] {
+  const bySymbol = new Map<string, InvestmentTickerCandidate>();
   for (const sec of securitiesMap.values()) {
-    const ticker = sec.ticker?.trim().toUpperCase();
-    if (!ticker || !TICKER_RE.test(ticker)) continue;
-    if (!STOCK_SECURITY_TYPES.has((sec.type || '').toLowerCase())) continue;
-    out.add(ticker);
+    const symbol = sec.ticker?.trim().toUpperCase();
+    if (!symbol || !TICKER_RE.test(symbol)) continue;
+    if (bySymbol.has(symbol)) continue;
+    bySymbol.set(symbol, {
+      symbol,
+      name: sec.name?.trim() || null,
+      assetType: (sec.type || '').toLowerCase() === 'cash' ? 'cash' : 'stock',
+    });
   }
-  return Array.from(out);
+  return Array.from(bySymbol.values());
+}
+
+function tickerLogoUrl(symbol: string, token: string): string {
+  return `${LOGO_DEV_TICKER_BASE}/${encodeURIComponent(symbol)}?token=${token}`;
+}
+
+/**
+ * Return the logo URL for a symbol if logo.dev actually has one, else null.
+ * `fallback=404` makes logo.dev 404 instead of serving a generic monogram, so
+ * we never persist a logo URL for a symbol with no real brand image.
+ */
+async function resolveTickerLogo(symbol: string, token: string): Promise<string | null> {
+  const url = tickerLogoUrl(symbol, token);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LOGO_RESOLVE_TIMEOUT_MS);
+    const res = await fetch(`${url}&fallback=404`, { method: 'HEAD', signal: controller.signal });
+    clearTimeout(timer);
+    return res.ok ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function ensureInvestmentTickers(securitiesMap: SecuritiesMap): Promise<void> {
   try {
-    const stockTickers = selectStockTickers(securitiesMap);
-    if (stockTickers.length === 0) return;
+    const token = process.env.LOGO_DEV_PUBLIC_KEY;
+    if (!token) return;
+
+    const candidates = selectInvestmentTickerCandidates(securitiesMap);
+    if (candidates.length === 0) return;
 
     const { data: existingRows } = await supabaseAdmin
       .from('tickers')
       .select('symbol, name, sector, logo, asset_type')
-      .in('symbol', stockTickers);
+      .in(
+        'symbol',
+        candidates.map((c) => c.symbol),
+      );
 
     const existingMap = new Map<string, ExistingTickerRow>(
       (existingRows ?? []).map((r) => [r.symbol, r as ExistingTickerRow]),
     );
 
-    // Only hit Finnhub for tickers we don't have, or have but with no logo yet.
-    const needed = stockTickers.filter((t) => {
-      const row = existingMap.get(t);
+    // Skip symbols we already have a logo for; only resolve the rest.
+    const needed = candidates.filter((c) => {
+      const row = existingMap.get(c.symbol);
       return !row || !row.logo || row.logo.trim() === '';
     });
     if (needed.length === 0) return;
 
-    const details = (await fetchBulkTickerDetails(needed, 250)) as FinnhubTickerDetail[];
-    const inserts = buildStockTickerInserts(
-      needed,
-      existingMap,
-      details,
-      process.env.LOGO_DEV_PUBLIC_KEY,
+    const resolved = await Promise.all(
+      needed.map(async (c) => ({ candidate: c, logo: await resolveTickerLogo(c.symbol, token) })),
     );
+
+    // Build upsert rows only for symbols with a real logo. Preserve any
+    // existing name/sector/asset_type (set by holdings sync) and only fill the
+    // logo, so we never clobber richer holdings metadata.
+    const inserts = resolved
+      .filter((r): r is { candidate: InvestmentTickerCandidate; logo: string } => r.logo !== null)
+      .map(({ candidate, logo }) => {
+        const existing = existingMap.get(candidate.symbol);
+        return {
+          symbol: candidate.symbol,
+          name: existing?.name ?? candidate.name,
+          sector: existing?.sector ?? null,
+          logo,
+          asset_type: (existing?.asset_type ?? candidate.assetType) as 'stock' | 'cash',
+        };
+      });
+
     if (inserts.length === 0) return;
 
     const { error } = await supabaseAdmin
@@ -84,7 +140,10 @@ export async function ensureInvestmentTickers(securitiesMap: SecuritiesMap): Pro
       return;
     }
 
-    logger.info('Investment tickers enriched', { count: inserts.length, tickers: needed });
+    logger.info('Investment tickers enriched', {
+      count: inserts.length,
+      tickers: inserts.map((i) => i.symbol),
+    });
   } catch (err) {
     logger.warn('Ticker enrichment failed (non-fatal)', { error: (err as Error).message });
   }
