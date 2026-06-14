@@ -41,6 +41,8 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
         datetime,
         authorized_date,
         is_unmatched_transfer,
+        transaction_source,
+        investment_details,
         accounts!inner (id, name, mask),
         system_categories!inner (
           label,
@@ -142,6 +144,13 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
       query = query.in('account_id', accountIds);
     }
   }
+
+  // Drop investment "bookkeeping" rows with no cash impact (Plaid's
+  // $0.00 "Allocate shares for …" share-assignment entries). A real
+  // buy/sell/dividend/fee always carries a nonzero amount, so filtering
+  // investment-source rows on amount=0 hides the noise without touching
+  // ordinary $0 transactions (whose transaction_source is null).
+  query = query.or('transaction_source.is.null,transaction_source.neq.investments,amount.neq.0');
 
   if (search && search.trim().length > 0) {
     const searchTerm = `%${search.trim()}%`;

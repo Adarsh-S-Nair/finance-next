@@ -5,6 +5,7 @@ import DynamicIcon from "../DynamicIcon";
 import clsx from "clsx";
 import { Button } from "@zervo/ui";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import { formatInvestmentTransaction } from "../../lib/investmentTransactionDisplay";
 import { useAccounts } from "../providers/AccountsProvider";
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
@@ -37,6 +38,11 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
       transaction.account_name === 'Unknown Account');
 
   const isIncome = transaction.amount > 0;
+
+  // Clean label for investment transactions (re-derived from structured
+  // investment_details) instead of Plaid's verbose raw description.
+  const investment = formatInvestmentTransaction(transaction);
+  const headerTitle = investment?.title || transaction.merchant_name || transaction.description || 'Transaction';
 
   // Formatters
   const dateToFormat = transaction.date || transaction.datetime;
@@ -112,8 +118,8 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
                 />
               ) : null}
               <DynamicIcon
-                iconLib={transaction.category_icon_lib}
-                iconName={transaction.category_icon_name}
+                iconLib={investment?.iconLib || transaction.category_icon_lib}
+                iconName={investment?.iconName || transaction.category_icon_name}
                 className="h-5 w-5 text-white"
                 fallback={FiTag}
                 style={{
@@ -124,7 +130,7 @@ export default function TransactionDetails({ transaction, onCategoryClick, onSpl
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
-                {transaction.merchant_name || transaction.description || 'Transaction'}
+                {headerTitle}
               </h2>
               <div className="text-xs text-[var(--color-muted)] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
                 <span>{formattedDate}</span>

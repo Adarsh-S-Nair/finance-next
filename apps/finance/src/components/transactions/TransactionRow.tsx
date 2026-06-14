@@ -2,6 +2,10 @@ import React, { memo } from 'react';
 import { FiTag } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
+import {
+  formatInvestmentTransaction,
+  type InvestmentDetails,
+} from '../../lib/investmentTransactionDisplay';
 
 const DISABLE_LOGOS = process.env.NEXT_PUBLIC_DISABLE_MERCHANT_LOGOS === '1';
 
@@ -32,6 +36,8 @@ export type TransactionRowData = {
   is_unmatched_transfer?: boolean | null;
   is_unmatched_payment?: boolean | null;
   transaction_splits?: TransactionSplit[] | null;
+  transaction_source?: string | null;
+  investment_details?: InvestmentDetails | null;
 };
 
 type Props = {
@@ -62,6 +68,13 @@ const TransactionRow = memo(function TransactionRow({
   const hasUnsettledSplit = hasSplits && splits.some((s) => !s.is_settled);
 
   const showLogo = !DISABLE_LOGOS && !!transaction.icon_url && !logoFailed;
+
+  // Investment transactions carry structured details; re-derive a clean
+  // title/subtitle/icon from them instead of rendering Plaid's verbose
+  // raw description ("sell - sell 0.267 shares of ConocoPhillips …").
+  const investment = formatInvestmentTransaction(transaction);
+  const title = investment?.title || transaction.merchant_name || transaction.description || 'Transaction';
+  const subtitle = investment ? investment.subtitle : transaction.category_name;
 
   const needsReview =
     !transaction.is_repayment &&
@@ -114,8 +127,8 @@ const TransactionRow = memo(function TransactionRow({
               />
             ) : (
               <DynamicIcon
-                iconLib={transaction.category_icon_lib}
-                iconName={transaction.category_icon_name}
+                iconLib={investment?.iconLib || transaction.category_icon_lib}
+                iconName={investment?.iconName || transaction.category_icon_name}
                 className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-white`}
                 fallback={FiTag}
                 style={{ strokeWidth: 2.5 }}
@@ -132,11 +145,11 @@ const TransactionRow = memo(function TransactionRow({
         </div>
         <div className="min-w-0 flex-1 mr-4">
           <div className="font-medium text-[var(--color-fg)] truncate text-sm transition-colors">
-            {transaction.merchant_name || transaction.description || 'Transaction'}
+            {title}
           </div>
-          {transaction.category_name && (
+          {subtitle && (
             <div className="text-xs text-[var(--color-muted)] mt-0.5 truncate">
-              {transaction.category_name}
+              {subtitle}
             </div>
           )}
         </div>
