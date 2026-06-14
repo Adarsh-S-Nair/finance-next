@@ -62,14 +62,35 @@ export interface AccountInput {
   balance: number;
 }
 
+/** Minimal shape of a transaction a detector reads. Outflows are
+ *  negative. Carries both the Plaid category primary and the finer
+ *  `detailed` subcategory so detectors can separate, e.g., interest
+ *  charges from other bank fees. */
+export interface TransactionInput {
+  id: string;
+  date: string; // yyyy-MM-dd
+  amount: number; // negative = outflow
+  merchant_name: string | null;
+  description: string;
+  category_primary: string | null;
+  category_detailed: string | null;
+}
+
 /** Everything the registered detectors are given for one user. Grows as
- *  detectors need more data (budgets, transactions…). */
+ *  detectors need more data (budgets, holdings…). */
 export interface DetectorContext {
   streams: RecurringStreamInput[];
   accounts: AccountInput[];
+  /** Outflow transactions over the trailing ~year, internal transfers
+   *  included (detectors filter as needed). Used by fee/interest/spend
+   *  detectors. */
+  transactions: TransactionInput[];
   /** Average monthly spending (outflows, transfers excluded) over the
    *  last few complete months — used to size a realistic cash buffer. */
   monthlySpending: number;
+  /** "Now" for the sweep, injected so date-relative detectors (renewals
+   *  coming up, trailing-window sums) stay pure and testable. */
+  now: Date;
 }
 
 export type Detector = (ctx: DetectorContext) => FindingDraft[];

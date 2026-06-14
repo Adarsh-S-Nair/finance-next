@@ -1,6 +1,9 @@
 import type { Detector } from "./types";
 import { subscriptionPriceIncreaseDetector } from "./detectors/subscriptionPriceIncrease";
 import { idleCashDetector } from "./detectors/idleCash";
+import { bankFeesDetector } from "./detectors/bankFees";
+import { creditCardInterestDetector } from "./detectors/creditCardInterest";
+import { annualRenewalDetector } from "./detectors/annualRenewal";
 
 /**
  * The registered detectors, run in order on every sweep. Adding a
@@ -10,4 +13,7 @@ import { idleCashDetector } from "./detectors/idleCash";
 export const DETECTORS: Detector[] = [
   subscriptionPriceIncreaseDetector,
   idleCashDetector,
+  bankFeesDetector,
+  creditCardInterestDetector,
+  annualRenewalDetector,
 ];

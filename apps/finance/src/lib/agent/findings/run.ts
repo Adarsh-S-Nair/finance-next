@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
-import { format, startOfMonth, subMonths } from "date-fns";
+import { format, subDays } from "date-fns";
 import { DETECTORS } from "./registry";
 import { decideStatus, type ExistingFinding, type FindingStatus } from "./lifecycle";
 import {
@@ -13,40 +13,69 @@ import type {
   DetectorContext,
   FindingDraft,
   RecurringStreamInput,
+  TransactionInput,
 } from "./types";
 
+// How far back to pull transactions. A full year so the fee/interest
+// detectors can report "this year"; the spending median only reads the
+// most recent complete months out of the same window.
+const TXN_WINDOW_DAYS = 365;
+
 /**
- * Typical monthly spending (median of the last 3 complete months,
- * outflows only, internal transfers excluded). Used to size the
- * idle-cash buffer. Median, not mean — a single big one-off month
- * shouldn't distort what the user "typically" spends.
+ * Load the user's outflow transactions over the trailing year (one query,
+ * reused by every transaction-backed detector and the spending median).
  */
-async function computeMonthlySpending(
+async function loadTransactions(
   userId: string,
+  now: Date,
   admin: SupabaseClient<Database>,
-): Promise<number> {
-  const now = new Date();
-  const monthKeys = recentCompleteMonths(now, 3);
-  const windowStart = format(subMonths(startOfMonth(now), 3), "yyyy-MM-dd");
-  const windowEnd = format(startOfMonth(now), "yyyy-MM-dd");
+): Promise<TransactionInput[]> {
+  const windowStart = format(subDays(now, TXN_WINDOW_DAYS), "yyyy-MM-dd");
 
   const { data: txRows, error } = await admin
     .from("transactions")
-    .select("amount, date, personal_finance_category, accounts!inner(user_id)")
+    .select(
+      "id, amount, date, merchant_name, description, personal_finance_category, accounts!inner(user_id)",
+    )
     .eq("accounts.user_id", userId)
     .lt("amount", 0)
-    .gte("date", windowStart)
-    .lt("date", windowEnd);
+    .gte("date", windowStart);
 
   if (error) throw error;
 
-  const txns: SpendingTxn[] = (txRows ?? []).map((t) => ({
-    date: (t.date as string | null) ?? "",
-    amount: Number(t.amount),
-    primary:
-      (t.personal_finance_category as { primary?: string } | null)?.primary ?? null,
-  }));
+  return (txRows ?? []).map((t) => {
+    const pfc = t.personal_finance_category as
+      | { primary?: string; detailed?: string }
+      | null;
+    return {
+      id: t.id as string,
+      date: (t.date as string | null) ?? "",
+      amount: Number(t.amount),
+      merchant_name: (t.merchant_name as string | null) ?? null,
+      description: (t.description as string | null) ?? "",
+      category_primary: pfc?.primary ?? null,
+      category_detailed: pfc?.detailed ?? null,
+    };
+  });
+}
 
+/**
+ * Typical monthly spending (median of the last 3 complete months,
+ * outflows only, internal transfers excluded) from already-loaded
+ * transactions. Used to size the idle-cash buffer. Median, not mean — a
+ * single big one-off month shouldn't distort what the user "typically"
+ * spends.
+ */
+function computeMonthlySpending(
+  transactions: TransactionInput[],
+  now: Date,
+): number {
+  const monthKeys = recentCompleteMonths(now, 3);
+  const txns: SpendingTxn[] = transactions.map((t) => ({
+    date: t.date,
+    amount: t.amount,
+    primary: t.category_primary,
+  }));
   return medianMonthlySpending(txns, monthKeys);
 }
 
@@ -105,9 +134,17 @@ export async function runFindingsForUser(
     balance: Number(r.plaid_balance_current ?? 0),
   }));
 
-  const monthlySpending = await computeMonthlySpending(userId, admin);
+  const now = new Date();
+  const transactions = await loadTransactions(userId, now, admin);
+  const monthlySpending = computeMonthlySpending(transactions, now);
 
-  const ctx: DetectorContext = { streams, accounts, monthlySpending };
+  const ctx: DetectorContext = {
+    streams,
+    accounts,
+    transactions,
+    monthlySpending,
+    now,
+  };
   const drafts: FindingDraft[] = [];
   for (const detector of DETECTORS) drafts.push(...detector(ctx));
 
