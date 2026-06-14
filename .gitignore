@@ -51,6 +51,10 @@ next-env.d.ts
 .claude/*
 !.claude/settings.json
 !.claude/commands/
+# Per-app/package Claude dirs hold only local state (launch.json, etc.) —
+# the shared team config lives in the root .claude/ above.
+apps/*/.claude/
+packages/*/.claude/
 .env.prod
 
 # Internal pricing docs
