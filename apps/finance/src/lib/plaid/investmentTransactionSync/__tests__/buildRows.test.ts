@@ -91,7 +91,9 @@ describe('mapTransactionToRow', () => {
     expect(row!.account_id).toBe('db-uuid-1');
     expect(row!.plaid_transaction_id).toBe('tx1');
     expect(row!.description).toBe('BUY AAPL');
-    expect(row!.amount).toBe(150.25);
+    // Sign-flipped from Plaid's convention: a buy debits cash, so it's
+    // stored as money out (negative) to match the rest of the app.
+    expect(row!.amount).toBe(-150.25);
     expect(row!.currency_code).toBe('USD');
     expect(row!.pending).toBe(false);
     expect(row!.datetime).toBe('2024-01-15T14:30:00.000Z');

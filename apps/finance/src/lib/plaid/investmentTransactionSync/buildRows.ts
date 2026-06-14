@@ -5,8 +5,12 @@
  *
  * Wire-shape contract with the legacy route handler:
  *   - `description` falls back to `'Investment Transaction'` if Plaid gave no name.
- *   - `amount` is coerced with `parseFloat` (Plaid typically returns number,
- *     but historically it was parsed, so we preserve the coercion).
+ *   - `amount` is sign-flipped to match the app-wide convention. Plaid uses
+ *     positive for cash debited (buys, fees) and negative for cash credited
+ *     (sells, dividends); the rest of the app stores debits as negative and
+ *     credits as positive (see transactionSync/buildRows), so we negate to
+ *     keep investment rows consistent — a sale shows as money in (+), a buy
+ *     as money out (-).
  *   - `pending` is hard-coded to `false` — investment transactions are not pending.
  *   - `datetime` prefers `transaction_datetime` (which Plaid gives only sometimes),
  *     otherwise null. `date` passes through unchanged.
@@ -74,7 +78,9 @@ export function mapTransactionToRow(
     account_id: accountUuid,
     plaid_transaction_id: tx.investment_transaction_id,
     description: tx.name || 'Investment Transaction',
-    amount: parseFloat(String(tx.amount)),
+    // Negate: Plaid positive = cash debited (buy/fee → money out → negative),
+    // Plaid negative = cash credited (sell/dividend → money in → positive).
+    amount: -parseFloat(String(tx.amount)),
     currency_code: tx.iso_currency_code || 'USD',
     pending: false,
     datetime: tx.transaction_datetime
