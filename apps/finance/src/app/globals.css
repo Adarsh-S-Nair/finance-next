@@ -149,8 +149,8 @@ body {
    "Holdings" / "Cash" section headings: larger, medium weight, normal
    case, foreground color (not a muted uppercase overline). */
 .card-header {
-  font-size: 1.125rem;
-  /* 18px */
+  font-size: 1rem;
+  /* 16px */
   font-weight: 500;
   color: var(--color-fg);
   letter-spacing: normal;

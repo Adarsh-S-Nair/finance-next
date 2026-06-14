@@ -60,7 +60,7 @@ heading (matching the investments page's "Holdings" / "Cash" headings) —
 
 ```css
 .card-header {
-  font-size: 1.125rem;       /* 18px */
+  font-size: 1rem;           /* 16px */
   font-weight: 500;
   color: var(--color-fg);
   letter-spacing: normal;
