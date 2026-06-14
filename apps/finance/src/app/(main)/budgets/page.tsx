@@ -647,7 +647,7 @@ function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
     return (
       <div onMouseLeave={handleMouseLeave}>
         <div className="mb-4">
-          <div className="card-header mb-1">Spent this month</div>
+          <div className="overline mb-1">Spent this month</div>
           <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
             $0
           </div>
@@ -667,7 +667,7 @@ function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
       <div className="mb-4">
         <div className="flex justify-between items-start">
           <div>
-            <div className="card-header mb-1">Spent this month</div>
+            <div className="overline mb-1">Spent this month</div>
             <div className="flex flex-col">
               <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
                 {formatCurrency(displaySpent)}
@@ -796,7 +796,7 @@ function MonthProgress({ pace, totalAllocated, burnSeries, budgets }: MonthProgr
 
   return (
     <div>
-      <div className="card-header mb-5">Month pace</div>
+      <div className="overline mb-5">Month pace</div>
 
       <div className="mb-3 flex items-baseline justify-between">
         <span className="text-sm font-medium text-[var(--color-fg)]">

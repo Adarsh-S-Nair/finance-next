@@ -428,7 +428,7 @@ export default function GoalsView() {
           )}
 
           <div>
-            <div className="card-header mb-3">How it works</div>
+            <div className="overline mb-3">How it works</div>
             <p className="text-xs text-[var(--color-muted)] leading-relaxed">
               Your cash is split among active goals by priority. The top goal
               fills first, then the next, and so on. Reorder by dragging.

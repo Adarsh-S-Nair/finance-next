@@ -103,7 +103,7 @@ export default function FindingOverlay({
 
               {steps.length > 0 && (
                 <div className="mt-8">
-                  <div className="card-header mb-3">How the assistant got here</div>
+                  <div className="overline mb-3">How the assistant got here</div>
                   <div className="relative bg-[var(--color-surface-alt)]">
                     <span aria-hidden className="absolute left-0 top-0 bottom-0 w-1" style={{ background: sev.rail }} />
                     <div className="divide-y divide-[var(--color-border)] pl-2">

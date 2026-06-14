@@ -262,7 +262,7 @@ export default function AccountDetails({ account, institution, onViewTransaction
           {/* Credit utilization visual */}
           {hasCreditVisual && (
             <div>
-              <div className="card-header mb-3">Credit Used</div>
+              <div className="overline mb-3">Credit Used</div>
               <CreditUtilization
                 balance={account.balance}
                 limit={account.limit}
@@ -277,7 +277,7 @@ export default function AccountDetails({ account, institution, onViewTransaction
             <div>
               {showAvailableRow && (
                 <div className="flex items-center justify-between py-2">
-                  <span className="card-header">Available</span>
+                  <span className="overline">Available</span>
                   <span className="text-sm text-[var(--color-fg)] tabular-nums">
                     {formatCurrency(account.available, currency)}
                   </span>
@@ -286,7 +286,7 @@ export default function AccountDetails({ account, institution, onViewTransaction
 
               {institution?.name && (
                 <div className="flex items-center justify-between py-2">
-                  <span className="card-header">Institution</span>
+                  <span className="overline">Institution</span>
                   <div className="flex items-center gap-2 min-w-0 flex-1 justify-end pl-4">
                     {institution.logo && (
                       <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -306,7 +306,7 @@ export default function AccountDetails({ account, institution, onViewTransaction
 
               {addedOn && (
                 <div className="flex items-center justify-between py-2">
-                  <span className="card-header">Added</span>
+                  <span className="overline">Added</span>
                   <span className="text-sm text-[var(--color-fg)]">{addedOn}</span>
                 </div>
               )}

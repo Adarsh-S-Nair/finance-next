@@ -232,7 +232,7 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
     <div onMouseLeave={() => setActiveIndex(null)}>
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+          <div className="card-header">
             Investments value
           </div>
           <div className="mt-1 text-3xl font-medium tabular-nums text-[var(--color-fg)]">

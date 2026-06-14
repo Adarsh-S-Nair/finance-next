@@ -149,7 +149,7 @@ export default function InsightsCarousel({ mockData }: InsightsCarouselProps = {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
-                className="card-header"
+                className="overline"
               >
                 {current.title}
               </motion.span>

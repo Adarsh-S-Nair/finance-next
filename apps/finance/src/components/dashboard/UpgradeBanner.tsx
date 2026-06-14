@@ -45,7 +45,7 @@ export default function UpgradeBanner() {
 
   return (
     <div className="w-full bg-[var(--color-surface-alt)] p-5">
-      <span className="card-header">Zervo Pro</span>
+      <span className="overline">Zervo Pro</span>
 
       <h3 className="mt-3 text-base font-semibold leading-snug text-[var(--color-fg)]">
         Unlock the full picture.

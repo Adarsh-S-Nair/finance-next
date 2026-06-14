@@ -136,7 +136,7 @@ export default function SpendingVsEarningCard({ data: externalData } = {}) {
               Defaults to monthly averages; swaps to the hovered month
               when the user is interacting with the chart. */}
           <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 text-[11px]">
-            <span className="card-header mb-1">{breakdownLabel}</span>
+            <span className="overline mb-1">{breakdownLabel}</span>
             <div className="flex items-center gap-1 text-[var(--color-muted)]">
               <span className="tabular-nums font-medium text-[var(--color-fg)]"><CurrencyAmount amount={displayIncome} /></span>
               <span>in</span>

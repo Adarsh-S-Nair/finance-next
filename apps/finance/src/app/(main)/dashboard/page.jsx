@@ -273,8 +273,8 @@ export default function DashboardPage() {
   // year selector then the flexible/total toggle on the right. When
   // there's only one year of data the year is shown as plain text
   // (a dropdown with a single option is just noise). Title uses the
-  // `.card-header` overline style to match the rest of the
-  // dashboard's section captions.
+  // `.card-header` section-title style to match the rest of the
+  // dashboard's section headings.
   const monthlyRowHeader =
     availableMonths.length > 0 ? (
       <div className="flex items-center justify-between gap-3 mb-4">

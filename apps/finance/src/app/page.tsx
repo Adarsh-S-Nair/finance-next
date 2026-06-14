@@ -636,7 +636,7 @@ function FeatureRow({ eyebrow, title, body, bullets, visual, flip = false }: Fea
     <FadeIn>
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
         <div className={flip ? "lg:order-2" : ""}>
-          <div className="card-header">{eyebrow}</div>
+          <div className="overline">{eyebrow}</div>
           <h3 className="mt-4 text-2xl font-medium tracking-tight text-[var(--color-fg)] sm:text-3xl">
             {title}
           </h3>
@@ -682,7 +682,7 @@ function PricingColumn({ price, tier, blurb, features, cta, highlighted = false 
       </div>
       <div className="mt-2 flex items-center gap-2">
         <span className="text-sm font-medium text-[var(--color-fg)]">{tier}</span>
-        {highlighted && <span className="card-header text-[var(--color-fg)]">Recommended</span>}
+        {highlighted && <span className="overline text-[var(--color-fg)]">Recommended</span>}
       </div>
       <p className="mt-3 text-sm text-[var(--color-muted)]">{blurb}</p>
 
@@ -1022,7 +1022,7 @@ export default function Home() {
         <section id="features" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <FadeIn className="mx-auto max-w-2xl text-center">
-              <div className="card-header">Features</div>
+              <div className="overline">Features</div>
               <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                 Everything your money does, in one place.
               </h2>
@@ -1104,7 +1104,7 @@ export default function Home() {
 
             {/* Also included */}
             <FadeIn className="mt-24 sm:mt-32">
-              <div className="card-header">Also in the box</div>
+              <div className="overline">Also in the box</div>
               <div className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
                 {ALSO_INCLUDED.map((f) => (
                   <div key={f.title}>
@@ -1122,7 +1122,7 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-24">
               <FadeIn>
-                <div className="card-header">How it works</div>
+                <div className="overline">How it works</div>
                 <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                   Set up once. It runs itself.
                 </h2>
@@ -1142,7 +1142,7 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <div className="grid gap-12 lg:grid-cols-5 lg:gap-20">
               <FadeIn className="lg:col-span-2">
-                <div className="card-header">Security</div>
+                <div className="overline">Security</div>
                 <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                   Built like it&apos;s handling your money. Because it is.
                 </h2>
@@ -1171,7 +1171,7 @@ export default function Home() {
         >
           <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
             <FadeIn className="mx-auto max-w-2xl text-center">
-              <div className="card-header">Pricing</div>
+              <div className="overline">Pricing</div>
               <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                 Simple, honest pricing.
               </h2>
@@ -1220,7 +1220,7 @@ export default function Home() {
         <section id="faq" className="scroll-mt-20 border-t border-[var(--color-border)] py-20 sm:py-28">
           <div className="mx-auto max-w-3xl px-5 sm:px-6 lg:px-8">
             <FadeIn className="text-center">
-              <div className="card-header">FAQ</div>
+              <div className="overline">FAQ</div>
               <h2 className="mt-5 text-3xl font-medium tracking-tight text-[var(--color-fg)] sm:text-4xl">
                 Questions, answered.
               </h2>

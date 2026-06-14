@@ -32,7 +32,7 @@ function Row({ label, value, sublabel }) {
   if (value == null || value === "" || value === false) return null;
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="card-header">
+      <span className="overline">
         {label}
         {sublabel && (
           <span className="ml-1 text-[10px] font-normal text-[var(--color-muted)]/70">
@@ -60,7 +60,7 @@ function Section({ title, children }) {
   if (!hasContent) return null;
   return (
     <div>
-      <div className="card-header mb-1">{title}</div>
+      <div className="overline mb-1">{title}</div>
       <div>{children}</div>
     </div>
   );

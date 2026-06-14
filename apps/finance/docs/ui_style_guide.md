@@ -42,21 +42,41 @@ Use Tailwind's `/` opacity modifier sparingly. When differentiating primary from
 
 | Role | Classes | Example |
 |---|---|---|
-| Section header | `.card-header` (global class) | `MONTHLY SPENDING`, `INSIGHTS` |
+| Section header | `.card-header` (global class) | `Monthly Spending`, `Holdings`, `Top Holdings` |
 | Hero number (primary) | `text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)]` | Current month total |
 | Hero number (secondary) | `text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-muted)]` | Previous month total |
 | Metric change | `text-xs font-semibold` + sentiment color | `+12%`, `-5%` |
 | Body text | `text-sm text-[var(--color-fg)]` | Insight messages, descriptions |
 | Body text (emphasis) | `text-sm font-medium text-[var(--color-fg)]` | Important body content |
+| Overline / eyebrow | `.overline` (global class) | Stat captions like `SPENT THIS MONTH`, marketing eyebrows, badges |
 | Small label | `text-[11px] font-medium text-[var(--color-muted)] uppercase tracking-wider` | Inline labels like "This month" |
 | Meta / tiny | `text-[10px] text-[var(--color-muted)]` | Tooltip dates, footnotes |
 
 ### The `.card-header` Class
 
-Every section uses this for its title. Defined in `globals.css`:
+Every section / card uses this for its title. It's a readable, normal-case
+heading (matching the investments page's "Holdings" / "Cash" headings) —
+**not** an uppercase overline. Defined in `globals.css`:
 
 ```css
 .card-header {
+  font-size: 1.125rem;       /* 18px */
+  font-weight: 500;
+  color: var(--color-fg);
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.4;
+}
+```
+
+### The `.overline` Class
+
+The small uppercase eyebrow that `.card-header` used to be. Use it for
+quiet labels — stat captions ("Spent this month"), key/value row labels,
+marketing section eyebrows, and badges — **not** for section titles:
+
+```css
+.overline {
   font-size: 0.6875rem;      /* 11px */
   font-weight: 600;
   color: var(--color-muted);
