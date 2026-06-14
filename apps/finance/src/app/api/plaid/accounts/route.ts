@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { resolveScope } from '../../../../lib/api/scope';
+import { fetchQuotesForTickers } from '../../../../lib/quotes';
+import { sumHoldingsMarketValue } from '../../../../lib/holdingsValue';
 
 export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
   const scope = await resolveScope(request, userId);
@@ -58,6 +60,55 @@ export const GET = withAuth('plaid/accounts:list', async (request, userId) => {
     }
     return { ...rest, plaid_items: cleanPlaidItems };
   });
+
+  // Re-value investment accounts off the *latest* holding prices rather than
+  // Plaid's last-reported `balances.current`, which goes stale between syncs.
+  // This keeps every consumer of /api/plaid/accounts (accounts page,
+  // dashboard net-worth + assets cards) agreeing with the investments page,
+  // which values the same way client-side. Non-investment accounts (cash,
+  // credit, loans) have no holdings and are left untouched.
+  try {
+    const investmentAccountIds = sanitized
+      .filter((a) => (a as Record<string, unknown>).type === 'investment')
+      .map((a) => (a as Record<string, unknown>).id as string);
+
+    if (investmentAccountIds.length > 0) {
+      const { data: holdings } = await supabaseAdmin
+        .from('holdings')
+        .select('account_id, ticker, shares, avg_cost, asset_type')
+        .in('account_id', investmentAccountIds);
+
+      if (holdings && holdings.length > 0) {
+        const uniqueTickers = Array.from(
+          new Set(holdings.map((h) => h.ticker).filter(Boolean) as string[]),
+        );
+        const { quotes } = await fetchQuotesForTickers(uniqueTickers);
+
+        const holdingsByAccount = new Map<string, typeof holdings>();
+        for (const h of holdings) {
+          const list = holdingsByAccount.get(h.account_id) ?? [];
+          list.push(h);
+          holdingsByAccount.set(h.account_id, list);
+        }
+
+        for (const row of sanitized) {
+          const rowAny = row as Record<string, unknown>;
+          const accountHoldings = holdingsByAccount.get(rowAny.id as string);
+          if (!accountHoldings || accountHoldings.length === 0) continue;
+          const liveValue = sumHoldingsMarketValue(accountHoldings, quotes);
+          const balances = (rowAny.balances as Record<string, unknown> | null) ?? {};
+          rowAny.balances = { ...balances, current: liveValue };
+        }
+      }
+    }
+  } catch (revalueError) {
+    // Pricing is best-effort: if quote fetching fails, fall back to the
+    // stored balances rather than failing the whole accounts response.
+    console.warn(
+      'Investment re-valuation failed, using stored balances:',
+      revalueError instanceof Error ? revalueError.message : String(revalueError),
+    );
+  }
 
   return Response.json({ accounts: sanitized });
 });

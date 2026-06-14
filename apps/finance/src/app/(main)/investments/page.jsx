@@ -11,6 +11,12 @@ import InvestmentsChart from "./InvestmentsChart";
 import AllocationCard from "./AllocationCard";
 import AccountsCard from "./AccountsCard";
 import { formatShares } from "../../../lib/formatShares";
+import CashCurrencyIcon from "../../../components/CashCurrencyIcon";
+import {
+  isCashHolding,
+  cashCurrencyCode,
+  sumHoldingsMarketValue,
+} from "../../../lib/holdingsValue";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -297,13 +303,28 @@ export default function InvestmentsPage() {
       .sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
   }, [holdings, quotes]);
 
-  const totalValue = useMemo(() => {
-    return accounts.reduce((sum, a) => sum + (Number(a.balances?.current) || 0), 0);
-  }, [accounts]);
+  // Total portfolio value off the latest holding prices — the single
+  // source of truth shared with the allocation card and the per-account
+  // rows so the big number never disagrees with the breakdown beneath it.
+  const totalValue = useMemo(
+    () => sumHoldingsMarketValue(holdings, quotes),
+    [holdings, quotes],
+  );
 
   const totalCost = useMemo(() => {
     return combinedHoldings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
   }, [combinedHoldings]);
+
+  // Cash is real value but not a tradeable position — split it out of the
+  // Holdings list into its own section (no share counts, currency icon).
+  const tradedHoldings = useMemo(
+    () => combinedHoldings.filter((h) => !isCashHolding(h)),
+    [combinedHoldings],
+  );
+  const cashHoldings = useMemo(
+    () => combinedHoldings.filter((h) => isCashHolding(h)),
+    [combinedHoldings],
+  );
 
   // Keep the skeleton visible until the initial load (including ticker
   // metadata) is done. This prevents a brief flash where holding rows
@@ -333,14 +354,14 @@ export default function InvestmentsPage() {
       <div className="flex flex-col gap-10 lg:w-2/3">
         <InvestmentsChart userId={user?.id} currentValue={totalValue} costBasis={totalCost} />
 
-        {combinedHoldings.length > 0 && (
+        {tradedHoldings.length > 0 && (
           <div>
             <div className="mb-6 px-1">
               <h2 className="text-lg font-medium text-[var(--color-fg)]">Holdings</h2>
             </div>
 
             <div>
-              {combinedHoldings.map((h) => {
+              {tradedHoldings.map((h) => {
                 const meta = tickerMeta[h.ticker];
                 const displayName = meta?.name || h.ticker;
                 const sparkData = sparklines[h.ticker];
@@ -396,13 +417,56 @@ export default function InvestmentsPage() {
             </div>
           </div>
         )}
+
+        {cashHoldings.length > 0 && (
+          <div>
+            <div className="mb-6 px-1">
+              <h2 className="text-lg font-medium text-[var(--color-fg)]">Cash</h2>
+            </div>
+
+            <div>
+              {cashHoldings.map((h) => {
+                const meta = tickerMeta[h.ticker];
+                const currency = cashCurrencyCode(h);
+                const displayName = meta?.name || `${currency} Cash`;
+                return (
+                  <div
+                    key={h.ticker}
+                    className="flex items-center justify-between gap-4 rounded-xl px-4 py-4 hover:bg-[var(--color-surface-alt)]/40 md:px-6"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-4">
+                      <CashCurrencyIcon currency={currency} size={40} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium text-[var(--color-fg)]">
+                            {displayName}
+                          </span>
+                          <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
+                            {currency}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-[var(--color-muted)]">Cash balance</div>
+                      </div>
+                    </div>
+
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-sm font-medium tabular-nums text-[var(--color-fg)]">
+                        {formatCurrency(h.marketValue)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right column (1/3): allocation + accounts, independent of the left
           column's height. */}
       <div className="flex flex-col gap-14 lg:w-1/3">
         <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
-        <AccountsCard accounts={accounts} />
+        <AccountsCard accounts={accounts} holdings={holdings} quotes={quotes} />
       </div>
     </div>
   );

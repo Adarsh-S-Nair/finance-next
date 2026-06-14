@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase/client";
 import { useUser } from "../../../../components/providers/UserProvider";
 import { formatShares } from "../../../../lib/formatShares";
+import CashCurrencyIcon from "../../../../components/CashCurrencyIcon";
+import { isCashHolding, cashCurrencyCode } from "../../../../lib/holdingsValue";
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -116,7 +118,16 @@ export default function InvestmentAccountPage() {
       .sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
   }, [holdings, quotes]);
 
-  const totalValue = Number(account?.balances?.current) || 0;
+  // Value the account off the latest holding prices (consistent with the
+  // investments overview and accounts page); fall back to the stored
+  // balance only when there are no holdings to price.
+  const totalValue = useMemo(
+    () =>
+      enrichedHoldings.length > 0
+        ? enrichedHoldings.reduce((sum, h) => sum + (h.marketValue || 0), 0)
+        : Number(account?.balances?.current) || 0,
+    [enrichedHoldings, account?.balances?.current],
+  );
   const totalCost = useMemo(
     () => enrichedHoldings.reduce((sum, h) => sum + (h.costBasis || 0), 0),
     [enrichedHoldings]
@@ -180,50 +191,59 @@ export default function InvestmentAccountPage() {
           <div className="divide-y divide-[var(--color-border)]">
             {enrichedHoldings.map((h) => {
               const meta = tickerMeta[h.ticker];
-              const displayName = meta?.name || h.ticker;
+              const isCash = isCashHolding(h);
+              const currency = cashCurrencyCode(h);
+              const displayName = meta?.name || (isCash ? `${currency} Cash` : h.ticker);
+              const tag = isCash ? currency : h.ticker;
               return (
                 <div key={h.id} className="flex items-center gap-4 py-4">
-                  <div
-                    className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
-                    style={{ width: 40, height: 40 }}
-                  >
-                    {meta?.logo && (
+                  {isCash ? (
+                    <CashCurrencyIcon currency={currency} size={40} />
+                  ) : (
+                    <div
+                      className="relative flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-border)]/50 bg-[var(--color-surface)]/50"
+                      style={{ width: 40, height: 40 }}
+                    >
+                      {meta?.logo && (
 
-                      <img
-                        src={meta.logo}
-                        alt={h.ticker}
-                        className="absolute inset-0 h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
-                    <div className="flex h-full w-full items-center justify-center">
-                      <span className="text-[11px] font-semibold text-[var(--color-muted)]">
-                        {h.asset_type === "cash" ? "$" : h.ticker.slice(0, 3)}
-                      </span>
+                        <img
+                          src={meta.logo}
+                          alt={h.ticker}
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      )}
+                      <div className="flex h-full w-full items-center justify-center">
+                        <span className="text-[11px] font-semibold text-[var(--color-muted)]">
+                          {h.ticker.slice(0, 3)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-[var(--color-fg)]">
                         {displayName}
                       </span>
-                      {displayName !== h.ticker && (
+                      {displayName !== tag && (
                         <span className="flex-shrink-0 font-mono text-[11px] text-[var(--color-muted)]">
-                          {h.ticker}
+                          {tag}
                         </span>
                       )}
                     </div>
                     <div className="text-xs text-[var(--color-muted)]">
-                      {formatShares(h.shares)} shares @ {formatCurrency(h.avg_cost)}
+                      {isCash
+                        ? "Cash balance"
+                        : `${formatShares(h.shares)} shares @ ${formatCurrency(h.avg_cost)}`}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
                       {formatCurrency(h.marketValue)}
                     </div>
-                    {h.price != null && (
+                    {!isCash && h.price != null && (
                       <div
                         className={`mt-0.5 text-xs font-medium tabular-nums ${h.gain >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}
                       >

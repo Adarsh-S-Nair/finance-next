@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { PiBankFill } from "react-icons/pi";
 import { formatCurrency as formatCurrencyBase } from "../../../lib/formatCurrency";
+import { holdingMarketValue } from "../../../lib/holdingsValue";
 
 const formatCurrency = (amount) => formatCurrencyBase(Number(amount || 0), true);
 
@@ -42,7 +43,23 @@ function InstitutionAvatar({ logo, name, size = 32 }) {
   );
 }
 
-export default function AccountsCard({ accounts }) {
+export default function AccountsCard({ accounts, holdings = [], quotes = {} }) {
+  // Latest market value per account, summed from its holdings. Falls back
+  // to the stored balance when an account has no holdings (keeps things
+  // consistent with the big number / allocation card, which value the same way).
+  const liveValueByAccount = useMemo(() => {
+    const map = new Map();
+    for (const h of holdings || []) {
+      map.set(h.account_id, (map.get(h.account_id) || 0) + holdingMarketValue(h, quotes));
+    }
+    return map;
+  }, [holdings, quotes]);
+
+  const accountValue = (account) =>
+    liveValueByAccount.has(account.id)
+      ? liveValueByAccount.get(account.id)
+      : Number(account.balances?.current) || 0;
+
   const byInstitution = useMemo(() => {
     const map = new Map();
     for (const account of accounts || []) {
@@ -59,10 +76,11 @@ export default function AccountsCard({ accounts }) {
       }
       const entry = map.get(key);
       entry.accounts.push(account);
-      entry.total += Number(account.balances?.current) || 0;
+      entry.total += accountValue(account);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [accounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, liveValueByAccount]);
 
   return (
     <div className="flex flex-col">
@@ -100,7 +118,7 @@ export default function AccountsCard({ accounts }) {
                     </div>
                   </div>
                   <div className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">
-                    {formatCurrency(account.balances?.current)}
+                    {formatCurrency(accountValue(account))}
                   </div>
                 </Link>
               ))}
