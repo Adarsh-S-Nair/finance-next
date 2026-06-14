@@ -47,7 +47,6 @@ const getNextOccurrence = (stream) => {
 };
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
-const formatCurrencyWhole = (amount) => formatCurrencyBase(amount, false);
 
 const formatDayLabel = (date) => {
   const today = new Date();
@@ -125,7 +124,7 @@ export default function CalendarCard({ className = '', mockData }) {
 
   // Group upcoming bills (outflows only) by day for the next 7 days.
   // weekTotal drives the headline; nextBeyond is the fallback when the week is empty.
-  const { dayGroups, weekTotal, nextBeyond } = useMemo(() => {
+  const { dayGroups, nextBeyond } = useMemo(() => {
     const bills = recurring
       .filter((s) => s.stream_type !== 'inflow')
       .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
@@ -140,11 +139,6 @@ export default function CalendarCard({ className = '', mockData }) {
     const within = bills.filter(({ nextDate }) => nextDate >= today && nextDate < weekEnd);
     const beyond = bills.filter(({ nextDate }) => nextDate >= weekEnd);
 
-    const total = within.reduce(
-      (acc, { stream }) => acc + Math.abs(stream.last_amount || 0),
-      0,
-    );
-
     const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     const map = new Map();
     for (const item of within) {
@@ -158,7 +152,6 @@ export default function CalendarCard({ className = '', mockData }) {
 
     return {
       dayGroups: groups,
-      weekTotal: total,
       nextBeyond: beyond[0] || null,
     };
   }, [recurring]);
@@ -205,15 +198,6 @@ export default function CalendarCard({ className = '', mockData }) {
         </div>
       ) : hasBillsThisWeek ? (
         <div>
-          <div className="mb-4">
-            <div className="text-2xl font-semibold text-[var(--color-fg)] tabular-nums leading-none">
-              {formatCurrencyWhole(weekTotal)}
-            </div>
-            <div className="text-[11px] text-[var(--color-muted)] mt-1.5">
-              Due in the next 7 days
-            </div>
-          </div>
-
           <div className="flex flex-col gap-3">
             {dayGroups.map((group, i) => (
               <div key={i}>

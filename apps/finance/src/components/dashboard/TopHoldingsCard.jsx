@@ -73,7 +73,9 @@ function Sparkline({ data, width = 64, height = 24, fill = false, gradientId }) 
               visible body stays opaque while the gradient tail fades
               cleanly into the card. */}
           <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.15" />
+            <stop offset="25%" stopColor={stroke} stopOpacity="0.0975" />
+            <stop offset="60%" stopColor={stroke} stopOpacity="0.03" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
         </defs>
