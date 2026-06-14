@@ -142,6 +142,54 @@ export type Database = {
           },
         ]
       }
+      agent_actions: {
+        Row: {
+          action_type: string
+          confidence: number | null
+          created_at: string
+          id: string
+          new_state: Json
+          previous_state: Json
+          reason: string | null
+          reverted_at: string | null
+          source: string | null
+          status: string
+          subject_id: string
+          subject_table: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          new_state?: Json
+          previous_state?: Json
+          reason?: string | null
+          reverted_at?: string | null
+          source?: string | null
+          status?: string
+          subject_id: string
+          subject_table: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          new_state?: Json
+          previous_state?: Json
+          reason?: string | null
+          reverted_at?: string | null
+          source?: string | null
+          status?: string
+          subject_id?: string
+          subject_table?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       agent_findings: {
         Row: {
           body: string
