@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '../../../components/providers/UserProvider';
 import { useAuthedQuery } from '../../../lib/api/useAuthedQuery';
@@ -10,11 +10,19 @@ import IncomeEditor from '../../../components/budgets/IncomeEditor';
 import DynamicIcon from '../../../components/DynamicIcon';
 import UpgradeOverlay from '../../../components/UpgradeOverlay';
 import { FiTag } from 'react-icons/fi';
-import { LuPlus, LuTrash2 } from 'react-icons/lu';
+import {
+  LuPlus,
+  LuTrash2,
+  LuChevronRight,
+  LuTriangleAlert,
+  LuTrendingUp,
+  LuCircleCheck,
+  LuSparkles,
+} from 'react-icons/lu';
 import { formatCurrency } from '../../../lib/formatCurrency';
 import { isBudgetOver } from '../../../lib/budget';
-import { Button, EmptyState } from "@zervo/ui";
-import { ConfirmOverlay, LineChart } from "@zervo/ui";
+import { Button, EmptyState, SegmentedTabs, CustomDonut } from "@zervo/ui";
+import { ConfirmOverlay } from "@zervo/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -56,12 +64,6 @@ interface CategoryStat {
   monthly_avg?: number;
 }
 
-interface BurnSeriesPoint {
-  day: number;
-  spent: number;
-  cumulative: number;
-}
-
 interface PaceInfo {
   day: number;
   daysInMonth: number;
@@ -73,24 +75,16 @@ export default function BudgetsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [addingSuggestionId, setAddingSuggestionId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'overview' | 'categories'>('overview');
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // All three of the page's fetches now live in react-query, so
-  // navigating away and back paints the page from cache instead of
-  // showing the skeleton on every visit.
   const { data: budgetsPayload, isLoading: budgetsLoading } = useAuthedQuery<{
     data?: BudgetRecord[];
-    burn?: BurnSeriesPoint[];
   }>(['budgets:list', user?.id], user?.id ? '/api/budgets' : null);
   const budgets = useMemo(() => budgetsPayload?.data ?? [], [budgetsPayload]);
-  const burnSeries = useMemo(
-    () => (Array.isArray(budgetsPayload?.burn) ? budgetsPayload.burn : []),
-    [budgetsPayload],
-  );
   const loading = !!user?.id && budgetsLoading && !budgetsPayload;
 
   const { data: incomePayload } = useAuthedQuery<{ data?: IncomeMonth[] }>(
@@ -120,8 +114,6 @@ export default function BudgetsPage() {
     [categoryStatsPayload],
   );
 
-  // Helpers callers below still expect — refresh from cache after
-  // mutating budgets, recompute income, etc.
   const refetchBudgets = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['budgets:list', user?.id] });
   }, [queryClient, user?.id]);
@@ -131,49 +123,42 @@ export default function BudgetsPage() {
 
   const savedIncome = Number(profile?.monthly_income || 0);
   const income = savedIncome > 0 ? savedIncome : Number(fallbackIncome || 0);
-
-  const totalAllocated = useMemo(
-    () => budgets.reduce((sum, b) => sum + Number(b.amount || 0), 0),
-    [budgets]
-  );
+  const hasIncome = income > 0;
 
   const sortedBudgets = useMemo(
-    () =>
-      [...budgets].sort(
-        (a, b) => Number(b.amount || 0) - Number(a.amount || 0)
-      ),
-    [budgets]
+    () => [...budgets].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0)),
+    [budgets],
   );
-
-  const hasIncome = income > 0;
-  const overAllocated = Math.max(0, totalAllocated - income);
 
   const pace: PaceInfo = useMemo(() => {
     const now = new Date();
     const day = now.getDate();
-    const daysInMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0
-    ).getDate();
-    return {
-      day,
-      daysInMonth,
-      fraction: Math.min(1, day / daysInMonth),
-    };
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return { day, daysInMonth, fraction: Math.min(1, day / daysInMonth) };
   }, []);
 
-  const suggestions = useMemo<CategoryStat[]>(() => {
-    if (!categoryStats.length) return [];
-    const budgetedGroupIds = new Set(
-      budgets.map((b) => b.category_group_id).filter((id): id is string => Boolean(id))
-    );
-    return categoryStats
-      .filter((c) => !budgetedGroupIds.has(c.id))
-      .filter((c) => Number(c.monthly_avg || 0) > 0)
-      .sort((a, b) => Number(b.monthly_avg || 0) - Number(a.monthly_avg || 0))
-      .slice(0, 4);
-  }, [categoryStats, budgets]);
+  // ── Roll-up metrics ──────────────────────────────────────────────────
+  const totalAllocated = useMemo(
+    () => budgets.reduce((sum, b) => sum + Number(b.amount || 0), 0),
+    [budgets],
+  );
+  const totalSpent = useMemo(
+    () => budgets.reduce((sum, b) => sum + Number(b.spent || 0), 0),
+    [budgets],
+  );
+  const totalRemaining = totalAllocated - totalSpent;
+  const spendPct = totalAllocated > 0 ? (totalSpent / totalAllocated) * 100 : 0;
+  const overAllocated = Math.max(0, totalAllocated - income);
+
+  // Linear month-end projection from current pace.
+  const projectedSpent =
+    pace.fraction > 0 ? Math.round(totalSpent / pace.fraction) : totalSpent;
+  const projectedRemaining = totalAllocated - projectedSpent;
+
+  const monthLabel = useMemo(
+    () => new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    [],
+  );
 
   const requestDelete = (id: string) => {
     setPendingDeleteId(id);
@@ -199,29 +184,6 @@ export default function BudgetsPage() {
     refetchBudgets();
     refetchCategoryStats();
     await refreshProfile?.();
-  };
-
-  const handleQuickAddSuggestion = async (suggestion: CategoryStat) => {
-    if (addingSuggestionId) return;
-    setAddingSuggestionId(suggestion.id);
-    try {
-      const res = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: Math.round(Number(suggestion.monthly_avg || 0)),
-          period: 'monthly',
-          category_group_id: suggestion.id,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to add budget');
-      refetchBudgets();
-      refetchCategoryStats();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setAddingSuggestionId(null);
-    }
   };
 
   if (!isPro) {
@@ -283,95 +245,85 @@ export default function BudgetsPage() {
       {loading ? (
         <BudgetsSkeleton />
       ) : (
-        <section className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-          <div className="lg:w-2/3 flex flex-col gap-10">
-            <div className="-mb-4">
-              <IncomeEditor
-                savedIncome={savedIncome}
-                fallbackIncome={Number(fallbackIncome || 0)}
-                onChanged={async () => {
-                  await refreshProfile?.();
-                }}
+        <>
+          {/* Month label + view tabs */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="text-lg font-medium text-[var(--color-fg)] tracking-tight">
+              {monthLabel}
+            </div>
+            <SegmentedTabs
+              value={tab}
+              onChange={(v) => setTab(v as 'overview' | 'categories')}
+              options={[
+                { label: 'Overview', value: 'overview' },
+                { label: 'Categories', value: 'categories' },
+              ]}
+            />
+          </div>
+
+          {tab === 'categories' ? (
+            <div className="max-w-3xl">
+              <CategoryTable
+                budgets={sortedBudgets}
+                income={income}
+                hasIncome={hasIncome}
+                pace={pace}
+                onDelete={requestDelete}
+                onAdd={() => setIsModalOpen(true)}
               />
             </div>
-            <BurnDownChart
-              series={burnSeries}
-              totalAllocated={totalAllocated}
-              pace={pace}
-            />
+          ) : (
+            <section className="flex flex-col lg:flex-row gap-10 lg:gap-12">
+              {/* ── Left: progress, categories, alerts ── */}
+              <div className="lg:flex-1 min-w-0 flex flex-col gap-10">
+                <SpendingProgress
+                  totalSpent={totalSpent}
+                  totalAllocated={totalAllocated}
+                  spendPct={spendPct}
+                  pace={pace}
+                />
 
-            <div>
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-baseline gap-3">
-                  <h2 className="text-lg font-medium text-[var(--color-fg)]">Your budgets</h2>
-                  {hasIncome && (
-                    <span className="text-xs text-[var(--color-muted)] tabular-nums">
-                      {formatCurrency(totalAllocated)} / {formatCurrency(income)}
-                      {overAllocated > 0 && (
-                        <span className="text-[var(--color-danger)]">
-                          {' '}· {formatCurrency(overAllocated)} over
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="matte"
-                  onClick={() => setIsModalOpen(true)}
-                  className="gap-1.5 !rounded-full pl-3 pr-4"
-                >
-                  <LuPlus className="w-3.5 h-3.5" />
-                  New Budget
-                </Button>
-              </div>
-              <div className="flex flex-col">
-                {sortedBudgets.map((b, i) => (
-                  <BudgetRow
-                    key={b.id}
-                    budget={b}
-                    income={income}
-                    hasIncome={hasIncome}
-                    pace={pace}
-                    onDelete={() => requestDelete(b.id)}
-                    isLast={i === sortedBudgets.length - 1}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+                <CategoryTable
+                  budgets={sortedBudgets}
+                  income={income}
+                  hasIncome={hasIncome}
+                  pace={pace}
+                  onDelete={requestDelete}
+                  onAdd={() => setIsModalOpen(true)}
+                />
 
-          <div className="lg:w-1/3 flex flex-col gap-10">
-            <MonthProgress
-              pace={pace}
-              totalAllocated={totalAllocated}
-              burnSeries={burnSeries}
-              budgets={sortedBudgets}
-            />
-
-            {suggestions.length > 0 && (
-              <div id="budget-suggestions">
-                <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-4">
-                  Quick add
-                </h2>
-                <div className="flex flex-col">
-                  {suggestions.map((s, i) => (
-                    <SuggestionRow
-                      key={s.id}
-                      suggestion={s}
-                      income={income}
-                      hasIncome={hasIncome}
-                      adding={addingSuggestionId === s.id}
-                      disabled={!!addingSuggestionId && addingSuggestionId !== s.id}
-                      onAdd={() => handleQuickAddSuggestion(s)}
-                      isLast={i === suggestions.length - 1}
-                    />
-                  ))}
-                </div>
+                <BudgetAlerts
+                  budgets={sortedBudgets}
+                  categoryStats={categoryStats}
+                  pace={pace}
+                />
               </div>
-            )}
-          </div>
-        </section>
+
+              {/* ── Right: monthly budget, breakdown, insights ── */}
+              <div className="lg:w-[340px] lg:flex-shrink-0 flex flex-col gap-9 lg:border-l lg:border-[color-mix(in_oklab,var(--color-fg),transparent_92%)] lg:pl-12">
+                <MonthlyBudgetCard
+                  totalAllocated={totalAllocated}
+                  overAllocated={overAllocated}
+                  income={income}
+                  savedIncome={savedIncome}
+                  fallbackIncome={Number(fallbackIncome || 0)}
+                  onEdit={() => setIsModalOpen(true)}
+                  onIncomeChanged={async () => {
+                    await refreshProfile?.();
+                  }}
+                />
+
+                <BreakdownDonut budgets={sortedBudgets} totalAllocated={totalAllocated} />
+
+                <Insights
+                  projectedSpent={projectedSpent}
+                  projectedRemaining={projectedRemaining}
+                  totalAllocated={totalAllocated}
+                />
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       <CreateBudgetOverlay
@@ -420,10 +372,7 @@ function getLabel(b: BudgetRecord): string {
 function getIconMeta(b: BudgetRecord): { iconName: string | null; iconLib: string | null } {
   const isGroup = !!b.category_groups;
   const src = isGroup ? b.category_groups : b.system_categories;
-  return {
-    iconName: src?.icon_name || null,
-    iconLib: src?.icon_lib || null,
-  };
+  return { iconName: src?.icon_name || null, iconLib: src?.icon_lib || null };
 }
 
 interface CategoryIconProps {
@@ -437,11 +386,7 @@ function CategoryIcon({ iconName, iconLib, color, size = 36 }: CategoryIconProps
   return (
     <div
       className="rounded-full flex items-center justify-center flex-shrink-0 text-white"
-      style={{
-        width: size,
-        height: size,
-        backgroundColor: color || 'var(--color-muted)',
-      }}
+      style={{ width: size, height: size, backgroundColor: color || 'var(--color-muted)' }}
     >
       <DynamicIcon
         iconLib={iconLib}
@@ -454,9 +399,125 @@ function CategoryIcon({ iconName, iconLib, color, size = 36 }: CategoryIconProps
   );
 }
 
-// ─── Budget row ───────────────────────────────────────────────────────
+const HAIRLINE = 'border-[color-mix(in_oklab,var(--color-fg),transparent_92%)]';
 
-interface BudgetRowProps {
+// ─── Spending progress (hero) ─────────────────────────────────────────
+
+interface SpendingProgressProps {
+  totalSpent: number;
+  totalAllocated: number;
+  spendPct: number;
+  pace: PaceInfo;
+}
+
+function SpendingProgress({ totalSpent, totalAllocated, spendPct, pace }: SpendingProgressProps) {
+  const over = isBudgetOver(totalSpent, totalAllocated);
+  const aheadOfPace = !over && spendPct > pace.fraction * 100 + 2;
+  const fillColor = over
+    ? 'var(--color-danger)'
+    : aheadOfPace
+      ? '#f59e0b'
+      : 'var(--color-success)';
+
+  const daysLeft = Math.max(0, pace.daysInMonth - pace.day);
+  const now = new Date();
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const rangeStart = new Date(now.getFullYear(), now.getMonth(), pace.day + 1);
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth(), pace.daysInMonth);
+
+  return (
+    <div>
+      <div className="overline mb-2">Spending progress</div>
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex items-baseline gap-2">
+          <span className="text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+            {formatCurrency(totalSpent)}
+          </span>
+          <span className="text-sm text-[var(--color-muted)] tabular-nums">
+            of {formatCurrency(totalAllocated)}
+          </span>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-medium text-[var(--color-fg)] tabular-nums">
+            {daysLeft > 0 ? `${daysLeft} days left` : 'Last day'}
+          </div>
+          {daysLeft > 0 && (
+            <div className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
+              {fmt(rangeStart)} – {fmt(rangeEnd)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 h-2.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, spendPct))}%`, backgroundColor: fillColor }}
+        />
+      </div>
+      <div
+        className="mt-2 text-xs font-medium tabular-nums"
+        style={{ color: fillColor }}
+      >
+        {over
+          ? `${formatCurrency(totalSpent - totalAllocated)} over budget`
+          : `${spendPct.toFixed(0)}% of budget used`}
+      </div>
+    </div>
+  );
+}
+
+// ─── Category table ───────────────────────────────────────────────────
+
+interface CategoryTableProps {
+  budgets: BudgetRecord[];
+  income: number;
+  hasIncome: boolean;
+  pace: PaceInfo;
+  onDelete: (id: string) => void;
+  onAdd: () => void;
+}
+
+function CategoryTable({ budgets, income, hasIncome, pace, onDelete, onAdd }: CategoryTableProps) {
+  return (
+    <div>
+      <h2 className="text-lg font-medium text-[var(--color-fg)] mb-4">Budget categories</h2>
+
+      {/* Column header */}
+      <div className={`grid grid-cols-[1fr_auto] sm:grid-cols-[2fr_1fr_1fr_1.4fr] gap-4 px-3 pb-2 border-b ${HAIRLINE} text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted)]`}>
+        <span>Category</span>
+        <span className="hidden sm:block text-right">Budget</span>
+        <span className="hidden sm:block text-right">Spent</span>
+        <span className="text-right">Remaining</span>
+      </div>
+
+      <div className="flex flex-col">
+        {budgets.map((b, i) => (
+          <CategoryTableRow
+            key={b.id}
+            budget={b}
+            income={income}
+            hasIncome={hasIncome}
+            pace={pace}
+            onDelete={() => onDelete(b.id)}
+            isLast={i === budgets.length - 1}
+          />
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-success)] hover:opacity-80 transition-opacity"
+      >
+        <LuPlus className="w-4 h-4" />
+        Add category
+      </button>
+    </div>
+  );
+}
+
+interface CategoryTableRowProps {
   budget: BudgetRecord;
   income: number;
   hasIncome: boolean;
@@ -465,469 +526,390 @@ interface BudgetRowProps {
   isLast: boolean;
 }
 
-function BudgetRow({ budget, income, hasIncome, pace, onDelete, isLast }: BudgetRowProps) {
+function CategoryTableRow({ budget, income, hasIncome, pace, onDelete, isLast }: CategoryTableRowProps) {
   const { iconName, iconLib } = getIconMeta(budget);
   const color = getColor(budget);
   const label = getLabel(budget);
   const amount = Number(budget.amount || 0);
   const spent = Number(budget.spent || 0);
-  const spendPct = Number(budget.percentage || 0);
-  const hasSpending = spent > 0 || spendPct > 0;
+  const remaining = amount - spent;
+  const spendPct = amount > 0 ? Math.min(100, (spent / amount) * 100) : 0;
+  const rawPct = Number(budget.percentage || 0) || (amount > 0 ? (spent / amount) * 100 : 0);
   const allocPct = hasIncome && amount > 0 ? (amount / income) * 100 : 0;
 
-  const expectedPct = pace ? pace.fraction * 100 : null;
-  const expectedAmount = pace ? amount * pace.fraction : null;
-  const paceDelta = expectedAmount != null ? spent - expectedAmount : null;
-  const overPace =
-    expectedPct != null && spendPct > expectedPct + 2 && spendPct < 100;
-  const underPace =
-    expectedPct != null && hasSpending && spendPct < expectedPct - 2;
   const overBudget = isBudgetOver(spent, amount);
-
-  const fillPct = Math.min(100, Math.max(0, spendPct));
-  const fillColor = overBudget
+  const aheadOfPace = !overBudget && rawPct > pace.fraction * 100 + 2 && rawPct < 100;
+  const barColor = overBudget
     ? 'var(--color-danger)'
-    : overPace
+    : aheadOfPace
       ? '#f59e0b'
       : color;
-  const fillOpacity = overBudget ? 0.22 : overPace ? 0.20 : 0.16;
 
   return (
     <div
-      className={`
-        group relative isolate flex items-center gap-4 py-4 px-3 -mx-3 rounded-lg overflow-hidden
-        ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
-        hover:bg-[var(--color-card-highlight)]
-      `}
+      className={`group grid grid-cols-[1fr_auto] sm:grid-cols-[2fr_1fr_1fr_1.4fr] items-center gap-4 py-3.5 px-3 -mx-3 rounded-lg hover:bg-[var(--color-card-highlight)] ${!isLast ? `border-b ${HAIRLINE}` : ''}`}
     >
-      {hasSpending && fillPct > 0 && (
-        <div
-          aria-hidden
-          className="absolute inset-y-0 left-0 -z-10 pointer-events-none"
-          style={{
-            width: `${fillPct}%`,
-            backgroundColor: fillColor,
-            opacity: fillOpacity,
-          }}
-        />
-      )}
-
-      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={36} />
-
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-[var(--color-fg)] truncate">{label}</p>
-        <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
-          {hasIncome && `${allocPct.toFixed(0)}% of income`}
-          {overBudget && (
-            <span className="text-[var(--color-danger)]"> · over budget</span>
+      {/* Category */}
+      <div className="flex items-center gap-3 min-w-0">
+        <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={36} />
+        <div className="min-w-0">
+          <p className="font-medium text-sm text-[var(--color-fg)] truncate">{label}</p>
+          {hasIncome && allocPct > 0 && (
+            <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
+              {allocPct.toFixed(0)}% of income
+            </p>
           )}
-          {overPace && paceDelta != null && (
-            <span className="text-[#b45309]">
-              {' '}· {formatCurrency(paceDelta)} ahead of pace
-            </span>
-          )}
-          {underPace && paceDelta != null && Math.abs(paceDelta) >= 1 && (
-            <span className="text-[var(--color-muted)]">
-              {' '}· {formatCurrency(Math.abs(paceDelta))} under pace
-            </span>
-          )}
-          {!hasIncome && !hasSpending && 'No spending yet'}
-        </p>
+        </div>
       </div>
 
-      <div className="flex-shrink-0">
-        <p className="text-sm tabular-nums whitespace-nowrap text-right">
-          <span
-            className="font-semibold"
-            style={{
-              color: overBudget ? 'var(--color-danger)' : 'var(--color-fg)',
-            }}
+      {/* Budget */}
+      <div className="hidden sm:block text-right text-sm tabular-nums text-[var(--color-muted)]">
+        {formatCurrency(amount)}
+      </div>
+
+      {/* Spent */}
+      <div className="hidden sm:block text-right text-sm tabular-nums text-[var(--color-fg)]">
+        {formatCurrency(spent)}
+      </div>
+
+      {/* Remaining + bar + pct + controls */}
+      <div className="flex items-center justify-end gap-3">
+        <div className="text-right">
+          <div
+            className="text-sm font-semibold tabular-nums"
+            style={{ color: overBudget ? 'var(--color-danger)' : 'var(--color-fg)' }}
           >
-            {formatCurrency(spent)}
-          </span>
-          <span className="text-[var(--color-muted)]"> / {formatCurrency(amount)}</span>
-        </p>
+            {formatCurrency(remaining)}
+          </div>
+        </div>
+        <div className="hidden md:block w-16">
+          <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${spendPct}%`, backgroundColor: barColor }}
+            />
+          </div>
+        </div>
+        <span className="hidden md:block w-9 text-right text-xs tabular-nums text-[var(--color-muted)]">
+          {rawPct.toFixed(0)}%
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded transition-opacity"
+          title="Delete budget"
+          aria-label={`Delete ${label} budget`}
+        >
+          <LuTrash2 size={14} />
+        </button>
+        <LuChevronRight className="w-4 h-4 text-[var(--color-muted)] opacity-40 group-hover:opacity-0 transition-opacity hidden sm:block" />
       </div>
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-muted)] hover:text-[var(--color-danger)] rounded"
-        title="Delete budget"
-        aria-label={`Delete ${label} budget`}
-      >
-        <LuTrash2 size={14} />
-      </button>
     </div>
   );
 }
 
-// ─── Burn-down chart ──────────────────────────────────────────────────
+// ─── Budget alerts ────────────────────────────────────────────────────
 
-interface BurnDownChartProps {
-  series: BurnSeriesPoint[];
-  totalAllocated: number;
+interface AlertItem {
+  id: string;
+  kind: 'over' | 'near' | 'pace' | 'trend';
+  title: string;
+  description: string;
+}
+
+interface BudgetAlertsProps {
+  budgets: BudgetRecord[];
+  categoryStats: CategoryStat[];
   pace: PaceInfo;
 }
 
-function BurnDownChart({ series, totalAllocated, pace }: BurnDownChartProps) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+function BudgetAlerts({ budgets, categoryStats, pace }: BudgetAlertsProps) {
+  const alerts = useMemo<AlertItem[]>(() => {
+    const out: AlertItem[] = [];
+    const avgByGroup = new Map<string, number>();
+    categoryStats.forEach((c) => avgByGroup.set(c.id, Number(c.monthly_avg || 0)));
 
-  const daysInMonth = pace?.daysInMonth || 30;
-  const today = pace?.day || daysInMonth;
+    for (const b of budgets) {
+      const label = getLabel(b);
+      const amount = Number(b.amount || 0);
+      const spent = Number(b.spent || 0);
+      if (amount <= 0) continue;
+      const pct = (spent / amount) * 100;
 
-  interface ChartPoint {
-    day: number;
-    dayLabel: string;
-    value: number | null;
-    pace: number;
-  }
-
-  const chartData = useMemo<ChartPoint[]>(() => {
-    if (!totalAllocated || totalAllocated <= 0 || daysInMonth <= 0) return [];
-    const burnByDay = new Map<number, number>();
-    series.forEach((p) => burnByDay.set(p.day, p.cumulative));
-    const out: ChartPoint[] = [];
-    let running = 0;
-    for (let day = 1; day <= daysInMonth; day++) {
-      if (burnByDay.has(day)) running = burnByDay.get(day) ?? running;
-      out.push({
-        day,
-        dayLabel: `Day ${day}`,
-        value: day <= today ? Number(running.toFixed(2)) : null,
-        pace: Number(((day / daysInMonth) * totalAllocated).toFixed(2)),
-      });
+      if (isBudgetOver(spent, amount)) {
+        out.push({
+          id: `over-${b.id}`,
+          kind: 'over',
+          title: `You've exceeded your ${label} budget`,
+          description: `${formatCurrency(spent - amount)} over your ${formatCurrency(amount)} limit`,
+        });
+      } else if (pct >= 85) {
+        out.push({
+          id: `near-${b.id}`,
+          kind: 'near',
+          title: `You've spent ${pct.toFixed(0)}% of your ${label} budget`,
+          description: `You have ${formatCurrency(amount - spent)} remaining`,
+        });
+      } else if (pct > pace.fraction * 100 + 15) {
+        out.push({
+          id: `pace-${b.id}`,
+          kind: 'pace',
+          title: `${label} is trending high`,
+          description: `${pct.toFixed(0)}% spent with ${(pace.fraction * 100).toFixed(0)}% of the month elapsed`,
+        });
+      } else {
+        const avg = avgByGroup.get(b.category_group_id || '') || 0;
+        if (avg > 0 && spent > avg * 1.2) {
+          out.push({
+            id: `trend-${b.id}`,
+            kind: 'trend',
+            title: `${label} is trending high`,
+            description: `${formatCurrency(spent)} this month vs ${formatCurrency(avg)} typical`,
+          });
+        }
+      }
     }
-    return out;
-  }, [series, totalAllocated, daysInMonth, today]);
+    return out.slice(0, 4);
+  }, [budgets, categoryStats, pace]);
 
-  const todayPoint = chartData.find((p) => p.day === today);
-  const currentSpent = todayPoint?.value ?? 0;
-
-  const hovered =
-    activeIndex !== null && chartData[activeIndex] ? chartData[activeIndex] : null;
-
-  const displaySpent =
-    hovered && hovered.value != null ? hovered.value : currentSpent;
-  const displayPace = hovered?.pace ?? todayPoint?.pace ?? 0;
-  const displayDay = hovered?.day ?? today;
-  const displayDelta = displaySpent - displayPace;
-  const isOverPace = displayDelta > 0;
-  const isOverBudget = isBudgetOver(currentSpent, totalAllocated);
-
-  const maxSpent = useMemo(
-    () =>
-      chartData.reduce((m, p) => (p.value != null && p.value > m ? p.value : m), 0),
-    [chartData]
-  );
-  const yMax = Math.max(totalAllocated, maxSpent) * 1.02;
-
-  const lineColor = isOverBudget
-    ? 'var(--color-danger)'
-    : isOverPace
-      ? '#f59e0b'
-      : 'var(--color-success)';
-
-  const monthLabel = useMemo(() => {
-    const d = new Date();
-    d.setDate(displayDay);
-    return d.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }, [displayDay]);
-
-  const handleMouseMove = (_data: unknown, index: number) => setActiveIndex(index);
-  const handleMouseLeave = () => setActiveIndex(null);
-
-  if (!totalAllocated || totalAllocated <= 0) {
+  if (alerts.length === 0) {
     return (
-      <div onMouseLeave={handleMouseLeave}>
-        <div className="mb-4">
-          <div className="overline mb-1">Spent this month</div>
-          <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight">
-            $0
-          </div>
-          <div className="text-xs text-[var(--color-muted)] mt-0.5">
-            No budgets yet
-          </div>
-        </div>
-        <div className="pt-4 pb-2 h-[200px] flex items-center justify-center text-sm text-[var(--color-muted)]">
-          Create a budget to start tracking
+      <div>
+        <h2 className="text-lg font-medium text-[var(--color-fg)] mb-4">Recent budget alerts</h2>
+        <div className="flex items-center gap-3 py-4 text-sm text-[var(--color-muted)]">
+          <LuCircleCheck className="w-5 h-5 text-[var(--color-success)] flex-shrink-0" />
+          Every category is comfortably within budget. Nice work.
         </div>
       </div>
     );
   }
 
   return (
-    <div onMouseLeave={handleMouseLeave}>
-      <div className="mb-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="overline mb-1">Spent this month</div>
-            <div className="flex flex-col">
-              <div className="text-2xl font-medium text-[var(--color-fg)] tracking-tight tabular-nums">
-                {formatCurrency(displaySpent)}
-              </div>
-              <div
-                className={`text-xs font-medium mt-0.5 tabular-nums ${
-                  isOverBudget
-                    ? 'text-[var(--color-danger)]'
-                    : isOverPace
-                      ? 'text-amber-500'
-                      : 'text-[var(--color-success)]'
-                }`}
-              >
-                {isOverBudget
-                  ? `${formatCurrency(displaySpent - totalAllocated)} over budget`
-                  : isOverPace
-                    ? `${formatCurrency(displayDelta)} ahead of pace`
-                    : `${formatCurrency(Math.abs(displayDelta))} under pace`}
-                <span className="text-[var(--color-muted)] font-normal">
-                  {' '}· of {formatCurrency(totalAllocated)} budgeted
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="text-xs text-[var(--color-muted)] font-medium">
-              {monthLabel}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="pt-4 pb-2">
-        <div
-          className="w-full focus:outline-none [&_*]:focus:outline-none [&_*]:focus-visible:outline-none relative"
-          tabIndex={-1}
-          style={{ outline: 'none', height: '200px' }}
-        >
-          <LineChart
-            data={chartData as never}
-            width="100%"
-            height={200}
-            margin={{ top: 10, right: 0, bottom: 10, left: 0 }}
-            curveType="monotone"
-            xAxisDataKey="dayLabel"
-            yAxisDomain={[0, yMax]}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            lines={[
-              {
-                dataKey: 'value',
-                strokeColor: lineColor,
-                strokeWidth: 2,
-                showArea: true,
-                areaOpacity: 0.18,
-                gradientId: 'burnActualGradient',
-              },
-              {
-                dataKey: 'pace',
-                strokeColor: 'var(--color-muted)',
-                strokeWidth: 1.25,
-                strokeOpacity: 0.55,
-                strokeDasharray: '4 4',
-                showArea: false,
-                gradientId: 'burnPaceGradient',
-              },
-            ]}
-          />
-        </div>
+    <div>
+      <h2 className="text-lg font-medium text-[var(--color-fg)] mb-4">Recent budget alerts</h2>
+      <div className="flex flex-col">
+        {alerts.map((a, i) => (
+          <AlertRow key={a.id} alert={a} isLast={i === alerts.length - 1} />
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Month Progress (side-panel component) ────────────────────────────
-
-interface MonthProgressProps {
-  pace: PaceInfo;
-  totalAllocated: number;
-  burnSeries: BurnSeriesPoint[];
-  budgets: BudgetRecord[];
-}
-
-function MonthProgress({ pace, totalAllocated, burnSeries, budgets }: MonthProgressProps) {
-  if (!pace) return null;
-
-  const currentSpent =
-    Array.isArray(burnSeries) && burnSeries.length > 0
-      ? Number(burnSeries[burnSeries.length - 1]?.cumulative || 0)
-      : 0;
-
-  const pacePct = pace.fraction * 100;
-  const spendPct =
-    totalAllocated > 0 ? Math.min(100, (currentSpent / totalAllocated) * 100) : 0;
-  const expectedSpent = totalAllocated * pace.fraction;
-  const delta = currentSpent - expectedSpent;
-  const isOverPace = delta > 1;
-  const isOverBudget = isBudgetOver(currentSpent, totalAllocated);
-
-  const trouble = budgets.reduce(
-    (acc, b) => {
-      const spent = Number(b.spent || 0);
-      const amount = Number(b.amount || 0);
-      const sp = Number(b.percentage || 0);
-      const ep = pacePct;
-      if (isBudgetOver(spent, amount)) acc.over += 1;
-      else if (sp > ep + 2) acc.ahead += 1;
-      return acc;
-    },
-    { over: 0, ahead: 0 }
-  );
-
-  const deltaColor = isOverBudget
-    ? 'text-[var(--color-danger)]'
-    : isOverPace
-      ? 'text-amber-500'
-      : 'text-[var(--color-success)]';
-
-  const deltaLabel = isOverBudget
-    ? `${formatCurrency(currentSpent - totalAllocated)} over budget`
-    : isOverPace
-      ? `${formatCurrency(delta)} ahead of pace`
-      : currentSpent > 0
-        ? `${formatCurrency(Math.abs(delta))} under pace`
-        : 'Nothing spent yet';
+function AlertRow({ alert, isLast }: { alert: AlertItem; isLast: boolean }) {
+  const config = {
+    over: { Icon: LuTriangleAlert, color: 'var(--color-danger)' },
+    near: { Icon: LuTrendingUp, color: '#f59e0b' },
+    pace: { Icon: LuTrendingUp, color: '#f59e0b' },
+    trend: { Icon: LuTrendingUp, color: '#f59e0b' },
+  }[alert.kind];
+  const { Icon, color } = config;
 
   return (
+    <div className={`flex items-start gap-3 py-3.5 ${!isLast ? `border-b ${HAIRLINE}` : ''}`}>
+      <div
+        className="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: `color-mix(in oklab, ${color}, transparent 85%)` }}
+      >
+        <Icon className="w-4 h-4" style={{ color }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[var(--color-fg)]">{alert.title}</p>
+        <p className="text-[12px] text-[var(--color-muted)] mt-0.5">{alert.description}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Monthly budget (right) ───────────────────────────────────────────
+
+interface MonthlyBudgetCardProps {
+  totalAllocated: number;
+  overAllocated: number;
+  income: number;
+  savedIncome: number;
+  fallbackIncome: number;
+  onEdit: () => void;
+  onIncomeChanged: () => Promise<void> | void;
+}
+
+function MonthlyBudgetCard({
+  totalAllocated,
+  overAllocated,
+  income,
+  savedIncome,
+  fallbackIncome,
+  onEdit,
+  onIncomeChanged,
+}: MonthlyBudgetCardProps) {
+  return (
     <div>
-      <div className="overline mb-5">Month pace</div>
-
-      <div className="mb-3 flex items-baseline justify-between">
-        <span className="text-sm font-medium text-[var(--color-fg)]">
-          Day {pace.day} of {pace.daysInMonth}
-        </span>
-        <span className="text-xs text-[var(--color-muted)] tabular-nums">
-          {pacePct.toFixed(0)}% elapsed
-        </span>
+      <div className="overline mb-2">Monthly budget</div>
+      <div className="text-3xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums">
+        {formatCurrency(totalAllocated)}
       </div>
-
-      <div className="space-y-2.5 mb-6">
-        <div>
-          <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-[var(--color-muted)] opacity-50"
-              style={{ width: `${pacePct}%` }}
-            />
-          </div>
-          <div className="mt-1 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
-            <span>Month</span>
-            <span>{formatCurrency(expectedSpent)} expected</span>
-          </div>
-        </div>
-        <div>
-          <div className="h-1.5 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${spendPct}%`,
-                backgroundColor: isOverBudget
-                  ? 'var(--color-danger)'
-                  : isOverPace
-                    ? '#f59e0b'
-                    : 'var(--color-success)',
-              }}
-            />
-          </div>
-          <div className="mt-1 flex justify-between text-[10px] text-[var(--color-muted)] tabular-nums">
-            <span>Spent</span>
-            <span>
-              {formatCurrency(currentSpent)} of {formatCurrency(totalAllocated)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className={`text-sm font-medium tabular-nums ${deltaColor}`}>
-        {deltaLabel}
-      </div>
-
-      {(trouble.over > 0 || trouble.ahead > 0) && (
-        <div className="mt-4 pt-4 border-t border-[color-mix(in_oklab,var(--color-fg),transparent_93%)] space-y-2">
-          {trouble.over > 0 && (
-            <div className="flex items-baseline justify-between text-xs">
-              <span className="text-[var(--color-muted)]">Over budget</span>
-              <span className="text-[var(--color-danger)] font-medium tabular-nums">
-                {trouble.over} {trouble.over === 1 ? 'category' : 'categories'}
-              </span>
-            </div>
-          )}
-          {trouble.ahead > 0 && (
-            <div className="flex items-baseline justify-between text-xs">
-              <span className="text-[var(--color-muted)]">Ahead of pace</span>
-              <span className="text-amber-600 dark:text-amber-500 font-medium tabular-nums">
-                {trouble.ahead} {trouble.ahead === 1 ? 'category' : 'categories'}
-              </span>
-            </div>
+      {income > 0 && (
+        <div className="mt-1 text-xs text-[var(--color-muted)] tabular-nums">
+          {((totalAllocated / income) * 100).toFixed(0)}% of {formatCurrency(income)} income
+          {overAllocated > 0 && (
+            <span className="text-[var(--color-danger)]"> · {formatCurrency(overAllocated)} over</span>
           )}
         </div>
       )}
+      <button
+        type="button"
+        onClick={onEdit}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-success)] hover:opacity-80 transition-opacity"
+      >
+        <LuPlus className="w-3.5 h-3.5" />
+        Add or edit budgets
+      </button>
+
+      <div className={`mt-4 pt-4 border-t ${HAIRLINE}`}>
+        <IncomeEditor
+          savedIncome={savedIncome}
+          fallbackIncome={fallbackIncome}
+          onChanged={onIncomeChanged}
+        />
+      </div>
     </div>
   );
 }
 
-// ─── Suggestion row (flat, no card border) ────────────────────────────
+// ─── Breakdown donut (right) ──────────────────────────────────────────
 
-interface SuggestionRowProps {
-  suggestion: CategoryStat;
-  income: number;
-  hasIncome: boolean;
-  adding: boolean;
-  disabled: boolean;
-  onAdd: () => void;
-  isLast: boolean;
-}
+function BreakdownDonut({
+  budgets,
+  totalAllocated,
+}: {
+  budgets: BudgetRecord[];
+  totalAllocated: number;
+}) {
+  const data = useMemo(
+    () =>
+      budgets
+        .map((b) => ({ label: getLabel(b), value: Number(b.amount || 0), color: getColor(b) }))
+        .filter((d) => d.value > 0),
+    [budgets],
+  );
 
-function SuggestionRow({
-  suggestion,
-  income,
-  hasIncome,
-  adding,
-  disabled,
-  onAdd,
-  isLast,
-}: SuggestionRowProps) {
-  const color = suggestion.hex_color || '#71717a';
-  const iconName = suggestion.icon_name ?? null;
-  const iconLib = suggestion.icon_lib ?? null;
-  const avg = Number(suggestion.monthly_avg || 0);
-  const pctOfIncome = hasIncome && avg > 0 ? (avg / income) * 100 : 0;
+  if (data.length === 0) return null;
 
   return (
-    <div
-      className={`
-        group flex items-center gap-3 py-3 px-2 -mx-2 rounded-lg
-        hover:bg-[var(--color-card-highlight)]
-        ${!isLast ? 'border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]' : ''}
-      `}
-    >
-      <CategoryIcon iconName={iconName} iconLib={iconLib} color={color} size={28} />
+    <div>
+      <div className="overline mb-4">Budget breakdown</div>
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-[var(--color-fg)] truncate">
-          {suggestion.label}
-        </p>
-        <p className="text-[11px] text-[var(--color-muted)] tabular-nums mt-0.5">
-          {formatCurrency(avg)}/mo avg
-          {hasIncome && pctOfIncome > 0 && ` · ${pctOfIncome.toFixed(0)}%`}
-        </p>
+      <div className="flex justify-center mb-6">
+        <div className="relative" style={{ width: 180, height: 180 }}>
+          <CustomDonut data={data} size={180} strokeWidth={22} showTotal={false} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-xl font-semibold text-[var(--color-fg)] tabular-nums">
+              {formatCurrency(totalAllocated)}
+            </div>
+            <div className="text-xs text-[var(--color-muted)]">Total</div>
+          </div>
+        </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onAdd}
-        disabled={adding || disabled}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-alt)] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-        title={`Add ${suggestion.label} budget`}
-        aria-label={`Add ${suggestion.label} budget`}
-      >
-        {adding ? <span className="text-[10px]">…</span> : <LuPlus className="w-3.5 h-3.5" />}
-      </button>
+      <div className="flex flex-col gap-2.5">
+        {data.map((d) => {
+          const pct = totalAllocated > 0 ? (d.value / totalAllocated) * 100 : 0;
+          return (
+            <div key={d.label} className="flex items-center gap-2.5 text-sm">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: d.color }}
+              />
+              <span className="flex-1 min-w-0 truncate text-[var(--color-fg)]">{d.label}</span>
+              <span className="tabular-nums text-[var(--color-fg)]">{formatCurrency(d.value)}</span>
+              <span className="w-12 text-right tabular-nums text-[var(--color-muted)]">
+                {pct.toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={`mt-3 pt-3 border-t ${HAIRLINE} flex items-center gap-2.5 text-sm font-medium`}>
+        <span className="w-2.5 flex-shrink-0" />
+        <span className="flex-1 text-[var(--color-fg)]">Total</span>
+        <span className="tabular-nums text-[var(--color-fg)]">{formatCurrency(totalAllocated)}</span>
+        <span className="w-12 text-right tabular-nums text-[var(--color-muted)]">100%</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Insights (right) ─────────────────────────────────────────────────
+
+interface InsightsProps {
+  projectedSpent: number;
+  projectedRemaining: number;
+  totalAllocated: number;
+}
+
+function Insights({ projectedSpent, projectedRemaining, totalAllocated }: InsightsProps) {
+  const onTrack = projectedRemaining >= 0;
+  const projFillPct =
+    totalAllocated > 0 ? Math.min(100, (projectedSpent / totalAllocated) * 100) : 0;
+  const fillColor = onTrack ? 'var(--color-success)' : 'var(--color-danger)';
+
+  return (
+    <div>
+      <div className="overline mb-4">Insights</div>
+
+      <div className="flex items-start gap-3">
+        <div
+          className="mt-0.5 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: `color-mix(in oklab, ${fillColor}, transparent 85%)` }}
+        >
+          <LuSparkles className="w-4 h-4" style={{ color: fillColor }} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[var(--color-fg)]">
+            {onTrack ? "You're on track to stay under budget" : "You're projected to go over budget"}
+          </p>
+          <p className="text-[12px] text-[var(--color-muted)] mt-0.5 leading-relaxed">
+            {onTrack ? (
+              <>
+                Keep it up! You&apos;re projected to have{' '}
+                <span className="font-medium" style={{ color: fillColor }}>
+                  {formatCurrency(projectedRemaining)}
+                </span>{' '}
+                remaining by month end.
+              </>
+            ) : (
+              <>
+                At your current pace you&apos;ll be{' '}
+                <span className="font-medium" style={{ color: fillColor }}>
+                  {formatCurrency(Math.abs(projectedRemaining))}
+                </span>{' '}
+                over by month end.
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <div className="text-[11px] text-[var(--color-muted)] mb-2">Projected at month end</div>
+        <div className="flex items-center justify-between text-xs tabular-nums mb-1.5">
+          <span className="text-[var(--color-fg)]">{formatCurrency(projectedSpent)} spent</span>
+          <span style={{ color: fillColor }}>
+            {projectedRemaining >= 0
+              ? `${formatCurrency(projectedRemaining)} left`
+              : `${formatCurrency(Math.abs(projectedRemaining))} over`}
+          </span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-[var(--color-surface-alt)] overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${projFillPct}%`, backgroundColor: fillColor }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -937,26 +919,22 @@ function SuggestionRow({
 function BudgetsSkeleton() {
   const bar = "bg-[var(--color-border)] rounded";
   return (
-    <section className="flex flex-col lg:flex-row gap-8 lg:gap-10 animate-pulse">
-      <div className="lg:w-2/3 flex flex-col gap-10">
-        <div>
-          <div className={`h-3 w-32 ${bar} mb-2`} />
-          <div className={`h-8 w-44 ${bar} mb-2`} />
-          <div className={`h-3 w-52 ${bar} mb-6`} />
-          <div className={`h-[200px] w-full ${bar}`} />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className={`h-5 w-32 ${bar}`} />
-            <div className={`h-8 w-28 ${bar} rounded-full`} />
+    <div className="animate-pulse">
+      <div className="flex items-center justify-between mb-8">
+        <div className={`h-6 w-32 ${bar}`} />
+        <div className={`h-8 w-44 ${bar} rounded-full`} />
+      </div>
+      <section className="flex flex-col lg:flex-row gap-10 lg:gap-12">
+        <div className="lg:flex-1 flex flex-col gap-10">
+          <div>
+            <div className={`h-3 w-32 ${bar} mb-3`} />
+            <div className={`h-10 w-56 ${bar} mb-4`} />
+            <div className={`h-2.5 w-full ${bar}`} />
           </div>
           <div>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-4 py-4 px-3 -mx-3 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
-              >
+            <div className={`h-5 w-40 ${bar} mb-4`} />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className={`flex items-center gap-4 py-3.5 px-3 border-b ${HAIRLINE}`}>
                 <div className={`h-9 w-9 rounded-full ${bar}`} />
                 <div className="flex-1">
                   <div className={`h-3 w-32 ${bar} mb-2`} />
@@ -967,39 +945,21 @@ function BudgetsSkeleton() {
             ))}
           </div>
         </div>
-      </div>
-
-      <div className="lg:w-1/3 flex flex-col gap-10">
-        <div>
-          <div className={`h-3 w-24 ${bar} mb-5`} />
-          <div className="flex justify-between mb-3">
-            <div className={`h-4 w-28 ${bar}`} />
-            <div className={`h-3 w-20 ${bar}`} />
-          </div>
-          <div className={`h-1.5 w-full ${bar} mb-4`} />
-          <div className={`h-1.5 w-full ${bar} mb-4`} />
-          <div className={`h-4 w-40 ${bar}`} />
-        </div>
-
-        <div>
-          <div className={`h-3 w-20 ${bar} mb-4`} />
+        <div className="lg:w-[340px] lg:flex-shrink-0 flex flex-col gap-9">
           <div>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 py-3 px-2 -mx-2 border-b border-[color-mix(in_oklab,var(--color-fg),transparent_93%)]"
-              >
-                <div className={`h-7 w-7 rounded-full ${bar}`} />
-                <div className="flex-1">
-                  <div className={`h-3 w-24 ${bar} mb-1.5`} />
-                  <div className={`h-3 w-16 ${bar}`} />
-                </div>
-                <div className={`h-7 w-7 rounded-full ${bar}`} />
-              </div>
-            ))}
+            <div className={`h-3 w-24 ${bar} mb-3`} />
+            <div className={`h-9 w-40 ${bar}`} />
+          </div>
+          <div className="flex flex-col items-center gap-5">
+            <div className={`h-44 w-44 rounded-full ${bar}`} />
+            <div className="w-full space-y-2">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className={`h-4 w-full ${bar}`} />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
