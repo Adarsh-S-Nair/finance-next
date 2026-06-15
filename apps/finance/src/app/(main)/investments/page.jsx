@@ -10,6 +10,7 @@ import { authFetch } from "../../../lib/api/fetch";
 import InvestmentsChart from "./InvestmentsChart";
 import AllocationCard from "./AllocationCard";
 import AccountsCard from "./AccountsCard";
+import CalculatorWidget from "./CalculatorWidget";
 import { formatShares } from "../../../lib/formatShares";
 import CashCurrencyIcon from "../../../components/CashCurrencyIcon";
 import {
@@ -461,6 +462,7 @@ export default function InvestmentsPage() {
           column's height. */}
       <div className="flex flex-col gap-14 lg:w-1/3">
         <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
+        <CalculatorWidget currentValue={totalValue} />
         <AccountsCard accounts={accounts} holdings={holdings} quotes={quotes} />
       </div>
     </div>

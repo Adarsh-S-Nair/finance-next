@@ -36,7 +36,7 @@ export const NAV_GROUPS: { title?: string; items: NavItem[] }[] = [
   {
     title: "Investing",
     items: [
-      { href: "/investments", label: "Portfolio", icon: LuChartLine, tierFeature: "investments" },
+      { href: "/investments", label: "Investments", icon: LuChartLine, tierFeature: "investments" },
     ],
   },
 ];
