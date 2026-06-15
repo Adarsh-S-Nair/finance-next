@@ -14,6 +14,7 @@
  */
 
 import { useMemo } from "react";
+import { LineChart } from "@zervo/ui";
 import { projectGrowth, projectDividend } from "../../../lib/investmentProjection";
 
 function formatCurrency(value, { compact = false } = {}) {
@@ -24,6 +25,63 @@ function formatCurrency(value, { compact = false } = {}) {
     notation: compact ? "compact" : "standard",
     maximumFractionDigits: compact ? 1 : 0,
   }).format(Number(value));
+}
+
+/* ── Projection chart ─────────────────────────────────────── */
+
+/**
+ * Area of total balance (green) over a dashed "contributions" baseline, so the
+ * widening gap reads as compounded gains. Shared by both modes — for dividend
+ * mode the gap captures price appreciation plus reinvested payouts.
+ */
+function ProjectionChart({ points, gradientId }) {
+  return (
+    <div>
+      <LineChart
+        data={points}
+        height={220}
+        width="100%"
+        margin={{ top: 8, right: 0, bottom: 4, left: 0 }}
+        curveType="monotone"
+        animationDuration={600}
+        showTooltip={false}
+        showXAxis
+        xAxisDataKey="year"
+        xAxisInterval="preserveStartEnd"
+        formatXAxis={(v) => (v === 0 ? "Now" : `${v}y`)}
+        yAxisDomain={[0, "dataMax"]}
+        gradientId={gradientId}
+        lines={[
+          {
+            dataKey: "balance",
+            strokeColor: "var(--color-success)",
+            strokeWidth: 2,
+            showArea: true,
+            areaOpacity: 0.16,
+            gradientId,
+          },
+          {
+            dataKey: "contributed",
+            strokeColor: "var(--color-muted)",
+            strokeWidth: 1.5,
+            strokeOpacity: 0.7,
+            strokeDasharray: "4 4",
+            showArea: false,
+          },
+        ]}
+      />
+      <div className="mt-2 flex items-center gap-4 text-xs text-[var(--color-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[var(--color-success)]" />
+          Balance
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-0 w-3.5 border-t-2 border-dashed border-[var(--color-muted)]" />
+          Contributions
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /* ── Mode toggle ──────────────────────────────────────────── */
@@ -164,6 +222,11 @@ export default function InvestmentCalculator({ inputs, onChange }) {
       ) : (
         <GrowthView projection={projection} inputs={inputs} />
       )}
+
+      <ProjectionChart
+        points={projection.points}
+        gradientId={isDividend ? "calcDividendArea" : "calcGrowthArea"}
+      />
 
       {/* Inputs */}
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">

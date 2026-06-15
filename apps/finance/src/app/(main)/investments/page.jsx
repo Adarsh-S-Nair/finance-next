@@ -462,8 +462,8 @@ export default function InvestmentsPage() {
           column's height. */}
       <div className="flex flex-col gap-14 lg:w-1/3">
         <AllocationCard holdings={holdings} quotes={quotes} totalValue={totalValue} />
-        <CalculatorWidget currentValue={totalValue} />
         <AccountsCard accounts={accounts} holdings={holdings} quotes={quotes} />
+        <CalculatorWidget currentValue={totalValue} />
       </div>
     </div>
   );
