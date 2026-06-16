@@ -19,6 +19,9 @@ export default function FloatingPanel({
   children,
   maxHeight = 280,
   offset = 6,
+  // undefined → match the anchor's width; a number → fixed px width (clamped
+  // to the viewport so it never spills off-screen from a narrow anchor).
+  width,
 }) {
   const [rect, setRect] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -28,8 +31,13 @@ export default function FloatingPanel({
     const el = anchorRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setRect({ top: r.bottom + offset, left: r.left, width: r.width });
-  }, [anchorRef, offset]);
+    const panelWidth = typeof width === "number" ? width : r.width;
+    let left = r.left;
+    if (typeof width === "number" && typeof window !== "undefined") {
+      left = Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
+    }
+    setRect({ top: r.bottom + offset, left, width: panelWidth });
+  }, [anchorRef, offset, width]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +83,7 @@ export default function FloatingPanel({
         maxHeight,
         zIndex: 130,
       }}
-      className="overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-floating-bg)] shadow-xl"
+      className="overflow-auto border border-[var(--color-border)] bg-[var(--color-floating-bg)] shadow-2xl"
     >
       {children}
     </div>,

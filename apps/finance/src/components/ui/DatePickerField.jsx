@@ -76,8 +76,14 @@ export default function DatePickerField({ value, onChange, placeholder = "Select
         <FiCalendar className="h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
       </button>
 
-      <FloatingPanel anchorRef={anchorRef} open={open} onClose={() => setOpen(false)} maxHeight={360}>
-        <div className="p-3 select-none min-w-[260px]">
+      <FloatingPanel
+        anchorRef={anchorRef}
+        open={open}
+        onClose={() => setOpen(false)}
+        width={300}
+        maxHeight={400}
+      >
+        <div className="p-3 select-none">
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"

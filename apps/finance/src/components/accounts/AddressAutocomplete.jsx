@@ -29,7 +29,7 @@ export default function AddressAutocomplete({
   value,
   onChange,
   onPrimaryChange,
-  placeholder = "Start typing an address…",
+  placeholder = "Address",
   autoFocus = false,
 }) {
   const wrapRef = useRef(null);
@@ -108,18 +108,23 @@ export default function AddressAutocomplete({
       </div>
 
       <FloatingPanel anchorRef={wrapRef} open={open} onClose={() => setOpen(false)}>
-        <div className="py-1">
+        <div className="divide-y divide-[var(--color-border)]/50">
           {suggestions.map((s, i) => (
             <button
               key={i}
               type="button"
               onClick={() => pick(s)}
-              className="w-full text-left px-3 py-2 hover:bg-[var(--color-surface-alt)] transition-colors"
+              className="w-full text-left px-3.5 py-2.5 flex items-start gap-2.5 hover:bg-[var(--color-surface-alt)] transition-colors"
             >
-              <div className="text-sm text-[var(--color-fg)] truncate">{s.primary}</div>
-              {s.secondary && (
-                <div className="text-xs text-[var(--color-muted)] truncate">{s.secondary}</div>
-              )}
+              <FiMapPin className="h-3.5 w-3.5 mt-0.5 text-[var(--color-muted)] flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm text-[var(--color-fg)] truncate">{s.primary}</div>
+                {s.secondary && (
+                  <div className="text-xs text-[var(--color-muted)] truncate mt-0.5">
+                    {s.secondary}
+                  </div>
+                )}
+              </div>
             </button>
           ))}
         </div>

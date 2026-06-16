@@ -6,7 +6,6 @@ import { Button, SegmentedTabs } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
 import AddressAutocomplete from "./AddressAutocomplete";
-import DatePickerField from "../ui/DatePickerField";
 import FloatingPanel from "../ui/FloatingPanel";
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
@@ -133,7 +132,6 @@ export default function PropertyForm({
   const [nickname, setNickname] = useState("");
   const [value, setValue] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
-  const [purchaseDate, setPurchaseDate] = useState("");
   const [mortgageMode, setMortgageMode] = useState("none"); // none | link | manual
   const [linkedMortgageAccountId, setLinkedMortgageAccountId] = useState("");
   const [manualMortgageBalance, setManualMortgageBalance] = useState("");
@@ -149,7 +147,6 @@ export default function PropertyForm({
       setNickname(property.name ?? "");
       setValue(property.value != null ? String(property.value) : "");
       setPurchasePrice(property.purchasePrice != null ? String(property.purchasePrice) : "");
-      setPurchaseDate(property.purchaseDate ?? "");
       if (property.mortgage?.manual) {
         setMortgageMode("manual");
         setManualMortgageBalance(String(property.mortgage.balance ?? ""));
@@ -169,7 +166,6 @@ export default function PropertyForm({
       setNickname("");
       setValue("");
       setPurchasePrice("");
-      setPurchaseDate("");
       setMortgageMode("none");
       setLinkedMortgageAccountId("");
       setManualMortgageBalance("");
@@ -198,7 +194,6 @@ export default function PropertyForm({
         address: address.trim() || null,
         value: numericValue,
         purchasePrice: purchasePrice === "" ? null : Number(purchasePrice),
-        purchaseDate: purchaseDate || null,
         linkedMortgageAccountId:
           mortgageMode === "link" ? linkedMortgageAccountId || null : null,
         manualMortgageBalance:
@@ -278,21 +273,15 @@ export default function PropertyForm({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <SectionLabel>Purchase price</SectionLabel>
-          <UnderlineInput
-            type="number"
-            prefix="$"
-            value={purchasePrice}
-            onChange={setPurchasePrice}
-            placeholder="0"
-          />
-        </div>
-        <div>
-          <SectionLabel>Purchase date</SectionLabel>
-          <DatePickerField value={purchaseDate} onChange={setPurchaseDate} />
-        </div>
+      <div>
+        <SectionLabel>Purchase price (optional)</SectionLabel>
+        <UnderlineInput
+          type="number"
+          prefix="$"
+          value={purchasePrice}
+          onChange={setPurchasePrice}
+          placeholder="0"
+        />
       </div>
 
       <div>
