@@ -40,9 +40,9 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
     <div
       onClick={() => onClick?.(account)}
       className={`
-        group relative flex items-center justify-between px-5 py-3.5
+        group relative flex items-center justify-between px-1 py-3.5
         hover:bg-[var(--color-surface-alt)]/60 transition-colors
-        rounded-lg cursor-pointer overflow-hidden
+        cursor-pointer overflow-hidden
       `}
     >
       {/* Left accent stripe — flags an account with an available action
@@ -105,7 +105,7 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
 // Component for category section headers within the unified list
 const CategoryHeader = ({ title }) => {
   return (
-    <div className="flex items-center px-5 py-3">
+    <div className="flex items-center px-1 py-3">
       <h3 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider opacity-80">
         {title}
       </h3>
@@ -121,7 +121,7 @@ const PropertyRow = ({ property, onClick }) => {
   return (
     <div
       onClick={() => onClick?.(property)}
-      className="group relative flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors rounded-lg cursor-pointer overflow-hidden"
+      className="group relative flex items-center justify-between px-1 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer overflow-hidden"
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
@@ -208,9 +208,18 @@ export default function AccountsPage() {
     }
   }, [user?.id]);
 
+  // Refetch property enrichment on mount and whenever the number of
+  // real-estate accounts changes — this is how a property added from the
+  // global topbar Add-account overlay (which only calls refreshAccounts)
+  // shows up here without its own provider.
+  const propertyAccountCount = (allAccounts || []).filter((a) => {
+    const t = (a.type || '').toLowerCase();
+    return t.includes('property') || t.includes('real estate');
+  }).length;
+
   useEffect(() => {
     fetchProperties();
-  }, [fetchProperties]);
+  }, [fetchProperties, propertyAccountCount]);
 
   // Re-pull both the Plaid accounts (drives the net-worth cards) and the
   // property enrichment after any add/edit/remove so every surface agrees.
@@ -218,11 +227,6 @@ export default function AccountsPage() {
     refreshAccounts();
     fetchProperties();
   }, [refreshAccounts, fetchProperties]);
-
-  const openAddProperty = () => {
-    setEditingProperty(null);
-    setPropertyModalOpen(true);
-  };
 
   const openEditProperty = (property) => {
     setEditingProperty(property);
@@ -506,11 +510,8 @@ export default function AccountsPage() {
 
               {/* Accounts List Section */}
               <div className="pt-4">
-                <div className="mb-6 px-1 flex items-center justify-between gap-3">
+                <div className="mb-6 px-1">
                   <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
-                  <Button variant="ghost" size="sm" onClick={openAddProperty}>
-                    + Add property
-                  </Button>
                 </div>
 
                 {/* Unified Accounts List */}

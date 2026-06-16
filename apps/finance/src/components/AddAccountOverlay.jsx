@@ -18,6 +18,7 @@ import {
 } from "react-icons/fi";
 import { Button } from "@zervo/ui";
 import UpgradeOverlay from "./UpgradeOverlay";
+import PropertyForm from "./accounts/PropertyForm";
 import { useAccounts } from "./providers/AccountsProvider";
 import { useUser } from "./providers/UserProvider";
 import { authFetch } from "../lib/api/fetch";
@@ -137,6 +138,29 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
     setStep("connecting");
   };
 
+  const handleSelectProperty = () => {
+    setSelectedItemId(null);
+    setSelectedInstitution(null);
+    setSelectedIntent(null);
+    setDirection(1);
+    setStep("property");
+  };
+
+  const handlePropertySaved = () => {
+    refreshAccounts();
+    onClose();
+  };
+
+  // Loan/mortgage accounts a property can be linked to for equity display.
+  const mortgageOptions = (allAccounts || [])
+    .filter((a) => {
+      const t = (a.type || "").toLowerCase();
+      return ["mortgage", "loan", "student", "auto", "home equity"].some((x) =>
+        t.includes(x)
+      );
+    })
+    .map((a) => ({ id: a.id, name: a.name, balance: a.balance }));
+
   const handleBack = () => {
     setDirection(-1);
     if (step === "connecting") {
@@ -220,6 +244,7 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                         institutions={accounts}
                         onSelectExisting={handleSelectExisting}
                         onSelectNew={handleSelectNew}
+                        onSelectProperty={handleSelectProperty}
                       />
                     </motion.div>
                   )}
@@ -237,6 +262,24 @@ export default function AddAccountOverlay({ isOpen, onClose }) {
                       <IntentStep
                         isPro={isPro}
                         onSelect={handleSelectIntent}
+                        onBack={handleBack}
+                      />
+                    </motion.div>
+                  )}
+
+                  {step === "property" && (
+                    <motion.div
+                      key="property"
+                      custom={direction}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={slideTransition}
+                    >
+                      <PropertyStep
+                        mortgageOptions={mortgageOptions}
+                        onSaved={handlePropertySaved}
                         onBack={handleBack}
                       />
                     </motion.div>
@@ -343,7 +386,7 @@ function InstitutionAvatar({ logo, name, size = 36 }) {
 
 /* ── Step: Choose institution ─────────────────────────────── */
 
-function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
+function ChooseStep({ institutions, onSelectExisting, onSelectNew, onSelectProperty }) {
   return (
     <div>
       <motion.h1
@@ -390,7 +433,67 @@ function ChooseStep({ institutions, onSelectExisting, onSelectNew }) {
             />
           </div>
         </div>
+
+        <div>
+          <SectionLabel className="mb-2">Add manually</SectionLabel>
+          <div>
+            <InstitutionRow
+              index={institutions.length + 1}
+              onClick={onSelectProperty}
+              avatar={
+                <div className="flex h-9 w-9 items-center justify-center flex-shrink-0">
+                  <FiHome className="h-5 w-5 text-[var(--color-muted)]" />
+                </div>
+              }
+              title="Add a property"
+              subtitle="Track a home you own as net worth"
+            />
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Step: Add a property (manual, no Plaid) ──────────────── */
+
+function PropertyStep({ mortgageOptions, onSaved, onBack }) {
+  return (
+    <div>
+      <motion.button
+        type="button"
+        onClick={onBack}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.05 }}
+        className="mb-6 inline-flex items-center gap-1 text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)] cursor-pointer"
+      >
+        <FiChevronLeft className="h-4 w-4" />
+        Back
+      </motion.button>
+
+      <motion.h1
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="text-[26px] font-medium tracking-tight text-[var(--color-fg)]"
+      >
+        Add a property
+      </motion.h1>
+      <motion.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="mt-2 mb-8 text-sm text-[var(--color-muted)]"
+      >
+        Track a home you own as part of your net worth. Link a mortgage to see your equity.
+      </motion.p>
+
+      <PropertyForm
+        mortgageOptions={mortgageOptions}
+        onSaved={onSaved}
+        onCancel={onBack}
+      />
     </div>
   );
 }
