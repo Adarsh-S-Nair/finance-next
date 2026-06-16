@@ -1,27 +1,125 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Button, Input } from "@zervo/ui";
+import { useState, useEffect, useRef } from "react";
+import { FiChevronDown } from "react-icons/fi";
+import { Button, SegmentedTabs } from "@zervo/ui";
 import { authFetch } from "../../lib/api/fetch";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import AddressAutocomplete from "./AddressAutocomplete";
+import DatePickerField from "../ui/DatePickerField";
+import FloatingPanel from "../ui/FloatingPanel";
 
 const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 
-const fieldLabel = "block text-xs font-medium text-[var(--color-muted)] mb-1.5";
-const selectClass =
-  "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-2 text-base outline-none input-focus-bar";
+/* ── Native form primitives (match CreateGoalOverlay / AddAccountOverlay) ── */
 
-/**
- * The fields + logic for creating or editing a manual property, with its own
- * action row. Shared by the accounts-page edit modal and the topbar
- * Add-account overlay's "property" step so the two never diverge.
- *
- * - `property` null → create; otherwise edit (pre-fills + shows Remove).
- * - `mortgageOptions`: [{ id, name, balance }] of the user's loan accounts the
- *   home can be linked to for equity display.
- * - `onSaved` runs after a successful create/edit/delete (refresh + close).
- * - `onCancel` dismisses without saving.
- */
+function SectionLabel({ children }) {
+  return (
+    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)] mb-2">
+      {children}
+    </div>
+  );
+}
+
+function UnderlineInput({ value, onChange, placeholder, type = "text", prefix }) {
+  return (
+    <div className="flex items-baseline gap-1.5 border-b border-[var(--color-border)] focus-within:border-[var(--color-fg)] transition-colors input-focus-bar">
+      {prefix && <span className="text-[var(--color-muted)] text-base">{prefix}</span>}
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={type === "number" ? "decimal" : undefined}
+        className={`w-full bg-transparent outline-none text-base py-2 text-[var(--color-fg)] placeholder:text-[var(--color-muted)]/60 ${
+          type === "number" ? "tabular-nums" : ""
+        }`}
+      />
+    </div>
+  );
+}
+
+// Large $ amount input — the hero field for the property's value. Shows raw
+// digits while focused, comma-grouped when blurred.
+function AmountInput({ value, onChange }) {
+  const [focused, setFocused] = useState(false);
+  const display = (() => {
+    if (focused || !value) return value;
+    const n = Number(value);
+    return Number.isFinite(n)
+      ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n)
+      : value;
+  })();
+  return (
+    <div className="flex items-baseline gap-1 cursor-text">
+      <span className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)]">
+        $
+      </span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={display}
+        onChange={(e) => {
+          const cleaned = e.target.value.replace(/,/g, "");
+          if (cleaned === "" || /^\d*\.?\d*$/.test(cleaned)) onChange(cleaned);
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder="0"
+        className="text-3xl sm:text-4xl font-medium tracking-tight text-[var(--color-fg)] tabular-nums bg-transparent border-none outline-none p-0 m-0 placeholder:text-[var(--color-muted)]/40"
+        style={{ width: `${Math.max((display?.toString().length || 1) * 0.62 + 0.4, 2)}em` }}
+      />
+    </div>
+  );
+}
+
+/* ── Mortgage link selector (themed dropdown) ────────────────── */
+
+function MortgageSelect({ options, value, onChange }) {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.id === value);
+  return (
+    <div>
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 bg-transparent border-b border-[var(--color-border)] outline-none text-base py-2 text-left"
+      >
+        <span className={selected ? "text-[var(--color-fg)] truncate" : "text-[var(--color-muted)]/60"}>
+          {selected
+            ? `${selected.name} — ${formatCurrency(Math.abs(selected.balance))}`
+            : "Select an account"}
+        </span>
+        <FiChevronDown className="h-4 w-4 text-[var(--color-muted)] flex-shrink-0" />
+      </button>
+      <FloatingPanel anchorRef={anchorRef} open={open} onClose={() => setOpen(false)}>
+        <div className="py-1">
+          {options.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => {
+                onChange(o.id);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 hover:bg-[var(--color-surface-alt)] transition-colors flex items-center justify-between gap-3"
+            >
+              <span className="text-sm text-[var(--color-fg)] truncate">{o.name}</span>
+              <span className="text-xs text-[var(--color-muted)] tabular-nums flex-shrink-0">
+                {formatCurrency(Math.abs(o.balance))}
+              </span>
+            </button>
+          ))}
+        </div>
+      </FloatingPanel>
+    </div>
+  );
+}
+
+/* ── Form ────────────────────────────────────────────────────── */
+
 export default function PropertyForm({
   property = null,
   mortgageOptions = [],
@@ -30,12 +128,15 @@ export default function PropertyForm({
 }) {
   const isEdit = Boolean(property);
 
-  const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [addressPrimary, setAddressPrimary] = useState("");
+  const [nickname, setNickname] = useState("");
   const [value, setValue] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
+  const [mortgageMode, setMortgageMode] = useState("none"); // none | link | manual
   const [linkedMortgageAccountId, setLinkedMortgageAccountId] = useState("");
+  const [manualMortgageBalance, setManualMortgageBalance] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
@@ -43,44 +144,67 @@ export default function PropertyForm({
   useEffect(() => {
     setError(null);
     if (property) {
-      setName(property.name ?? "");
       setAddress(property.address ?? "");
+      setAddressPrimary("");
+      setNickname(property.name ?? "");
       setValue(property.value != null ? String(property.value) : "");
       setPurchasePrice(property.purchasePrice != null ? String(property.purchasePrice) : "");
       setPurchaseDate(property.purchaseDate ?? "");
-      setLinkedMortgageAccountId(property.mortgage?.accountId ?? "");
+      if (property.mortgage?.manual) {
+        setMortgageMode("manual");
+        setManualMortgageBalance(String(property.mortgage.balance ?? ""));
+        setLinkedMortgageAccountId("");
+      } else if (property.mortgage) {
+        setMortgageMode("link");
+        setLinkedMortgageAccountId(property.mortgage.accountId ?? "");
+        setManualMortgageBalance("");
+      } else {
+        setMortgageMode("none");
+        setLinkedMortgageAccountId("");
+        setManualMortgageBalance("");
+      }
     } else {
-      setName("");
       setAddress("");
+      setAddressPrimary("");
+      setNickname("");
       setValue("");
       setPurchasePrice("");
       setPurchaseDate("");
+      setMortgageMode("none");
       setLinkedMortgageAccountId("");
+      setManualMortgageBalance("");
     }
   }, [property]);
 
   const handleSubmit = async () => {
     setError(null);
-    const trimmedName = name.trim();
     const numericValue = Number(value);
-    if (!trimmedName) {
-      setError("Give your property a name.");
-      return;
-    }
     if (!value || !Number.isFinite(numericValue) || numericValue < 0) {
       setError("Enter a valid current value.");
       return;
     }
+    // Name: nickname if given, else the street line of the address, else a
+    // sensible fallback. Keeps a single required-feeling field (the address).
+    const finalName =
+      nickname.trim() ||
+      addressPrimary.trim() ||
+      (address.split(",")[0] || "").trim() ||
+      "Property";
 
     setSubmitting(true);
     try {
       const payload = {
-        name: trimmedName,
+        name: finalName,
         address: address.trim() || null,
         value: numericValue,
         purchasePrice: purchasePrice === "" ? null : Number(purchasePrice),
         purchaseDate: purchaseDate || null,
-        linkedMortgageAccountId: linkedMortgageAccountId || null,
+        linkedMortgageAccountId:
+          mortgageMode === "link" ? linkedMortgageAccountId || null : null,
+        manualMortgageBalance:
+          mortgageMode === "manual" && manualMortgageBalance !== ""
+            ? Number(manualMortgageBalance)
+            : null,
       };
       const res = await authFetch(
         isEdit ? `/api/properties/${property.id}` : "/api/properties",
@@ -126,81 +250,94 @@ export default function PropertyForm({
   const busy = submitting || deleting;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <label className={fieldLabel}>Name</label>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Primary home"
-          autoFocus
-        />
-      </div>
-
-      <div>
-        <label className={fieldLabel}>Address (optional)</label>
-        <Input
+        <SectionLabel>Address</SectionLabel>
+        <AddressAutocomplete
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="123 Main St"
+          onChange={setAddress}
+          onPrimaryChange={setAddressPrimary}
+          autoFocus={!isEdit}
         />
       </div>
 
       <div>
-        <label className={fieldLabel}>Current value</label>
-        <Input
-          type="number"
-          inputMode="decimal"
-          min="0"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="808000"
+        <SectionLabel>Nickname (optional)</SectionLabel>
+        <UnderlineInput
+          value={nickname}
+          onChange={setNickname}
+          placeholder={addressPrimary || "e.g. Primary home"}
         />
-        <p className="mt-1 text-xs text-[var(--color-muted)]">
+      </div>
+
+      <div>
+        <SectionLabel>Current value</SectionLabel>
+        <AmountInput value={value} onChange={setValue} />
+        <p className="mt-2 text-xs text-[var(--color-muted)]">
           Your best estimate — e.g. a Zillow estimate or recent appraisal. Update it anytime.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className={fieldLabel}>Purchase price (optional)</label>
-          <Input
+          <SectionLabel>Purchase price</SectionLabel>
+          <UnderlineInput
             type="number"
-            inputMode="decimal"
-            min="0"
+            prefix="$"
             value={purchasePrice}
-            onChange={(e) => setPurchasePrice(e.target.value)}
-            placeholder="630000"
+            onChange={setPurchasePrice}
+            placeholder="0"
           />
         </div>
         <div>
-          <label className={fieldLabel}>Purchase date (optional)</label>
-          <Input
-            type="date"
-            value={purchaseDate}
-            onChange={(e) => setPurchaseDate(e.target.value)}
-          />
+          <SectionLabel>Purchase date</SectionLabel>
+          <DatePickerField value={purchaseDate} onChange={setPurchaseDate} />
         </div>
       </div>
 
       <div>
-        <label className={fieldLabel}>Linked mortgage (optional)</label>
-        <select
-          className={selectClass}
-          value={linkedMortgageAccountId}
-          onChange={(e) => setLinkedMortgageAccountId(e.target.value)}
-        >
-          <option value="">No linked mortgage</option>
-          {mortgageOptions.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-              {m.balance != null ? ` — ${formatCurrency(Math.abs(m.balance))}` : ""}
-            </option>
-          ))}
-        </select>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">
-          Link the loan backing this home to see equity (value minus what you owe).
-        </p>
+        <SectionLabel>Mortgage (optional)</SectionLabel>
+        <SegmentedTabs
+          size="sm"
+          value={mortgageMode}
+          onChange={setMortgageMode}
+          options={[
+            { label: "None", value: "none" },
+            { label: "Link account", value: "link" },
+            { label: "Enter amount", value: "manual" },
+          ]}
+        />
+
+        {mortgageMode === "link" && (
+          <div className="mt-3">
+            {mortgageOptions.length > 0 ? (
+              <MortgageSelect
+                options={mortgageOptions}
+                value={linkedMortgageAccountId}
+                onChange={setLinkedMortgageAccountId}
+              />
+            ) : (
+              <p className="text-xs text-[var(--color-muted)]">
+                No loan accounts to link yet. Connect one, or switch to “Enter amount”.
+              </p>
+            )}
+          </div>
+        )}
+
+        {mortgageMode === "manual" && (
+          <div className="mt-3">
+            <UnderlineInput
+              type="number"
+              prefix="$"
+              value={manualMortgageBalance}
+              onChange={setManualMortgageBalance}
+              placeholder="Remaining balance"
+            />
+            <p className="mt-1.5 text-xs text-[var(--color-muted)]">
+              We’ll track this as a liability so your equity and net worth stay accurate.
+            </p>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}

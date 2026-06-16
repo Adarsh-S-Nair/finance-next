@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
+import { resolveMortgageLink, MortgageLinkError } from '../../../../lib/properties/mortgageLink';
 
 interface UpdateBody {
   name?: string;
@@ -8,6 +9,7 @@ interface UpdateBody {
   purchasePrice?: number | string | null;
   purchaseDate?: string | null;
   linkedMortgageAccountId?: string | null;
+  manualMortgageBalance?: number | string | null;
 }
 
 function toNumberOrNull(v: unknown): number | null {
@@ -22,10 +24,10 @@ export const PATCH = withAuth<{ id: string }>(
     const { id } = await params;
     const body = (await request.json().catch(() => ({}))) as UpdateBody;
 
-    // Ownership check + grab the backing account id.
+    // Ownership check + grab the backing account id and current mortgage link.
     const { data: property, error: loadError } = await supabaseAdmin
       .from('properties')
-      .select('id, account_id')
+      .select('id, account_id, linked_mortgage_account_id')
       .eq('id', id)
       .eq('user_id', userId)
       .maybeSingle();
@@ -39,6 +41,8 @@ export const PATCH = withAuth<{ id: string }>(
     }
 
     const nowISO = new Date().toISOString();
+    const propertyName =
+      typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'Property';
 
     // --- Account row updates (name + value live on the accounts row) ---
     const accountUpdate: { name?: string; balances?: { current: number } } = {};
@@ -80,22 +84,25 @@ export const PATCH = withAuth<{ id: string }>(
     if (body.purchaseDate !== undefined) propUpdate.purchase_date = body.purchaseDate || null;
     if (valueChanged) propUpdate.value_updated_at = nowISO;
 
-    // Mortgage (un)linking. Presence of the key means "change it"; a null
-    // value means "unlink". Validate ownership for a non-null target.
-    if ('linkedMortgageAccountId' in body) {
-      const target = body.linkedMortgageAccountId || null;
-      if (target) {
-        const { data: mortgage } = await supabaseAdmin
-          .from('accounts')
-          .select('id')
-          .eq('id', target)
-          .eq('user_id', userId)
-          .maybeSingle();
-        if (!mortgage) {
-          return Response.json({ error: 'Linked mortgage account not found' }, { status: 400 });
+    // Mortgage handling. The form always sends both fields, so the presence of
+    // either means "reconcile the mortgage": link an account, set a manual
+    // balance (mirrored into a real liability account), or clear.
+    if ('linkedMortgageAccountId' in body || 'manualMortgageBalance' in body) {
+      try {
+        const result = await resolveMortgageLink({
+          userId,
+          propertyName,
+          currentLinkedAccountId: property.linked_mortgage_account_id ?? null,
+          linkedMortgageAccountId: body.linkedMortgageAccountId || null,
+          manualMortgageBalance: toNumberOrNull(body.manualMortgageBalance),
+        });
+        propUpdate.linked_mortgage_account_id = result.linkedId;
+      } catch (err) {
+        if (err instanceof MortgageLinkError) {
+          return Response.json({ error: err.message }, { status: err.status });
         }
+        throw err;
       }
-      propUpdate.linked_mortgage_account_id = target;
     }
 
     if (Object.keys(propUpdate).length > 0) {
@@ -132,7 +139,7 @@ export const DELETE = withAuth<{ id: string }>(
 
     const { data: property, error: loadError } = await supabaseAdmin
       .from('properties')
-      .select('account_id')
+      .select('account_id, linked_mortgage_account_id, mortgage:accounts!properties_linked_mortgage_account_id_fkey ( is_manual )')
       .eq('id', id)
       .eq('user_id', userId)
       .maybeSingle();
@@ -145,9 +152,9 @@ export const DELETE = withAuth<{ id: string }>(
       return Response.json({ error: 'Property not found' }, { status: 404 });
     }
 
-    // Deleting the account row cascades to the properties sidecar and its
-    // snapshots. The linked mortgage account is left untouched (the FK is
-    // ON DELETE SET NULL and lives on the property side anyway).
+    // Deleting the asset account row cascades to the properties sidecar and its
+    // snapshots. A linked Plaid mortgage is left untouched (the FK is ON DELETE
+    // SET NULL on the property side).
     const { error: delError } = await supabaseAdmin
       .from('accounts')
       .delete()
@@ -157,6 +164,17 @@ export const DELETE = withAuth<{ id: string }>(
     if (delError) {
       console.error('[properties:delete] delete failed', delError);
       return Response.json({ error: 'Failed to delete property' }, { status: 500 });
+    }
+
+    // If the mortgage was a manual one we created for this property, remove it
+    // too so it doesn't linger as an orphan liability.
+    const mortgage = (property as { mortgage?: { is_manual?: boolean | null } | null }).mortgage;
+    if (property.linked_mortgage_account_id && mortgage?.is_manual) {
+      await supabaseAdmin
+        .from('accounts')
+        .delete()
+        .eq('id', property.linked_mortgage_account_id)
+        .eq('user_id', userId);
     }
 
     return Response.json({ success: true });

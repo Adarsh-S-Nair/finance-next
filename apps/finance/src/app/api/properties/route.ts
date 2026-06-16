@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../../lib/supabase/admin';
 import { withAuth } from '../../../lib/api/withAuth';
+import { resolveMortgageLink, MortgageLinkError } from '../../../lib/properties/mortgageLink';
 
 // A property is modelled as two rows:
 //   1. an `accounts` row (is_manual=true, type 'real estate' / subtype
@@ -14,6 +15,7 @@ interface AccountRef {
   id: string;
   name: string;
   balances: { current?: number | null } | null;
+  is_manual?: boolean | null;
 }
 
 interface PropertyRow {
@@ -47,7 +49,12 @@ function shapeProperty(row: PropertyRow) {
     valueSource: row.value_source,
     valueUpdatedAt: row.value_updated_at,
     mortgage: row.mortgage
-      ? { accountId: row.mortgage.id, name: row.mortgage.name, balance: mortgageBalance ?? 0 }
+      ? {
+          accountId: row.mortgage.id,
+          name: row.mortgage.name,
+          balance: mortgageBalance ?? 0,
+          manual: Boolean(row.mortgage.is_manual),
+        }
       : null,
     equity: mortgageBalance === null ? value : value - mortgageBalance,
   };
@@ -63,7 +70,7 @@ const PROPERTY_SELECT = `
   value_updated_at,
   linked_mortgage_account_id,
   account:accounts!properties_account_id_fkey ( id, name, balances ),
-  mortgage:accounts!properties_linked_mortgage_account_id_fkey ( id, name, balances )
+  mortgage:accounts!properties_linked_mortgage_account_id_fkey ( id, name, balances, is_manual )
 `;
 
 export const GET = withAuth('properties:list', async (_request, userId) => {
@@ -89,6 +96,7 @@ interface CreateBody {
   purchasePrice?: number | string | null;
   purchaseDate?: string | null;
   linkedMortgageAccountId?: string | null;
+  manualMortgageBalance?: number | string | null;
 }
 
 function toNumberOrNull(v: unknown): number | null {
@@ -110,22 +118,34 @@ export const POST = withAuth('properties:create', async (request, userId) => {
     return Response.json({ error: 'A valid property value is required' }, { status: 400 });
   }
 
-  // If a mortgage was supplied, make sure it really belongs to this user
-  // before we link to it.
-  const linkedMortgageAccountId = body.linkedMortgageAccountId || null;
-  if (linkedMortgageAccountId) {
-    const { data: mortgage } = await supabaseAdmin
-      .from('accounts')
-      .select('id')
-      .eq('id', linkedMortgageAccountId)
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (!mortgage) {
-      return Response.json({ error: 'Linked mortgage account not found' }, { status: 400 });
+  // Reconcile the mortgage link (may create a manual liability account).
+  let mortgage;
+  try {
+    mortgage = await resolveMortgageLink({
+      userId,
+      propertyName: name,
+      currentLinkedAccountId: null,
+      linkedMortgageAccountId: body.linkedMortgageAccountId || null,
+      manualMortgageBalance: toNumberOrNull(body.manualMortgageBalance),
+    });
+  } catch (err) {
+    if (err instanceof MortgageLinkError) {
+      return Response.json({ error: err.message }, { status: err.status });
     }
+    throw err;
   }
 
   const nowISO = new Date().toISOString();
+
+  const cleanupMortgage = async () => {
+    if (mortgage.createdAccountId) {
+      await supabaseAdmin
+        .from('accounts')
+        .delete()
+        .eq('id', mortgage.createdAccountId)
+        .eq('user_id', userId);
+    }
+  };
 
   // 1. The asset account row.
   const { data: account, error: accountError } = await supabaseAdmin
@@ -144,10 +164,11 @@ export const POST = withAuth('properties:create', async (request, userId) => {
 
   if (accountError || !account) {
     console.error('[properties:create] account insert failed', accountError);
+    await cleanupMortgage();
     return Response.json({ error: 'Failed to create property' }, { status: 500 });
   }
 
-  // 2. The sidecar. If this fails, roll back the orphaned account row.
+  // 2. The sidecar. If this fails, roll back the orphaned account rows.
   const { data: property, error: propertyError } = await supabaseAdmin
     .from('properties')
     .insert({
@@ -156,7 +177,7 @@ export const POST = withAuth('properties:create', async (request, userId) => {
       address: (body.address ?? '').trim() || null,
       purchase_price: toNumberOrNull(body.purchasePrice),
       purchase_date: body.purchaseDate || null,
-      linked_mortgage_account_id: linkedMortgageAccountId,
+      linked_mortgage_account_id: mortgage.linkedId,
       value_updated_at: nowISO,
     })
     .select(PROPERTY_SELECT)
@@ -165,6 +186,7 @@ export const POST = withAuth('properties:create', async (request, userId) => {
   if (propertyError || !property) {
     console.error('[properties:create] property insert failed; rolling back account', propertyError);
     await supabaseAdmin.from('accounts').delete().eq('id', account.id).eq('user_id', userId);
+    await cleanupMortgage();
     return Response.json({ error: 'Failed to create property' }, { status: 500 });
   }
 
