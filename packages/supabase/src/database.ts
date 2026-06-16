@@ -57,15 +57,16 @@ export type Database = {
       }
       accounts: {
         Row: {
-          access_token: string
-          account_id: string
+          access_token: string | null
+          account_id: string | null
           account_key: string | null
           auto_sync: boolean
           balances: Json | null
           created_at: string
           id: string
           institution_id: string | null
-          item_id: string
+          is_manual: boolean
+          item_id: string | null
           mask: string | null
           name: string
           plaid_balance_as_of: string | null
@@ -80,15 +81,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          access_token: string
-          account_id: string
+          access_token?: string | null
+          account_id?: string | null
           account_key?: string | null
           auto_sync?: boolean
           balances?: Json | null
           created_at?: string
           id?: string
           institution_id?: string | null
-          item_id: string
+          is_manual?: boolean
+          item_id?: string | null
           mask?: string | null
           name: string
           plaid_balance_as_of?: string | null
@@ -103,15 +105,16 @@ export type Database = {
           user_id: string
         }
         Update: {
-          access_token?: string
-          account_id?: string
+          access_token?: string | null
+          account_id?: string | null
           account_key?: string | null
           auto_sync?: boolean
           balances?: Json | null
           created_at?: string
           id?: string
           institution_id?: string | null
-          item_id?: string
+          is_manual?: boolean
+          item_id?: string | null
           mask?: string | null
           name?: string
           plaid_balance_as_of?: string | null
@@ -804,6 +807,63 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      properties: {
+        Row: {
+          account_id: string
+          address: string | null
+          created_at: string
+          id: string
+          linked_mortgage_account_id: string | null
+          purchase_date: string | null
+          purchase_price: number | null
+          updated_at: string
+          user_id: string
+          value_source: string
+          value_updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          address?: string | null
+          created_at?: string
+          id?: string
+          linked_mortgage_account_id?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          updated_at?: string
+          user_id: string
+          value_source?: string
+          value_updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          address?: string | null
+          created_at?: string
+          id?: string
+          linked_mortgage_account_id?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          updated_at?: string
+          user_id?: string
+          value_source?: string
+          value_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_linked_mortgage_account_id_fkey"
+            columns: ["linked_mortgage_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recurring_streams: {
         Row: {

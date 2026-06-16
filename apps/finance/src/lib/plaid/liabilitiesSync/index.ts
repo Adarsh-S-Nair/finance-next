@@ -66,7 +66,7 @@ async function loadPlaidItem(plaidItemId: string, userId: string): Promise<Plaid
 
 async function loadAccountsByPlaidItemId(
   plaidItemId: string,
-): Promise<Array<{ id: string; account_id: string }>> {
+): Promise<Array<{ id: string; account_id: string | null }>> {
   const { data, error } = await supabaseAdmin
     .from('accounts')
     .select('id, account_id')
@@ -85,7 +85,14 @@ export async function syncLiabilitiesForItem(
   const accessToken = decryptPlaidToken(plaidItem.access_token);
   const accounts = await loadAccountsByPlaidItemId(plaidItem.id);
 
-  const accountIdMap = new Map(accounts.map((a) => [a.account_id, a.id]));
+  // Plaid rows always carry a Plaid account_id; the column is nullable only
+  // because manual accounts exist (which never have a plaid_item_id and so
+  // never reach this query). Filter defensively to keep a Map<string, string>.
+  const accountIdMap = new Map(
+    accounts
+      .filter((a): a is { id: string; account_id: string } => a.account_id !== null)
+      .map((a) => [a.account_id, a.id]),
+  );
 
   let response: PlaidLiabilitiesResponse;
   try {

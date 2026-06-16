@@ -347,7 +347,7 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
     }
   }
 
-  const updatedAccounts: Array<{ id: string; account_id: string; type: string | null }> = [];
+  const updatedAccounts: Array<{ id: string; account_id: string | null; type: string | null }> = [];
   if (accountsToUpdate.length > 0) {
     for (const accountUpdate of accountsToUpdate) {
       const { id, ...updateData } = accountUpdate;
@@ -367,7 +367,7 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
     }
   }
 
-  let insertedAccounts: Array<{ id: string; account_id: string; type: string | null }> = [];
+  let insertedAccounts: Array<{ id: string; account_id: string | null; type: string | null }> = [];
   if (accountsToInsert.length > 0) {
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from('accounts')
@@ -396,7 +396,10 @@ export const POST = withAuth('plaid:exchange-token', async (request, userId) => 
     const plaidByAccountId = new Map(accounts.map((a) => [a.account_id, a]));
     const snapshotPairs = accountsData
       .filter((acc) => acc.type !== 'investment')
-      .map((acc) => ({ plaid: plaidByAccountId.get(acc.account_id), id: acc.id }))
+      .map((acc) => ({
+        plaid: acc.account_id ? plaidByAccountId.get(acc.account_id) : undefined,
+        id: acc.id,
+      }))
       .filter((p): p is { plaid: PlaidAccount; id: string } => Boolean(p.plaid));
     if (snapshotPairs.length > 0) {
       const snapshotResult = await createAccountSnapshots(

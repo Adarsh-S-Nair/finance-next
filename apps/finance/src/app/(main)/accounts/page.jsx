@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
-import { PiBankFill } from "react-icons/pi";
+import { PiBankFill, PiHouseFill } from "react-icons/pi";
 import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
@@ -13,6 +13,7 @@ import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHov
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import AccountDetails from "../../../components/accounts/AccountDetails";
+import PropertyFormModal from "../../../components/accounts/PropertyFormModal";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { authFetch } from "../../../lib/api/fetch";
 import { supabase } from "../../../lib/supabase/client";
@@ -112,6 +113,41 @@ const CategoryHeader = ({ title }) => {
   );
 };
 
+// Row for a manual property. Shows the home's value on the right and, when a
+// mortgage is linked, the resulting equity beneath it. Clicking opens the
+// edit/remove modal. Shaped data comes from /api/properties (value, address,
+// linked mortgage balance, equity).
+const PropertyRow = ({ property, onClick }) => {
+  return (
+    <div
+      onClick={() => onClick?.(property)}
+      className="group relative flex items-center justify-between px-5 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors rounded-lg cursor-pointer overflow-hidden"
+    >
+      <div className="flex items-center gap-3.5 flex-1 min-w-0">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
+          <PiHouseFill className="w-4 h-4 text-[var(--color-muted)]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{property.name}</div>
+          <div className="text-xs text-[var(--color-muted)] truncate">
+            {property.address || "Property"}
+          </div>
+        </div>
+      </div>
+      <div className="ml-4 text-right">
+        <div className="font-medium text-[var(--color-fg)] tabular-nums text-sm">
+          {formatCurrency(property.value)}
+        </div>
+        {property.mortgage && (
+          <div className="text-xs text-[var(--color-muted)] tabular-nums">
+            {formatCurrency(property.equity)} equity
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function AccountsPage() {
   const router = useRouter();
   const { user, profile, isPro } = useUser();
@@ -128,6 +164,11 @@ export default function AccountsPage() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+  // Manual properties (real estate). Fetched from /api/properties for the
+  // value/address/equity enrichment the Plaid accounts endpoint doesn't carry.
+  const [properties, setProperties] = useState([]);
+  const [propertyModalOpen, setPropertyModalOpen] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(null);
   // plaid_item_ids whose backend sync is still in progress. Drives the
   // per-row "Syncing…" pill so users see "data is arriving" instead of
   // a zero balance that looks like a bug. Populated by /api/plaid/sync-status
@@ -154,6 +195,39 @@ export default function AccountsPage() {
     if (!user?.id) return;
     fetchSyncStatus();
   }, [user?.id, fetchSyncStatus]);
+
+  const fetchProperties = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await authFetch('/api/properties');
+      if (!res.ok) return;
+      const data = await res.json();
+      setProperties(data.properties || []);
+    } catch (err) {
+      console.warn('[accounts] properties fetch failed:', err);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchProperties();
+  }, [fetchProperties]);
+
+  // Re-pull both the Plaid accounts (drives the net-worth cards) and the
+  // property enrichment after any add/edit/remove so every surface agrees.
+  const handlePropertySaved = useCallback(() => {
+    refreshAccounts();
+    fetchProperties();
+  }, [refreshAccounts, fetchProperties]);
+
+  const openAddProperty = () => {
+    setEditingProperty(null);
+    setPropertyModalOpen(true);
+  };
+
+  const openEditProperty = (property) => {
+    setEditingProperty(property);
+    setPropertyModalOpen(true);
+  };
 
   // Refresh sync-status in response to plaid_items changes. This keeps
   // the Syncing pill in sync with backend state without a polling loop.
@@ -222,6 +296,12 @@ export default function AccountsPage() {
     // So we need to check for both the original type values and subtype values
     const type = (account.type || '').toLowerCase();
 
+    // Manual property / real-estate assets get their own section (rendered
+    // from /api/properties data, not the generic AccountRow).
+    if (type.includes('property') || type.includes('real estate')) {
+      return 'property';
+    }
+
     // Check for investment accounts (brokerage, stock plan, IRA, 401k, etc.)
     const investmentSubtypes = [
       'brokerage', 'stock plan', 'ira', '401k', '403b', '529', 
@@ -262,7 +342,11 @@ export default function AccountsPage() {
     cash: [],
     investments: [],
     credit: [],
-    loans: []
+    loans: [],
+    // Property accounts land here but are rendered from `properties` (which
+    // carries value/address/equity), so this bucket is intentionally unused
+    // for rendering — it just keeps property rows out of the other sections.
+    property: []
   };
 
   if (allAccounts) {
@@ -271,6 +355,11 @@ export default function AccountsPage() {
       categorizedAccounts[category].push(account);
     });
   }
+
+  // Loan/mortgage accounts a property can be linked to for equity display.
+  const mortgageOptions = (allAccounts || [])
+    .filter((account) => categorizeAccount(account) === 'loans')
+    .map((account) => ({ id: account.id, name: account.name, balance: account.balance }));
 
   const institutionMap = {};
   if (accounts) {
@@ -417,8 +506,11 @@ export default function AccountsPage() {
 
               {/* Accounts List Section */}
               <div className="pt-4">
-                <div className="mb-6 px-1">
+                <div className="mb-6 px-1 flex items-center justify-between gap-3">
                   <h2 className="text-lg font-medium text-[var(--color-fg)]">All Accounts</h2>
+                  <Button variant="ghost" size="sm" onClick={openAddProperty}>
+                    + Add property
+                  </Button>
                 </div>
 
                 {/* Unified Accounts List */}
@@ -450,6 +542,20 @@ export default function AccountsPage() {
                           institutionMap={institutionMap}
                           onClick={handleAccountClick}
                           isSyncing={isAccountSyncing(account, institutionMap)}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {/* Property Section — manual real-estate assets */}
+                  {properties.length > 0 && (
+                    <>
+                      <CategoryHeader title="Property" />
+                      {properties.map((property) => (
+                        <PropertyRow
+                          key={property.id}
+                          property={property}
+                          onClick={openEditProperty}
                         />
                       ))}
                     </>
@@ -518,6 +624,13 @@ export default function AccountsPage() {
         <UpgradeOverlay
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
+        />
+        <PropertyFormModal
+          isOpen={propertyModalOpen}
+          onClose={() => setPropertyModalOpen(false)}
+          onSaved={handlePropertySaved}
+          property={editingProperty}
+          mortgageOptions={mortgageOptions}
         />
         <Drawer
           isOpen={isAccountDrawerOpen}
