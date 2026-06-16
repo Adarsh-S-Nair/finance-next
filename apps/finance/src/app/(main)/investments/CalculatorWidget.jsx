@@ -17,7 +17,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX } from "react-icons/fi";
-import { LuMaximize2, LuTrendingUp } from "react-icons/lu";
 import { projectGrowth, projectDividend } from "../../../lib/investmentProjection";
 import InvestmentCalculator from "./InvestmentCalculator";
 
@@ -95,43 +94,25 @@ export default function CalculatorWidget({ currentValue = 0 }) {
 
   return (
     <>
-      <div className="relative w-full overflow-hidden rounded-2xl bg-[var(--color-surface-alt)] p-5">
-        {/* Soft accent glow in the corner for a little depth. */}
-        <div className="pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full bg-[var(--color-success)] opacity-[0.08] blur-2xl" />
-
-        <div className="relative flex items-start justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-surface)] text-[var(--color-success)]">
-              <LuTrendingUp className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-[var(--color-fg)]">Calculator</div>
-              <div className="text-[11px] text-[var(--color-muted)]">
-                Growth &amp; dividend projector
-              </div>
-            </div>
-          </div>
+      <div className="w-full bg-[var(--color-surface-alt)] p-5">
+        <div className="flex items-baseline justify-between">
+          <span className="card-header">Calculator</span>
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="rounded-lg p-1.5 text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-fg)]"
-            aria-label="Open calculator"
+            className="cursor-pointer text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
           >
-            <LuMaximize2 className="h-4 w-4" />
+            Expand
           </button>
         </div>
 
-        <div className="relative mt-5">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-            {context}
-          </div>
-          <div className="mt-1.5 text-[2rem] font-semibold leading-none tabular-nums text-[var(--color-fg)]">
-            {headline}
-          </div>
-          <div className="mt-2 text-xs text-[var(--color-muted)]">{subline}</div>
+        <div className="mt-4 text-xs font-medium text-[var(--color-muted)]">{context}</div>
+        <div className="mt-1 text-3xl font-semibold tabular-nums text-[var(--color-fg)]">
+          {headline}
         </div>
+        <div className="mt-1 text-xs text-[var(--color-muted)]">{subline}</div>
 
-        <div className="relative mt-5 flex items-center gap-6 border-t border-[var(--color-border)] pt-4">
+        <div className="mt-4 flex items-center gap-6">
           <div>
             <div className="text-[11px] text-[var(--color-muted)]">You invest</div>
             <div className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--color-fg)]">
