@@ -60,7 +60,7 @@
      The same formula is repeated in each theme block so it resolves against
      that theme's own success/danger. */
   --seg-cash: var(--color-success);
-  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 26%);
+  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 45%);
   --seg-realestate: color-mix(in oklab, var(--color-success), #f59e0b 38%);
   --seg-credit: var(--color-danger);
   --seg-loans: color-mix(in oklab, var(--color-danger), #f97316 50%);
@@ -176,7 +176,7 @@
 
   /* Segments derived from the dark theme's success/danger (shared by dim). */
   --seg-cash: var(--color-success);
-  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 26%);
+  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 45%);
   --seg-realestate: color-mix(in oklab, var(--color-success), #f59e0b 38%);
   --seg-credit: var(--color-danger);
   --seg-loans: color-mix(in oklab, var(--color-danger), #f97316 50%);
@@ -295,7 +295,7 @@
 
   /* Segments derived from cottage's sage/clay so they stay warm and muted. */
   --seg-cash: var(--color-success);
-  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 26%);
+  --seg-investments: color-mix(in oklab, var(--color-success), #2563eb 45%);
   --seg-realestate: color-mix(in oklab, var(--color-success), #f59e0b 38%);
   --seg-credit: var(--color-danger);
   --seg-loans: color-mix(in oklab, var(--color-danger), #f97316 50%);
