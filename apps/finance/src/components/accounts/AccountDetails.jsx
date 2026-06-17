@@ -238,7 +238,7 @@ export default function AccountDetails({
             horizontal padding here; the Drawer's own px-5 handles it. */}
         <div className="pt-6 pb-5">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
               {institution?.logo && !logoError ? (
                 <img
                   src={institution.logo}
@@ -247,7 +247,7 @@ export default function AccountDetails({
                   onError={() => setLogoError(true)}
                 />
               ) : (
-                <img src={fallbackIcon} alt="" className="w-9 h-9 object-contain" />
+                <img src={fallbackIcon} alt="" className="w-12 h-12 object-contain" />
               )}
             </div>
             <div className="flex-1 min-w-0">

@@ -52,7 +52,7 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
       )}
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         {/* Avatar — institution logo, or a 3D bank icon fallback */}
-        <div className="w-10 h-10 flex items-center justify-center overflow-hidden flex-shrink-0">
+        <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
           {institution.logo && !logoError ? (
             <img
               src={institution.logo}
@@ -61,7 +61,7 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
               onError={() => setLogoError(true)}
             />
           ) : (
-            <img src="/icons/bank-3d.png" alt="" className="w-9 h-9 object-contain" />
+            <img src="/icons/bank-3d.png" alt="" className="w-12 h-12 object-contain" />
           )}
         </div>
 
@@ -120,7 +120,7 @@ const PropertyRow = ({ property, onClick }) => {
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
         <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
-          <img src="/icons/house-3d.png" alt="" className="w-9 h-9 object-contain" />
+          <img src="/icons/house-3d.png" alt="" className="w-12 h-12 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{property.name}</div>
@@ -128,7 +128,7 @@ const PropertyRow = ({ property, onClick }) => {
         </div>
       </div>
       <div className="ml-4 flex items-center justify-end">
-        <div className="text-right font-medium text-[var(--color-fg)] tabular-nums text-sm">
+        <div className="text-right font-medium text-[var(--color-muted)] tabular-nums text-sm">
           {formatCurrency(property.value)}
         </div>
       </div>
