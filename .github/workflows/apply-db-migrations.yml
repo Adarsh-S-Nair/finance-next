@@ -15,7 +15,12 @@ jobs:
         uses: supabase/setup-cli@v1
         with:
           version: latest
-          access-token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # Authenticate the "resolve latest release" GitHub API call so it
+          # doesn't hit the anonymous 60/hr rate limit shared across runners.
+          # GITHUB_TOKEN is provided automatically by Actions. (The Supabase
+          # access token isn't a setup-cli input — it's used via env var /
+          # `supabase login` in the steps below.)
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Supabase login
         run: supabase login --token "$SUPABASE_ACCESS_TOKEN"
