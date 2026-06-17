@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PiBankFill } from "react-icons/pi";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidLink } from "react-plaid-link";
 import clsx from "clsx";
@@ -12,6 +11,7 @@ import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
 import { useAccounts } from "../providers/AccountsProvider";
 import { authFetch } from "../../lib/api/fetch";
 import AccountLiabilitySection from "./AccountLiabilitySection";
+import PropertyForm from "./PropertyForm";
 
 const formatCurrency = (amount, currency = "USD") =>
   formatCurrencyBase(amount ?? 0, true, currency || "USD");
@@ -183,10 +183,27 @@ function CompleteConnectionPrompt({ plaidItemId, noun }) {
   );
 }
 
-export default function AccountDetails({ account, institution, onViewTransactions }) {
+export default function AccountDetails({
+  account,
+  institution,
+  onViewTransactions,
+  property = null,
+  mortgageOptions = [],
+  onClose,
+  onSaved,
+}) {
+  const [logoError, setLogoError] = useState(false);
   if (!account) return null;
 
-  const subtypeLabel = formatAccountSubtype(account.type);
+  const isProperty = !!property;
+  const isRealEstate =
+    isProperty ||
+    (account.type || "").toLowerCase().includes("property") ||
+    (account.type || "").toLowerCase().includes("real estate");
+  // Logo-less accounts fall back to a 3D icon: a house for real estate, a
+  // bank for everything else (loans, manual accounts).
+  const fallbackIcon = isRealEstate ? "/icons/house-3d.png" : "/icons/bank-3d.png";
+  const subtypeLabel = isProperty ? "House" : formatAccountSubtype(account.type);
   const isLiability = isLiabilityAccount(account);
   const isCredit = isCreditAccount(account.type);
   const currency = account.isoCurrencyCode || "USD";
@@ -221,23 +238,17 @@ export default function AccountDetails({ account, institution, onViewTransaction
             horizontal padding here; the Drawer's own px-5 handles it. */}
         <div className="pt-6 pb-5">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-              {institution?.logo ? (
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {institution?.logo && !logoError ? (
                 <img
                   src={institution.logo}
                   alt={institution.name || ""}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
-                  }}
+                  className="w-full h-full rounded-full object-cover"
+                  onError={() => setLogoError(true)}
                 />
-              ) : null}
-              <div
-                className={`w-full h-full flex items-center justify-center ${institution?.logo ? "hidden" : "flex"}`}
-              >
-                <PiBankFill className="w-5 h-5 text-[var(--color-muted)]" />
-              </div>
+              ) : (
+                <img src={fallbackIcon} alt="" className="w-9 h-9 object-contain" />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-medium text-[var(--color-fg)] truncate">
@@ -252,13 +263,24 @@ export default function AccountDetails({ account, institution, onViewTransaction
               </div>
             </div>
           </div>
-          <div className="mt-4 text-2xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
-            {formatCurrency(account.balance, currency)}
-          </div>
+          {!isProperty && (
+            <div className="mt-4 text-2xl font-medium tracking-tight tabular-nums text-[var(--color-fg)]">
+              {formatCurrency(account.balance, currency)}
+            </div>
+          )}
         </div>
 
         {/* Body */}
         <div className="space-y-6 pb-6">
+          {isProperty ? (
+            <PropertyForm
+              property={property}
+              mortgageOptions={mortgageOptions}
+              onSaved={onSaved}
+              onCancel={onClose}
+            />
+          ) : (
+          <>
           {/* Credit utilization visual */}
           {hasCreditVisual && (
             <div>
@@ -340,6 +362,8 @@ export default function AccountDetails({ account, institution, onViewTransaction
                 View all transactions
               </Button>
             </div>
+          )}
+          </>
           )}
         </div>
       </motion.div>

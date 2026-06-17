@@ -64,7 +64,9 @@ export async function resolveMortgageLink(args: ResolveArgs): Promise<ResolveRes
     manualMortgageBalance >= 0;
 
   const nowISO = new Date().toISOString();
-  const mortgageName = `${propertyName} mortgage`.slice(0, 120);
+  // Named after the property only — it already lives under the Loans section,
+  // so appending "mortgage" would be redundant.
+  const mortgageName = (propertyName || 'Mortgage').slice(0, 120);
 
   if (wantsManual) {
     const balance = manualMortgageBalance as number;

@@ -14,12 +14,11 @@ const formatCurrency = (amount) => formatCurrencyBase(amount, true);
 // and reds. Unknown labels fall back to the muted neutral.
 function segmentColor(label) {
   switch (label) {
-    case 'Cash': return 'var(--color-asset-primary)';
-    case 'Investments': return 'var(--color-asset-alt)';
-    case 'Real Estate':
-      return 'color-mix(in oklab, var(--color-asset-primary) 55%, var(--color-asset-alt))';
-    case 'Credit': return 'var(--color-liability-primary)';
-    case 'Loans': return 'var(--color-liability-alt)';
+    case 'Cash': return 'var(--seg-cash)';
+    case 'Investments': return 'var(--seg-investments)';
+    case 'Real Estate': return 'var(--seg-realestate)';
+    case 'Credit': return 'var(--seg-credit)';
+    case 'Loans': return 'var(--seg-loans)';
     default: return 'var(--color-muted)';
   }
 }

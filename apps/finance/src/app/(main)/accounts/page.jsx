@@ -12,7 +12,6 @@ import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHov
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import AccountDetails from "../../../components/accounts/AccountDetails";
-import PropertyFormModal from "../../../components/accounts/PropertyFormModal";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { authFetch } from "../../../lib/api/fetch";
 import { supabase } from "../../../lib/supabase/client";
@@ -125,20 +124,13 @@ const PropertyRow = ({ property, onClick }) => {
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{property.name}</div>
-          <div className="text-xs text-[var(--color-muted)] truncate">
-            {property.address || "Property"}
-          </div>
+          <div className="text-xs text-[var(--color-muted)] truncate">House</div>
         </div>
       </div>
-      <div className="ml-4 text-right">
-        <div className="font-medium text-[var(--color-fg)] tabular-nums text-sm">
+      <div className="ml-4 flex items-center justify-end">
+        <div className="text-right font-medium text-[var(--color-fg)] tabular-nums text-sm">
           {formatCurrency(property.value)}
         </div>
-        {property.mortgage && (
-          <div className="text-xs text-[var(--color-muted)] tabular-nums">
-            {formatCurrency(property.equity)} equity
-          </div>
-        )}
       </div>
     </div>
   );
@@ -161,10 +153,11 @@ export default function AccountsPage() {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   // Manual properties (real estate). Fetched from /api/properties for the
-  // value/address/equity enrichment the Plaid accounts endpoint doesn't carry.
+  // value/mortgage enrichment the Plaid accounts endpoint doesn't carry.
   const [properties, setProperties] = useState([]);
-  const [propertyModalOpen, setPropertyModalOpen] = useState(false);
-  const [editingProperty, setEditingProperty] = useState(null);
+  // When set, the account drawer is showing a property (renders the editable
+  // property form instead of the read-only account view).
+  const [selectedProperty, setSelectedProperty] = useState(null);
   // plaid_item_ids whose backend sync is still in progress. Drives the
   // per-row "Syncing…" pill so users see "data is arriving" instead of
   // a zero balance that looks like a bug. Populated by /api/plaid/sync-status
@@ -218,15 +211,27 @@ export default function AccountsPage() {
   }, [fetchProperties, propertyAccountCount]);
 
   // Re-pull both the Plaid accounts (drives the net-worth cards) and the
-  // property enrichment after any add/edit/remove so every surface agrees.
+  // property enrichment after any add/edit/remove, then close the drawer.
   const handlePropertySaved = useCallback(() => {
     refreshAccounts();
     fetchProperties();
+    setIsAccountDrawerOpen(false);
+    setSelectedProperty(null);
   }, [refreshAccounts, fetchProperties]);
 
-  const openEditProperty = (property) => {
-    setEditingProperty(property);
-    setPropertyModalOpen(true);
+  const closeAccountDrawer = () => {
+    setIsAccountDrawerOpen(false);
+    setSelectedProperty(null);
+  };
+
+  // Open a property in the same right-side drawer the other account types use,
+  // keyed to its backing account row (for the header), with the property data
+  // driving the editable body.
+  const openProperty = (property) => {
+    const acct = (allAccounts || []).find((a) => a.id === property.accountId) || null;
+    setSelectedAccount(acct);
+    setSelectedProperty(property);
+    setIsAccountDrawerOpen(true);
   };
 
   // Refresh sync-status in response to plaid_items changes. This keeps
@@ -267,6 +272,7 @@ export default function AccountsPage() {
 
   const handleAccountClick = (account) => {
     setSelectedAccount(account);
+    setSelectedProperty(null);
     setIsAccountDrawerOpen(true);
   };
 
@@ -552,7 +558,7 @@ export default function AccountsPage() {
                         <PropertyRow
                           key={property.id}
                           property={property}
-                          onClick={openEditProperty}
+                          onClick={openProperty}
                         />
                       ))}
                     </>
@@ -622,24 +628,21 @@ export default function AccountsPage() {
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
         />
-        <PropertyFormModal
-          isOpen={propertyModalOpen}
-          onClose={() => setPropertyModalOpen(false)}
-          onSaved={handlePropertySaved}
-          property={editingProperty}
-          mortgageOptions={mortgageOptions}
-        />
         <Drawer
           isOpen={isAccountDrawerOpen}
-          onClose={() => setIsAccountDrawerOpen(false)}
+          onClose={closeAccountDrawer}
           title="Account Details"
           size="md"
         >
           <AccountDetails
             account={selectedAccount}
             institution={selectedAccount ? institutionMap[selectedAccount.institutionId] : null}
+            property={selectedProperty}
+            mortgageOptions={mortgageOptions}
+            onClose={closeAccountDrawer}
+            onSaved={handlePropertySaved}
             onViewTransactions={
-              selectedAccount
+              selectedAccount && !selectedProperty
                 ? () => {
                     setIsAccountDrawerOpen(false);
                     router.push(`/transactions?accountId=${selectedAccount.id}`);

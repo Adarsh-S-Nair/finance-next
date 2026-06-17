@@ -53,6 +53,16 @@
   --color-liability-primary: var(--color-danger);
   --color-liability-alt: color-mix(in oklab, var(--color-danger), white 28%);
 
+  /* Per-category breakdown segments. Each category gets its OWN hue so two
+     segments in the same bar (Cash vs Investments vs Real Estate) are easy to
+     tell apart — the old approach used light/dark siblings of a single green
+     (or red), which read as nearly identical. Tuned per theme below. */
+  --seg-cash: #059669;        /* emerald */
+  --seg-investments: #2563eb; /* blue */
+  --seg-realestate: #d97706;  /* amber */
+  --seg-credit: #dc2626;      /* red */
+  --seg-loans: #ea580c;       /* orange */
+
   --color-warn: #fbbf24;
   /* Amber 400 - softer */
   --color-on-warn: #18181b;
@@ -161,6 +171,13 @@
   /* Red 400 - softer against dark bg */
   --color-on-warn: #09090b;
   /* Warn stays amber (inherited); just flip its text to dark */
+
+  /* Brighter, distinct segment hues for dark surfaces (shared by dim). */
+  --seg-cash: #34d399;        /* emerald 400 */
+  --seg-investments: #60a5fa; /* blue 400 */
+  --seg-realestate: #fbbf24;  /* amber 400 */
+  --seg-credit: #f87171;      /* red 400 */
+  --seg-loans: #fb923c;       /* orange 400 */
 
   --color-input-bg: #181818;
   /* Slightly lifted from surface */
@@ -273,6 +290,13 @@
   --color-on-success: #161009;
   --color-danger: #cf7155;
   --color-on-danger: #161009;
+
+  /* Warm, muted segment hues tuned to the cocoa cottage palette. */
+  --seg-cash: #8aa873;        /* sage */
+  --seg-investments: #7fa8c9; /* dusty blue */
+  --seg-realestate: #d6a85c;  /* warm gold */
+  --seg-credit: #cf7155;      /* clay red */
+  --seg-loans: #b08968;       /* caramel */
   --color-warn: #cca453;
   --color-on-warn: #161009;
 
