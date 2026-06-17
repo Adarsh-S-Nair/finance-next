@@ -87,7 +87,9 @@ function categorizeAccount(account: any) {
     }
   } else {
     // Categorize assets
-    if (fullType.includes('investment') || fullType.includes('brokerage') ||
+    if (fullType.includes('real estate') || fullType.includes('property')) {
+      return 'realEstate';
+    } else if (fullType.includes('investment') || fullType.includes('brokerage') ||
       fullType.includes('401k') || fullType.includes('ira') ||
       fullType.includes('retirement') || fullType.includes('mutual fund') ||
       fullType.includes('stock') || fullType.includes('bond')) {
@@ -103,6 +105,7 @@ function categorizeAccountBalances(accountBalances: Record<string, number>, allA
   const categorized: Record<string, number> = {
     cash: 0,
     investments: 0,
+    realEstate: 0,
     credit: 0,
     loans: 0
   };

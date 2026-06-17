@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageContainer from "../../../components/layout/PageContainer";
-import { PiBankFill, PiHouseFill } from "react-icons/pi";
 import { FiTrash2 } from "react-icons/fi"; // Kept for error state icon
 import { useUser } from "../../../components/providers/UserProvider";
 import { useAccounts } from "../../../components/providers/AccountsProvider";
@@ -35,6 +34,7 @@ const capitalizeWords = (str) => {
 // Component for rendering account rows within the unified list
 const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needsLiabilities = false }) => {
   const institution = institutionMap[account.institutionId] || { name: 'Unknown', logo: null };
+  const [logoError, setLogoError] = useState(false);
 
   return (
     <div
@@ -52,22 +52,18 @@ const AccountRow = ({ account, institutionMap, onClick, isSyncing = false, needs
         <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--color-accent)]" />
       )}
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
-        {/* Institution Logo */}
-        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
-          {institution.logo ? (
+        {/* Avatar — institution logo, or a 3D bank icon fallback */}
+        <div className="w-10 h-10 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {institution.logo && !logoError ? (
             <img
               src={institution.logo}
               alt={institution.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
+              className="w-full h-full rounded-full object-cover bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50"
+              onError={() => setLogoError(true)}
             />
-          ) : null}
-          <div className={`w-full h-full flex items-center justify-center ${institution.logo ? 'hidden' : 'flex'}`}>
-            <PiBankFill className="w-4 h-4 text-[var(--color-muted)]" />
-          </div>
+          ) : (
+            <img src="/icons/bank-3d.png" alt="" className="w-9 h-9 object-contain" />
+          )}
         </div>
 
         {/* Account Info */}
@@ -124,8 +120,8 @@ const PropertyRow = ({ property, onClick }) => {
       className="group relative flex items-center justify-between px-1 py-3.5 hover:bg-[var(--color-surface-alt)]/60 transition-colors cursor-pointer overflow-hidden"
     >
       <div className="flex items-center gap-3.5 flex-1 min-w-0">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-[var(--color-surface)]/50 border border-[var(--color-border)]/50">
-          <PiHouseFill className="w-4 h-4 text-[var(--color-muted)]" />
+        <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+          <img src="/icons/house-3d.png" alt="" className="w-9 h-9 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-[var(--color-fg)] text-sm mb-0.5 truncate">{property.name}</div>
@@ -548,10 +544,10 @@ export default function AccountsPage() {
                     </>
                   )}
 
-                  {/* Property Section — manual real-estate assets */}
+                  {/* Real Estate Section — manual property assets */}
                   {properties.length > 0 && (
                     <>
-                      <CategoryHeader title="Property" />
+                      <CategoryHeader title="Real Estate" />
                       {properties.map((property) => (
                         <PropertyRow
                           key={property.id}
@@ -582,7 +578,7 @@ export default function AccountsPage() {
                   {/* Loans & Mortgages Section */}
                   {categorizedAccounts.loans.length > 0 && (
                     <>
-                      <CategoryHeader title="Loans & Mortgages" />
+                      <CategoryHeader title="Loans" />
                       {categorizedAccounts.loans.map((account) => (
                         <AccountRow
                           key={account.id}
@@ -600,8 +596,8 @@ export default function AccountsPage() {
             </>
           ) : (
             <div className="text-center py-24 bg-[var(--color-surface)]/30 rounded-2xl border border-[var(--color-border)]/50 border-dashed">
-              <div className="mx-auto w-20 h-20 bg-[var(--color-surface)] rounded-full flex items-center justify-center mb-6 shadow-sm border border-[var(--color-border)]">
-                <PiBankFill className="h-10 w-10 text-[var(--color-muted)]" />
+              <div className="mx-auto w-20 h-20 flex items-center justify-center mb-6">
+                <img src="/icons/bank-3d.png" alt="" className="h-16 w-16 object-contain" />
               </div>
               <h3 className="text-xl font-medium text-[var(--color-fg)] mb-2">No accounts connected</h3>
               <p className="text-[var(--color-muted)] mb-8 max-w-md mx-auto">

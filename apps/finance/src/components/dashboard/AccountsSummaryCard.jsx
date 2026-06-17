@@ -16,6 +16,8 @@ function segmentColor(label) {
   switch (label) {
     case 'Cash': return 'var(--color-asset-primary)';
     case 'Investments': return 'var(--color-asset-alt)';
+    case 'Real Estate':
+      return 'color-mix(in oklab, var(--color-asset-primary) 55%, var(--color-asset-alt))';
     case 'Credit': return 'var(--color-liability-primary)';
     case 'Loans': return 'var(--color-liability-alt)';
     default: return 'var(--color-muted)';
@@ -88,7 +90,9 @@ function categorizeAccount(account) {
       return 'credit';
     }
   } else {
-    if (fullType.includes('investment') || fullType.includes('brokerage') ||
+    if (fullType.includes('real estate') || fullType.includes('property')) {
+      return 'realEstate';
+    } else if (fullType.includes('investment') || fullType.includes('brokerage') ||
       fullType.includes('401k') || fullType.includes('ira') ||
       fullType.includes('retirement') || fullType.includes('mutual fund') ||
       fullType.includes('stock') || fullType.includes('bond')) {
@@ -226,6 +230,7 @@ const useAccountData = () => {
       assetsData = {
         cash: hoveredData.categorizedBalances.cash || 0,
         investments: hoveredData.categorizedBalances.investments || 0,
+        realEstate: hoveredData.categorizedBalances.realEstate || 0,
       };
       liabilitiesData = {
         credit: hoveredData.categorizedBalances.credit || 0,
@@ -249,6 +254,7 @@ const useAccountData = () => {
       assetsData = {
         cash: categorizedAccounts.cash || 0,
         investments: categorizedAccounts.investments || 0,
+        realEstate: categorizedAccounts.realEstate || 0,
       };
 
       liabilitiesData = {
@@ -256,13 +262,18 @@ const useAccountData = () => {
         loans: categorizedAccounts.loans || 0,
       };
 
-      totalAssets = assetsData.cash + assetsData.investments;
+      totalAssets = assetsData.cash + assetsData.investments + assetsData.realEstate;
       totalLiabilities = liabilitiesData.credit + liabilitiesData.loans;
     }
 
+    // Only surface the Real Estate segment once the user actually has some, so
+    // existing users without property don't see an empty third row.
     const assetSegments = [
       { label: 'Cash', amount: assetsData.cash },
       { label: 'Investments', amount: assetsData.investments },
+      ...(assetsData.realEstate > 0
+        ? [{ label: 'Real Estate', amount: assetsData.realEstate }]
+        : []),
     ];
 
     const liabilitySegments = [
