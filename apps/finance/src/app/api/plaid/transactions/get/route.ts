@@ -43,7 +43,7 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
         is_unmatched_transfer,
         transaction_source,
         investment_details,
-        accounts!inner (id, name, mask),
+        accounts!inner (id, name, mask, institutions ( logo )),
         system_categories!inner (
           label,
           hex_color,
@@ -255,7 +255,10 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
   interface ResultTx {
     id: string;
     date: string | null;
-    accounts?: { name?: string | null } | null;
+    accounts?: {
+      name?: string | null;
+      institutions?: { logo?: string | null } | null;
+    } | null;
     system_categories?: {
       label?: string | null;
       hex_color?: string | null;
@@ -282,6 +285,7 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
   const transformedTransactions = orderedTransactions.map((transaction) => ({
     ...transaction,
     account_name: transaction.accounts?.name || 'Unknown Account',
+    institution_logo: transaction.accounts?.institutions?.logo || null,
     category_icon_lib: transaction.system_categories?.category_groups?.icon_lib || null,
     category_icon_name: transaction.system_categories?.category_groups?.icon_name || null,
     category_hex_color:

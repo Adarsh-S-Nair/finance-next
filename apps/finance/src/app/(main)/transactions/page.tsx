@@ -465,6 +465,8 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
                       transaction={item.positive}
                       onTransactionClick={onTransactionClick}
                       subtitleOverride={flow}
+                      overrideLogoUrl={item.positive.institution_logo}
+                      directionBadge="in"
                       index={index}
                       groupIndex={groupIndex}
                     />
@@ -473,6 +475,8 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
                       transaction={item.negative}
                       onTransactionClick={onTransactionClick}
                       subtitleOverride={flow}
+                      overrideLogoUrl={item.negative.institution_logo}
+                      directionBadge="out"
                       index={index}
                       groupIndex={groupIndex}
                     />

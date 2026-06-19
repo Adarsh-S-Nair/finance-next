@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { FiTag } from 'react-icons/fi';
+import { FiTag, FiArrowUpRight, FiArrowDownLeft } from 'react-icons/fi';
 import DynamicIcon from '../DynamicIcon';
 import { formatCurrency as formatCurrencyBase } from '../../lib/formatCurrency';
 import {
@@ -53,6 +53,12 @@ type Props = {
   // When set, replaces the category subtitle — used by matched transfer
   // pairs to show the account the money moved from / to.
   subtitleOverride?: string | null;
+  // Institution logo to render in place of the category icon (matched
+  // transfer legs). Falls back to the category arrow when absent/broken.
+  overrideLogoUrl?: string | null;
+  // Direction arrow badge overlaid on the institution logo: 'in' for the
+  // incoming leg, 'out' for the outgoing leg.
+  directionBadge?: 'in' | 'out' | null;
 };
 
 const TransactionRow = memo(function TransactionRow({
@@ -64,14 +70,23 @@ const TransactionRow = memo(function TransactionRow({
   compact,
   showDate = false,
   subtitleOverride,
+  overrideLogoUrl,
+  directionBadge,
 }: Props) {
   const [logoFailed, setLogoFailed] = React.useState(false);
+  const [instLogoFailed, setInstLogoFailed] = React.useState(false);
   const splits = transaction.transaction_splits ?? [];
   const hasSplits = splits.length > 0;
   const hasSettledSplit = hasSplits && splits.some((s) => s.is_settled);
   const hasUnsettledSplit = hasSplits && splits.some((s) => !s.is_settled);
 
-  const showLogo = !DISABLE_LOGOS && !!transaction.icon_url && !logoFailed;
+  // Matched transfer legs show their account's institution logo with a
+  // direction badge; everything else keeps the merchant logo / category
+  // icon path. A broken institution logo falls back to the arrow icon.
+  const showInstitutionLogo =
+    !DISABLE_LOGOS && !!overrideLogoUrl && !instLogoFailed;
+  const showLogo =
+    !showInstitutionLogo && !DISABLE_LOGOS && !!transaction.icon_url && !logoFailed;
 
   // Investment transactions carry structured details; re-derive a clean
   // title/subtitle/icon from them instead of rendering Plaid's verbose
@@ -116,12 +131,23 @@ const TransactionRow = memo(function TransactionRow({
           <div
             className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 transition-all duration-300 ${selected ? 'ring-2 ring-[var(--color-accent)]/20' : ''}`}
             style={{
-              backgroundColor: showLogo
-                ? 'transparent'
-                : (investment?.iconBg || transaction.category_hex_color || 'var(--color-accent)')
+              backgroundColor: showInstitutionLogo
+                ? 'var(--color-surface)'
+                : showLogo
+                  ? 'transparent'
+                  : (investment?.iconBg || transaction.category_hex_color || 'var(--color-accent)')
             }}
           >
-            {showLogo ? (
+            {showInstitutionLogo ? (
+              <img
+                src={overrideLogoUrl as string}
+                alt={transaction.account_name || 'Account'}
+                className="w-full h-full object-cover rounded-full"
+                loading="lazy"
+                decoding="async"
+                onError={() => setInstLogoFailed(true)}
+              />
+            ) : showLogo ? (
               <img
                 src={transaction.icon_url as string}
                 alt={transaction.merchant_name || transaction.description || 'Transaction'}
@@ -140,6 +166,25 @@ const TransactionRow = memo(function TransactionRow({
               />
             )}
           </div>
+          {/* Direction badge — only meaningful when the institution logo
+              replaced the directional category arrow. */}
+          {showInstitutionLogo && directionBadge && (
+            <div
+              className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border-2 border-[var(--color-bg)]"
+              style={{
+                backgroundColor:
+                  directionBadge === 'in'
+                    ? 'var(--color-success)'
+                    : 'var(--color-muted)',
+              }}
+            >
+              {directionBadge === 'in' ? (
+                <FiArrowDownLeft className="w-2.5 h-2.5 text-white" style={{ strokeWidth: 3 }} />
+              ) : (
+                <FiArrowUpRight className="w-2.5 h-2.5 text-white" style={{ strokeWidth: 3 }} />
+              )}
+            </div>
+          )}
           {selected && (
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-accent)] rounded-full flex items-center justify-center border-2 border-[var(--color-bg)] animate-scale-in">
               <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
