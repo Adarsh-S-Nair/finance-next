@@ -155,6 +155,27 @@ export function asOf<T extends { tMs: number }>(sorted: T[], t: number): T | nul
   return ans >= 0 ? sorted[ans] : sorted[0];
 }
 
+/**
+ * Return the open (earliest timestamp) of the most recent trading session in a
+ * set of holdings price points — i.e. the first price on the latest date that
+ * has any prices. Used to anchor the 1D view to the last real session so the
+ * chart isn't flat on weekends / market holidays (e.g. Juneteenth), when the
+ * literal last-24h window contains no intraday movement. Returns null if empty.
+ */
+export function lastTradingSessionOpenMs(points: PricePoint[]): number | null {
+  if (points.length === 0) return null;
+  let lastMs = points[0].tMs;
+  for (const p of points) if (p.tMs > lastMs) lastMs = p.tMs;
+  const lastDate = new Date(lastMs).toISOString().slice(0, 10);
+  let openMs = Infinity;
+  for (const p of points) {
+    if (new Date(p.tMs).toISOString().slice(0, 10) === lastDate && p.tMs < openMs) {
+      openMs = p.tMs;
+    }
+  }
+  return Number.isFinite(openMs) ? openMs : null;
+}
+
 export interface AccountLite {
   id: string;
   isLiability: boolean;

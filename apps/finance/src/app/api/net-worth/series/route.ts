@@ -7,6 +7,7 @@ import {
   planRange,
   evenTimestamps,
   assembleNetWorthSeries,
+  lastTradingSessionOpenMs,
   NET_WORTH_RANGES,
   type NetWorthRange,
   type AccountLite,
@@ -184,6 +185,18 @@ export const GET = withAuth('net-worth:series', async (request, userId) => {
   }
   const holdingsAvailable = priceSeries.size > 0;
 
+  // For 1D, anchor the window to the last real trading session so the chart
+  // shows that session's movement instead of being flat when the market is
+  // currently closed (weekend / holiday). The price fetch above already buffers
+  // a few days back, so the session's data is present.
+  let startMs = plan.startMs;
+  if (range === '1D' && holdingsAvailable) {
+    const merged: PricePoint[] = [];
+    for (const arr of priceSeries.values()) merged.push(...arr);
+    const sessionOpen = lastTradingSessionOpenMs(merged);
+    if (sessionOpen != null) startMs = Math.min(startMs, sessionOpen);
+  }
+
   // --- Account lite view ---
   const accountsLite: AccountLite[] = accounts.map((a) => {
     const b = a.balances as { current?: number | null } | null;
@@ -196,7 +209,7 @@ export const GET = withAuth('net-worth:series', async (request, userId) => {
     };
   });
 
-  const targets = evenTimestamps(plan.startMs, plan.endMs, plan.points);
+  const targets = evenTimestamps(startMs, plan.endMs, plan.points);
   const series = assembleNetWorthSeries({
     targets,
     accounts: accountsLite,

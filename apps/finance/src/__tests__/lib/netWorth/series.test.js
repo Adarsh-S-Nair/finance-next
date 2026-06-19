@@ -6,6 +6,7 @@ import {
   evenTimestamps,
   asOf,
   assembleNetWorthSeries,
+  lastTradingSessionOpenMs,
   DEFAULT_POINTS,
 } from '../../../lib/netWorth/series';
 
@@ -84,6 +85,30 @@ describe('asOf', () => {
   });
   it('handles empty input', () => {
     expect(asOf([], 5)).toBeNull();
+  });
+});
+
+describe('lastTradingSessionOpenMs', () => {
+  const d18_1330 = Date.UTC(2026, 5, 18, 13, 30);
+  const d18_1600 = Date.UTC(2026, 5, 18, 16, 0);
+  const d18_2000 = Date.UTC(2026, 5, 18, 20, 0);
+  const d17_1330 = Date.UTC(2026, 5, 17, 13, 30);
+  const d17_2000 = Date.UTC(2026, 5, 17, 20, 0);
+
+  it('returns the open of the most recent session present', () => {
+    const points = [
+      { tMs: d17_1330, price: 1 },
+      { tMs: d17_2000, price: 2 },
+      { tMs: d18_1600, price: 3 },
+      { tMs: d18_1330, price: 4 },
+      { tMs: d18_2000, price: 5 },
+    ];
+    // Last date is the 18th; its earliest timestamp is 13:30.
+    expect(lastTradingSessionOpenMs(points)).toBe(d18_1330);
+  });
+
+  it('returns null for empty input', () => {
+    expect(lastTradingSessionOpenMs([])).toBeNull();
   });
 });
 

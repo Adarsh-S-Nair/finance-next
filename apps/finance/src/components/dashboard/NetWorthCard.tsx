@@ -381,6 +381,10 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   // Use currentData if available, otherwise use fallback
   const displayData = currentData || fallbackData;
 
+  // Short ranges are reconstructed at intraday resolution, so their point
+  // labels should include the time of day, not just the date.
+  const isIntradayRange = timeRange === '1D' || timeRange === '1W' || timeRange === '1M';
+
   // Dynamic Percentage Change Calculation
   const dynamicPercentChange = useMemo(() => {
     if (displayChartData.length < 1) return 0;
@@ -521,11 +525,11 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
           <div className="flex flex-col items-end gap-2">
             <div className="text-xs text-[var(--color-muted)] font-medium">
               {displayData?.dateString ?
-                new Date(displayData.dateString).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                }) :
+                new Date(displayData.dateString).toLocaleString('en-US',
+                  isIntradayRange
+                    ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+                    : { month: 'short', day: 'numeric', year: 'numeric' }
+                ) :
                 `${displayData?.monthFull || 'Current'} ${displayData?.year || new Date().getFullYear()}`
               }
             </div>
