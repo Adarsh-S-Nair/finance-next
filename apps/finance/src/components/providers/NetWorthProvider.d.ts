@@ -12,6 +12,7 @@ export interface NetWorthContextValue {
   loading: boolean;
   error: string | null;
   refreshNetWorthData: (forceRefresh?: boolean) => Promise<void>;
+  lastFetched: number | null;
 }
 
 export function NetWorthProvider(props: { children: React.ReactNode }): React.JSX.Element;

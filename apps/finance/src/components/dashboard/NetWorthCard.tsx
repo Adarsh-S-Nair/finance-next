@@ -7,6 +7,7 @@ import { useNetWorth } from "../providers/NetWorthProvider";
 import { useNetWorthHover } from "./NetWorthHoverContext";
 import { LineChart, TimeRangeSelector } from "@zervo/ui";
 import { formatCurrency as formatCurrencyBase } from "../../lib/formatCurrency";
+import { authFetch } from "../../lib/api/fetch";
 
 const formatCurrency = (amount: number) => formatCurrencyBase(amount, true);
 // Animated counter component for smooth number transitions
@@ -139,12 +140,49 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     currentNetWorth,
     loading,
     error,
-    refreshNetWorthData
+    refreshNetWorthData,
+    lastFetched
   } = useNetWorth();
   const { setHoverData, clearHoverData } = useNetWorthHover();
   const [hoveredData, setHoveredData] = useState<any>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+
+  // Per-range net-worth series from the server: a fixed number of evenly-spaced
+  // points, with intraday resolution for short ranges. Falls back to the
+  // provider's daily history if the request fails. Cached per (range, fetch)
+  // so toggling ranges is instant and a data refresh invalidates the cache.
+  const seriesCacheRef = useRef<Record<string, any[]>>({});
+  const [serverSeries, setServerSeries] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setServerSeries(null);
+      return;
+    }
+    const cacheKey = `${timeRange}:${lastFetched ?? 0}`;
+    const cached = seriesCacheRef.current[cacheKey];
+    if (cached) {
+      setServerSeries(cached);
+      return;
+    }
+    const controller = new AbortController();
+    authFetch(`/api/net-worth/series?range=${timeRange}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const data = j?.data ?? null;
+        if (data && Array.isArray(data) && data.length > 0) {
+          seriesCacheRef.current[cacheKey] = data;
+          setServerSeries(data);
+        } else {
+          setServerSeries(null);
+        }
+      })
+      .catch(() => {
+        /* fall back to provider history */
+      });
+    return () => controller.abort();
+  }, [user?.id, timeRange, lastFetched]);
 
   // Process net worth history data for the chart
   const chartData = useMemo(() => {
@@ -179,7 +217,28 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     return data;
   }, [netWorthHistory, currentNetWorth]);
 
-  // Calculate filtered data based on time range
+  // Server-provided series for the active range (preferred): already scoped to
+  // the range and resampled to a fixed point count, with intraday detail.
+  const serverChartData = useMemo(() => {
+    if (!serverSeries) return null;
+    return serverSeries.map((item: any) => {
+      const date = new Date(item.date);
+      return {
+        month: date.toLocaleString('en-US', { month: 'short' }),
+        monthFull: date.toLocaleString('en-US', { month: 'long' }),
+        year: date.getFullYear(),
+        date,
+        dateString: item.date,
+        value: item.netWorth || 0,
+        assets: item.assets || 0,
+        liabilities: item.liabilities || 0,
+        accountBalances: item.accountBalances,
+      };
+    });
+  }, [serverSeries]);
+
+  // Calculate filtered data based on time range (fallback when the server
+  // series is unavailable — filters the provider's daily history client-side).
   const filteredData = useMemo(() => {
     if (chartData.length === 0) return [];
     if (timeRange === 'ALL') return chartData;
@@ -223,10 +282,13 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
     return filtered;
   }, [chartData, timeRange]);
 
+  // Prefer the server series; fall back to the client-filtered daily history.
+  const baseData = serverChartData ?? filteredData;
+
   // Ensure we have at least 2 points for a line, duplicating if needed
   const displayChartData = useMemo(() => {
-    if (filteredData.length <= 1) {
-      const singlePoint = filteredData.length === 1 ? filteredData[0] : (chartData.length > 0 ? chartData[chartData.length - 1] : null);
+    if (baseData.length <= 1) {
+      const singlePoint = baseData.length === 1 ? baseData[0] : (chartData.length > 0 ? chartData[chartData.length - 1] : null);
 
       if (!singlePoint) return [];
 
@@ -251,8 +313,8 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
 
       return [flatLinePoint, singlePoint];
     }
-    return filteredData;
-  }, [filteredData, chartData, timeRange]);
+    return baseData;
+  }, [baseData, chartData, timeRange]);
 
 
   // Calculate dynamic chart color based on performance
@@ -389,29 +451,23 @@ export default function NetWorthCard({ width = "full" }: { width?: "full" | "2/3
   const handleMouseMove = (data: any, index: number) => {
     setActiveIndex(index);
 
-    // Get the chart data for this index
-    const chartDataPoint = displayChartData[index];
-    if (chartDataPoint) {
-      // Find the corresponding historical data
-      const historicalData = netWorthHistory.find(item =>
-        new Date(item.date).toISOString().split('T')[0] === chartDataPoint.dateString
-      );
+    // Each chart point carries its own assets/liabilities/accountBalances
+    // (server series and provider history both attach them), so read straight
+    // off the point — intraday points have datetime keys that wouldn't match a
+    // by-date lookup.
+    const point = displayChartData[index] as any;
+    if (point) {
+      const categorizedBalances = point.accountBalances
+        ? categorizeAccountBalances(point.accountBalances, allAccounts)
+        : undefined;
 
-      if (historicalData) {
-        // Only compute categorized balances if we have accountBalances (non-minimal payload)
-        let categorizedBalances = undefined as any;
-        if ((historicalData as any).accountBalances) {
-          categorizedBalances = categorizeAccountBalances((historicalData as any).accountBalances, allAccounts);
-        }
-
-        setHoverData({
-          assets: historicalData.assets,
-          liabilities: historicalData.liabilities,
-          netWorth: historicalData.netWorth,
-          date: historicalData.date,
-          categorizedBalances: categorizedBalances
-        });
-      }
+      setHoverData({
+        assets: point.assets,
+        liabilities: point.liabilities,
+        netWorth: point.value,
+        date: point.date,
+        categorizedBalances,
+      });
     }
   };
 
