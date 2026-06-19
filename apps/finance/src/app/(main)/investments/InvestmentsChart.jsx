@@ -11,7 +11,7 @@ import { LineChart, TimeRangeSelector } from "@zervo/ui";
  * per-category hover breakdown (there's only one category here).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { authFetch } from "../../../lib/api/fetch";
 
 function formatCurrency(value) {
@@ -32,6 +32,7 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
   const [timeRange, setTimeRange] = useState("ALL");
   const [activeIndex, setActiveIndex] = useState(null);
 
+  // Daily history (used for available-range detection + fallback).
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -56,6 +57,43 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
       cancelled = true;
     };
   }, [userId]);
+
+  // Per-range series (preferred): fixed evenly-spaced points with intraday
+  // resolution for short ranges. Cached per range; falls back to the daily
+  // history if the request fails.
+  const seriesCacheRef = useRef({});
+  const [rangeSeries, setRangeSeries] = useState(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setRangeSeries(null);
+      return;
+    }
+    const cached = seriesCacheRef.current[timeRange];
+    if (cached) {
+      setRangeSeries(cached);
+      return;
+    }
+    const controller = new AbortController();
+    authFetch(`/api/investments/series?range=${timeRange}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const data = j?.data ?? null;
+        if (data && Array.isArray(data) && data.length > 0) {
+          seriesCacheRef.current[timeRange] = data;
+          setRangeSeries(data);
+        } else {
+          setRangeSeries(null);
+        }
+      })
+      .catch(() => {
+        /* fall back to daily history */
+      });
+    return () => controller.abort();
+  }, [userId, timeRange]);
+
+  // Short ranges are intraday — their labels should include the time of day.
+  const isIntradayRange = timeRange === "1D" || timeRange === "1W" || timeRange === "1M";
 
   // Shape the data for LineChart
   const chartData = useMemo(() => {
@@ -101,7 +139,29 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
     return points;
   }, [series, currentValue]);
 
-  // Filter to selected time range
+  // Server-provided series for the active range (preferred): already scoped to
+  // the range and resampled to a fixed point count, with intraday detail. The
+  // last point is overridden with the live value so the headline matches.
+  const serverChartData = useMemo(() => {
+    if (!rangeSeries) return null;
+    const points = rangeSeries.map((item) => {
+      const date = new Date(item.date);
+      return {
+        dateString: item.date,
+        date,
+        month: date.toLocaleString("en-US", { month: "short" }),
+        monthFull: date.toLocaleString("en-US", { month: "long" }),
+        year: date.getFullYear(),
+        value: item.value || 0,
+      };
+    });
+    if (currentValue != null && currentValue > 0 && points.length > 0) {
+      points[points.length - 1] = { ...points[points.length - 1], value: currentValue };
+    }
+    return points;
+  }, [rangeSeries, currentValue]);
+
+  // Filter to selected time range (fallback when the server series is missing)
   const filteredData = useMemo(() => {
     if (chartData.length === 0) return [];
     if (timeRange === "ALL") return chartData;
@@ -138,13 +198,16 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
     return filtered;
   }, [chartData, timeRange]);
 
+  // Prefer the server series; fall back to the client-filtered daily history.
+  const baseData = serverChartData ?? filteredData;
+
   // LineChart needs at least 2 points; if we only have 1, duplicate it so we
   // get a flat baseline.
   const displayChartData = useMemo(() => {
-    if (filteredData.length <= 1) {
+    if (baseData.length <= 1) {
       const singlePoint =
-        filteredData.length === 1
-          ? filteredData[0]
+        baseData.length === 1
+          ? baseData[0]
           : chartData.length > 0
             ? chartData[chartData.length - 1]
             : null;
@@ -166,8 +229,8 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
       };
       return [flat, singlePoint];
     }
-    return filteredData;
-  }, [filteredData, chartData, timeRange]);
+    return baseData;
+  }, [baseData, chartData, timeRange]);
 
   // Only show ranges whose lookback covers the actual data span
   const availableRanges = useMemo(() => {
@@ -265,11 +328,12 @@ export default function InvestmentsChart({ currentValue, costBasis, userId }) {
         </div>
         <div className="text-right text-xs text-[var(--color-muted)]">
           {displayData?.dateString
-            ? new Date(displayData.dateString).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
+            ? new Date(displayData.dateString).toLocaleString(
+                "en-US",
+                isIntradayRange
+                  ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
+                  : { month: "short", day: "numeric", year: "numeric" }
+              )
             : ""}
         </div>
       </div>
