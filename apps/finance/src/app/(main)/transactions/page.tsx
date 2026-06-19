@@ -272,6 +272,58 @@ function SearchToolbar({ searchQuery, setSearchQuery, onRefresh, loading, onOpen
   );
 }
 
+// A transfer for display-pairing purposes: it belongs to the Transfer In
+// / Transfer Out groups, or it's a credit-card payment. Relies on
+// category_group_name surfaced by /api/plaid/transactions/get.
+function isTransferRow(tx) {
+  const group = (tx.category_group_name || '').toLowerCase();
+  return (
+    group === 'transfer in' ||
+    group === 'transfer out' ||
+    tx.category_name === 'Credit Card Payment'
+  );
+}
+
+// Within a single day, pull matched transfer pairs (a positive and a
+// negative transfer of equal magnitude) next to each other so the money
+// leaving one account sits directly above the money landing in another.
+// Each pair renders positive-on-top (the newer "+" leg) / negative-below
+// (the older "−" leg); everything else keeps its original order, with the
+// pair anchored where its first member appeared.
+function buildDayItems(txs) {
+  const used = new Set();
+  const items = [];
+  for (let i = 0; i < txs.length; i++) {
+    const tx = txs[i];
+    if (used.has(tx.id)) continue;
+
+    if (isTransferRow(tx)) {
+      const amount = Number(tx.amount);
+      const partner = txs.find(
+        (c, j) =>
+          j !== i &&
+          !used.has(c.id) &&
+          isTransferRow(c) &&
+          // Opposite sign, equal magnitude — the two legs of one transfer.
+          Number(c.amount) * amount < 0 &&
+          Math.abs(Math.abs(Number(c.amount)) - Math.abs(amount)) < 0.01,
+      );
+      if (partner) {
+        used.add(tx.id);
+        used.add(partner.id);
+        const positive = amount > 0 ? tx : partner;
+        const negative = amount > 0 ? partner : tx;
+        items.push({ type: 'pair', positive, negative });
+        continue;
+      }
+    }
+
+    used.add(tx.id);
+    items.push({ type: 'single', tx });
+  }
+  return items;
+}
+
 // TransactionList component to avoid runtime errors
 const TransactionList = memo(function TransactionList({ transactions, onTransactionClick, isSearching }) {
   const formatDateHeader = (dateString) => {
@@ -366,15 +418,46 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
           </div>
 
           <div className="flex flex-col gap-1">
-            {grouped[dateKey].map((transaction, index) => (
-              <TransactionRow
-                key={transaction.id}
-                transaction={transaction}
-                onTransactionClick={onTransactionClick}
-                index={index}
-                groupIndex={groupIndex}
-              />
-            ))}
+            {buildDayItems(grouped[dateKey]).map((item, index) =>
+              item.type === 'pair' ? (
+                <div
+                  key={`pair-${item.positive.id}-${item.negative.id}`}
+                  className="relative pl-5"
+                >
+                  {/* Bracket linking the two legs of a matched transfer.
+                      top-9/bottom-9 (36px) lines up with each row's icon
+                      center for the non-compact py-4 + h-10 icon layout. */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute left-1 top-9 bottom-9 w-2 rounded-l-md border-l border-t border-b border-[var(--color-border)]"
+                  />
+                  <div className="flex flex-col gap-1">
+                    <TransactionRow
+                      key={item.positive.id}
+                      transaction={item.positive}
+                      onTransactionClick={onTransactionClick}
+                      index={index}
+                      groupIndex={groupIndex}
+                    />
+                    <TransactionRow
+                      key={item.negative.id}
+                      transaction={item.negative}
+                      onTransactionClick={onTransactionClick}
+                      index={index}
+                      groupIndex={groupIndex}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <TransactionRow
+                  key={item.tx.id}
+                  transaction={item.tx}
+                  onTransactionClick={onTransactionClick}
+                  index={index}
+                  groupIndex={groupIndex}
+                />
+              ),
+            )}
           </div>
         </div>
       ))}

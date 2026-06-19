@@ -49,6 +49,7 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
           hex_color,
           group_id,
           category_groups (
+            name,
             icon_lib,
             icon_name,
             hex_color
@@ -259,6 +260,7 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
       label?: string | null;
       hex_color?: string | null;
       category_groups?: {
+        name?: string | null;
         icon_lib?: string | null;
         icon_name?: string | null;
         hex_color?: string | null;
@@ -287,6 +289,7 @@ export const GET = withAuth('transactions:get', async (request, userId) => {
       transaction.system_categories?.category_groups?.hex_color ||
       null,
     category_name: transaction.system_categories?.label || null,
+    category_group_name: transaction.system_categories?.category_groups?.name || null,
     is_repayment:
       transaction.transaction_repayments && transaction.transaction_repayments.length > 0,
     is_unmatched_payment: transaction.is_unmatched_transfer ?? null,
