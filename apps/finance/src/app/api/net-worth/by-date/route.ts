@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { withAuth } from '../../../../lib/api/withAuth';
 import { isLiabilityAccount } from '../../../../lib/accountUtils';
 import { resolveScope } from '../../../../lib/api/scope';
+import { resolveChartStartISO } from '../../../../lib/netWorth/chartRange';
 
 function toISODateString(date: Date): string {
   return date.toISOString().split('T')[0];
@@ -115,7 +116,7 @@ export const GET = withAuth('net-worth:by-date', async (request, userId) => {
 
   const { data: accounts, error: accountsError } = await supabaseAdmin
     .from('accounts')
-    .select('id, name, type, subtype, balances')
+    .select('id, name, type, subtype, balances, created_at')
     .in('user_id', scope.userIds);
 
   if (accountsError) {
@@ -159,15 +160,22 @@ export const GET = withAuth('net-worth:by-date', async (request, userId) => {
   ].sort();
   const earliestSnapshotDate = sortedSnapshotDates[0] || todayISO;
 
-  const lookbackStart = new Date(todayISO);
-  lookbackStart.setDate(lookbackStart.getDate() - (MAX_DAYS - 1));
-  const lookbackStartISO = toISODateString(lookbackStart);
+  // Floor the chart at the user's first account connection so holdings-based
+  // reconstruction (below) never draws history before any account existed.
+  let earliestConnectionISO: string | null = null;
+  for (const a of accounts) {
+    if (!a.created_at) continue;
+    const iso = toISODateString(new Date(a.created_at));
+    if (!earliestConnectionISO || iso < earliestConnectionISO) earliestConnectionISO = iso;
+  }
 
-  const startDate = hasHoldings
-    ? lookbackStartISO
-    : new Date(earliestSnapshotDate) > lookbackStart
-      ? earliestSnapshotDate
-      : lookbackStartISO;
+  const startDate = resolveChartStartISO({
+    todayISO,
+    maxDays: MAX_DAYS,
+    hasHoldings,
+    earliestSnapshotISO: earliestSnapshotDate,
+    earliestConnectionISO,
+  });
   const dateRange = buildDateRange(startDate, todayISO).slice(-MAX_DAYS);
 
   const investmentAccountSet = new Set(investmentAccountIds);
