@@ -418,24 +418,53 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
           </div>
 
           <div className="flex flex-col gap-1">
-            {buildDayItems(grouped[dateKey]).map((item, index) =>
-              item.type === 'pair' ? (
+            {buildDayItems(grouped[dateKey]).map((item, index) => {
+              if (item.type !== 'pair') {
+                return (
+                  <TransactionRow
+                    key={item.tx.id}
+                    transaction={item.tx}
+                    onTransactionClick={onTransactionClick}
+                    index={index}
+                    groupIndex={groupIndex}
+                  />
+                );
+              }
+
+              // Account flow for the pair: money leaves the negative leg's
+              // account and lands in the positive leg's. Shown in place of
+              // the (now-redundant) transfer category. Skip when either
+              // account is unknown or both legs sit in the same account.
+              const source = item.negative.account_name;
+              const dest = item.positive.account_name;
+              const flow =
+                source &&
+                dest &&
+                source !== 'Unknown Account' &&
+                dest !== 'Unknown Account' &&
+                source !== dest
+                  ? `${source} › ${dest}`
+                  : null;
+
+              return (
                 <div
                   key={`pair-${item.positive.id}-${item.negative.id}`}
-                  className="relative pl-5"
+                  className="relative"
                 >
-                  {/* Bracket linking the two legs of a matched transfer.
-                      top-9/bottom-9 (36px) lines up with each row's icon
-                      center for the non-compact py-4 + h-10 icon layout. */}
+                  {/* Bracket linking the two legs, floated into the left
+                      gutter so the row icons stay aligned with every other
+                      row. top-9/bottom-9 (36px) lines up with each row's
+                      icon center for the non-compact py-4 + h-10 layout. */}
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute left-1 top-9 bottom-9 w-2 rounded-l-md border-l border-t border-b border-[var(--color-border)]"
+                    className="pointer-events-none absolute -left-3 top-9 bottom-9 w-2 z-10 rounded-l-md border-l border-t border-b border-[var(--color-border)]"
                   />
                   <div className="flex flex-col gap-1">
                     <TransactionRow
                       key={item.positive.id}
                       transaction={item.positive}
                       onTransactionClick={onTransactionClick}
+                      subtitleOverride={flow}
                       index={index}
                       groupIndex={groupIndex}
                     />
@@ -443,21 +472,14 @@ const TransactionList = memo(function TransactionList({ transactions, onTransact
                       key={item.negative.id}
                       transaction={item.negative}
                       onTransactionClick={onTransactionClick}
+                      subtitleOverride={flow}
                       index={index}
                       groupIndex={groupIndex}
                     />
                   </div>
                 </div>
-              ) : (
-                <TransactionRow
-                  key={item.tx.id}
-                  transaction={item.tx}
-                  onTransactionClick={onTransactionClick}
-                  index={index}
-                  groupIndex={groupIndex}
-                />
-              ),
-            )}
+              );
+            })}
           </div>
         </div>
       ))}

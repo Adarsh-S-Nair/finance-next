@@ -50,6 +50,9 @@ type Props = {
   showDate?: boolean;
   index?: number;
   groupIndex?: number;
+  // When set, replaces the category subtitle — used by matched transfer
+  // pairs to show the account the money moved from / to.
+  subtitleOverride?: string | null;
 };
 
 const TransactionRow = memo(function TransactionRow({
@@ -60,6 +63,7 @@ const TransactionRow = memo(function TransactionRow({
   onSelect,
   compact,
   showDate = false,
+  subtitleOverride,
 }: Props) {
   const [logoFailed, setLogoFailed] = React.useState(false);
   const splits = transaction.transaction_splits ?? [];
@@ -74,7 +78,8 @@ const TransactionRow = memo(function TransactionRow({
   // raw description ("sell - sell 0.267 shares of ConocoPhillips …").
   const investment = formatInvestmentTransaction(transaction);
   const title = investment?.title || transaction.merchant_name || transaction.description || 'Transaction';
-  const subtitle = investment ? investment.subtitle : transaction.category_name;
+  const subtitle =
+    subtitleOverride ?? (investment ? investment.subtitle : transaction.category_name);
 
   const needsReview =
     !transaction.is_repayment &&
