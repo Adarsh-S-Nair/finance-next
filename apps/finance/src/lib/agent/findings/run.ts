@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@zervo/supabase";
 import { format, subDays } from "date-fns";
 import { DETECTORS } from "./registry";
-import { decideStatus, type ExistingFinding, type FindingStatus } from "./lifecycle";
+import {
+  decideStatus,
+  selectStaleKeys,
+  type ExistingFinding,
+  type FindingStatus,
+} from "./lifecycle";
 import {
   medianMonthlySpending,
   recentCompleteMonths,
@@ -148,16 +153,23 @@ export async function runFindingsForUser(
   const drafts: FindingDraft[] = [];
   for (const detector of DETECTORS) drafts.push(...detector(ctx));
 
-  if (drafts.length > 0) {
-    // Existing findings, to decide each one's status on this sweep:
-    // active ones stay active, dismissed ones stay dismissed unless they
-    // got materially worse (then they re-surface). See decideStatus.
-    const { data: existingRows, error: existingError } = await admin
-      .from("agent_findings")
-      .select("dedupe_key, status, value_annual")
-      .eq("user_id", userId);
-    if (existingError) throw existingError;
+  // Existing findings for this user. Loaded unconditionally — even with
+  // zero drafts — because we need them for BOTH directions of an
+  // idempotent sweep: deciding each new draft's status, and resolving
+  // findings whose situation has since cleared.
+  const { data: existingRows, error: existingError } = await admin
+    .from("agent_findings")
+    .select("dedupe_key, status, value_annual")
+    .eq("user_id", userId);
+  if (existingError) throw existingError;
 
+  const nowIso = new Date().toISOString();
+
+  if (drafts.length > 0) {
+    // Decide each one's status on this sweep: active ones stay active,
+    // dismissed ones stay dismissed unless they got materially worse, and
+    // previously-resolved ones that fired again come back as new. See
+    // decideStatus.
     const existingByKey = new Map<string, ExistingFinding>(
       (existingRows ?? []).map((r) => [
         r.dedupe_key,
@@ -168,7 +180,6 @@ export async function runFindingsForUser(
       ]),
     );
 
-    const now = new Date().toISOString();
     const rows = drafts.map((d) => ({
       user_id: userId,
       type: d.type,
@@ -182,13 +193,38 @@ export async function runFindingsForUser(
       subject_id: d.subjectId,
       dedupe_key: d.dedupeKey,
       status: decideStatus(existingByKey.get(d.dedupeKey), d.valueAnnual ?? null),
-      updated_at: now,
+      updated_at: nowIso,
     }));
 
     const { error: upsertError } = await admin
       .from("agent_findings")
       .upsert(rows, { onConflict: "user_id,dedupe_key" });
     if (upsertError) throw upsertError;
+  }
+
+  // Reconcile the other direction: any finding that was active but isn't
+  // detected this sweep has had its underlying situation clear, so mark it
+  // resolved (which drops it from the user-facing new/seen lists). This is
+  // the half that was missing — without it a flag lingers forever after the
+  // thing it described is gone, e.g. an idle-cash alert still showing after
+  // the cash was moved. A full data-load failure throws above before we get
+  // here, so a transient error can never mass-resolve a user's findings.
+  const detectedKeys = new Set(drafts.map((d) => d.dedupeKey));
+  const staleKeys = selectStaleKeys(
+    (existingRows ?? []).map((r) => ({
+      dedupe_key: r.dedupe_key,
+      status: r.status as FindingStatus,
+    })),
+    detectedKeys,
+  );
+
+  if (staleKeys.length > 0) {
+    const { error: resolveError } = await admin
+      .from("agent_findings")
+      .update({ status: "resolved", resolved_at: nowIso, updated_at: nowIso })
+      .eq("user_id", userId)
+      .in("dedupe_key", staleKeys);
+    if (resolveError) throw resolveError;
   }
 
   return { drafts };
