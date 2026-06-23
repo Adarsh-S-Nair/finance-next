@@ -60,6 +60,18 @@ export const THEMES = [
 /** The theme used before a profile loads and on sign-out. */
 export const DEFAULT_THEME_ID = "light";
 
+/**
+ * localStorage keys for the no-FOUC theme cache. The DB (`user_profiles`)
+ * stays the source of truth; these mirror the last *authoritatively applied*
+ * preference so the inline boot script in the root layout can paint the right
+ * theme synchronously, before React hydrates and the profile query resolves.
+ *
+ * IMPORTANT: the boot script hard-codes the dark-family id list (it can't
+ * import this module). If you add a dark theme to THEMES, add its id there too.
+ */
+export const THEME_STORAGE_KEY = "zervo.theme";
+export const ACCENT_STORAGE_KEY = "zervo.accent";
+
 /** Convenience list of valid theme ids. */
 export const THEME_IDS = THEMES.map((t) => t.id);
 
