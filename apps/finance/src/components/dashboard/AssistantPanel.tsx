@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FiCheck } from "react-icons/fi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../providers/UserProvider";
 import { useToast } from "../providers/ToastProvider";
@@ -92,9 +93,21 @@ export default function AssistantPanel() {
           ))}
         </div>
       ) : findings.length === 0 ? (
-        <p className="mt-4 text-sm text-[var(--color-muted)]">
-          <span className="text-[var(--color-success)]">✓</span> Nothing needs you right now.
-        </p>
+        <div className="mt-2 flex flex-col items-center px-4 py-8 text-center">
+          <span
+            aria-hidden
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-success)]/10 text-[var(--color-success)]"
+          >
+            <FiCheck size={20} strokeWidth={2.5} />
+          </span>
+          <p className="mt-4 text-sm font-medium text-[var(--color-fg)]">
+            You&apos;re all caught up
+          </p>
+          <p className="mt-1.5 max-w-[15rem] text-xs leading-relaxed text-[var(--color-muted)]">
+            I check your accounts daily and flag anything worth a look — nothing
+            needs you right now.
+          </p>
+        </div>
       ) : (
         <div className="mt-3 space-y-1">
           {findings.map((f) => (
