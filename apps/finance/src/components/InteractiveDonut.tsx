@@ -157,6 +157,24 @@ export default function InteractiveDonut({
     return endAngle;
   }, 0);
 
+  // Signature of the current data shape. When it changes — e.g. the
+  // dashboard's "flexible ↔ total" lens swaps which categories are shown, or
+  // values refresh — every slice's arc angles change at once. We must NOT run
+  // the `d` transition for that commit, or the browser morphs each path from
+  // its old shape to a wildly different one (slices grow, spin, overshoot).
+  // The `d` transition is meant only for the single-slice hover bump (same
+  // angles, +2px radius), which interpolates cleanly. We compare at render
+  // time — not in an effect — so the new `d` is committed in the same frame
+  // that drops the transition; an effect would fire a frame too late and the
+  // first morph frame would already be visible.
+  const dataSignature =
+    segments.map((s) => `${s.id}:${s.value}`).join("|") + `|${total}`;
+  const prevSignatureRef = useRef(dataSignature);
+  const dataChanged = prevSignatureRef.current !== dataSignature;
+  useEffect(() => {
+    prevSignatureRef.current = dataSignature;
+  }, [dataSignature]);
+
   const hovered = hoveredId
     ? (rendered.find((r) => r.id === hoveredId) ?? null)
     : null;
@@ -199,7 +217,11 @@ export default function InteractiveDonut({
                 style={{
                   opacity: dimmed ? 0.4 : 1,
                   cursor: onClick ? "pointer" : "default",
-                  transition: "opacity 0.15s ease, d 0.15s ease",
+                  // Animate `d` for the hover bump, but snap it when the
+                  // dataset changes so toggling the lens doesn't morph slices.
+                  transition: dataChanged
+                    ? "opacity 0.15s ease"
+                    : "opacity 0.15s ease, d 0.15s ease",
                 }}
                 onPointerDown={(e) => {
                   lastPointerTypeRef.current = e.pointerType || "mouse";
