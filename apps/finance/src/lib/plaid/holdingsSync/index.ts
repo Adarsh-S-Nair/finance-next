@@ -38,6 +38,7 @@ import {
 } from './aggregate';
 import { resolveHoldingQuantity, resolveHoldingValue } from './resolveHolding';
 import { fetchBulkCryptoInfo } from './cryptoLogos';
+import { resolveTickerLogo } from '../tickerLogo';
 import {
   HoldingsSyncError,
   type AggregatedHolding,
@@ -377,14 +378,29 @@ async function ensureTickers(input: EnsureTickersInput): Promise<void> {
       tickers: plan.stockTickers,
     });
     const details = (await fetchBulkTickerDetails(plan.stockTickers, 250)) as FinnhubTickerDetail[];
-    allInserts.push(
-      ...buildStockTickerInserts(
-        plan.stockTickers,
-        plan.existingTickerMap,
-        details,
-        process.env.LOGO_DEV_PUBLIC_KEY
-      )
+    const stockInserts = buildStockTickerInserts(
+      plan.stockTickers,
+      plan.existingTickerMap,
+      details,
+      process.env.LOGO_DEV_PUBLIC_KEY
     );
+
+    // ETFs/funds (e.g. QQQM) aren't covered by Finnhub's company-profile
+    // endpoint, so they come back with no domain and the builder leaves their
+    // logo null. logo.dev's ticker endpoint *does* cover them — resolve (with
+    // HEAD validation) for any stock row still missing a logo.
+    const logoToken = process.env.LOGO_DEV_PUBLIC_KEY;
+    if (logoToken) {
+      await Promise.all(
+        stockInserts
+          .filter((row) => !row.logo)
+          .map(async (row) => {
+            row.logo = await resolveTickerLogo(row.symbol, logoToken);
+          })
+      );
+    }
+
+    allInserts.push(...stockInserts);
   }
 
   // Crypto: CoinGecko

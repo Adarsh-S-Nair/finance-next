@@ -19,6 +19,7 @@
 
 import { supabaseAdmin } from '../../supabase/admin';
 import { createLogger } from '../../logger';
+import { resolveTickerLogo } from '../tickerLogo';
 import type { ExistingTickerRow } from '../holdingsSync/types';
 import type { SecuritiesMap } from './types';
 
@@ -28,9 +29,6 @@ const logger = createLogger('investment-transactions-sync:tickers');
 // (BRK.B). Filters out cash-sweep pseudo-tickers ("CUR:USD") and the name
 // fallbacks Plaid uses when a security has no symbol.
 const TICKER_RE = /^[A-Z]{1,6}(\.[A-Z]{1,2})?$/;
-
-const LOGO_DEV_TICKER_BASE = 'https://img.logo.dev/ticker';
-const LOGO_RESOLVE_TIMEOUT_MS = 4000;
 
 export interface InvestmentTickerCandidate {
   symbol: string;
@@ -58,28 +56,6 @@ export function selectInvestmentTickerCandidates(
     });
   }
   return Array.from(bySymbol.values());
-}
-
-function tickerLogoUrl(symbol: string, token: string): string {
-  return `${LOGO_DEV_TICKER_BASE}/${encodeURIComponent(symbol)}?token=${token}`;
-}
-
-/**
- * Return the logo URL for a symbol if logo.dev actually has one, else null.
- * `fallback=404` makes logo.dev 404 instead of serving a generic monogram, so
- * we never persist a logo URL for a symbol with no real brand image.
- */
-async function resolveTickerLogo(symbol: string, token: string): Promise<string | null> {
-  const url = tickerLogoUrl(symbol, token);
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LOGO_RESOLVE_TIMEOUT_MS);
-    const res = await fetch(`${url}&fallback=404`, { method: 'HEAD', signal: controller.signal });
-    clearTimeout(timer);
-    return res.ok ? url : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function ensureInvestmentTickers(securitiesMap: SecuritiesMap): Promise<void> {
