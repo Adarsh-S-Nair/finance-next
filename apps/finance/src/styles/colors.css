@@ -119,6 +119,13 @@
   /* Spending Bar Color - Light Mode (Lighter Gray) */
   --color-chart-spending-bar: #d4d4d8;
   /* Zinc 300 */
+
+  /* Hover-lift elevation for flat dashboard widgets. On light bg a soft
+     zinc shadow reads as the card rising; consumed via Tailwind
+     `hover:shadow-[var(--shadow-elevate)]`. Dark themes override below with
+     a deeper shadow + faint light ring (a plain black shadow is invisible on
+     near-black). */
+  --shadow-elevate: 0 14px 30px -14px rgba(24, 24, 27, 0.20);
 }
 
 /* Dark family base — shared by every dark theme (currently "dark" =
@@ -232,6 +239,12 @@
   /* Spending Bar Color - Dark Mode (Darker Gray) */
   --color-chart-spending-bar: #52525b;
   /* Zinc 600 */
+
+  /* Hover-lift elevation — dark family. A black drop shadow alone is
+     invisible on near-black, so pair a deeper shadow (reads on the lifted
+     gray surfaces) with a 1px hairline light ring that outlines the raised
+     widget even on pure-black "Ultra Dark". Inherited by dim + cottage. */
+  --shadow-elevate: 0 16px 34px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 /* Dark (regular) — the softer gray dark. Inherits the whole dark base

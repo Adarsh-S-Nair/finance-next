@@ -309,6 +309,16 @@ export default function DashboardPage() {
       </div>
     ) : null;
 
+  // Gentle hover affordance for the flat dashboard widgets: a ~2px lift +
+  // soft elevation shadow (theme-aware via --shadow-elevate). Applied per
+  // widget — not to row containers — so section headers and the month strip
+  // stay put. `motion-safe` drops the lift for reduced-motion users; the
+  // shadow has no movement so it can stay. rounded-2xl just shapes the
+  // shadow's corners (the widgets themselves have no surface to clip).
+  const widgetHover =
+    "rounded-2xl transition-[transform,box-shadow] duration-200 ease-out " +
+    "hover:shadow-[var(--shadow-elevate)] motion-safe:hover:-translate-y-0.5";
+
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
@@ -328,7 +338,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={subItem.id}
-                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
+                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''} ${widgetHover}`}
               >
                 <Component {...(subItem.props || {})} {...extraProps} />
               </div>
@@ -370,7 +380,7 @@ export default function DashboardPage() {
     };
 
     return (
-      <div key={item.id} className={item.height || ''}>
+      <div key={item.id} className={`${item.height || ''} ${widgetHover}`}>
         <Component {...(item.props || {})} {...extraProps} />
       </div>
     );
