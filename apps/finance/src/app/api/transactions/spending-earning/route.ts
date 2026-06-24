@@ -134,8 +134,11 @@ export const GET = withAuth('spending-earning', async (request, userId) => {
   const monthlyData: Record<string, MonthlyDatum> = {};
 
   txs.forEach((transaction) => {
+    // Only matched transfer pairs (money moving between two connected accounts)
+    // are excluded — counting both legs would double-count. Unmatched transfers
+    // leave for a destination Zervo can't see (e.g. paying off an unconnected
+    // card, a check to a contractor), so they count toward spending/earning.
     if (matchedIds.has(transaction.id)) return;
-    if (isTransfer(transaction as unknown as TransferShape)) return;
     if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0) return;
     if (!transaction.date) return;
 
@@ -238,7 +241,7 @@ export const GET = withAuth('spending-earning', async (request, userId) => {
   const transferCount = txs.filter(
     (tx) => isTransfer(tx as unknown as TransferShape) && !matchedIds.has(tx.id)
   ).length;
-  console.log(`[spending-earning] Unmatched transfers (excluded): ${transferCount}`);
+  console.log(`[spending-earning] Unmatched transfers (counted as spending/earning): ${transferCount}`);
   console.log(`[spending-earning] Total monthly data entries: ${result.length}`);
   console.log(
     `[spending-earning] Current month (${monthNames[currentMonthForExclusion - 1]} ${currentYearForExclusion}) excluded from calculation`
@@ -295,7 +298,6 @@ export const GET = withAuth('spending-earning', async (request, userId) => {
 
   txs.forEach((tx) => {
     if (matchedIds.has(tx.id)) return;
-    if (isTransfer(tx as unknown as TransferShape)) return;
     if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
     if (!tx.date) return;
 

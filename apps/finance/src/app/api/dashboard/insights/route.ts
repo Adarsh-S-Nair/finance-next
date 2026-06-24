@@ -1,7 +1,7 @@
 import { withAuth } from '../../../../lib/api/withAuth';
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { canAccess } from '../../../../lib/tierConfig';
-import { identifyTransfers, isTransfer } from '../../../../lib/transfer-matching';
+import { identifyTransfers } from '../../../../lib/transfer-matching';
 import { getBudgetProgress } from '../../../../lib/spending';
 import { spendingPaceCandidates } from '../../../../lib/insights/generators/spendingPace';
 import { budgetAlertCandidates } from '../../../../lib/insights/generators/budgetAlert';
@@ -90,8 +90,9 @@ export const GET = withAuth('dashboard:insights', async (_request, userId) => {
     const currentMonthCategories: Record<string, { label: string; total: number }> = {};
 
     for (const tx of transactions || []) {
+      // Matched transfer pairs only — unmatched transfers count as spending
+      // (see transactions/spending-earning/route.ts for the rationale).
       if (matchedIds.has(tx.id)) continue;
-      if (isTransfer(tx)) continue;
       if (tx.transaction_repayments && tx.transaction_repayments.length > 0) continue;
       if (!tx.date) continue;
 
