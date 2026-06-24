@@ -11,7 +11,7 @@
 
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
-import { identifyTransfers, type TransferShape } from '../../../../lib/transfer-matching';
+import { identifyTransfers, isTransfer, type TransferShape } from '../../../../lib/transfer-matching';
 
 interface SummaryTx {
   id: string;
@@ -205,9 +205,8 @@ function buildSpendingEarning(
   }
 
   transactions.forEach((tx) => {
-    // Matched transfer pairs only — unmatched transfers count as spending
-    // (see transactions/spending-earning/route.ts for the rationale).
     if (matchedIds.has(tx.id)) return;
+    if (isTransfer(tx as unknown as TransferShape)) return;
     if (tx.transaction_repayments?.length > 0) return;
     if (!tx.date) return;
 
@@ -290,6 +289,7 @@ function buildSpendingByCategory(
     if (tx.date < sinceStr) return;
     if (endStr && tx.date > endStr) return;
     if (matchedIds.has(tx.id)) return;
+    if (isTransfer(tx as unknown as TransferShape)) return;
     if (tx.transaction_repayments?.length > 0) return;
 
     const category = tx.system_categories;

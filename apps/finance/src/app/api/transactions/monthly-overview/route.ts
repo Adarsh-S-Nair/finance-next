@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
-import { identifyTransfers, type TransferShape } from '../../../../lib/transfer-matching';
+import { identifyTransfers, isTransfer, type TransferShape } from '../../../../lib/transfer-matching';
 
 interface MonthTx {
   id: string;
@@ -93,9 +93,8 @@ async function getMonthData(
   }
 
   txs.forEach((tx) => {
-    // Matched transfer pairs only — unmatched transfers count as spending
-    // (see transactions/spending-earning/route.ts for the rationale).
     if (matchedIds.has(tx.id)) return;
+    if (isTransfer(tx as unknown as TransferShape)) return;
     if (tx.transaction_repayments && tx.transaction_repayments.length > 0) return;
     if (!tx.date) return;
 

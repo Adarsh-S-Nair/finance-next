@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../../lib/supabase/admin';
 import { withAuth } from '../../../../lib/api/withAuth';
-import { identifyTransfers, type TransferShape } from '../../../../lib/transfer-matching';
+import { identifyTransfers, isTransfer, type TransferShape } from '../../../../lib/transfer-matching';
 const DEBUG =
   process.env.NODE_ENV !== 'production' && process.env.DEBUG_API_LOGS === '1';
 
@@ -219,9 +219,8 @@ export const GET = withAuth('spending-by-category', async (request, userId) => {
   const consistentFilter = forBudget && searchParams.get('consistent') !== 'false';
 
   txs.forEach((transaction) => {
-    // Matched transfer pairs only — unmatched transfers count as spending
-    // (see transactions/spending-earning/route.ts for the rationale).
     if (matchedIds.has(transaction.id)) return;
+    if (isTransfer(transaction as unknown as TransferShape)) return;
     if (transaction.transaction_repayments && transaction.transaction_repayments.length > 0)
       return;
 
