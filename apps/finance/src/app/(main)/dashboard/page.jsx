@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
+import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../../../components/providers/UserProvider";
@@ -37,6 +38,29 @@ const componentMap = {
   'NetWorthBanner': NetWorthBanner,
   'InsightsCarousel': InsightsCarousel,
 };
+
+// Same easing the landing page uses for its scroll reveals, so the
+// dashboard's entrance feels like the same product.
+const FADE_EASE = [0.2, 0.7, 0.3, 1];
+
+// Landing-page-style entrance: each widget fades up into place as it
+// enters the viewport, lightly staggered so the dashboard "assembles"
+// itself instead of snapping in all at once. `once` so it plays a single
+// time on load — never replaying on data refetches or hover-driven
+// re-renders. Below-the-fold widgets reveal as you scroll to them.
+function DashFade({ children, index = 0, className }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, ease: FADE_EASE, delay: Math.min(index, 6) * 0.07 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -309,16 +333,6 @@ export default function DashboardPage() {
       </div>
     ) : null;
 
-  // Gentle hover affordance for the flat dashboard widgets: a ~2px lift +
-  // soft elevation shadow (theme-aware via --shadow-elevate). Applied per
-  // widget — not to row containers — so section headers and the month strip
-  // stay put. `motion-safe` drops the lift for reduced-motion users; the
-  // shadow has no movement so it can stay. rounded-2xl just shapes the
-  // shadow's corners (the widgets themselves have no surface to clip).
-  const widgetHover =
-    "rounded-2xl transition-[transform,box-shadow] duration-200 ease-out " +
-    "hover:shadow-[var(--shadow-elevate)] motion-safe:hover:-translate-y-0.5";
-
   // Helper to render a single item (or row of items)
   const renderItem = (item) => {
     if (item.type === 'row') {
@@ -338,7 +352,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={subItem.id}
-                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''} ${widgetHover}`}
+                className={`${subItem.width || 'flex-1'} min-w-0 ${subItem.mobileHeight || ''}`}
               >
                 <Component {...(subItem.props || {})} {...extraProps} />
               </div>
@@ -380,7 +394,7 @@ export default function DashboardPage() {
     };
 
     return (
-      <div key={item.id} className={`${item.height || ''} ${widgetHover}`}>
+      <div key={item.id} className={item.height || ''}>
         <Component {...(item.props || {})} {...extraProps} />
       </div>
     );
@@ -441,9 +455,9 @@ export default function DashboardPage() {
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {/* Main Content Area — flexes to fill available width */}
         <div className="flex-1 min-w-0 space-y-6 lg:space-y-10">
-          {dashboardLayout.main.map((item) => (
+          {dashboardLayout.main.map((item, i) => (
             <Fragment key={item.id}>
-              <div>{renderItem(item)}</div>
+              <DashFade index={i}>{renderItem(item)}</DashFade>
               {/* On mobile the sidebar stacks below everything, which
                   would bury the assistant's signal. Surface it right
                   under net worth instead. Hidden on desktop, where the
@@ -464,17 +478,17 @@ export default function DashboardPage() {
             body copy. The Pro upgrade pitch sits below it, then the
             config-driven entries (currently just Budgets). */}
         <div className="lg:w-[320px] xl:w-[360px] lg:flex-shrink-0 space-y-6 lg:space-y-10">
-          <div className="hidden lg:block">
+          <DashFade index={0} className="hidden lg:block">
             <AssistantPanel />
-          </div>
+          </DashFade>
           {!isPro && (
-            <div className="hidden lg:block">
+            <DashFade index={1} className="hidden lg:block">
               <UpgradeBanner />
-            </div>
+            </DashFade>
           )}
-          {dashboardLayout.sidebar.map((item) => (
+          {dashboardLayout.sidebar.map((item, i) => (
             <Fragment key={item.id}>
-              <div>{renderItem(item)}</div>
+              <DashFade index={i + 2}>{renderItem(item)}</DashFade>
             </Fragment>
           ))}
         </div>
