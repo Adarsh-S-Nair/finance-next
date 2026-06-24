@@ -10,7 +10,7 @@
  * highlight a side legend, persist hover state during external
  * re-renders, etc. Pass `null` and a no-op if you don't need that.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { arc as d3arc } from "d3-shape";
 import { CurrencyAmount } from "../lib/formatCurrency";
 
@@ -53,6 +53,18 @@ const DEFAULT_SIZE = 220;
 const DEFAULT_STROKE = 16;
 const SLICE_CORNER_RADIUS = 2;
 const SEGMENT_GAP_PX = 4;
+// Duration of the data-change tween (e.g. flexible ↔ total). Slices
+// re-proportion, grow in, or shrink out over this window.
+const ANIM_DURATION_MS = 450;
+
+// Snapshot of just the fields the tween interpolates / carries forward.
+type AnimState = { list: DonutSegment[]; total: number };
+
+// easeInOutCubic — gentle accelerate/decelerate so the re-proportioning
+// reads as deliberate rather than linear/mechanical.
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 type RenderedSegment = DonutSegment & {
   /** SVG path string for this slice (annular sector with rounded corners). */
@@ -83,12 +95,112 @@ export default function InteractiveDonut({
   // bump) — same emphasis as the prior strokeWidth +4.
   const hoverOuterRadius = outerRadius + 2;
   const hoverInnerRadius = innerRadius - 2;
+  const midRadius = (outerRadius + innerRadius) / 2;
+
+  // ── Data-change tween ───────────────────────────────────────────────
+  // We render from an animated `display` snapshot, not the raw props, so a
+  // dataset swap (flexible ↔ total, a budget edit, a month change) eases
+  // between shapes. We interpolate each slice's VALUE and recompute real
+  // arcs every frame — never CSS-morph the path `d` between unrelated
+  // shapes, which is what made slices balloon and spin. Because every
+  // slice (incl. "Other") sums to `total`, the interpolated values always
+  // sum to the interpolated total, so the ring stays exactly full mid-tween.
+  const [display, setDisplay] = useState<AnimState>(() => ({
+    list: segments,
+    total,
+  }));
+  const [isAnimating, setIsAnimating] = useState(false);
+  const displayRef = useRef<AnimState>(display);
+  // Keep the ref pointed at the latest committed display so a freshly-starting
+  // tween eases from whatever is on screen (incl. mid-flight). This effect is
+  // declared before the tween effect, so on a data-change commit it runs first
+  // and the ref is current when the tween reads it.
+  useEffect(() => {
+    displayRef.current = display;
+  }, [display]);
+  const rafRef = useRef<number | null>(null);
+  const firstRenderRef = useRef(true);
+
+  // Signature of the incoming data shape — drives the tween only when the
+  // actual values/ids/total change (not on every re-render).
+  const targetSignature =
+    segments.map((s) => `${s.id}:${s.value}`).join("|") + `|${total}`;
+
+  useEffect(() => {
+    // Skip the tween on first mount — `display` is already seeded from props
+    // via useState, so the initial donut paints instantly (only intentional
+    // swaps animate, never page load).
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+
+    const target: AnimState = { list: segments, total };
+    const from = displayRef.current;
+
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) {
+      setDisplay(target);
+      return;
+    }
+
+    // Union of ids (target order first, then any exiting slices) so entering
+    // slices grow from 0 and exiting ones shrink to 0 in a stable position.
+    const fromMap = new Map(from.list.map((s) => [s.id, s]));
+    const toMap = new Map(target.list.map((s) => [s.id, s]));
+    const order: string[] = [];
+    const seen = new Set<string>();
+    for (const s of target.list) {
+      order.push(s.id);
+      seen.add(s.id);
+    }
+    for (const s of from.list) {
+      if (!seen.has(s.id)) {
+        order.push(s.id);
+        seen.add(s.id);
+      }
+    }
+
+    setIsAnimating(true);
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / ANIM_DURATION_MS);
+      const e = easeInOut(t);
+      const list: DonutSegment[] = order.map((id) => {
+        const a = fromMap.get(id);
+        const b = toMap.get(id);
+        const meta = (b ?? a) as DonutSegment;
+        const av = a?.value ?? 0;
+        const bv = b?.value ?? 0;
+        return { ...meta, value: av + (bv - av) * e };
+      });
+      const tween = from.total + (target.total - from.total) * e;
+      setDisplay({ list, total: tween });
+
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        // Land exactly on the target so exiting slices drop out of the DOM.
+        setDisplay(target);
+        setIsAnimating(false);
+        rafRef.current = null;
+      }
+    };
+    rafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetSignature]);
+
   // padAngle wants radians; convert from the user-facing pixel gap by
   // dividing by the mid-radius (length of arc at that radius / radius
   // = angle in radians). Skip the gap when there's only one segment so
   // a single full-circle ring doesn't get a visible notch.
-  const midRadius = (outerRadius + innerRadius) / 2;
-  const padAngle = segments.length > 1 ? SEGMENT_GAP_PX / midRadius : 0;
+  const padAngle = display.list.length > 1 ? SEGMENT_GAP_PX / midRadius : 0;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Track the most recent pointer type so we can distinguish a real mouse
@@ -142,44 +254,32 @@ export default function InteractiveDonut({
     .cornerRadius(SLICE_CORNER_RADIUS)
     .padAngle(padAngle);
 
+  // Build the arcs from the animated `display` snapshot. During a tween this
+  // runs every frame with eased values; at rest it's just the props verbatim.
+  // Near-zero slices (entering/exiting) collapse to an empty path so d3.arc's
+  // padAngle doesn't render a stub.
   const rendered: RenderedSegment[] = [];
-  segments.reduce((cumulative, seg) => {
-    const pct = total > 0 ? seg.value / total : 0;
+  display.list.reduce((cumulative, seg) => {
+    const pct = display.total > 0 ? seg.value / display.total : 0;
     const angle = pct * 2 * Math.PI;
     const startAngle = cumulative;
     const endAngle = cumulative + angle;
+    const visible = angle > 1e-4;
     rendered.push({
       ...seg,
-      path: arcGen({ startAngle, endAngle }) ?? "",
-      hoverPath: arcGenHover({ startAngle, endAngle }) ?? "",
+      path: visible ? (arcGen({ startAngle, endAngle }) ?? "") : "",
+      hoverPath: visible ? (arcGenHover({ startAngle, endAngle }) ?? "") : "",
       pct,
     });
     return endAngle;
   }, 0);
 
-  // Signature of the current data shape. When it changes — e.g. the
-  // dashboard's "flexible ↔ total" lens swaps which categories are shown, or
-  // values refresh — every slice's arc angles change at once. We must NOT run
-  // the `d` transition for that commit, or the browser morphs each path from
-  // its old shape to a wildly different one (slices grow, spin, overshoot).
-  // The `d` transition is meant only for the single-slice hover bump (same
-  // angles, +2px radius), which interpolates cleanly. We compare at render
-  // time — not in an effect — so the new `d` is committed in the same frame
-  // that drops the transition; an effect would fire a frame too late and the
-  // first morph frame would already be visible.
-  const dataSignature =
-    segments.map((s) => `${s.id}:${s.value}`).join("|") + `|${total}`;
-  const prevSignatureRef = useRef(dataSignature);
-  const dataChanged = prevSignatureRef.current !== dataSignature;
-  useEffect(() => {
-    prevSignatureRef.current = dataSignature;
-  }, [dataSignature]);
-
   const hovered = hoveredId
     ? (rendered.find((r) => r.id === hoveredId) ?? null)
     : null;
 
-  const centerAmount = hovered ? hovered.value : total;
+  // Center number reads the eased total so it counts up/down with the ring.
+  const centerAmount = hovered ? hovered.value : display.total;
   const centerLabelText = hovered ? hovered.label : centerLabel;
   const centerPct = hovered ? Math.round(hovered.pct * 100) : null;
 
@@ -217,9 +317,10 @@ export default function InteractiveDonut({
                 style={{
                   opacity: dimmed ? 0.4 : 1,
                   cursor: onClick ? "pointer" : "default",
-                  // Animate `d` for the hover bump, but snap it when the
-                  // dataset changes so toggling the lens doesn't morph slices.
-                  transition: dataChanged
+                  // CSS-transition `d` only for the idle hover bump. During a
+                  // data tween the rAF loop already rewrites `d` every frame —
+                  // a CSS `d` transition would lag and fight it — so drop it.
+                  transition: isAnimating
                     ? "opacity 0.15s ease"
                     : "opacity 0.15s ease, d 0.15s ease",
                 }}

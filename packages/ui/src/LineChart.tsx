@@ -49,7 +49,14 @@ interface LineChartProps {
   formatYAxis?: (value: any) => string;
   tooltip?: (data: any, index: number) => React.ReactNode;
   showTooltip?: boolean;
+  /** Animate the line/area when the underlying data changes (Recharts'
+   *  update animation morphs the path from its old shape to the new one).
+   *  Defaults to false so existing charts paint instantly as before — opt
+   *  in only where a smooth data-swap is wanted (e.g. the dashboard's
+   *  flexible/total toggle). */
+  isAnimationActive?: boolean;
   animationDuration?: number;
+  animationEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
   curveType?: 'linear' | 'monotone' | 'step' | 'stepBefore' | 'stepAfter' | 'basis';
   lines?: {
     dataKey: string;
@@ -101,7 +108,9 @@ export default function LineChart({
   formatYAxis,
   tooltip,
   showTooltip = false,
+  isAnimationActive = false,
   animationDuration = 800,
+  animationEasing = 'ease-in-out',
   curveType = 'monotone',
   lines,
   yAxisDomain,
@@ -369,7 +378,9 @@ export default function LineChart({
               strokeDasharray={line.strokeDasharray}
               fill={line.showArea ? `url(#${line.gradientId})` : 'none'}
               baseValue="dataMin"
-              isAnimationActive={false}
+              isAnimationActive={isAnimationActive}
+              animationDuration={animationDuration}
+              animationEasing={animationEasing}
               activeDot={false} // We handle active dot manually
               connectNulls={false} // Stop rendering line at null values
               dot={showDots ? {

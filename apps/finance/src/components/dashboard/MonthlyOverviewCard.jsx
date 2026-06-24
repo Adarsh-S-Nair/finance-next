@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { useUser } from "../providers/UserProvider";
 import { CurrencyAmount, formatCurrency } from "../../lib/formatCurrency";
@@ -117,6 +118,10 @@ export default function MonthlyOverviewCard({
     useQueries && selectedMonth
       ? `/api/transactions/monthly-overview?month=${selectedMonthIdx}&year=${selectedYear}&spendingType=${spendingType}`
       : null,
+    // Keep the prior month/lens data on screen while the new range loads so
+    // the line morphs into the new shape instead of blanking to a skeleton —
+    // that smooth swap is what the chart's update animation keys off.
+    { placeholderData: keepPreviousData },
   );
   const rawChartData = mockData?.chartData ?? monthlyData?.data ?? [];
   const previousMonthName =
@@ -131,6 +136,19 @@ export default function MonthlyOverviewCard({
   }, [availableMonths.length, useQueries]);
   const chartData =
     rawChartData.length > 0 ? rawChartData : placeholderChart ?? rawChartData;
+
+  // Animate the line only for data swaps the user triggers (month change,
+  // flexible ↔ total), not the first paint — otherwise the chart replays its
+  // left-to-right reveal on every dashboard visit, which reads as "loading".
+  // We arm animation one frame after the first real chart data lands.
+  const chartPaintedRef = useRef(false);
+  const [animateChart, setAnimateChart] = useState(false);
+  useEffect(() => {
+    if (chartPaintedRef.current || chartData.length === 0) return;
+    chartPaintedRef.current = true;
+    const id = requestAnimationFrame(() => setAnimateChart(true));
+    return () => cancelAnimationFrame(id);
+  }, [chartData.length]);
 
   // Show the skeleton only while we genuinely haven't painted
   // anything yet. Once we have chart data (or a placeholder) we stay
@@ -378,6 +396,8 @@ export default function MonthlyOverviewCard({
               ]}
               showDots={false}
               curveType="monotone"
+              isAnimationActive={animateChart}
+              animationDuration={450}
               xAxisDataKey="dateString"
               showXAxis={false}
               showYAxis={false}
