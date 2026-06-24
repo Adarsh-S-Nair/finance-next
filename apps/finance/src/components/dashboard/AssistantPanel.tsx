@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FiCheck } from "react-icons/fi";
+import { differenceInCalendarDays } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUser } from "../providers/UserProvider";
 import { useToast } from "../providers/ToastProvider";
@@ -32,16 +32,24 @@ const SEVERITY_RAIL: Record<Severity, string> = {
 };
 const RANK: Record<Severity, number> = { action: 0, review: 1, info: 2 };
 
+/** Relative day for the empty-state "Checked …" line. */
+function checkedLabel(iso: string): string {
+  const days = differenceInCalendarDays(new Date(), new Date(iso));
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
+
 export default function AssistantPanel() {
   const { user } = useUser();
   const queryClient = useQueryClient();
   const { setToast } = useToast();
   const [selected, setSelected] = useState<Finding | null>(null);
 
-  const { data, isLoading } = useAuthedQuery<{ findings: Finding[] }>(
-    ["agent-findings", user?.id],
-    user?.id ? "/api/agent/findings" : null,
-  );
+  const { data, isLoading } = useAuthedQuery<{
+    findings: Finding[];
+    lastCheckedAt: string | null;
+  }>(["agent-findings", user?.id], user?.id ? "/api/agent/findings" : null);
 
   const loading = isLoading && !data;
   const findings = [...(data?.findings ?? [])].sort(
@@ -93,19 +101,14 @@ export default function AssistantPanel() {
           ))}
         </div>
       ) : findings.length === 0 ? (
-        <div className="mt-2 flex flex-col items-center px-4 py-8 text-center">
-          <span
-            aria-hidden
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-success)]/10 text-[var(--color-success)]"
-          >
-            <FiCheck size={20} strokeWidth={2.5} />
-          </span>
-          <p className="mt-4 text-sm font-medium text-[var(--color-fg)]">
-            You&apos;re all caught up
+        <div className="mt-3">
+          <p className="text-[13px] font-medium text-[var(--color-fg)]">
+            All caught up
           </p>
-          <p className="mt-1.5 max-w-[15rem] text-xs leading-relaxed text-[var(--color-muted)]">
-            I check your accounts daily and flag anything worth a look — nothing
-            needs you right now.
+          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+            {data?.lastCheckedAt
+              ? `Checked ${checkedLabel(data.lastCheckedAt)} · nothing to review`
+              : "Nothing to review right now"}
           </p>
         </div>
       ) : (

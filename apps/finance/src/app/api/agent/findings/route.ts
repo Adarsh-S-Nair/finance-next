@@ -17,5 +17,23 @@ export const GET = withAuth("agent:findings:list", async (_request, userId) => {
 
   if (error) throw error;
 
-  return Response.json({ findings: findings ?? [] });
+  // For the empty-state "Checked …" line we want when the assistant last
+  // swept. Resolved findings are kept (soft-resolve), so the most recent
+  // updated_at across all of this user's findings — any status — is a
+  // faithful proxy for the last sweep that touched anything. Null for a
+  // user the sweep has never produced a finding for.
+  const { data: lastRow, error: lastError } = await supabaseAdmin
+    .from("agent_findings")
+    .select("updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastError) throw lastError;
+
+  return Response.json({
+    findings: findings ?? [],
+    lastCheckedAt: lastRow?.updated_at ?? null,
+  });
 });
