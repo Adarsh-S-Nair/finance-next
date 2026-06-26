@@ -14,6 +14,9 @@ import {
   type SpendingTxn,
 } from "./spending";
 import { detectIncome, type IncomeTxn } from "../../income/detect";
+import { refineIncomeProfile } from "../../income/refine";
+import { resolveAgentConfig } from "../platformConfig";
+import Anthropic from "@anthropic-ai/sdk";
 import type {
   AccountInput,
   DetectorContext,
@@ -298,6 +301,34 @@ export async function runFindingsForUser(
     { onConflict: "user_id" },
   );
   if (incomeError) throw incomeError;
+
+  // Assistant refinement: turn the raw payroll descriptor into a
+  // recognisable employer name ("Direct deposit from 100-SFDC INC." →
+  // "Salesforce") and mark the row assistant-authored. Best-effort — if no
+  // API key is configured or the model call fails, we keep the algorithm's
+  // label. Re-runs each sweep, so it stays correct as the profile changes.
+  if (incomeProfile.primary) {
+    try {
+      const cfg = await resolveAgentConfig();
+      const client = new Anthropic({ apiKey: cfg.apiKey });
+      const refined = await refineIncomeProfile(incomeProfile, client, cfg.model);
+      if (refined?.employer) {
+        await admin
+          .from("income_profiles")
+          .update({
+            employer: refined.employer,
+            source: "assistant",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+      }
+    } catch (e) {
+      console.warn(
+        "[findings] income refinement skipped:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
 
   // Stamp a faithful "swept at" time regardless of whether any finding
   // changed — this is what the assistant card's "Checked …" line reads, so
