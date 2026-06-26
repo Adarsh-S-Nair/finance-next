@@ -203,6 +203,90 @@ describe('cadenceFromGap', () => {
   });
 });
 
+// A second real account: DailyPay (earned-wage-access) every ~2 weeks, with
+// two tax refunds Plaid mis-tagged INCOME_SALARY landing in the same account.
+function dailyPayLedger(): IncomeTxn[] {
+  const dp = (date: string, amount: number): IncomeTxn => ({
+    merchant_name: null,
+    description: 'DailyPay',
+    category_primary: 'INCOME',
+    category_detailed: 'INCOME_SALARY',
+    account_id: 'acct_personal',
+    date,
+    amount,
+  });
+  return [
+    dp('2026-01-27', 281.1),
+    dp('2026-02-12', 278.82),
+    dp('2026-02-26', 252.52),
+    dp('2026-03-12', 315.43),
+    dp('2026-03-26', 368.04),
+    dp('2026-04-13', 315.87),
+    dp('2026-04-27', 274.63),
+    dp('2026-05-13', 363.35),
+    dp('2026-05-27', 409.34),
+    dp('2026-06-13', 201.82),
+    // Tax refunds Plaid tagged as salary, same account, long descriptors.
+    tx({
+      date: '2026-02-24',
+      amount: 678,
+      description: 'Direct Deposit From WI DEPT REVENUE',
+      account_id: 'acct_personal',
+    }),
+    tx({
+      date: '2026-02-26',
+      amount: 140,
+      description: 'Direct Deposit From IRS TREAS 310',
+      account_id: 'acct_personal',
+    }),
+  ];
+}
+
+describe('detectIncome — DailyPay account with mislabeled refunds', () => {
+  const profile = detectIncome(dailyPayLedger(), NOW);
+  const primary = profile.primary as IncomeStream;
+
+  it('names the paycheck after the most frequent label, not the longest', () => {
+    // 10x "DailyPay" must win over one long "WI DEPT REVENUE".
+    expect(primary.label).toBe('DailyPay');
+  });
+
+  it('excludes refund-sender deposits even when Plaid tags them salary', () => {
+    expect(primary.deposits.some((d) => d.amount === 678)).toBe(false);
+    expect(primary.deposits.some((d) => d.amount === 140)).toBe(false);
+    expect(primary.deposits).toHaveLength(10);
+    const oneOffLabels = profile.excluded.oneOffs.map((o) => o.label).join(' ');
+    expect(oneOffLabels).toContain('WI DEPT REVENUE');
+    expect(oneOffLabels).toContain('IRS TREAS 310');
+  });
+
+  it('reads it as a biweekly paycheck', () => {
+    expect(primary.cadence).toBe('BIWEEKLY');
+  });
+});
+
+describe('detectIncome — honors user re-categorisation', () => {
+  it('drops a deposit the user re-categorised out of the paycheck', () => {
+    // Same as a clean monthly salary, but one deposit was hand-marked a
+    // tax refund (category_detailed already mapped upstream by
+    // effectiveCategory). It must not join the stream.
+    const txns: IncomeTxn[] = [
+      tx({ date: '2026-03-31', amount: 5000 }),
+      tx({ date: '2026-04-30', amount: 5000 }),
+      tx({ date: '2026-05-29', amount: 5000 }),
+      tx({
+        date: '2026-04-15',
+        amount: 1200,
+        description: 'Some ambiguous deposit',
+        category_detailed: 'INCOME_TAX_REFUND', // user reclassified
+      }),
+    ];
+    const profile = detectIncome(txns, NOW);
+    expect(profile.primary!.deposits).toHaveLength(3);
+    expect(profile.primary!.expectedAmount).toBe(5000);
+  });
+});
+
 describe('detectIncome — edge cases', () => {
   it('does not treat a single deposit as a recurring paycheck', () => {
     const profile = detectIncome([tx({ date: '2026-06-11', amount: 4000 })], NOW);

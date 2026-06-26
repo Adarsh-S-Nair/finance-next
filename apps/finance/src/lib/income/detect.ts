@@ -195,15 +195,31 @@ function collapseSameDay(
     .sort((a, b) => parseDay(a.date) - parseDay(b.date));
 }
 
-/** Pick the most descriptive label across a cluster's deposits. Longer
- *  strings carry more signal ("Direct deposit from 100-SFDC INC." beats the
- *  truncated "Inc."), so we take the longest distinct label. */
+/** Pick the label that represents a cluster's deposits: the most frequent
+ *  one, tie-broken by length. Frequency beats length because a single
+ *  off-pattern deposit (a refund that landed in the same account) shouldn't
+ *  hijack the employer name — "DailyPay" ×10 should win over one long
+ *  "Direct Deposit From WI DEPT REVENUE". */
 function bestLabel(txns: IncomeTxn[]): string {
-  const labels = txns
-    .map((t) => (t.merchant_name || t.description || '').trim())
-    .filter(Boolean);
-  if (labels.length === 0) return 'Income';
-  return labels.sort((a, b) => b.length - a.length)[0];
+  const counts = new Map<string, number>();
+  for (const t of txns) {
+    const label = (t.merchant_name || t.description || '').trim();
+    if (label) counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  if (counts.size === 0) return 'Income';
+  return [...counts.entries()].sort(
+    (a, b) => b[1] - a[1] || b[0].length - a[0].length,
+  )[0][0];
+}
+
+/** Government / tax-refund senders that Plaid frequently mis-tags as
+ *  `INCOME_SALARY`. A deposit whose description matches is treated as a
+ *  one-off refund, never a paycheck — even before the user corrects it. */
+const REFUND_DESCRIPTOR =
+  /\b(irs|treas(?:ury)?\s*310|dept\.?\s*(?:of\s*)?revenue|department of revenue|tax\s*ref(?:und)?|franchise tax)\b/i;
+
+export function isLikelyRefundDescriptor(text: string | null): boolean {
+  return !!text && REFUND_DESCRIPTOR.test(text);
 }
 
 const MIN_PAYCHECK_DEPOSITS = 3; // a series, not a one-off
@@ -317,6 +333,15 @@ export function detectIncome(txns: IncomeTxn[], now: Date): IncomeProfile {
       // Income-but-one-off (tax refund) or non-income inflow (equity sale
       // with a null category). Track INCOME ones as one-offs for display.
       if (isIncome(t)) oneOffPool.push(t);
+      continue;
+    }
+    // A wage-tagged deposit from an obvious refund sender (IRS, state
+    // revenue dept) is a refund Plaid mislabelled — never a paycheck.
+    if (
+      kind === 'paycheck' &&
+      isLikelyRefundDescriptor(t.merchant_name || t.description)
+    ) {
+      oneOffPool.push(t);
       continue;
     }
     candidates.push({ kind, txn: t });

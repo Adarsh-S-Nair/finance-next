@@ -5,6 +5,7 @@ import {
   type IncomeProfile,
   type IncomeTxn,
 } from "../../../../lib/income/detect";
+import { effectiveCategory } from "../../../../lib/income/userCategory";
 
 /**
  * GET /api/income/profile
@@ -102,7 +103,7 @@ export const GET = withAuth("income:profile", async (_request, userId) => {
   const { data: txRows, error: txError } = await supabaseAdmin
     .from("transactions")
     .select(
-      "amount, date, merchant_name, description, personal_finance_category, account_id, accounts!inner(user_id)",
+      "amount, date, merchant_name, description, personal_finance_category, account_id, is_user_categorized, system_categories(label, category_groups(name)), accounts!inner(user_id)",
     )
     .eq("accounts.user_id", userId)
     .gt("amount", 0)
@@ -114,13 +115,23 @@ export const GET = withAuth("income:profile", async (_request, userId) => {
     const pfc = t.personal_finance_category as
       | { primary?: string; detailed?: string }
       | null;
+    const sc = t.system_categories as
+      | { label?: string | null; category_groups?: { name?: string | null } | null }
+      | null;
+    const eff = effectiveCategory({
+      pfcPrimary: pfc?.primary ?? null,
+      pfcDetailed: pfc?.detailed ?? null,
+      isUserCategorized: Boolean(t.is_user_categorized),
+      userLabel: sc?.label ?? null,
+      userGroup: sc?.category_groups?.name ?? null,
+    });
     return {
       date: (t.date as string | null) ?? "",
       amount: Number(t.amount),
       merchant_name: (t.merchant_name as string | null) ?? null,
       description: (t.description as string | null) ?? null,
-      category_primary: pfc?.primary ?? null,
-      category_detailed: pfc?.detailed ?? null,
+      category_primary: eff.primary,
+      category_detailed: eff.detailed,
       account_id: t.account_id as string,
     };
   });
