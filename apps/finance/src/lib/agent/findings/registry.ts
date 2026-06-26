@@ -4,6 +4,7 @@ import { idleCashDetector } from "./detectors/idleCash";
 import { bankFeesDetector } from "./detectors/bankFees";
 import { creditCardInterestDetector } from "./detectors/creditCardInterest";
 import { annualRenewalDetector } from "./detectors/annualRenewal";
+import { incomeAnomalyDetector } from "./detectors/incomeAnomaly";
 
 /**
  * The registered detectors, run in order on every sweep. Adding a
@@ -16,4 +17,5 @@ export const DETECTORS: Detector[] = [
   bankFeesDetector,
   creditCardInterestDetector,
   annualRenewalDetector,
+  incomeAnomalyDetector,
 ];

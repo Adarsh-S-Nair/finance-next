@@ -6,6 +6,8 @@
  * the runner does the IO (load data, upsert findings).
  */
 
+import type { IncomeProfile } from "../../income/detect";
+
 export type FindingSeverity = "action" | "review" | "info";
 
 /** One step in a finding's "how we got here" breakdown — rendered as a
@@ -88,6 +90,10 @@ export interface DetectorContext {
   /** Average monthly spending (outflows, transfers excluded) over the
    *  last few complete months — used to size a realistic cash buffer. */
   monthlySpending: number;
+  /** Detected income (primary paycheck + recurring streams), computed by
+   *  the runner from inflow transactions. Null if none detected. Used by
+   *  the income-anomaly detector. */
+  incomeProfile: IncomeProfile | null;
   /** "Now" for the sweep, injected so date-relative detectors (renewals
    *  coming up, trailing-window sums) stay pure and testable. */
   now: Date;

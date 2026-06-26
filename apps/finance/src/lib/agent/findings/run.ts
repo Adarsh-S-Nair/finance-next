@@ -13,6 +13,7 @@ import {
   recentCompleteMonths,
   type SpendingTxn,
 } from "./spending";
+import { detectIncome, type IncomeTxn } from "../../income/detect";
 import type {
   AccountInput,
   DetectorContext,
@@ -60,6 +61,45 @@ async function loadTransactions(
       description: (t.description as string | null) ?? "",
       category_primary: pfc?.primary ?? null,
       category_detailed: pfc?.detailed ?? null,
+    };
+  });
+}
+
+/**
+ * Load the user's inflow transactions over the trailing year — the raw
+ * material for income detection (paychecks, interest), separate from the
+ * outflow query above so each stays a tight single-purpose scan.
+ */
+async function loadIncomeTransactions(
+  userId: string,
+  now: Date,
+  admin: SupabaseClient<Database>,
+): Promise<IncomeTxn[]> {
+  const windowStart = format(subDays(now, TXN_WINDOW_DAYS), "yyyy-MM-dd");
+
+  const { data: txRows, error } = await admin
+    .from("transactions")
+    .select(
+      "amount, date, merchant_name, description, personal_finance_category, account_id, accounts!inner(user_id)",
+    )
+    .eq("accounts.user_id", userId)
+    .gt("amount", 0)
+    .gte("date", windowStart);
+
+  if (error) throw error;
+
+  return (txRows ?? []).map((t) => {
+    const pfc = t.personal_finance_category as
+      | { primary?: string; detailed?: string }
+      | null;
+    return {
+      date: (t.date as string | null) ?? "",
+      amount: Number(t.amount),
+      merchant_name: (t.merchant_name as string | null) ?? null,
+      description: (t.description as string | null) ?? null,
+      category_primary: pfc?.primary ?? null,
+      category_detailed: pfc?.detailed ?? null,
+      account_id: t.account_id as string,
     };
   });
 }
@@ -143,11 +183,18 @@ export async function runFindingsForUser(
   const transactions = await loadTransactions(userId, now, admin);
   const monthlySpending = computeMonthlySpending(transactions, now);
 
+  // Detect income from inflows (paychecks, interest…). Computed here so the
+  // income-anomaly detector can read it and so we can persist the canonical
+  // profile the "Next paycheck" card renders.
+  const incomeTxns = await loadIncomeTransactions(userId, now, admin);
+  const incomeProfile = detectIncome(incomeTxns, now);
+
   const ctx: DetectorContext = {
     streams,
     accounts,
     transactions,
     monthlySpending,
+    incomeProfile,
     now,
   };
   const drafts: FindingDraft[] = [];
@@ -226,6 +273,40 @@ export async function runFindingsForUser(
       .in("dedupe_key", staleKeys);
     if (resolveError) throw resolveError;
   }
+
+  // Persist the canonical income profile the dashboard reads. Written with
+  // source 'algorithm'; a future assistant-refinement pass writes
+  // 'assistant' and would guard against being clobbered here.
+  const p = incomeProfile.primary;
+  const { error: incomeError } = await admin.from("income_profiles").upsert(
+    {
+      user_id: userId,
+      source: "algorithm",
+      employer: p?.label ?? null,
+      cadence: p?.cadence ?? null,
+      expected_amount: p?.expectedAmount ?? null,
+      last_amount: p?.lastAmount ?? null,
+      last_date: p?.lastDate ?? null,
+      next_date: p?.nextDate ?? null,
+      monthly_income: incomeProfile.monthlyIncome,
+      confidence: p?.confidence ?? null,
+      streams: incomeProfile.streams as unknown as Json,
+      excluded: incomeProfile.excluded as unknown as Json,
+      computed_at: nowIso,
+      updated_at: nowIso,
+    },
+    { onConflict: "user_id" },
+  );
+  if (incomeError) throw incomeError;
+
+  // Stamp a faithful "swept at" time regardless of whether any finding
+  // changed — this is what the assistant card's "Checked …" line reads, so
+  // a quiet night still reflects that the sweep ran.
+  const { error: sweptError } = await admin
+    .from("user_profiles")
+    .update({ agent_last_swept_at: nowIso })
+    .eq("id", userId);
+  if (sweptError) throw sweptError;
 
   return { drafts };
 }

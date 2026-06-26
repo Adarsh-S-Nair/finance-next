@@ -18,22 +18,33 @@ export const GET = withAuth("agent:findings:list", async (_request, userId) => {
   if (error) throw error;
 
   // For the empty-state "Checked …" line we want when the assistant last
-  // swept. Resolved findings are kept (soft-resolve), so the most recent
-  // updated_at across all of this user's findings — any status — is a
-  // faithful proxy for the last sweep that touched anything. Null for a
-  // user the sweep has never produced a finding for.
-  const { data: lastRow, error: lastError } = await supabaseAdmin
-    .from("agent_findings")
-    .select("updated_at")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
+  // swept. The sweep stamps `agent_last_swept_at` every run regardless of
+  // whether any finding changed, so it's the faithful signal. Fall back to
+  // the most recent finding's updated_at for users swept before this column
+  // existed (it lags on quiet nights, but it's better than nothing).
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("user_profiles")
+    .select("agent_last_swept_at")
+    .eq("id", userId)
     .maybeSingle();
 
-  if (lastError) throw lastError;
+  if (profileError) throw profileError;
+
+  let lastCheckedAt = profile?.agent_last_swept_at ?? null;
+  if (!lastCheckedAt) {
+    const { data: lastRow, error: lastError } = await supabaseAdmin
+      .from("agent_findings")
+      .select("updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastError) throw lastError;
+    lastCheckedAt = lastRow?.updated_at ?? null;
+  }
 
   return Response.json({
     findings: findings ?? [],
-    lastCheckedAt: lastRow?.updated_at ?? null,
+    lastCheckedAt,
   });
 });

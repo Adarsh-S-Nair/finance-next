@@ -620,6 +620,57 @@ export type Database = {
           },
         ]
       }
+      income_profiles: {
+        Row: {
+          cadence: string | null
+          computed_at: string
+          confidence: number | null
+          employer: string | null
+          excluded: Json
+          expected_amount: number | null
+          last_amount: number | null
+          last_date: string | null
+          monthly_income: number | null
+          next_date: string | null
+          source: string
+          streams: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence?: string | null
+          computed_at?: string
+          confidence?: number | null
+          employer?: string | null
+          excluded?: Json
+          expected_amount?: number | null
+          last_amount?: number | null
+          last_date?: string | null
+          monthly_income?: number | null
+          next_date?: string | null
+          source?: string
+          streams?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence?: string | null
+          computed_at?: string
+          confidence?: number | null
+          employer?: string | null
+          excluded?: Json
+          expected_amount?: number | null
+          last_amount?: number | null
+          last_date?: string | null
+          monthly_income?: number | null
+          next_date?: string | null
+          source?: string
+          streams?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       institutions: {
         Row: {
           created_at: string
@@ -1706,6 +1757,7 @@ export type Database = {
       user_profiles: {
         Row: {
           accent_color: string | null
+          agent_last_swept_at: string | null
           avatar_url: string | null
           created_at: string
           first_name: string | null
@@ -1723,6 +1775,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          agent_last_swept_at?: string | null
           avatar_url?: string | null
           created_at?: string
           first_name?: string | null
@@ -1740,6 +1793,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          agent_last_swept_at?: string | null
           avatar_url?: string | null
           created_at?: string
           first_name?: string | null
