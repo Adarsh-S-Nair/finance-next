@@ -18,6 +18,7 @@ import BudgetsCard from "../../../components/dashboard/BudgetsCard";
 import GoalsCard from "../../../components/dashboard/GoalsCard";
 import TopCategoriesCard from "../../../components/dashboard/TopCategoriesCard";
 import CalendarCard from "../../../components/dashboard/CalendarCard";
+import NextPaycheckCard from "../../../components/dashboard/NextPaycheckCard";
 import NetWorthBanner from "../../../components/dashboard/NetWorthBanner";
 import MonthStrip from "../../../components/dashboard/MonthStrip";
 import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
@@ -35,6 +36,7 @@ const componentMap = {
   'GoalsCard': GoalsCard,
   'TopCategoriesCard': TopCategoriesCard,
   'CalendarCard': CalendarCard,
+  'NextPaycheckCard': NextPaycheckCard,
   'NetWorthBanner': NetWorthBanner,
   'InsightsCarousel': InsightsCarousel,
 };
@@ -289,7 +291,7 @@ export default function DashboardPage() {
   const isItemHidden = (component) => {
     if (component === 'BudgetsCard' && !budgetsLoading && !hasBudgets) return true;
     // Pro-gated widgets (carried over from the old sidebar-group gate).
-    if ((component === 'BudgetsCard' || component === 'CalendarCard') && !isPro) return true;
+    if ((component === 'BudgetsCard' || component === 'CalendarCard' || component === 'NextPaycheckCard') && !isPro) return true;
     return false;
   };
 

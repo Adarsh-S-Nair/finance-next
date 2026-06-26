@@ -82,6 +82,10 @@ export const dashboardLayout: DashboardLayout = {
       component: 'BudgetsCard',
     },
     {
+      id: 'next-paycheck',
+      component: 'NextPaycheckCard',
+    },
+    {
       id: 'calendar',
       component: 'CalendarCard',
     },
