@@ -124,10 +124,20 @@ export default function NextPaycheckCard({ className = '', mockData }) {
 
   // Upcoming income, soonest first. The first is the headline paycheck.
   const upcoming = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     return recurring
-      .filter((s) => s.stream_type === 'inflow')
+      // Genuine income only. Plaid tags internal account transfers
+      // (you moving your own money) as TRANSFER_IN — those are not
+      // paychecks and their averaged amounts are meaningless. Trusting
+      // category_primary === 'INCOME' keeps wages/interest/dividends and
+      // drops transfers, refunds, and other noise.
+      .filter((s) => s.stream_type === 'inflow' && s.category_primary === 'INCOME')
       .map((stream) => ({ stream, nextDate: getNextOccurrence(stream) }))
-      .filter((item) => item.nextDate)
+      // Only forward-looking predictions. A stream we can't roll past
+      // today (no predicted date + UNKNOWN frequency) is stale, not due
+      // "Today" — drop it rather than show a misleading date.
+      .filter((item) => item.nextDate && item.nextDate >= today)
       .sort((a, b) => a.nextDate - b.nextDate);
   }, [recurring]);
 
