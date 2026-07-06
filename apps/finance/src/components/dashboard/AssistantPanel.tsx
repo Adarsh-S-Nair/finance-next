@@ -7,8 +7,9 @@ import { useUser } from "../providers/UserProvider";
 import { useToast } from "../providers/ToastProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { authFetch } from "../../lib/api/fetch";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePlaidConnectionErrors } from "../../lib/hooks/usePlaidConnectionErrors";
-import PlaidLinkModal from "../PlaidLinkModal";
+import { usePlaidReauth } from "../../lib/hooks/usePlaidReauth";
 import FindingOverlay, { type OverlayFinding } from "./FindingOverlay";
 
 /**
@@ -54,10 +55,8 @@ export default function AssistantPanel() {
   // as every other finding.
   const { errors: connectionErrors, refetch: refetchConnectionErrors } =
     usePlaidConnectionErrors();
-  const [reconnectItemId, setReconnectItemId] = useState<string | null>(null);
-  const reconnectBank = reconnectItemId
-    ? connectionErrors.find((e) => e.id === reconnectItemId)?.bank
-    : null;
+  const { launch: launchReauth, pendingItemId } =
+    usePlaidReauth(refetchConnectionErrors);
 
   const { data, isLoading } = useAuthedQuery<{
     findings: Finding[];
@@ -107,36 +106,51 @@ export default function AssistantPanel() {
       </div>
 
       {/* Reconnect rows lead — a broken bank connection outranks every agent
-          finding, and renders even while findings are still loading. */}
-      {connectionErrors.length > 0 && (
-        <div className="mt-3 space-y-1">
-          {connectionErrors.map((err) => (
-            <button
-              key={err.id}
-              type="button"
-              onClick={() => setReconnectItemId(err.id)}
-              className="group relative -mx-2 flex w-full items-center px-3 py-3 text-left transition-colors hover:bg-[var(--color-fg)]/[0.035]"
-            >
-              <span
-                aria-hidden
-                className="absolute left-2 top-1.5 bottom-1.5 w-1"
-                style={{ background: "var(--color-danger)" }}
-              />
-              <div className="min-w-0 flex-1 pl-3">
-                <p className="text-[13px] font-medium leading-snug text-[var(--color-fg)] line-clamp-2">
-                  Reconnect {err.bank}
-                </p>
-                <p className="mt-1 text-xs leading-snug text-[var(--color-muted)] line-clamp-2">
-                  Sign in again to resume syncing — new activity is paused.
-                </p>
-              </div>
-              <span className="ml-2 shrink-0 text-[var(--color-muted)] opacity-0 transition-opacity group-hover:opacity-100">
-                ›
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+          finding, and renders even while findings are still loading.
+          Clicking opens Plaid Link directly (no intermediate modal). */}
+      <AnimatePresence initial={false}>
+        {connectionErrors.length > 0 && (
+          <motion.div
+            key="reconnect-rows"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.24, ease: [0.2, 0.7, 0.3, 1] }}
+            className="space-y-1 overflow-hidden"
+          >
+            <div className="mt-3 space-y-1">
+              {connectionErrors.map((err) => (
+                <button
+                  key={err.id}
+                  type="button"
+                  disabled={pendingItemId === err.id}
+                  onClick={() => launchReauth(err.id)}
+                  className="group relative -mx-2 flex w-full items-center px-3 py-3 text-left transition-colors hover:bg-[var(--color-fg)]/[0.035] disabled:opacity-60"
+                >
+                  <span
+                    aria-hidden
+                    className="absolute left-2 top-1.5 bottom-1.5 w-1"
+                    style={{ background: "var(--color-danger)" }}
+                  />
+                  <div className="min-w-0 flex-1 pl-3">
+                    <p className="text-[13px] font-medium leading-snug text-[var(--color-fg)] line-clamp-2">
+                      Reconnect {err.bank}
+                    </p>
+                    <p className="mt-1 text-xs leading-snug text-[var(--color-muted)] line-clamp-2">
+                      {pendingItemId === err.id
+                        ? "Opening Plaid…"
+                        : "Sign in again to resume syncing — new activity is paused."}
+                    </p>
+                  </div>
+                  <span className="ml-2 shrink-0 text-[var(--color-muted)] opacity-0 transition-opacity group-hover:opacity-100">
+                    ›
+                  </span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="mt-4 animate-pulse space-y-5">
@@ -198,19 +212,6 @@ export default function AssistantPanel() {
         finding={selected}
         onClose={() => setSelected(null)}
         onDismiss={(f) => void handleDismiss(f as Finding)}
-      />
-
-      <PlaidLinkModal
-        isOpen={reconnectItemId !== null}
-        onClose={() => setReconnectItemId(null)}
-        onSuccess={() => {
-          setReconnectItemId(null);
-          refetchConnectionErrors();
-        }}
-        plaidItemId={reconnectItemId}
-        reauth
-        title={`Reconnect ${reconnectBank || "account"}`}
-        description="Sign in again to restore this connection and resume syncing."
       />
     </div>
   );
