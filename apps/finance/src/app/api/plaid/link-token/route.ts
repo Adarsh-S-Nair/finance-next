@@ -10,6 +10,13 @@ interface RequestBody {
   plaidItemId?: string | null;
   additionalProducts?: string[] | null;
   intent?: Intent | null;
+  // Re-authentication (ITEM_LOGIN_REQUIRED recovery). When true, we open
+  // Link in update mode against the existing item WITHOUT requesting any
+  // additional product consent — it's a plain re-login to restore a
+  // connection the bank invalidated (password/MFA/session change), not an
+  // upgrade. Distinct from the `additionalProducts` path, which adds new
+  // consent (e.g. investments/liabilities) to a healthy item.
+  reauth?: boolean | null;
 }
 
 // Each intent declares the products REQUIRED to link (these filter the
@@ -30,7 +37,7 @@ const INTENT_CONFIG: Record<Intent, { products: string[]; ifSupported?: string[]
 };
 
 export const POST = withAuth('plaid:link-token', async (request, userId) => {
-  const { plaidItemId, additionalProducts, intent } = (await request.json()) as RequestBody;
+  const { plaidItemId, additionalProducts, intent, reauth } = (await request.json()) as RequestBody;
 
   // Verify user exists
   const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
@@ -58,8 +65,12 @@ export const POST = withAuth('plaid:link-token', async (request, userId) => {
       return Response.json({ error: 'Plaid item not found' }, { status: 404 });
     }
     const accessToken = decryptPlaidToken(plaidItem.access_token);
-    // For update mode, request the additional products (default to investments for upgrade flow)
-    const products = additionalProducts || ['investments'];
+    // Re-auth: pure re-login, no new consent. Otherwise this is an upgrade
+    // flow — request the additional products (default to investments).
+    // Passing an empty array makes createLinkToken omit
+    // `additional_consented_products`, which is exactly the ITEM_LOGIN_REQUIRED
+    // recovery shape Plaid expects.
+    const products = reauth ? [] : additionalProducts || ['investments'];
     const linkTokenResponse = await createLinkToken(userId, products, null, accessToken);
     return Response.json({
       link_token: linkTokenResponse.link_token,

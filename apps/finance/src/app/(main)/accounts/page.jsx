@@ -12,6 +12,7 @@ import { NetWorthHoverProvider } from "../../../components/dashboard/NetWorthHov
 import PlaidLinkModal from "../../../components/PlaidLinkModal";
 import UpgradeOverlay from "../../../components/UpgradeOverlay";
 import AccountDetails from "../../../components/accounts/AccountDetails";
+import ReconnectBanner from "../../../components/accounts/ReconnectBanner";
 import { formatAccountSubtype } from "../../../lib/accountSubtype";
 import { authFetch } from "../../../lib/api/fetch";
 import { supabase } from "../../../lib/supabase/client";
@@ -477,6 +478,9 @@ export default function AccountsPage() {
     <NetWorthHoverProvider>
       <PageContainer title="Accounts">
         <div className="space-y-10">
+          {/* Errored Plaid connections (e.g. ITEM_LOGIN_REQUIRED) surface
+              here with a one-click re-auth. Renders nothing when healthy. */}
+          <ReconnectBanner />
           {hasAccounts ? (
             <>
               {/* Summary Section */}

@@ -25,6 +25,7 @@ import InsightsCarousel from "../../../components/dashboard/InsightsCarousel";
 import AssistantPanel from "../../../components/dashboard/AssistantPanel";
 import { capitalizeFirstOnly } from "../../../lib/utils/formatName";
 import UpgradeBanner from "../../../components/dashboard/UpgradeBanner";
+import ReconnectBanner from "../../../components/accounts/ReconnectBanner";
 import { Dropdown, SegmentedTabs } from "@zervo/ui";
 
 // Map string keys to actual components
@@ -457,6 +458,10 @@ export default function DashboardPage() {
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
         {/* Main Content Area — flexes to fill available width */}
         <div className="flex-1 min-w-0 space-y-6 lg:space-y-10">
+          {/* Broken Plaid connection (e.g. ITEM_LOGIN_REQUIRED) — leads the
+              dashboard with a one-click re-auth so stale data doesn't look
+              like a silent app failure. Renders nothing when healthy. */}
+          <ReconnectBanner />
           {dashboardLayout.main.map((item, i) => (
             <Fragment key={item.id}>
               <DashFade index={i}>{renderItem(item)}</DashFade>

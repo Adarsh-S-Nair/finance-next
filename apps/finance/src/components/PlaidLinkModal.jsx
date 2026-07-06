@@ -18,6 +18,10 @@ export default function PlaidLinkModal({
   // investments upgrade flow; the accounts page passes ['liabilities'] to
   // complete a credit-card/loan connection that predates the liabilities product.
   additionalProducts = ['investments'],
+  // Re-authentication mode (ITEM_LOGIN_REQUIRED recovery). When true, we open
+  // update mode against `plaidItemId` as a plain re-login — no additional
+  // product consent is requested. Used by the ReconnectBanner.
+  reauth = false,
   title = 'Connect an account',
   description = 'Securely connect your bank, credit card, or investment accounts.',
 }) {
@@ -148,7 +152,13 @@ export default function PlaidLinkModal({
       const updateItemId = plaidItemId || activePlaidItemId;
       if (updateItemId) {
         linkTokenBody.plaidItemId = updateItemId;
-        linkTokenBody.additionalProducts = additionalProducts;
+        // Re-auth is a plain re-login (no new consent); the upgrade flow
+        // requests additional product consent. Never send both.
+        if (reauth) {
+          linkTokenBody.reauth = true;
+        } else {
+          linkTokenBody.additionalProducts = additionalProducts;
+        }
       }
 
       const response = await authFetch('/api/plaid/link-token', {
@@ -181,7 +191,7 @@ export default function PlaidLinkModal({
       setError(err.message);
       setLoading(false);
     }
-  }, [activePlaidItemId, plaidItemId, additionalProducts, onClose, onUpgradeNeeded]);
+  }, [activePlaidItemId, plaidItemId, additionalProducts, reauth, onClose, onUpgradeNeeded]);
 
   // Automatically fetch link token when modal opens
   useEffect(() => {
