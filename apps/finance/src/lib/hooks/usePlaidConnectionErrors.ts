@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { useUser } from "../../components/providers/UserProvider";
 import { useAccounts } from "../../components/providers/AccountsProvider";
 import { authFetch } from "../api/fetch";
@@ -32,6 +32,12 @@ export function usePlaidConnectionErrors(): {
 } {
   const { user } = useUser();
   const { allAccounts } = useAccounts();
+  // Unique per hook instance. The dashboard mounts AssistantPanel twice
+  // (mobile + desktop, both in the DOM), so a per-user channel name would
+  // collide — the second supabase.channel(name) returns the already
+  // subscribed instance and .on() after subscribe() throws. useId keeps
+  // each instance's channel distinct.
+  const instanceId = useId();
   const [rows, setRows] = useState<{ id: string; lastError: string | null }[]>(
     [],
   );
@@ -68,7 +74,7 @@ export function usePlaidConnectionErrors(): {
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
-      .channel(`plaid-connection-errors-${user.id}`)
+      .channel(`plaid-connection-errors-${user.id}-${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -83,7 +89,7 @@ export function usePlaidConnectionErrors(): {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, refetch]);
+  }, [user?.id, refetch, instanceId]);
 
   const errors: PlaidConnectionError[] = rows.map((r) => {
     const match = (allAccounts ?? []).find(
