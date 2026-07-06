@@ -7,6 +7,8 @@ import { useUser } from "../providers/UserProvider";
 import { useToast } from "../providers/ToastProvider";
 import { useAuthedQuery } from "../../lib/api/useAuthedQuery";
 import { authFetch } from "../../lib/api/fetch";
+import { usePlaidConnectionErrors } from "../../lib/hooks/usePlaidConnectionErrors";
+import PlaidLinkModal from "../PlaidLinkModal";
 import FindingOverlay, { type OverlayFinding } from "./FindingOverlay";
 
 /**
@@ -46,6 +48,17 @@ export default function AssistantPanel() {
   const { setToast } = useToast();
   const [selected, setSelected] = useState<Finding | null>(null);
 
+  // Broken Plaid connections (e.g. ITEM_LOGIN_REQUIRED) ride in as the
+  // top-priority "action" rows — a disconnected bank is the most urgent
+  // thing the assistant can flag, and it reuses the same severity-rail row
+  // as every other finding.
+  const { errors: connectionErrors, refetch: refetchConnectionErrors } =
+    usePlaidConnectionErrors();
+  const [reconnectItemId, setReconnectItemId] = useState<string | null>(null);
+  const reconnectBank = reconnectItemId
+    ? connectionErrors.find((e) => e.id === reconnectItemId)?.bank
+    : null;
+
   const { data, isLoading } = useAuthedQuery<{
     findings: Finding[];
     lastCheckedAt: string | null;
@@ -57,6 +70,8 @@ export default function AssistantPanel() {
       RANK[a.severity] - RANK[b.severity] ||
       Number(b.value_annual ?? 0) - Number(a.value_annual ?? 0),
   );
+
+  const totalToReview = findings.length + connectionErrors.length;
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["agent-findings", user?.id] });
@@ -84,12 +99,44 @@ export default function AssistantPanel() {
     <div className="w-full bg-[var(--color-surface-alt)] p-5">
       <div className="flex items-baseline justify-between">
         <span className="card-header">Assistant</span>
-        {findings.length > 0 && (
+        {totalToReview > 0 && (
           <span className="text-[11px] font-medium text-[var(--color-muted)]">
-            {findings.length} to review
+            {totalToReview} to review
           </span>
         )}
       </div>
+
+      {/* Reconnect rows lead — a broken bank connection outranks every agent
+          finding, and renders even while findings are still loading. */}
+      {connectionErrors.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {connectionErrors.map((err) => (
+            <button
+              key={err.id}
+              type="button"
+              onClick={() => setReconnectItemId(err.id)}
+              className="group relative -mx-2 flex w-full items-center px-3 py-3 text-left transition-colors hover:bg-[var(--color-fg)]/[0.035]"
+            >
+              <span
+                aria-hidden
+                className="absolute left-2 top-1.5 bottom-1.5 w-1"
+                style={{ background: "var(--color-danger)" }}
+              />
+              <div className="min-w-0 flex-1 pl-3">
+                <p className="text-[13px] font-medium leading-snug text-[var(--color-fg)] line-clamp-2">
+                  Reconnect {err.bank}
+                </p>
+                <p className="mt-1 text-xs leading-snug text-[var(--color-muted)] line-clamp-2">
+                  Sign in again to resume syncing — new activity is paused.
+                </p>
+              </div>
+              <span className="ml-2 shrink-0 text-[var(--color-muted)] opacity-0 transition-opacity group-hover:opacity-100">
+                ›
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="mt-4 animate-pulse space-y-5">
@@ -101,16 +148,20 @@ export default function AssistantPanel() {
           ))}
         </div>
       ) : findings.length === 0 ? (
-        <div className="mt-3">
-          <p className="text-[13px] font-medium text-[var(--color-fg)]">
-            All caught up
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-            {data?.lastCheckedAt
-              ? `Checked ${checkedLabel(data.lastCheckedAt)} · nothing to review`
-              : "Nothing to review right now"}
-          </p>
-        </div>
+        // Suppress the "all caught up" copy when a reconnect row is showing —
+        // the user is decidedly not caught up.
+        connectionErrors.length === 0 ? (
+          <div className="mt-3">
+            <p className="text-[13px] font-medium text-[var(--color-fg)]">
+              All caught up
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+              {data?.lastCheckedAt
+                ? `Checked ${checkedLabel(data.lastCheckedAt)} · nothing to review`
+                : "Nothing to review right now"}
+            </p>
+          </div>
+        ) : null
       ) : (
         <div className="mt-3 space-y-1">
           {findings.map((f) => (
@@ -147,6 +198,19 @@ export default function AssistantPanel() {
         finding={selected}
         onClose={() => setSelected(null)}
         onDismiss={(f) => void handleDismiss(f as Finding)}
+      />
+
+      <PlaidLinkModal
+        isOpen={reconnectItemId !== null}
+        onClose={() => setReconnectItemId(null)}
+        onSuccess={() => {
+          setReconnectItemId(null);
+          refetchConnectionErrors();
+        }}
+        plaidItemId={reconnectItemId}
+        reauth
+        title={`Reconnect ${reconnectBank || "account"}`}
+        description="Sign in again to restore this connection and resume syncing."
       />
     </div>
   );
