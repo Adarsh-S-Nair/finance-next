@@ -1,13 +1,13 @@
 # infra/ — Terraform for Vercel + DNS
 
-Declarative state for everything on Vercel: both projects, their env vars and
+Declarative state for the managed Vercel projects, their env vars and
 domains, and every DNS record on `zervo.app`.
 
 ## Before you start
 
-Day-to-day changes need **nothing installed** — you edit a `.tf` file and merge,
-and Terraform Cloud applies it (see "State & CI"). Install Terraform locally
-only if you want to run `terraform plan` previews:
+Install Terraform locally to trigger plans and applies in Terraform Cloud.
+As verified on 2026-09-06, this workspace is CLI-driven: pushing a `.tf`
+change to GitHub does not apply it (see "State & CI").
 
 ```bash
 winget install Hashicorp.Terraform   # Windows
@@ -21,34 +21,38 @@ which variables the workspace needs.
 
 ## Day-to-day
 
-Edit the relevant `*.tf` file, open a PR (Terraform Cloud posts a speculative
-`plan` as a status check), and **merge to `main`** — the apply runs
-automatically. To preview locally before pushing:
+Edit the relevant `*.tf` file, validate it, and review the remote plan before
+applying. Commit only the intended changes to `main` using the repository's
+normal workflow. Commands run from `infra/`:
 
 ```bash
 cd infra
 terraform login   # once, to authenticate the cloud workspace
+terraform init
+terraform validate
 terraform plan    # runs against the remote workspace
+terraform apply   # review its plan and explicitly approve the apply
 ```
 
-Add a new subdomain? Add a resource block to `dns.tf` and **merge to `main`** —
-Terraform Cloud plans and applies automatically (see "State & CI" below).
-Change an env var? Edit `vercel.tf`, merge. Use `terraform plan` locally first
-if you want to preview.
+Add a new subdomain? Add the DNS and project-domain resources and follow the
+plan/apply workflow above. `studio.tf` isolates the public Short Studio site;
+its source is in `apps/studio-info`. Never apply unrelated replacements or
+deletions just to deploy a new site.
 
 ## State & CI
 
 State and runs live in **Terraform Cloud** (HCP Terraform), workspace
-`zervo/infra`, configured via the `cloud {}` block in `main.tf`. The GitHub
-repo is connected to that workspace over VCS with **auto-apply on**, so any
-merge to `main` that touches `infra/**` automatically plans and applies — no
-local `terraform apply` needed. PRs get a speculative plan as a status check.
+`zervo/infra`, configured via the `cloud {}` block in `main.tf`. The live
+workspace was checked on 2026-09-06: execution mode is **remote**, no VCS
+repository is connected, and **auto-apply is off**. CLI-triggered runs use
+the workspace's credentials and remote state. GitHub pushes still trigger
+the separate Vercel app deployments, but not Terraform infrastructure runs.
 
 `terraform.tfstate` is no longer used locally (the old local state was migrated
 in during bootstrap). You can still run `terraform plan` locally for previews;
 it talks to the same remote workspace.
 
-### First-time bootstrap (one-time, done once per environment)
+### Bootstrap and optional VCS automation (not fully enabled)
 
 1. Create a free Terraform Cloud account at https://app.terraform.io and an
    **organization** named `zervo` (if that org name is taken, pick another and
@@ -70,8 +74,9 @@ it talks to the same remote workspace.
    **Auto apply**. Optionally restrict triggers to the `infra/` path.
 5. Merge a trivial infra change to confirm the run fires and applies.
 
-After step 5, the workflow you wanted is live: edit `*.tf` → open PR (see the
-plan) → merge → auto-applied.
+Steps 1–3 describe the existing remote-state setup. Steps 4–5 are optional
+future automation and were **not enabled** when the workspace was checked.
+Do not assume merge-to-apply is active without verifying the live settings.
 
 ## One-time manual steps that don't live in code
 
